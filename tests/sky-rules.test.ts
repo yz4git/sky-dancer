@@ -3,9 +3,22 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import * as THREE from "three";
 import { CartArenaSession } from "../src/cart/CartArenaSession";
+import {
+  SKY_DANCER_ENEMY_PREFERRED_STANDOFF,
+  skyDancerAvoidanceHeading,
+  skyDancerEnemySafetyRadius,
+} from "../src/sky/SkyDancerFlightAvoidance";
+import { SKY_DANCER_PRESENTATION_ALTITUDE_METERS } from "../src/sky/SkyDancerAirCombatFxV7";
 
 const FIXED_STEP = 1 / 60;
 const DRIVE_INPUT = { throttle: 0.84, brake: 0, steer: 0, boost: false } as const;
+
+function normalizeAngle(value: number): number {
+  let angle = value;
+  while (angle > Math.PI) angle -= Math.PI * 2;
+  while (angle < -Math.PI) angle += Math.PI * 2;
+  return angle;
+}
 
 test("Sky Dancer starts from the Cart Rogue arena contract", () => {
   const session = new CartArenaSession();
@@ -99,4 +112,29 @@ test("V3 corrects nozzle discs, removes the primitive missile glow and adds alti
   assert.match(source, /sky-dancer-ground-road-network-v3/);
   assert.match(source, /sky-dancer-distant-city-v3/);
   assert.match(source, /sky-dancer-horizon-haze-v3/);
+});
+
+test("enemy flight guidance breaks away before entering the player's airframe", () => {
+  const safety = skyDancerEnemySafetyRadius(1.75);
+  assert.ok(safety > 5.5);
+  assert.ok(SKY_DANCER_ENEMY_PREFERRED_STANDOFF > safety);
+
+  const closeHeading = skyDancerAvoidanceHeading(0, 0, 0, 5, 0, 5, 1);
+  const directHeading = 0;
+  assert.ok(Math.abs(normalizeAngle(closeHeading - directHeading)) > 2.4, "close enemy should turn away, not continue a head-on pass");
+
+  const missileZoneHeading = skyDancerAvoidanceHeading(0, 0, 0, 14, 0, 14, 1);
+  assert.ok(Math.abs(normalizeAngle(missileZoneHeading - directHeading)) <= 0.58, "missile-zone crank should retain firing alignment");
+});
+
+test("V7 increases fighter bank, removes the player torus and lowers presentation altitude", () => {
+  const source = readFileSync(new URL("../src/sky/SkyDancerAirCombatFxV7.ts", import.meta.url), "utf8");
+  assert.equal(SKY_DANCER_PRESENTATION_ALTITUDE_METERS, 105);
+  assert.match(source, /targetPlayerBank/);
+  assert.match(source, /-0\.82, 0\.82/);
+  assert.match(source, /targetBank.*-0\.86, 0\.86/);
+  assert.match(source, /cameraFlightRoll/);
+  assert.match(source, /object\.geometry\.type === "TorusGeometry"\) object\.visible = false/);
+  assert.match(source, /LOW_ALTITUDE_GROUND_SHIFT = 12/);
+  assert.match(source, /skyDancerAltitudeMeters = SKY_DANCER_PRESENTATION_ALTITUDE_METERS/);
 });
