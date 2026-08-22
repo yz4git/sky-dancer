@@ -33,8 +33,6 @@ page.on("pageerror", (error) => pageErrors.push(String(error)));
 await page.goto(baseUrl, { waitUntil: "networkidle", timeout: 60_000 });
 await page.screenshot({ path: `${outputDir}/00-startup.png`, fullPage: true });
 
-// Production audits auto-start in webdriver mode. Keep a click fallback so the
-// runner also survives if that behavior is later removed.
 const start = page.getByRole("button", { name: /START(?: HARD)? RUN/i });
 if (await start.isVisible().catch(() => false)) await start.click();
 
@@ -42,8 +40,6 @@ const webglCanvas = page.locator('canvas[aria-label="Sky Dancer WebGL game view"
 await webglCanvas.waitFor({ state: "visible", timeout: 30_000 });
 await page.waitForTimeout(1_600);
 
-// Verify the actual rendered canvas rather than relying on a HUD badge that can
-// intentionally be hidden by compact/iPhone CSS.
 const webgl = await webglCanvas.evaluate((canvas) => {
   const gl = canvas.getContext("webgl2") || canvas.getContext("webgl");
   if (!gl) return { ok: false };
@@ -64,12 +60,14 @@ if (!webgl.ok) throw new Error("WebGL context was not created");
 await page.screenshot({ path: `${outputDir}/01-gameplay-start.png`, fullPage: true });
 await webglCanvas.screenshot({ path: `${outputDir}/01-gameplay-start-canvas.png` });
 
+// Capture the aircraft while steering is still held so the screenshot measures
+// the actual turn bank instead of the return-to-level animation.
 await page.keyboard.down("ArrowRight");
-await page.waitForTimeout(1_500);
-await page.keyboard.up("ArrowRight");
-await page.waitForTimeout(700);
+await page.waitForTimeout(1_350);
 await page.screenshot({ path: `${outputDir}/02-banked-turn.png`, fullPage: true });
 await webglCanvas.screenshot({ path: `${outputDir}/02-banked-turn-canvas.png` });
+await page.keyboard.up("ArrowRight");
+await page.waitForTimeout(420);
 
 await page.keyboard.down("Space");
 await page.waitForTimeout(1_200);
@@ -97,8 +95,5 @@ const diagnostics = {
 };
 await writeFile(`${outputDir}/diagnostics.json`, JSON.stringify(diagnostics, null, 2));
 
-if (pageErrors.length) {
-  throw new Error(`Page errors during WebGL audit: ${pageErrors.join(" | ")}`);
-}
-
+if (pageErrors.length) throw new Error(`Page errors during WebGL audit: ${pageErrors.join(" | ")}`);
 await browser.close();
