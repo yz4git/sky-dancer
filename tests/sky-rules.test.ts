@@ -89,3 +89,14 @@ test("Canvas fallback stores historical world positions instead of drawing fight
   assert.match(source, /drawMissileTrails/);
   assert.doesNotMatch(source, /lineTo\(side \* 1\.9 \* s, \(boss \? 5\.4 : 4\.5\) \* s\)/);
 });
+
+test("V3 corrects nozzle discs, removes the primitive missile glow and adds altitude scale cues", () => {
+  const source = readFileSync(new URL("../src/sky/SkyDancerAirCombatFxV3.ts", import.meta.url), "utf8");
+  assert.match(source, /object\.geometry\.type !== "CircleGeometry"/);
+  assert.match(source, /object\.geometry\.rotateX\(-Math\.PI \/ 2\)/);
+  assert.match(source, /inheritedGlow\.visible = false/);
+  assert.match(source, /addAircraftDetailPass/);
+  assert.match(source, /sky-dancer-ground-road-network-v3/);
+  assert.match(source, /sky-dancer-distant-city-v3/);
+  assert.match(source, /sky-dancer-horizon-haze-v3/);
+});
