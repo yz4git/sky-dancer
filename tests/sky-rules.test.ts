@@ -69,7 +69,7 @@ test("aircraft exhaust geometry points backward on the -Z flight axis", () => {
   assert.ok(rearRadius < frontRadius * 0.25, `rear flame tip should taper on -Z, got ${rearRadius} vs ${frontRadius}`);
 });
 
-test("air combat FX records wing and missile trails in world space instead of attaching fixed vapor cylinders", () => {
+test("WebGL air combat FX records wing and missile trails in world space", () => {
   const source = readFileSync(new URL("../src/sky/SkyDancerAirCombatFxV2.ts", import.meta.url), "utf8");
   assert.match(source, /class WorldRibbonTrail/);
   assert.match(source, /localToWorld\(new THREE\.Vector3\(-state\.wingSpan/);
@@ -78,4 +78,14 @@ test("air combat FX records wing and missile trails in world space instead of at
   assert.match(source, /geometry\.rotateX\(-Math\.PI \/ 2\)/);
   assert.match(source, /flame\.mesh\.scale\.z = flame\.baseLength/);
   assert.doesNotMatch(source, /new THREE\.CylinderGeometry\(0\.035, 0\.16, length/);
+});
+
+test("Canvas fallback stores historical world positions instead of drawing fighter-attached vapor sticks", () => {
+  const source = readFileSync(new URL("../src/sky/SkyDancerCanvasPreviewV2.ts", import.meta.url), "utf8");
+  assert.match(source, /interface TrailPoint/);
+  assert.match(source, /localPoint\(x, z, heading, -wingSpan, -0\.58\)/);
+  assert.match(source, /trail\.points\.push\(\{ x: missile\.x, z: missile\.z, age: 0 \}\)/);
+  assert.match(source, /drawAircraftTrails/);
+  assert.match(source, /drawMissileTrails/);
+  assert.doesNotMatch(source, /lineTo\(side \* 1\.9 \* s, \(boss \? 5\.4 : 4\.5\) \* s\)/);
 });
