@@ -10,6 +10,7 @@ const browser = await chromium.launch({
   args: [
     "--use-angle=swiftshader",
     "--enable-webgl",
+    "--enable-unsafe-swiftshader",
     "--ignore-gpu-blocklist",
     "--disable-dev-shm-usage",
   ],
@@ -30,14 +31,16 @@ page.on("console", (message) => {
 page.on("pageerror", (error) => pageErrors.push(String(error)));
 
 await page.goto(baseUrl, { waitUntil: "networkidle", timeout: 60_000 });
-await page.screenshot({ path: `${outputDir}/00-title.png`, fullPage: true });
+await page.screenshot({ path: `${outputDir}/00-startup.png`, fullPage: true });
 
-const start = page.getByRole("button", { name: /START RUN/i });
-await start.waitFor({ state: "visible", timeout: 20_000 });
-await start.click();
+// Production audits auto-start in webdriver mode. Keep a click fallback so the
+// runner also survives if that behavior is later removed.
+const start = page.getByRole("button", { name: /START(?: HARD)? RUN/i });
+if (await start.isVisible().catch(() => false)) await start.click();
 
 const webglCanvas = page.locator('canvas[aria-label="Sky Dancer WebGL game view"]');
 await webglCanvas.waitFor({ state: "visible", timeout: 30_000 });
+await page.getByText("WEBGL", { exact: true }).waitFor({ state: "visible", timeout: 30_000 });
 await page.waitForTimeout(1_600);
 
 const webgl = await webglCanvas.evaluate((canvas) => {
@@ -60,7 +63,6 @@ if (!webgl.ok) throw new Error("WebGL context was not created");
 await page.screenshot({ path: `${outputDir}/01-gameplay-start.png`, fullPage: true });
 await webglCanvas.screenshot({ path: `${outputDir}/01-gameplay-start-canvas.png` });
 
-// Exercise steering so banking and world-space wing trails appear.
 await page.keyboard.down("ArrowRight");
 await page.waitForTimeout(1_500);
 await page.keyboard.up("ArrowRight");
@@ -68,7 +70,6 @@ await page.waitForTimeout(700);
 await page.screenshot({ path: `${outputDir}/02-banked-turn.png`, fullPage: true });
 await webglCanvas.screenshot({ path: `${outputDir}/02-banked-turn-canvas.png` });
 
-// Exercise Turbo/boost presentation.
 await page.keyboard.down("Space");
 await page.waitForTimeout(1_200);
 await page.keyboard.up("Space");
@@ -76,7 +77,6 @@ await page.waitForTimeout(450);
 await page.screenshot({ path: `${outputDir}/03-turbo.png`, fullPage: true });
 await webglCanvas.screenshot({ path: `${outputDir}/03-turbo-canvas.png` });
 
-// Let enemy aircraft and missile attacks develop naturally.
 await page.keyboard.down("ArrowLeft");
 await page.waitForTimeout(900);
 await page.keyboard.up("ArrowLeft");
