@@ -88,14 +88,9 @@ function applyTurboDriftHold(session: Phase15Session, input: RallyInputState, de
   const speed = Math.abs(car.forwardVelocity);
   const direction = Math.sign(car.forwardVelocity || 1);
 
-  if (speed > CART_TURBO_DRIFT_MIN_SPEED) {
-    const damping = Math.pow(0.995 - charge * 0.001, delta * 60);
-    car.forwardVelocity *= damping;
-    if (Math.abs(car.forwardVelocity) < CART_TURBO_DRIFT_MIN_SPEED) {
-      car.forwardVelocity = direction * CART_TURBO_DRIFT_MIN_SPEED;
-    }
-  }
-
+  // Sky Dancer keeps full forward thrust while the Turbo button is held.
+  // Charging still adds the sideways slip/yaw that makes the hold phase a drift,
+  // but it no longer bleeds forward speed like the original ground-cart pivot.
   if (steerMagnitude > 0.035) {
     const yawRate = (0.3 + charge * 0.36) * steerMagnitude;
     car.heading = normalizeAngle(car.heading + Math.sign(steer) * direction * yawRate * delta);
@@ -197,7 +192,7 @@ export function installCartRoguePhase15Turbo(): void {
     const transformed: RallyInputState = {
       ...input,
       boost: releasedThisStep,
-      throttle: heldNow ? Math.min(input.throttle, 0.24) : input.throttle,
+      throttle: input.throttle,
       brake: input.brake,
       steer: heldNow ? input.steer * 0.68 : input.steer,
     };
