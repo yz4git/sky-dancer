@@ -9,6 +9,7 @@ import CartTurboHuntHudOverlay from "./CartTurboHuntHudOverlay";
 import CartCombatReadabilityPass from "./CartCombatReadabilityPass";
 import CartGameMenu from "./CartGameMenu";
 import SkyDancerHudQualityPass from "./SkyDancerHudQualityPass";
+import SkyDancerShotControl from "./SkyDancerShotControl";
 
 export default function CartRogueGamePhase13() {
   const [started, setStarted] = useState(false);
@@ -38,6 +39,7 @@ export default function CartRogueGamePhase13() {
         <CartTurboHuntHudOverlay />
         <CartCombatReadabilityPass />
         <SkyDancerHudQualityPass />
+        <SkyDancerShotControl />
       </Fragment>
     )}
     <CartGameMenu
