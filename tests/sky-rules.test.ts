@@ -117,12 +117,13 @@ test("enemy guidance keeps missile alignment but breaks away before contact", ()
   assert.match(runtime, /applyCollisionAvoidance\(this as unknown as AvoidanceSessionView, delta\)/);
 });
 
-test("V7 increases fighter bank and lowers presentation altitude", () => {
+test("V7 drives fighter roll from actual turn rate and lowers presentation altitude", () => {
   const source = readFileSync(new URL("../src/sky/SkyDancerAirCombatFxV7.ts", import.meta.url), "utf8");
   assert.match(source, /SKY_DANCER_PRESENTATION_ALTITUDE_METERS = 105/);
-  assert.match(source, /targetPlayerBank/);
-  assert.match(source, /-0\.82, 0\.82/);
-  assert.match(source, /targetBank.*-0\.86, 0\.86/);
+  assert.match(source, /previousPlayerHeading/);
+  assert.match(source, /turnRate = normalizeAngle/);
+  assert.match(source, /turnBank = THREE\.MathUtils\.clamp\(-turnRate \* 0\.78, -0\.98, 0\.98\)/);
+  assert.match(source, /targetBank = THREE\.MathUtils\.clamp\(-angularRate \* 0\.68, -0\.98, 0\.98\)/);
   assert.match(source, /cameraFlightRoll/);
   assert.match(source, /LOW_ALTITUDE_GROUND_SHIFT = 12/);
 });
