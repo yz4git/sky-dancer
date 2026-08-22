@@ -89,16 +89,18 @@ test("enemy guidance starts its break-away much farther from the player", () => 
 
   const direct = 0;
   const close = skyDancerAvoidanceHeading(0, 0, 0, 12, 0, 12, 1);
-  assert.ok(Math.abs(skyDancerNormalizeAngle(close - direct)) > 2.3, "12-unit encounter should already be a peel-away");
+  assert.ok(Math.abs(skyDancerNormalizeAngle(close - direct)) > 2.3);
 
   const missileZone = skyDancerAvoidanceHeading(0, 0, 0, 22, 0, 22, 1);
   const crank = Math.abs(skyDancerNormalizeAngle(missileZone - direct));
-  assert.ok(crank >= 0.5 && crank <= 0.8, `expected missile-zone crank, got ${crank}`);
+  assert.ok(crank >= 0.5 && crank <= 0.8);
 
   const runtime = readFileSync(new URL("../src/sky/SkyDancerFlightAvoidance.ts", import.meta.url), "utf8");
   assert.match(runtime, /const lookAhead = 0\.95/);
   assert.match(runtime, /predictedDistance < safetyRadius \+ 5\.4/);
   assert.match(runtime, /distance < 34/);
+  assert.match(runtime, /if \(distance < preferred && distance > 0\.001\)/);
+  assert.match(runtime, /const outwardSpeed = Math\.min\(6\.5/);
 });
 
 test("Turbo hold keeps forward throttle while preserving drift yaw and slip", () => {
@@ -141,27 +143,34 @@ test("V8 removes residual scene-level player-underfoot radial rings", () => {
   assert.match(source, /sky-dancer-air-gate-/);
 });
 
-test("V9 fills the low-altitude world and replaces the cheap Turbo cone", () => {
+test("V9 replaces the cheap Turbo cone with layered jet structure", () => {
   const source = readFileSync(new URL("../src/sky/SkyDancerAirCombatFxV9.ts", import.meta.url), "utf8");
-  assert.match(source, /sky-dancer-q9-forest-canopy/);
-  assert.match(source, /sky-dancer-q9-settlement-grid/);
-  assert.match(source, /sky-dancer-q9-village-roofs/);
-  assert.match(source, /sky-dancer-q9-primary-roads/);
-  assert.match(source, /sky-dancer-q9-lakes/);
-  assert.match(source, /sky-dancer-q9-utility-towers/);
   assert.match(source, /sky-dancer-q9-shock-diamond/);
   assert.match(source, /sky-dancer-q9-exhaust-ring/);
+  assert.match(source, /sky-dancer-q9-turbo-plume/);
   assert.match(source, /object\.name === "sky-dancer-jet-flame-v2"/);
 });
 
 test("V10 renders player missiles and exposes the Shot fire hook", () => {
   const source = readFileSync(new URL("../src/sky/SkyDancerAirCombatFxV10.ts", import.meta.url), "utf8");
-  const entry = readFileSync(new URL("../src/sky/SkyDancerAirCombatFx.ts", import.meta.url), "utf8");
   assert.match(source, /__skyDancerFireMissile/);
   assert.match(source, /sky-dancer-q10-player-missiles/);
   assert.match(source, /getSkyDancerPlayerWeaponState/);
   assert.match(source, /requestSkyDancerPlayerMissile/);
-  assert.match(entry, /SkyDancerAirCombatFxV10/);
+});
+
+test("V11 fills route-scale empty ground and broadens Turbo/Shot presentation", () => {
+  const source = readFileSync(new URL("../src/sky/SkyDancerAirCombatFxV11.ts", import.meta.url), "utf8");
+  const entry = readFileSync(new URL("../src/sky/SkyDancerAirCombatFx.ts", import.meta.url), "utf8");
+  assert.match(source, /sky-dancer-q11-route-parcels/);
+  assert.match(source, /sky-dancer-q11-hedgerows/);
+  assert.match(source, /sky-dancer-q11-route-towns/);
+  assert.match(source, /sky-dancer-q11-highways/);
+  assert.match(source, /sky-dancer-q11-landmarks/);
+  assert.match(source, /sky-dancer-q11-turbo-ribbon/);
+  assert.match(source, /sky-dancer-q11-muzzle-flash/);
+  assert.match(source, /object\.scale\.setScalar\(1\.42\)/);
+  assert.match(entry, /SkyDancerAirCombatFxV11/);
 });
 
 test("Canvas V4 exposes Shot firing and draws player missiles", () => {
