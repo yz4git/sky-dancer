@@ -6,6 +6,7 @@ test("Sky Dancer uses the Cart WebGL renderer with Sky presentation and Canvas f
   const skyWebgl = await readFile(new URL("../src/sky/SkyDancerWebGLDemo.ts", import.meta.url), "utf8");
   const cartWebgl = await readFile(new URL("../src/cart/CartRogueWebGLDemo.ts", import.meta.url), "utf8");
   const canvasEntry = await readFile(new URL("../src/sky/SkyDancerCanvasPreview.ts", import.meta.url), "utf8");
+  const canvasV3 = await readFile(new URL("../src/sky/SkyDancerCanvasPreviewV3.ts", import.meta.url), "utf8");
   const canvasV2 = await readFile(new URL("../src/sky/SkyDancerCanvasPreviewV2.ts", import.meta.url), "utf8");
   const cartCanvas = await readFile(new URL("../src/cart/CartRogueCanvasPreview.ts", import.meta.url), "utf8");
   const game = await readFile(new URL("../app/CartRogueGame.tsx", import.meta.url), "utf8");
@@ -17,7 +18,9 @@ test("Sky Dancer uses the Cart WebGL renderer with Sky presentation and Canvas f
   assert.match(cartWebgl, /setPixelRatio/);
   assert.match(cartWebgl, /requestAnimationFrame/);
 
-  assert.match(canvasEntry, /SkyDancerCanvasPreviewV2/);
+  assert.match(canvasEntry, /SkyDancerCanvasPreviewV3/);
+  assert.match(canvasV3, /extends SkyDancerCanvasPreviewV2/);
+  assert.match(canvasV3, /installSkyDancerFlightAvoidance/);
   assert.match(canvasV2, /extends CartRogueCanvasPreview/);
   assert.match(cartCanvas, /CanvasRenderingContext2D/);
   assert.match(cartCanvas, /requestAnimationFrame/);
