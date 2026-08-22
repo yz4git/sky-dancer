@@ -2,6 +2,21 @@ import type { RallyInputState } from "../rally/RallyTypes";
 import { CartArenaSession } from "../cart/CartArenaSession";
 import type { CartEnemyState } from "../cart/CartCombat";
 import { installSkyDancerFlightCombat } from "./SkyDancerFlightCombat";
+import {
+  SKY_DANCER_ENEMY_PREFERRED_STANDOFF,
+  skyDancerAvoidanceHeading,
+  skyDancerClamp,
+  skyDancerEnemySafetyRadius,
+  skyDancerNormalizeAngle,
+  skyDancerRotateToward,
+} from "./SkyDancerFlightAvoidanceMath";
+
+export {
+  SKY_DANCER_ENEMY_HARD_CLEARANCE,
+  SKY_DANCER_ENEMY_PREFERRED_STANDOFF,
+  skyDancerAvoidanceHeading,
+  skyDancerEnemySafetyRadius,
+} from "./SkyDancerFlightAvoidanceMath";
 
 interface AvoidanceSessionView {
   enemies: CartEnemyState[];
@@ -20,26 +35,6 @@ interface AvoidanceSessionView {
 }
 
 const PATCHED_KEY = "__skyDancerFlightAvoidanceInstalled__";
-const PLAYER_BODY_RADIUS = 1.45;
-
-export const SKY_DANCER_ENEMY_PREFERRED_STANDOFF = 13;
-export const SKY_DANCER_ENEMY_HARD_CLEARANCE = 2.8;
-
-function clamp(value: number, min: number, max: number): number {
-  return Math.max(min, Math.min(max, value));
-}
-
-function normalizeAngle(value: number): number {
-  let angle = value;
-  while (angle > Math.PI) angle -= Math.PI * 2;
-  while (angle < -Math.PI) angle += Math.PI * 2;
-  return angle;
-}
-
-function rotateToward(current: number, target: number, maxTurn: number): number {
-  const delta = normalizeAngle(target - current);
-  return normalizeAngle(current + clamp(delta, -maxTurn, maxTurn));
-}
 
 function stableSide(id: string): number {
   let hash = 2166136261;
@@ -66,39 +61,6 @@ function turnRate(enemy: CartEnemyState): number {
   if (enemy.archetype === "drifter") return 1.42;
   if (enemy.archetype === "striker") return 1.26;
   return 1.12;
-}
-
-export function skyDancerEnemySafetyRadius(enemyRadius: number): number {
-  return PLAYER_BODY_RADIUS + Math.max(0.5, enemyRadius) + SKY_DANCER_ENEMY_HARD_CLEARANCE;
-}
-
-export function skyDancerAvoidanceHeading(
-  enemyX: number,
-  enemyZ: number,
-  playerX: number,
-  playerZ: number,
-  playerHeading: number,
-  distance: number,
-  side: number,
-): number {
-  const direct = Math.atan2(playerX - enemyX, playerZ - enemyZ);
-
-  // Inside the standoff bubble, stop flying the nose through the player.
-  // Break outward while retaining a lateral component so it reads as a fighter
-  // peel-off rather than an arcade car bouncing away.
-  if (distance < 10.5) return normalizeAngle(direct + Math.PI + side * 0.42);
-
-  // Missile attack zone: keep the nose close enough to the target for a shot,
-  // but crank sideways so the pass naturally misses the player's airframe.
-  if (distance < 17.5) return normalizeAngle(direct + side * 0.42);
-
-  // At longer range, lead the player's flight path rather than homing directly
-  // at the current position. A small lateral bias prevents repeated head-ons.
-  const lead = clamp(distance * 0.20, 3.2, 9.0);
-  const targetX = playerX + Math.sin(playerHeading) * lead;
-  const targetZ = playerZ + Math.cos(playerHeading) * lead;
-  const intercept = Math.atan2(targetX - enemyX, targetZ - enemyZ);
-  return normalizeAngle(intercept + side * (distance < 28 ? 0.16 : 0.08));
 }
 
 function applyCollisionAvoidance(session: AvoidanceSessionView, delta: number): void {
@@ -135,10 +97,8 @@ function applyCollisionAvoidance(session: AvoidanceSessionView, delta: number): 
         : distance < 20
           ? 1.12
           : 0.72;
-    enemy.heading = rotateToward(enemy.heading, desired, turnRate(enemy) * urgency * delta);
+    enemy.heading = skyDancerRotateToward(enemy.heading, desired, turnRate(enemy) * urgency * delta);
 
-    // Predict roughly two thirds of a second ahead. If both aircraft are still
-    // converging inside the safety bubble, start the break before the models touch.
     const lookAhead = 0.65;
     const playerTravel = Math.min(10, playerSpeed * lookAhead);
     const predictedPlayerX = px + Math.sin(playerHeading) * playerTravel;
@@ -148,13 +108,10 @@ function applyCollisionAvoidance(session: AvoidanceSessionView, delta: number): 
     const predictedEnemyZ = enemy.z + Math.cos(enemy.heading) * enemyTravel;
     const predictedDistance = Math.hypot(predictedEnemyX - predictedPlayerX, predictedEnemyZ - predictedPlayerZ);
     if (predictedDistance < safetyRadius + 2.4 && distance < 22) {
-      const awayHeading = normalizeAngle(Math.atan2(px - enemy.x, pz - enemy.z) + Math.PI + side * 0.62);
-      enemy.heading = rotateToward(enemy.heading, awayHeading, turnRate(enemy) * 2.0 * delta);
+      const awayHeading = skyDancerNormalizeAngle(Math.atan2(px - enemy.x, pz - enemy.z) + Math.PI + side * 0.62);
+      enemy.heading = skyDancerRotateToward(enemy.heading, awayHeading, turnRate(enemy) * 2.0 * delta);
     }
 
-    // Last-resort separation. This happens after the inherited step, so the next
-    // fixed step starts outside contact range while player-initiated rams remain
-    // possible if the player deliberately closes the gap again.
     if (distance < safetyRadius) {
       if (distance < 0.001) {
         awayX = Math.cos(playerHeading) * side;
@@ -165,12 +122,12 @@ function applyCollisionAvoidance(session: AvoidanceSessionView, delta: number): 
       enemy.x = px + awayX * inv * safetyRadius;
       enemy.z = pz + awayZ * inv * safetyRadius;
       const awayHeading = Math.atan2(enemy.x - px, enemy.z - pz);
-      enemy.heading = rotateToward(enemy.heading, awayHeading, turnRate(enemy) * 2.6 * delta);
+      enemy.heading = skyDancerRotateToward(enemy.heading, awayHeading, turnRate(enemy) * 2.6 * delta);
     }
 
     const margin = 2.4;
-    enemy.x = clamp(enemy.x, bounds.centerX - bounds.halfWidth + margin, bounds.centerX + bounds.halfWidth - margin);
-    enemy.z = clamp(enemy.z, bounds.centerZ - bounds.halfDepth + margin, bounds.centerZ + bounds.halfDepth - margin);
+    enemy.x = skyDancerClamp(enemy.x, bounds.centerX - bounds.halfWidth + margin, bounds.centerX + bounds.halfWidth - margin);
+    enemy.z = skyDancerClamp(enemy.z, bounds.centerZ - bounds.halfDepth + margin, bounds.centerZ + bounds.halfDepth - margin);
   }
 }
 
