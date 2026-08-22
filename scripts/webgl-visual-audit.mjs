@@ -101,3 +101,5 @@ if (pageErrors.length) {
 }
 
 await browser.close();
+
+// This comment intentionally triggers a pull-request audit that ChatGPT can retrieve.
