@@ -1,36 +1,80 @@
-name: Sky Dancer WebGL Smoke Audit
+name: Sky Dancer WebGL Visual Audit
 
 on:
   workflow_dispatch:
   push:
     branches: [main]
+    paths:
+      - "app/**"
+      - "src/sky/**"
+      - "public/**"
+      - "scripts/webgl-visual-audit.mjs"
+      - "tests/**"
+      - "package.json"
+      - ".github/workflows/webgl-audit.yml"
   pull_request:
     branches: [main]
     paths:
       - "app/**"
       - "src/sky/**"
       - "public/**"
+      - "scripts/webgl-visual-audit.mjs"
       - "tests/**"
       - "package.json"
+      - ".github/workflows/webgl-audit.yml"
 
 permissions:
   contents: read
 
 jobs:
-  build:
+  visual-audit:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: 22.13.0
           cache: npm
-      - name: Install dependencies
+
+      - name: Install project dependencies
         run: npm ci --no-audit --no-fund
+
+      - name: Install Playwright for audit only
+        run: |
+          npm install --no-save --package-lock=false playwright@1.55.0
+          npx playwright install --with-deps chromium
+
       - name: Build Pages artifact
         run: npm run build:pages
+
       - name: Check artifact
         run: test -s out/index.html
+
+      - name: Start production preview
+        run: |
+          python3 -m http.server 4173 --bind 127.0.0.1 --directory out > /tmp/sky-dancer-http.log 2>&1 &
+          echo $! > /tmp/sky-dancer-http.pid
+          for i in {1..30}; do
+            if curl -fsS http://127.0.0.1:4173/ >/dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          cat /tmp/sky-dancer-http.log
+          exit 1
+
+      - name: Capture real WebGL frames
+        run: node scripts/webgl-visual-audit.mjs
+
+      - name: Upload WebGL visual audit
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sky-dancer-webgl-audit-${{ github.sha }}
+          path: artifacts/webgl-audit
+          if-no-files-found: error
+          retention-days: 14
