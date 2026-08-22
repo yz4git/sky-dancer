@@ -16,6 +16,10 @@ interface CanvasRuntimeView {
 
 /** Canvas fallback using Cart Rogue progression with Sky Dancer flight combat. */
 export class SkyDancerCanvasPreview extends CartRogueCanvasPreview {
+  private missileHitSerial = 0;
+  private damageStartMs = 0;
+  private damageUntilMs = 0;
+
   constructor(mount: HTMLElement, onSnapshot: CartRogueSnapshotHandler) {
     super(mount, onSnapshot);
     installSkyDancerFlightCombat();
@@ -31,6 +35,13 @@ export class SkyDancerCanvasPreview extends CartRogueCanvasPreview {
     const missiles = getSkyDancerMissileState(runtime.session);
     const width = canvas.clientWidth || canvas.width;
     const height = canvas.clientHeight || canvas.height;
+    const now = performance.now();
+
+    if (missiles.hitSerial > this.missileHitSerial) {
+      this.missileHitSerial = missiles.hitSerial;
+      this.damageStartMs = now;
+      this.damageUntilMs = now + 1350;
+    }
 
     ctx.clearRect(0, 0, width, height);
     const gradient = ctx.createLinearGradient(0, 0, 0, height);
@@ -47,6 +58,14 @@ export class SkyDancerCanvasPreview extends CartRogueCanvasPreview {
       x: centerX + (x - snapshot.x) * scale,
       y: centerZ - (z - snapshot.z) * scale,
     });
+
+    const damageActive = now < this.damageUntilMs;
+    if (damageActive) {
+      const age = Math.max(0, (now - this.damageStartMs) / 1000);
+      const shake = Math.max(0, 1 - age / 0.48);
+      ctx.save();
+      ctx.translate(Math.sin(now * 0.11) * shake * 7, Math.cos(now * 0.137) * shake * 5);
+    }
 
     this.drawTerrain150m(ctx, width, height, snapshot.x, snapshot.z);
     this.drawCloudLayer(ctx, width, height, snapshot.x, snapshot.z);
@@ -109,7 +128,7 @@ export class SkyDancerCanvasPreview extends CartRogueCanvasPreview {
       const p = worldToScreen(enemy.x, enemy.z);
       const primary = enemy.kind === "boss" ? "#34384d" : enemy.kind === "heavy" ? "#a45c86" : enemy.kind === "chaser" ? "#75b8d9" : "#e5a957";
       const accent = enemy.kind === "boss" ? "#ff5e6f" : enemy.kind === "heavy" ? "#e3b4d2" : enemy.kind === "chaser" ? "#d9f6ff" : "#ffefb2";
-      this.drawFighter(ctx, p.x, p.y, enemy.heading, enemy.radius * scale, primary, accent, enemy.kind === "boss");
+      this.drawFighter(ctx, p.x, p.y, enemy.heading, enemy.radius * scale, primary, accent, enemy.kind === "boss", true);
       const ratio = Math.max(0, Math.min(1, enemy.hp / Math.max(1, enemy.maxHp)));
       ctx.fillStyle = "rgba(28,46,66,.88)";
       ctx.fillRect(p.x - enemy.radius * scale, p.y - enemy.radius * 1.65 * scale, enemy.radius * 2 * scale, Math.max(2, 0.17 * scale));
@@ -124,6 +143,25 @@ export class SkyDancerCanvasPreview extends CartRogueCanvasPreview {
       ctx.rotate(missile.heading);
       const danger = Math.max(0, Math.min(1, (14 - missile.distanceToPlayer) / 12));
       const s = scale * (0.34 + danger * 0.08);
+
+      const smokeGradient = ctx.createLinearGradient(0, 0.7 * s, 0, 8.2 * s);
+      smokeGradient.addColorStop(0, `rgba(255,244,224,${0.46 + danger * 0.14})`);
+      smokeGradient.addColorStop(0.5, "rgba(226,231,235,.22)");
+      smokeGradient.addColorStop(1, "rgba(184,192,200,0)");
+      ctx.strokeStyle = smokeGradient;
+      ctx.lineWidth = Math.max(2, 0.72 * s);
+      ctx.lineCap = "round";
+      ctx.beginPath();
+      ctx.moveTo(0, 0.7 * s);
+      ctx.lineTo(Math.sin(now * 0.018 + missile.id) * 0.3 * s, 8.2 * s);
+      ctx.stroke();
+
+      ctx.strokeStyle = `rgba(255,178,52,${0.38 + danger * 0.48})`;
+      ctx.lineWidth = Math.max(1, 0.16 * s);
+      ctx.beginPath();
+      ctx.arc(0, -0.6 * s, (1.15 + danger * 0.65) * s, 0, Math.PI * 2);
+      ctx.stroke();
+
       ctx.fillStyle = missile.sourceKind === "boss" ? "#ff4055" : "#eee4cf";
       ctx.beginPath();
       ctx.moveTo(0, -2.0 * s);
@@ -154,6 +192,7 @@ export class SkyDancerCanvasPreview extends CartRogueCanvasPreview {
       snapshot.boostActive ? "#55d8f5" : "#3eb7d7",
       "#e9f8ff",
       false,
+      false,
     );
 
     if (snapshot.boostActive) {
@@ -163,27 +202,35 @@ export class SkyDancerCanvasPreview extends CartRogueCanvasPreview {
       ctx.fillStyle = "rgba(100,225,255,.72)";
       ctx.beginPath();
       ctx.moveTo(-0.45 * scale, 1.25 * scale);
-      ctx.lineTo(0, 3.3 * scale);
+      ctx.lineTo(0, 4.4 * scale);
       ctx.lineTo(0.45 * scale, 1.25 * scale);
       ctx.closePath();
       ctx.fill();
       ctx.restore();
     }
 
+    if (damageActive) {
+      this.drawPlayerDamageSmoke(ctx, centerX, centerZ, snapshot.heading, scale, now);
+      ctx.restore();
+    }
+
     if (missiles.incomingCount > 0) {
       ctx.save();
-      ctx.fillStyle = "rgba(104,12,24,.7)";
-      ctx.strokeStyle = "rgba(255,222,120,.9)";
+      const pulse = 0.72 + Math.sin(now * 0.012) * 0.18;
+      ctx.fillStyle = `rgba(104,12,24,${pulse})`;
+      ctx.strokeStyle = "rgba(255,222,120,.95)";
       ctx.lineWidth = 2;
-      const labelWidth = Math.min(188, width * 0.34);
-      ctx.fillRect(width * 0.5 - labelWidth * 0.5, height * 0.16, labelWidth, 26);
-      ctx.strokeRect(width * 0.5 - labelWidth * 0.5, height * 0.16, labelWidth, 26);
+      const labelWidth = Math.min(198, width * 0.38);
+      ctx.fillRect(width * 0.5 - labelWidth * 0.5, height * 0.16, labelWidth, 28);
+      ctx.strokeRect(width * 0.5 - labelWidth * 0.5, height * 0.16, labelWidth, 28);
       ctx.fillStyle = "#fff1c7";
       ctx.font = "bold 11px system-ui";
       ctx.textAlign = "center";
-      ctx.fillText(`MISSILE INBOUND ×${missiles.incomingCount}`, width * 0.5, height * 0.16 + 17);
+      ctx.fillText(`MISSILE INBOUND ×${missiles.incomingCount}`, width * 0.5, height * 0.16 + 18);
       ctx.restore();
     }
+
+    if (damageActive) this.drawMissileHitOverlay(ctx, width, height, centerX, centerZ, scale, now);
   }
 
   private drawTerrain150m(ctx: CanvasRenderingContext2D, width: number, height: number, worldX: number, worldZ: number): void {
@@ -236,11 +283,33 @@ export class SkyDancerCanvasPreview extends CartRogueCanvasPreview {
     primary: string,
     accent: string,
     boss: boolean,
+    enemy: boolean,
   ): void {
     const s = radius / 1.48;
     ctx.save();
     ctx.translate(x, y);
     ctx.rotate(heading);
+
+    ctx.strokeStyle = enemy ? "rgba(255,236,190,.22)" : "rgba(223,250,255,.34)";
+    ctx.lineWidth = Math.max(1, 0.12 * s);
+    ctx.lineCap = "round";
+    for (const side of [-1, 1]) {
+      ctx.beginPath();
+      ctx.moveTo(side * 1.8 * s, 0.4 * s);
+      ctx.lineTo(side * 1.9 * s, (boss ? 5.4 : 4.5) * s);
+      ctx.stroke();
+    }
+
+    ctx.fillStyle = enemy ? "rgba(255,174,65,.66)" : "rgba(81,222,255,.78)";
+    for (const side of [-1, 1]) {
+      ctx.beginPath();
+      ctx.moveTo(side * 0.28 * s, 1.0 * s);
+      ctx.lineTo(side * 0.05 * s, 3.25 * s);
+      ctx.lineTo(side * 0.52 * s, 1.0 * s);
+      ctx.closePath();
+      ctx.fill();
+    }
+
     ctx.fillStyle = primary;
     ctx.beginPath();
     ctx.moveTo(0, -2.1 * s);
@@ -271,6 +340,96 @@ export class SkyDancerCanvasPreview extends CartRogueCanvasPreview {
       ctx.fillStyle = accent;
       ctx.fillRect(-2.0 * s, 0.42 * s, 0.42 * s, 1.25 * s);
       ctx.fillRect(1.58 * s, 0.42 * s, 0.42 * s, 1.25 * s);
+    }
+    ctx.restore();
+  }
+
+  private drawPlayerDamageSmoke(
+    ctx: CanvasRenderingContext2D,
+    x: number,
+    y: number,
+    heading: number,
+    scale: number,
+    now: number,
+  ): void {
+    const age = Math.max(0, (now - this.damageStartMs) / 1000);
+    const life = Math.max(0, 1 - age / 1.35);
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(heading);
+    for (let index = 0; index < 8; index += 1) {
+      const phase = (age * (0.72 + index * 0.03) + index * 0.13) % 1;
+      const sx = Math.sin(index * 2.2 + age * 4) * scale * (0.12 + phase * 0.22);
+      const sy = scale * (1.1 + phase * (3.4 + index * 0.08));
+      const radius = scale * (0.18 + phase * 0.42);
+      ctx.fillStyle = `rgba(${index % 3 === 0 ? "24,20,22" : "48,52,58"},${life * (1 - phase) * 0.42})`;
+      ctx.beginPath();
+      ctx.arc(sx, sy, radius, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    if (age < 0.75) {
+      const flicker = 0.65 + Math.sin(now * 0.04) * 0.2;
+      ctx.fillStyle = `rgba(255,92,34,${flicker * life})`;
+      ctx.beginPath();
+      ctx.moveTo(-0.5 * scale, 1.0 * scale);
+      ctx.lineTo(-0.2 * scale, 2.6 * scale);
+      ctx.lineTo(0.02 * scale, 1.0 * scale);
+      ctx.closePath();
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  private drawMissileHitOverlay(
+    ctx: CanvasRenderingContext2D,
+    width: number,
+    height: number,
+    centerX: number,
+    centerY: number,
+    scale: number,
+    now: number,
+  ): void {
+    const age = Math.max(0, (now - this.damageStartMs) / 1000);
+    const pulse = Math.max(0, 1 - age / 1.35);
+    ctx.save();
+
+    const vignette = ctx.createRadialGradient(centerX, centerY, Math.min(width, height) * 0.12, centerX, centerY, Math.max(width, height) * 0.68);
+    vignette.addColorStop(0, "rgba(255,40,25,0)");
+    vignette.addColorStop(0.56, `rgba(190,18,24,${pulse * 0.08})`);
+    vignette.addColorStop(1, `rgba(112,0,12,${pulse * 0.58})`);
+    ctx.fillStyle = vignette;
+    ctx.fillRect(0, 0, width, height);
+
+    if (age < 0.16) {
+      ctx.fillStyle = `rgba(255,235,210,${(1 - age / 0.16) * 0.34})`;
+      ctx.fillRect(0, 0, width, height);
+    }
+
+    ctx.strokeStyle = `rgba(255,178,74,${pulse * 0.9})`;
+    ctx.lineWidth = Math.max(2, scale * 0.16);
+    ctx.beginPath();
+    ctx.arc(centerX, centerY, scale * (2.1 + age * 5.5), 0, Math.PI * 2);
+    ctx.stroke();
+
+    for (let index = 0; index < 10; index += 1) {
+      const angle = index / 10 * Math.PI * 2 + now * 0.001;
+      const r1 = scale * (1.2 + age * 3.2);
+      const r2 = r1 + scale * (1.2 + index % 3 * 0.45);
+      ctx.strokeStyle = `rgba(255,222,135,${pulse * 0.78})`;
+      ctx.beginPath();
+      ctx.moveTo(centerX + Math.cos(angle) * r1, centerY + Math.sin(angle) * r1);
+      ctx.lineTo(centerX + Math.cos(angle) * r2, centerY + Math.sin(angle) * r2);
+      ctx.stroke();
+    }
+
+    if (age < 0.72) {
+      ctx.textAlign = "center";
+      ctx.font = `900 ${Math.max(18, Math.min(32, width * 0.038))}px system-ui`;
+      ctx.fillStyle = `rgba(255,242,222,${Math.max(0, 1 - age / 0.72)})`;
+      ctx.strokeStyle = `rgba(112,0,12,${Math.max(0, 1 - age / 0.72)})`;
+      ctx.lineWidth = 5;
+      ctx.strokeText("MISSILE HIT", width * 0.5, height * 0.34);
+      ctx.fillText("MISSILE HIT", width * 0.5, height * 0.34);
     }
     ctx.restore();
   }
