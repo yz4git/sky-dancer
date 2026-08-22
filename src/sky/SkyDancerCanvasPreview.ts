@@ -1,1 +1,1 @@
-export { SkyDancerCanvasPreviewV2 as SkyDancerCanvasPreview } from "./SkyDancerCanvasPreviewV2";
+export { SkyDancerCanvasPreviewV3 as SkyDancerCanvasPreview } from "./SkyDancerCanvasPreviewV3";
