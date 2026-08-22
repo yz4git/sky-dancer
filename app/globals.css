@@ -1,0 +1,58 @@
+:root {
+  color-scheme: dark;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  background: #07152d;
+  color: #effbff;
+}
+
+* { box-sizing: border-box; }
+html, body { width: 100%; height: 100%; margin: 0; min-width: 320px; overflow: hidden; background: #07152d; }
+body { touch-action: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; overscroll-behavior: none; }
+button { font: inherit; cursor: pointer; }
+
+.sky-shell { position: fixed; inset: 0; width: 100vw; height: 100dvh; min-height: var(--sky-visual-height, 100dvh); overflow: hidden; background: #07152d; touch-action: none; isolation: isolate; }
+.sky-viewport { position: absolute; inset: 0; z-index: 0; overflow: hidden; touch-action: none; }
+.sky-canvas { position: absolute; inset: 0; display: block; width: 100%; height: 100%; touch-action: none; }
+.sky-canvas-fallback { background: #07152d; }
+.sky-brand { position: absolute; z-index: 4; top: max(13px, env(safe-area-inset-top)); left: max(16px, env(safe-area-inset-left)); margin: 0; color: rgba(226, 248, 255, .9); font-size: 12px; font-weight: 950; letter-spacing: .18em; text-shadow: 0 2px 12px rgba(0,0,0,.4); pointer-events: none; }
+.sky-brand span { margin-left: 8px; color: rgba(131, 214, 255, .62); font-size: 8px; letter-spacing: .12em; }
+.sky-renderer { position: absolute; z-index: 4; top: max(14px, env(safe-area-inset-top)); right: max(14px, env(safe-area-inset-right)); padding: 5px 8px; border: 1px solid rgba(167, 231, 255, .32); border-radius: 7px; color: rgba(202, 242, 255, .75); background: rgba(4, 14, 34, .5); font-size: 8px; font-weight: 900; letter-spacing: .14em; pointer-events: none; }
+.sky-hud { position: absolute; z-index: 4; top: max(13px, env(safe-area-inset-top)); left: 50%; display: flex; gap: 7px; transform: translateX(-50%); pointer-events: none; }
+.sky-hud-card { display: grid; min-width: 76px; gap: 3px; padding: 7px 10px; border: 1px solid rgba(161, 219, 255, .28); border-radius: 10px; background: rgba(4, 14, 34, .66); box-shadow: 0 7px 20px rgba(0,0,0,.18); backdrop-filter: blur(7px); }
+.sky-hud-card span { color: rgba(187, 220, 242, .68); font-size: 7px; font-weight: 900; letter-spacing: .16em; }
+.sky-hud-card strong { color: #effdff; font-size: 16px; line-height: 1; }
+.sky-hud-card small { color: #8adfff; font-size: 8px; }
+.sky-hud-card.hull { border-color: rgba(255, 214, 104, .5); }
+.sky-hud-card.hull strong { color: #ffd96a; letter-spacing: .07em; font-size: 12px; }
+.sky-hud-card.hull i { color: rgba(222, 235, 246, .24); font-style: normal; }
+.sky-hud-card.target { border-color: rgba(255, 116, 140, .46); }
+.sky-hud-card.target strong { color: #ff8ca5; }
+.sky-message { position: absolute; z-index: 4; top: max(80px, calc(env(safe-area-inset-top) + 70px)); left: 50%; display: grid; gap: 4px; min-width: 145px; padding: 8px 16px; transform: translateX(-50%); border-radius: 99px; color: #ebfaff; background: rgba(4, 14, 34, .46); font-size: 10px; font-weight: 900; letter-spacing: .12em; text-align: center; pointer-events: none; }
+.sky-message strong { color: #ffe27b; font-size: 14px; }
+.sky-message span { color: rgba(161, 222, 255, .7); font-size: 8px; }
+.sky-message.danger { border: 1px solid rgba(255, 104, 113, .62); background: rgba(88, 18, 43, .66); }
+.sky-message.danger strong { color: #ff9b9f; }
+.sky-runtime-note { position: absolute; z-index: 5; top: 25%; left: 50%; width: min(84vw, 420px); padding: 7px 10px; transform: translateX(-50%); border: 1px solid rgba(255, 216, 118, .4); border-radius: 8px; color: #ffe7a2; background: rgba(42, 29, 12, .7); font-size: 9px; text-align: center; pointer-events: none; }
+.sky-move-zone { position: absolute; z-index: 5; inset: 39% auto 0 0; width: 52%; touch-action: none; }
+.sky-move-zone span { position: absolute; left: max(17px, env(safe-area-inset-left)); bottom: max(21px, env(safe-area-inset-bottom)); padding: 8px 11px; border: 1px dashed rgba(182, 233, 255, .32); border-radius: 99px; color: rgba(210, 244, 255, .48); background: rgba(6, 22, 51, .2); font-size: 8px; font-weight: 900; letter-spacing: .16em; pointer-events: none; }
+.sky-move-zone i { position: absolute; left: max(42px, env(safe-area-inset-left) + 25px); bottom: max(62px, calc(env(safe-area-inset-bottom) + 60px)); width: 76px; height: 76px; border: 1px solid rgba(154, 226, 255, .16); border-radius: 50%; box-shadow: inset 0 0 0 15px rgba(98, 191, 255, .035); pointer-events: none; }
+.sky-fire-button { position: absolute; z-index: 6; right: max(22px, env(safe-area-inset-right)); bottom: max(21px, env(safe-area-inset-bottom)); display: grid; place-items: center; width: 100px; height: 100px; gap: 2px; border: 1px solid rgba(255, 224, 125, .88); border-radius: 50%; color: #271b08; background: rgba(255, 202, 85, .94); box-shadow: 0 9px 25px rgba(0,0,0,.3), 0 0 30px rgba(255, 191, 64, .32); touch-action: none; -webkit-tap-highlight-color: transparent; }
+.sky-fire-button strong { font-size: 13px; letter-spacing: .12em; }
+.sky-fire-button small { color: rgba(48, 29, 6, .7); font-size: 12px; font-weight: 900; }
+.sky-fire-button.dim { opacity: .64; }
+.sky-fire-button:active { transform: scale(.93); filter: brightness(1.13); }
+.sky-start-panel { position: absolute; z-index: 8; top: 50%; left: 50%; display: grid; justify-items: center; gap: 9px; width: min(86vw, 350px); padding: 24px 22px 20px; transform: translate(-50%, -50%); border: 1px solid rgba(124, 221, 255, .44); border-radius: 20px; background: rgba(4, 14, 34, .86); box-shadow: 0 20px 70px rgba(0,0,0,.4), 0 0 42px rgba(28, 145, 255, .12); backdrop-filter: blur(13px); text-align: center; }
+.sky-kicker { color: #76dfff; font-size: 8px; font-weight: 900; letter-spacing: .2em; }
+.sky-start-panel h2 { margin: 1px 0 0; color: #f3fcff; font-size: 34px; line-height: 1; letter-spacing: .07em; }
+.sky-start-panel p { margin: 0; color: #b7cfdf; font-size: 11px; line-height: 1.5; }
+.sky-start-button { min-width: 160px; margin-top: 7px; padding: 12px 22px; border: 1px solid rgba(255, 227, 116, .9); border-radius: 11px; color: #291c06; background: #ffd65f; font-size: 12px; font-weight: 950; letter-spacing: .12em; box-shadow: 0 6px 18px rgba(255, 207, 80, .2); }
+.sky-start-button:active { transform: scale(.96); }
+.sky-start-panel small { color: #91b4c6; font-size: 9px; letter-spacing: .05em; }
+
+@media (orientation: portrait) and (max-width: 700px) {
+  .sky-brand span { display: none; }
+  .sky-hud { top: max(60px, calc(env(safe-area-inset-top) + 55px)); }
+  .sky-hud-card { min-width: 62px; padding: 6px; }
+  .sky-message { top: 126px; }
+  .sky-fire-button { width: 82px; height: 82px; }
+}

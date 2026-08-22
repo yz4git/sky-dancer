@@ -1,0 +1,13 @@
+{
+  "id": "./",
+  "name": "Sky Dancer",
+  "short_name": "Sky Dancer",
+  "start_url": "./",
+  "display": "fullscreen",
+  "display_override": ["fullscreen", "standalone"],
+  "orientation": "landscape",
+  "background_color": "#07152d",
+  "theme_color": "#07152d",
+  "icons": [{"src": "./favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any"}],
+  "scope": "./"
+}

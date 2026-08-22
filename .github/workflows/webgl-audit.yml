@@ -1,0 +1,36 @@
+name: Sky Dancer WebGL Smoke Audit
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+    paths:
+      - "app/**"
+      - "src/sky/**"
+      - "public/**"
+      - "tests/**"
+      - "package.json"
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.13.0
+          cache: npm
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Build Pages artifact
+        run: npm run build:pages
+      - name: Check artifact
+        run: test -s out/index.html
