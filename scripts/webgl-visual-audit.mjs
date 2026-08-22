@@ -101,3 +101,5 @@ if (pageErrors.length) {
 }
 
 await browser.close();
+
+// Trigger a PR-scoped audit run that this ChatGPT session can retrieve.
