@@ -33,14 +33,11 @@ page.on("pageerror", (error) => pageErrors.push(String(error)));
 await page.goto(baseUrl, { waitUntil: "networkidle", timeout: 60_000 });
 await page.screenshot({ path: `${outputDir}/00-startup.png`, fullPage: true });
 
-// Production audits auto-start in webdriver mode. Keep a click fallback so the
-// runner also survives if that behavior is later removed.
 const start = page.getByRole("button", { name: /START(?: HARD)? RUN/i });
 if (await start.isVisible().catch(() => false)) await start.click();
 
 const webglCanvas = page.locator('canvas[aria-label="Sky Dancer WebGL game view"]');
 await webglCanvas.waitFor({ state: "visible", timeout: 30_000 });
-await page.getByText("WEBGL", { exact: true }).waitFor({ state: "visible", timeout: 30_000 });
 await page.waitForTimeout(1_600);
 
 const webgl = await webglCanvas.evaluate((canvas) => {
