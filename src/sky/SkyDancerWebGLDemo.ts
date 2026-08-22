@@ -3,10 +3,12 @@ import type { CartArenaSession, CartArenaSessionSnapshot, CartEnemySnapshot } fr
 import type { CartRogueSnapshotHandler } from "../cart/CartRogueDemo";
 import { CartRogueWebGLDemo } from "../cart/CartRogueWebGLDemo";
 import { CART_WORLD_GRAPH } from "../cart/CartWorldGraph";
+import { SkyDancerAirCombatFx, type SkyDancerFxRuntime } from "./SkyDancerAirCombatFx";
 import {
   SKY_DANCER_ALTITUDE_METERS,
   getSkyDancerMissileState,
   installSkyDancerFlightCombat,
+  type SkyDancerMissileState,
 } from "./SkyDancerFlightCombat";
 
 interface CartRuntimeView {
@@ -35,7 +37,7 @@ interface CartRuntimeView {
 export class SkyDancerWebGLDemo extends CartRogueWebGLDemo {
   private readonly missileRoot = new THREE.Group();
   private readonly missileGroups = new Map<number, THREE.Group>();
-  private missileHitSerial = 0;
+  private readonly airFx: SkyDancerAirCombatFx;
 
   constructor(
     mount: HTMLElement,
@@ -45,6 +47,7 @@ export class SkyDancerWebGLDemo extends CartRogueWebGLDemo {
     super(mount, onSnapshot, onRuntimeFailure);
     installSkyDancerFlightCombat();
     const runtime = this as unknown as CartRuntimeView;
+    this.airFx = new SkyDancerAirCombatFx(runtime as unknown as SkyDancerFxRuntime);
     this.applySkyDancerTheme(runtime);
     this.installFlightPresentation(runtime);
   }
@@ -92,7 +95,8 @@ export class SkyDancerWebGLDemo extends CartRogueWebGLDemo {
       baseUpdateVisuals(delta);
       const snapshot = runtime.session.snapshot();
       this.updateAircraftBank(runtime, snapshot, delta);
-      this.updateMissileVisuals(runtime, delta);
+      const missileState = this.updateMissileVisuals(runtime);
+      this.airFx.update(snapshot, missileState, delta);
     };
 
     const baseCameraPresentation = runtime.applyCameraPresentation.bind(this);
@@ -105,7 +109,7 @@ export class SkyDancerWebGLDemo extends CartRogueWebGLDemo {
         snapshot.z + Math.cos(snapshot.heading) * lookAhead,
       );
       runtime.camera.lookAt(target);
-      runtime.camera.rotateZ(runtime.cameraRoll * 0.72);
+      runtime.camera.rotateZ(runtime.cameraRoll * 0.72 + this.airFx.getCameraRollImpulse());
     };
   }
 
@@ -130,7 +134,7 @@ export class SkyDancerWebGLDemo extends CartRogueWebGLDemo {
     }
   }
 
-  private updateMissileVisuals(runtime: CartRuntimeView, delta: number): void {
+  private updateMissileVisuals(runtime: CartRuntimeView): SkyDancerMissileState {
     const state = getSkyDancerMissileState(runtime.session);
     const activeIds = new Set<number>();
 
@@ -146,11 +150,17 @@ export class SkyDancerWebGLDemo extends CartRogueWebGLDemo {
       group.position.set(missile.x, 1.18 + Math.sin(missile.id * 1.7 + performance.now() * 0.006) * 0.05, missile.z);
       group.rotation.y = missile.heading;
       const warning = Math.max(0, Math.min(1, (14 - missile.distanceToPlayer) / 12));
-      group.scale.setScalar(1 + warning * 0.16);
+      group.scale.setScalar(1 + warning * 0.2);
       const glow = group.getObjectByName("missile-glow") as THREE.Mesh | undefined;
       if (glow) {
         const material = glow.material as THREE.MeshBasicMaterial;
         material.opacity = 0.55 + warning * 0.4;
+      }
+      const halo = group.getObjectByName("sky-dancer-missile-halo") as THREE.Mesh | undefined;
+      if (halo) {
+        const material = halo.material as THREE.MeshBasicMaterial;
+        material.opacity = 0.34 + warning * 0.58;
+        halo.scale.setScalar(0.9 + warning * 0.75 + Math.sin(performance.now() * 0.018 + missile.id) * 0.08);
       }
     }
 
@@ -166,16 +176,7 @@ export class SkyDancerWebGLDemo extends CartRogueWebGLDemo {
       });
     }
 
-    if (state.hitSerial > this.missileHitSerial) {
-      this.missileHitSerial = state.hitSerial;
-      const hit = new THREE.Vector3(state.lastHitX, 1.1, state.lastHitZ);
-      runtime.emitImpactSparks(hit, 16);
-      runtime.cameraShake = Math.max(runtime.cameraShake, 0.72);
-      runtime.impactFlash = Math.max(runtime.impactFlash, 0.72);
-      runtime.impactOverlayMaterial.color.setHex(0xff5d43);
-    }
-
-    void delta;
+    return state;
   }
 
   private buildMissile(boss: boolean): THREE.Group {
@@ -220,6 +221,7 @@ export class SkyDancerWebGLDemo extends CartRogueWebGLDemo {
       group.add(fin);
     }
     group.add(body, nose, tail);
+    this.airFx.decorateMissile(group, boss);
     return group;
   }
 
@@ -228,10 +230,12 @@ export class SkyDancerWebGLDemo extends CartRogueWebGLDemo {
     runtime.playerWheels.length = 0;
     const fighter = this.buildFighter(0x3eb7d7, 0xe9f8ff, 0x175a82, 1, false);
     fighter.position.y = 0.58;
+    this.airFx.decorateFighter(fighter, false, false);
     runtime.playerVisual.add(fighter);
     runtime.boostLight.color.setHex(0x53d8ff);
     runtime.boostLight.position.set(0, 0.62, -2.25);
     runtime.playerVisual.add(runtime.boostLight);
+    this.airFx.attachPlayerEffects(runtime.playerVisual);
   }
 
   private replaceEnemiesWithFighters(runtime: CartRuntimeView): void {
@@ -251,6 +255,7 @@ export class SkyDancerWebGLDemo extends CartRogueWebGLDemo {
       const scale = Math.max(0.74, enemy.radius / 1.48) * (boss ? 1.08 : 1);
       const fighter = this.buildFighter(primary, accent, dark, scale, boss);
       fighter.position.y = boss ? 0.72 : 0.5;
+      this.airFx.decorateFighter(fighter, true, boss);
       group.add(fighter);
       this.addEnemyHp(group, enemy);
     }
