@@ -171,7 +171,7 @@ export class SkyDancerAirCombatFxV12 extends SkyDancerAirCombatFxV11 {
       } else if (object.name === "sky-dancer-q11-turbo-ribbon") {
         object.material.blending = THREE.NormalBlending;
         object.material.opacity = Math.max(object.material.opacity, 0.26);
-        object.material.color.offsetHSL(0, 0.06, -0.06);
+        object.material.color.setHex(0x36b9df);
         object.material.needsUpdate = true;
       }
     });
