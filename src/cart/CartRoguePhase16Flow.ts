@@ -3,7 +3,7 @@ import type { RallyInputState } from "../rally/RallyTypes";
 import { CartArenaSession } from "./CartArenaSession";
 import type { CartEnemyState } from "./CartCombat";
 import { cartArenaShapeForNode, projectCartPointInsideArena } from "./CartArenaShapes";
-import { SkyDancerWebGLDemo } from "../sky/SkyDancerWebGLDemo";
+import { CartRogueWebGLDemo } from "./CartRogueWebGLDemo";
 import { getCartRunModifiers } from "./CartRunProgression";
 import { cartWorldNodeById, type CartWorldLocation } from "./CartWorldGraph";
 
@@ -342,7 +342,7 @@ export function installCartRoguePhase16Flow(): void {
     advanceEnemyReactions(this, fixedDelta);
   };
 
-  const webglPrototype = SkyDancerWebGLDemo.prototype as unknown as Phase16WebGL;
+  const webglPrototype = CartRogueWebGLDemo.prototype as unknown as Phase16WebGL;
   const originalUpdateVisuals = webglPrototype.updateVisuals;
   webglPrototype.updateVisuals = function updateVisualsPhase16(this: Phase16WebGL, delta: number): void {
     originalUpdateVisuals.call(this, delta);
