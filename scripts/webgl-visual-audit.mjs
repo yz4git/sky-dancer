@@ -101,3 +101,5 @@ if (pageErrors.length) {
 }
 
 await browser.close();
+
+// Retrieval trigger for ChatGPT visual inspection only.
