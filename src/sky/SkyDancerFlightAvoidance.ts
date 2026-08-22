@@ -56,11 +56,11 @@ function cruiseSpeed(enemy: CartEnemyState): number {
 }
 
 function turnRate(enemy: CartEnemyState): number {
-  if (enemy.kind === "boss") return 0.82;
-  if (enemy.kind === "heavy") return 0.92;
-  if (enemy.archetype === "drifter") return 1.42;
-  if (enemy.archetype === "striker") return 1.26;
-  return 1.12;
+  if (enemy.kind === "boss") return 0.9;
+  if (enemy.kind === "heavy") return 1.0;
+  if (enemy.archetype === "drifter") return 1.5;
+  if (enemy.archetype === "striker") return 1.34;
+  return 1.2;
 }
 
 function applyCollisionAvoidance(session: AvoidanceSessionView, delta: number): void {
@@ -79,7 +79,7 @@ function applyCollisionAvoidance(session: AvoidanceSessionView, delta: number): 
     let distance = Math.hypot(awayX, awayZ);
     const side = stableSide(enemy.id);
     const safetyRadius = skyDancerEnemySafetyRadius(enemy.radius);
-    const preferred = enemy.kind === "boss" ? 15.5 : enemy.kind === "heavy" ? 14.5 : SKY_DANCER_ENEMY_PREFERRED_STANDOFF;
+    const preferred = enemy.kind === "boss" ? 24 : enemy.kind === "heavy" ? 22.5 : SKY_DANCER_ENEMY_PREFERRED_STANDOFF;
 
     const desired = skyDancerAvoidanceHeading(
       enemy.x,
@@ -90,26 +90,28 @@ function applyCollisionAvoidance(session: AvoidanceSessionView, delta: number): 
       distance,
       side,
     );
-    const urgency = distance < safetyRadius + 2
-      ? 2.25
+    const urgency = distance < 15.5
+      ? 2.45
       : distance < preferred
-        ? 1.65
-        : distance < 20
-          ? 1.12
-          : 0.72;
+        ? 1.95
+        : distance < 30
+          ? 1.35
+          : 0.82;
     enemy.heading = skyDancerRotateToward(enemy.heading, desired, turnRate(enemy) * urgency * delta);
 
-    const lookAhead = 0.65;
-    const playerTravel = Math.min(10, playerSpeed * lookAhead);
+    // Look almost one second ahead so head-on paths are rejected while there is
+    // still visibly open air between the fighters.
+    const lookAhead = 0.95;
+    const playerTravel = Math.min(15, playerSpeed * lookAhead);
     const predictedPlayerX = px + Math.sin(playerHeading) * playerTravel;
     const predictedPlayerZ = pz + Math.cos(playerHeading) * playerTravel;
     const enemyTravel = cruiseSpeed(enemy) * lookAhead;
     const predictedEnemyX = enemy.x + Math.sin(enemy.heading) * enemyTravel;
     const predictedEnemyZ = enemy.z + Math.cos(enemy.heading) * enemyTravel;
     const predictedDistance = Math.hypot(predictedEnemyX - predictedPlayerX, predictedEnemyZ - predictedPlayerZ);
-    if (predictedDistance < safetyRadius + 2.4 && distance < 22) {
-      const awayHeading = skyDancerNormalizeAngle(Math.atan2(px - enemy.x, pz - enemy.z) + Math.PI + side * 0.62);
-      enemy.heading = skyDancerRotateToward(enemy.heading, awayHeading, turnRate(enemy) * 2.0 * delta);
+    if (predictedDistance < safetyRadius + 5.4 && distance < 34) {
+      const awayHeading = skyDancerNormalizeAngle(Math.atan2(px - enemy.x, pz - enemy.z) + Math.PI + side * 0.78);
+      enemy.heading = skyDancerRotateToward(enemy.heading, awayHeading, turnRate(enemy) * 2.35 * delta);
     }
 
     if (distance < safetyRadius) {
@@ -122,7 +124,7 @@ function applyCollisionAvoidance(session: AvoidanceSessionView, delta: number): 
       enemy.x = px + awayX * inv * safetyRadius;
       enemy.z = pz + awayZ * inv * safetyRadius;
       const awayHeading = Math.atan2(enemy.x - px, enemy.z - pz);
-      enemy.heading = skyDancerRotateToward(enemy.heading, awayHeading, turnRate(enemy) * 2.6 * delta);
+      enemy.heading = skyDancerRotateToward(enemy.heading, awayHeading, turnRate(enemy) * 2.8 * delta);
     }
 
     const margin = 2.4;
