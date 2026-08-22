@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
+import * as THREE from "three";
 import { CartArenaSession } from "../src/cart/CartArenaSession";
 
 const FIXED_STEP = 1 / 60;
@@ -43,4 +45,37 @@ test("the first airborne conversion keeps the route graph and enemy targets inta
   const snapshot = session.snapshot();
   assert.equal(snapshot.nodeKind, "arena");
   assert.ok(snapshot.enemies.some((enemy) => enemy.kind === "blocker" || enemy.kind === "chaser"));
+});
+
+test("aircraft exhaust geometry points backward on the -Z flight axis", () => {
+  const geometry = new THREE.ConeGeometry(0.22, 1.7, 10, 1, true);
+  geometry.rotateX(-Math.PI / 2);
+  geometry.computeBoundingBox();
+  const bounds = geometry.boundingBox;
+  assert.ok(bounds);
+  const position = geometry.getAttribute("position") as THREE.BufferAttribute;
+  const epsilon = 0.002;
+  let rearRadius = 0;
+  let frontRadius = 0;
+  for (let index = 0; index < position.count; index += 1) {
+    const x = position.getX(index);
+    const y = position.getY(index);
+    const z = position.getZ(index);
+    const radius = Math.hypot(x, y);
+    if (Math.abs(z - bounds.min.z) < epsilon) rearRadius = Math.max(rearRadius, radius);
+    if (Math.abs(z - bounds.max.z) < epsilon) frontRadius = Math.max(frontRadius, radius);
+  }
+  assert.ok(frontRadius > 0.18, `front nozzle radius should remain broad, got ${frontRadius}`);
+  assert.ok(rearRadius < frontRadius * 0.25, `rear flame tip should taper on -Z, got ${rearRadius} vs ${frontRadius}`);
+});
+
+test("air combat FX records wing and missile trails in world space instead of attaching fixed vapor cylinders", () => {
+  const source = readFileSync(new URL("../src/sky/SkyDancerAirCombatFxV2.ts", import.meta.url), "utf8");
+  assert.match(source, /class WorldRibbonTrail/);
+  assert.match(source, /localToWorld\(new THREE\.Vector3\(-state\.wingSpan/);
+  assert.match(source, /localToWorld\(new THREE\.Vector3\(state\.wingSpan/);
+  assert.match(source, /sky-dancer-missile-smoke-\$\{missile\.id\}/);
+  assert.match(source, /geometry\.rotateX\(-Math\.PI \/ 2\)/);
+  assert.match(source, /flame\.mesh\.scale\.z = flame\.baseLength/);
+  assert.doesNotMatch(source, /new THREE\.CylinderGeometry\(0\.035, 0\.16, length/);
 });
