@@ -8,7 +8,6 @@ import {
   skyDancerAvoidanceHeading,
   skyDancerEnemySafetyRadius,
 } from "../src/sky/SkyDancerFlightAvoidance";
-import { SKY_DANCER_PRESENTATION_ALTITUDE_METERS } from "../src/sky/SkyDancerAirCombatFxV7";
 
 const FIXED_STEP = 1 / 60;
 const DRIVE_INPUT = { throttle: 0.84, brake: 0, steer: 0, boost: false } as const;
@@ -129,7 +128,7 @@ test("enemy flight guidance breaks away before entering the player's airframe", 
 
 test("V7 increases fighter bank, removes the player torus and lowers presentation altitude", () => {
   const source = readFileSync(new URL("../src/sky/SkyDancerAirCombatFxV7.ts", import.meta.url), "utf8");
-  assert.equal(SKY_DANCER_PRESENTATION_ALTITUDE_METERS, 105);
+  assert.match(source, /SKY_DANCER_PRESENTATION_ALTITUDE_METERS = 105/);
   assert.match(source, /targetPlayerBank/);
   assert.match(source, /-0\.82, 0\.82/);
   assert.match(source, /targetBank.*-0\.86, 0\.86/);
