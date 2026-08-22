@@ -38,6 +38,8 @@ if (await start.isVisible().catch(() => false)) await start.click();
 
 const webglCanvas = page.locator('canvas[aria-label="Sky Dancer WebGL game view"]');
 await webglCanvas.waitFor({ state: "visible", timeout: 30_000 });
+const shot = page.getByRole("button", { name: "Fire missile" });
+await shot.waitFor({ state: "visible", timeout: 10_000 });
 await page.waitForTimeout(1_600);
 
 const webgl = await webglCanvas.evaluate((canvas) => {
@@ -54,34 +56,60 @@ const webgl = await webglCanvas.evaluate((canvas) => {
     renderer: debug ? gl.getParameter(debug.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER),
   };
 });
-
 if (!webgl.ok) throw new Error("WebGL context was not created");
+
+const controlState = await page.evaluate(() => {
+  const buttons = Array.from(document.querySelectorAll("button"));
+  const brakeButtons = buttons.filter((button) => button.textContent?.trim() === "BRAKE");
+  const visibleBrakeButtons = brakeButtons.filter((button) => getComputedStyle(button).display !== "none");
+  const shotButton = buttons.find((button) => button.getAttribute("aria-label") === "Fire missile");
+  return {
+    shotVisible: Boolean(shotButton && getComputedStyle(shotButton).display !== "none"),
+    brakeCount: brakeButtons.length,
+    visibleBrakeCount: visibleBrakeButtons.length,
+  };
+});
+if (!controlState.shotVisible || controlState.visibleBrakeCount !== 0) {
+  throw new Error(`Control replacement failed: ${JSON.stringify(controlState)}`);
+}
 
 await page.screenshot({ path: `${outputDir}/01-gameplay-start.png`, fullPage: true });
 await webglCanvas.screenshot({ path: `${outputDir}/01-gameplay-start-canvas.png` });
 
-// Capture the aircraft while steering is still held so the screenshot measures
-// the actual turn bank instead of the return-to-level animation.
+// Fire through the real UI and catch the missile close enough to the player for
+// its body, plume and lock ring to be visually reviewable.
+await shot.click();
+await page.waitForTimeout(180);
+await page.screenshot({ path: `${outputDir}/02-player-shot.png`, fullPage: true });
+await webglCanvas.screenshot({ path: `${outputDir}/02-player-shot-canvas.png` });
+
+// Capture while steering remains held so turn-bank amount is measured directly.
 await page.keyboard.down("ArrowRight");
 await page.waitForTimeout(1_350);
-await page.screenshot({ path: `${outputDir}/02-banked-turn.png`, fullPage: true });
-await webglCanvas.screenshot({ path: `${outputDir}/02-banked-turn-canvas.png` });
+await page.screenshot({ path: `${outputDir}/03-banked-turn.png`, fullPage: true });
+await webglCanvas.screenshot({ path: `${outputDir}/03-banked-turn-canvas.png` });
 await page.keyboard.up("ArrowRight");
-await page.waitForTimeout(420);
+await page.waitForTimeout(320);
 
+// Capture the charged hold phase itself: this is where the old single cone was
+// most visible and where V9 should show plume + diamonds + rings + streaks.
 await page.keyboard.down("Space");
-await page.waitForTimeout(1_200);
+await page.waitForTimeout(1_050);
+await page.screenshot({ path: `${outputDir}/04-turbo-hold.png`, fullPage: true });
+await webglCanvas.screenshot({ path: `${outputDir}/04-turbo-hold-canvas.png` });
 await page.keyboard.up("Space");
-await page.waitForTimeout(450);
-await page.screenshot({ path: `${outputDir}/03-turbo.png`, fullPage: true });
-await webglCanvas.screenshot({ path: `${outputDir}/03-turbo-canvas.png` });
+await page.waitForTimeout(180);
+await page.screenshot({ path: `${outputDir}/05-turbo-release.png`, fullPage: true });
+await webglCanvas.screenshot({ path: `${outputDir}/05-turbo-release-canvas.png` });
 
 await page.keyboard.down("ArrowLeft");
 await page.waitForTimeout(900);
 await page.keyboard.up("ArrowLeft");
-await page.waitForTimeout(7_000);
-await page.screenshot({ path: `${outputDir}/04-combat.png`, fullPage: true });
-await webglCanvas.screenshot({ path: `${outputDir}/04-combat-canvas.png` });
+await page.waitForTimeout(6_000);
+await shot.click();
+await page.waitForTimeout(320);
+await page.screenshot({ path: `${outputDir}/06-combat.png`, fullPage: true });
+await webglCanvas.screenshot({ path: `${outputDir}/06-combat-canvas.png` });
 
 const text = await page.locator("body").innerText();
 const diagnostics = {
@@ -89,7 +117,8 @@ const diagnostics = {
   url: page.url(),
   viewport: page.viewportSize(),
   webgl,
-  bodyTextSample: text.split("\n").map((line) => line.trim()).filter(Boolean).slice(0, 80),
+  controlState,
+  bodyTextSample: text.split("\n").map((line) => line.trim()).filter(Boolean).slice(0, 100),
   consoleErrors,
   pageErrors,
 };
