@@ -40,8 +40,9 @@ export class SkyDancerWebGLDemo extends CartRogueWebGLDemo {
     runtime.scene.background = new THREE.Color(0x65baf0);
     runtime.scene.fog = new THREE.Fog(0xb9e5ff, 118, 350);
 
-    // Cart Rogue builds its scenery before dynamic gameplay objects. Remove only
-    // that visual scenery; keep every gameplay-owned root and all collision data.
+    // Cart Rogue builds its scenery before dynamic gameplay objects. Hide only
+    // that visual scenery; keeping it attached lets the inherited disposer free
+    // every geometry/material on New Run while collision/gameplay data stays live.
     const keep = new Set<THREE.Object3D>([
       runtime.camera,
       runtime.session.car.group,
@@ -56,9 +57,9 @@ export class SkyDancerWebGLDemo extends CartRogueWebGLDemo {
       if (root.parent === runtime.scene) keep.add(root);
     }
 
-    for (const object of [...runtime.scene.children]) {
+    for (const object of runtime.scene.children) {
       if (keep.has(object) || object instanceof THREE.Light || object instanceof THREE.Camera) continue;
-      runtime.scene.remove(object);
+      object.visible = false;
     }
 
     this.buildCloudDeck(runtime.scene);
