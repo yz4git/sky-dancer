@@ -99,8 +99,6 @@ function applyCollisionAvoidance(session: AvoidanceSessionView, delta: number): 
           : 0.82;
     enemy.heading = skyDancerRotateToward(enemy.heading, desired, turnRate(enemy) * urgency * delta);
 
-    // Look almost one second ahead so head-on paths are rejected while there is
-    // still visibly open air between the fighters.
     const lookAhead = 0.95;
     const playerTravel = Math.min(15, playerSpeed * lookAhead);
     const predictedPlayerX = px + Math.sin(playerHeading) * playerTravel;
@@ -112,6 +110,20 @@ function applyCollisionAvoidance(session: AvoidanceSessionView, delta: number): 
     if (predictedDistance < safetyRadius + 5.4 && distance < 34) {
       const awayHeading = skyDancerNormalizeAngle(Math.atan2(px - enemy.x, pz - enemy.z) + Math.PI + side * 0.78);
       enemy.heading = skyDancerRotateToward(enemy.heading, awayHeading, turnRate(enemy) * 2.35 * delta);
+    }
+
+    // Standoff enforcement begins well outside the collision bubble. This is a
+    // small radial flight-path correction, not a contact bounce: it makes the
+    // enemy open separation while its nose is already peeling away.
+    if (distance < preferred && distance > 0.001) {
+      const deficit = preferred - distance;
+      const outwardSpeed = Math.min(6.5, 0.8 + deficit * 0.46);
+      const inv = 1 / distance;
+      enemy.x += awayX * inv * outwardSpeed * delta;
+      enemy.z += awayZ * inv * outwardSpeed * delta;
+      awayX = enemy.x - px;
+      awayZ = enemy.z - pz;
+      distance = Math.hypot(awayX, awayZ);
     }
 
     if (distance < safetyRadius) {
