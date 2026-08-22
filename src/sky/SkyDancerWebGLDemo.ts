@@ -1,14 +1,19 @@
 import * as THREE from "three";
-import type { CartEnemySnapshot } from "../cart/CartArenaSession";
+import type { CartArenaSession, CartArenaSessionSnapshot, CartEnemySnapshot } from "../cart/CartArenaSession";
 import type { CartRogueSnapshotHandler } from "../cart/CartRogueDemo";
 import { CartRogueWebGLDemo } from "../cart/CartRogueWebGLDemo";
 import { CART_WORLD_GRAPH } from "../cart/CartWorldGraph";
+import {
+  SKY_DANCER_ALTITUDE_METERS,
+  getSkyDancerMissileState,
+  installSkyDancerFlightCombat,
+} from "./SkyDancerFlightCombat";
 
 interface CartRuntimeView {
   renderer: THREE.WebGLRenderer;
   scene: THREE.Scene;
   camera: THREE.PerspectiveCamera;
-  session: { car: { group: THREE.Group } };
+  session: CartArenaSession;
   enemyGroups: Map<string, THREE.Group>;
   resourceGroups: Map<string, THREE.Group>;
   obstacleGroups: Map<string, THREE.Group>;
@@ -17,32 +22,42 @@ interface CartRuntimeView {
   playerWheels: THREE.Mesh[];
   boostLight: THREE.PointLight;
   sparkMesh: THREE.InstancedMesh;
+  steer: number;
+  cameraShake: number;
+  cameraRoll: number;
+  impactFlash: number;
+  impactOverlayMaterial: THREE.MeshBasicMaterial;
+  updateVisuals(delta: number): void;
+  applyCameraPresentation(snapshot: CartArenaSessionSnapshot): void;
+  emitImpactSparks(position: THREE.Vector3, count: number): void;
 }
 
-/**
- * Sky Dancer is intentionally a visual skin over the latest Cart Rogue runtime.
- * Movement, input, collisions, enemies, resources, progression and tuning all
- * remain owned by CartRogueWebGLDemo / CartArenaSession.
- */
 export class SkyDancerWebGLDemo extends CartRogueWebGLDemo {
+  private readonly missileRoot = new THREE.Group();
+  private readonly missileGroups = new Map<number, THREE.Group>();
+  private missileHitSerial = 0;
+
   constructor(
     mount: HTMLElement,
     onSnapshot: CartRogueSnapshotHandler,
     onRuntimeFailure: (message: string, error: unknown) => void,
   ) {
     super(mount, onSnapshot, onRuntimeFailure);
-    this.applySkyDancerTheme();
+    installSkyDancerFlightCombat();
+    const runtime = this as unknown as CartRuntimeView;
+    this.applySkyDancerTheme(runtime);
+    this.installFlightPresentation(runtime);
   }
 
-  private applySkyDancerTheme(): void {
-    const runtime = this as unknown as CartRuntimeView;
+  private applySkyDancerTheme(runtime: CartRuntimeView): void {
     runtime.renderer.domElement.setAttribute("aria-label", "Sky Dancer WebGL game view");
-    runtime.scene.background = new THREE.Color(0x65baf0);
-    runtime.scene.fog = new THREE.Fog(0xb9e5ff, 118, 350);
+    runtime.scene.background = new THREE.Color(0x68b9ec);
+    runtime.scene.fog = new THREE.Fog(0xbadff1, 165, 540);
+    runtime.camera.far = 680;
+    runtime.camera.updateProjectionMatrix();
+    runtime.scene.userData.skyDancerAltitudeMeters = SKY_DANCER_ALTITUDE_METERS;
+    runtime.scene.userData.verticalRenderScaleMetersPerUnit = SKY_DANCER_ALTITUDE_METERS / 38;
 
-    // Cart Rogue builds its scenery before dynamic gameplay objects. Hide only
-    // that visual scenery; keeping it attached lets the inherited disposer free
-    // every geometry/material on New Run while collision/gameplay data stays live.
     const keep = new Set<THREE.Object3D>([
       runtime.camera,
       runtime.session.car.group,
@@ -62,20 +77,158 @@ export class SkyDancerWebGLDemo extends CartRogueWebGLDemo {
       object.visible = false;
     }
 
+    this.buildTerrain150m(runtime.scene);
     this.buildCloudDeck(runtime.scene);
     this.buildAirspaceGuides(runtime.scene);
     this.replacePlayerWithFighter(runtime);
     this.replaceEnemiesWithFighters(runtime);
+    this.missileRoot.name = "sky-dancer-missile-root";
+    runtime.scene.add(this.missileRoot);
+  }
+
+  private installFlightPresentation(runtime: CartRuntimeView): void {
+    const baseUpdateVisuals = runtime.updateVisuals.bind(this);
+    runtime.updateVisuals = (delta: number) => {
+      baseUpdateVisuals(delta);
+      const snapshot = runtime.session.snapshot();
+      this.updateAircraftBank(runtime, snapshot, delta);
+      this.updateMissileVisuals(runtime, delta);
+    };
+
+    const baseCameraPresentation = runtime.applyCameraPresentation.bind(this);
+    runtime.applyCameraPresentation = (snapshot: CartArenaSessionSnapshot) => {
+      baseCameraPresentation(snapshot);
+      const lookAhead = 30;
+      const target = new THREE.Vector3(
+        snapshot.x + Math.sin(snapshot.heading) * lookAhead,
+        -9.5,
+        snapshot.z + Math.cos(snapshot.heading) * lookAhead,
+      );
+      runtime.camera.lookAt(target);
+      runtime.camera.rotateZ(runtime.cameraRoll * 0.72);
+    };
+  }
+
+  private updateAircraftBank(runtime: CartRuntimeView, snapshot: CartArenaSessionSnapshot, delta: number): void {
+    runtime.playerVisual.rotation.z += ((-runtime.steer * 0.43) - runtime.playerVisual.rotation.z) * Math.min(1, delta * 5.8);
+    runtime.playerVisual.position.y = 0.62 + Math.sin(performance.now() * 0.0024) * 0.04;
+
+    for (const enemy of snapshot.enemies) {
+      if (!enemy.alive) continue;
+      const group = runtime.enemyGroups.get(enemy.id);
+      if (!group) continue;
+      const previousHeading = Number(group.userData.skyHeading ?? enemy.heading);
+      let headingDelta = enemy.heading - previousHeading;
+      while (headingDelta > Math.PI) headingDelta -= Math.PI * 2;
+      while (headingDelta < -Math.PI) headingDelta += Math.PI * 2;
+      const turnRate = headingDelta / Math.max(0.001, delta);
+      const targetBank = THREE.MathUtils.clamp(-turnRate * 0.34, -0.58, 0.58);
+      group.rotation.z += (targetBank - group.rotation.z) * Math.min(1, delta * 5.2);
+      const baseY = enemy.kind === "boss" ? 1.7 : enemy.kind === "heavy" ? 1.3 : 1.08;
+      group.position.y = baseY + Math.sin(performance.now() * 0.0018 + enemy.x * 0.11 + enemy.z * 0.05) * 0.18;
+      group.userData.skyHeading = enemy.heading;
+    }
+  }
+
+  private updateMissileVisuals(runtime: CartRuntimeView, delta: number): void {
+    const state = getSkyDancerMissileState(runtime.session);
+    const activeIds = new Set<number>();
+
+    for (const missile of state.missiles) {
+      activeIds.add(missile.id);
+      let group = this.missileGroups.get(missile.id);
+      if (!group) {
+        group = this.buildMissile(missile.sourceKind === "boss");
+        this.missileGroups.set(missile.id, group);
+        this.missileRoot.add(group);
+      }
+      group.visible = true;
+      group.position.set(missile.x, 1.18 + Math.sin(missile.id * 1.7 + performance.now() * 0.006) * 0.05, missile.z);
+      group.rotation.y = missile.heading;
+      const warning = Math.max(0, Math.min(1, (14 - missile.distanceToPlayer) / 12));
+      group.scale.setScalar(1 + warning * 0.16);
+      const glow = group.getObjectByName("missile-glow") as THREE.Mesh | undefined;
+      if (glow) {
+        const material = glow.material as THREE.MeshBasicMaterial;
+        material.opacity = 0.55 + warning * 0.4;
+      }
+    }
+
+    for (const [id, group] of this.missileGroups) {
+      if (activeIds.has(id)) continue;
+      this.missileGroups.delete(id);
+      this.missileRoot.remove(group);
+      group.traverse((object) => {
+        if (!(object instanceof THREE.Mesh)) return;
+        object.geometry.dispose();
+        const materials = Array.isArray(object.material) ? object.material : [object.material];
+        materials.forEach((material) => material.dispose());
+      });
+    }
+
+    if (state.hitSerial > this.missileHitSerial) {
+      this.missileHitSerial = state.hitSerial;
+      const hit = new THREE.Vector3(state.lastHitX, 1.1, state.lastHitZ);
+      runtime.emitImpactSparks(hit, 16);
+      runtime.cameraShake = Math.max(runtime.cameraShake, 0.72);
+      runtime.impactFlash = Math.max(runtime.impactFlash, 0.72);
+      runtime.impactOverlayMaterial.color.setHex(0xff5d43);
+    }
+
+    void delta;
+  }
+
+  private buildMissile(boss: boolean): THREE.Group {
+    const group = new THREE.Group();
+    const bodyMat = new THREE.MeshStandardMaterial({
+      color: boss ? 0x7d2635 : 0xddd6c6,
+      roughness: 0.42,
+      metalness: 0.3,
+      flatShading: true,
+    });
+    const noseMat = new THREE.MeshStandardMaterial({
+      color: boss ? 0xff4055 : 0xf05b4e,
+      roughness: 0.38,
+      metalness: 0.18,
+      flatShading: true,
+      emissive: boss ? 0x5b0711 : 0x4a110a,
+      emissiveIntensity: 0.36,
+    });
+    const glowMat = new THREE.MeshBasicMaterial({
+      color: 0xffb642,
+      transparent: true,
+      opacity: 0.7,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    });
+
+    const body = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.15, boss ? 1.55 : 1.2, 7), bodyMat);
+    body.rotation.x = Math.PI / 2;
+    const nose = new THREE.Mesh(new THREE.ConeGeometry(0.15, 0.46, 7), noseMat);
+    nose.rotation.x = Math.PI / 2;
+    nose.position.z = boss ? 0.98 : 0.8;
+    const tail = new THREE.Mesh(new THREE.ConeGeometry(boss ? 0.28 : 0.22, boss ? 1.45 : 1.15, 8, 1, true), glowMat);
+    tail.name = "missile-glow";
+    tail.rotation.x = -Math.PI / 2;
+    tail.position.z = boss ? -1.35 : -1.05;
+
+    const finMat = new THREE.MeshStandardMaterial({ color: 0x4b5966, roughness: 0.62, flatShading: true });
+    for (const rotation of [0, Math.PI / 2]) {
+      const fin = new THREE.Mesh(new THREE.BoxGeometry(boss ? 0.72 : 0.55, 0.04, 0.36), finMat);
+      fin.position.z = boss ? -0.46 : -0.34;
+      fin.rotation.z = rotation;
+      group.add(fin);
+    }
+    group.add(body, nose, tail);
+    return group;
   }
 
   private replacePlayerWithFighter(runtime: CartRuntimeView): void {
     runtime.playerVisual.clear();
     runtime.playerWheels.length = 0;
-
     const fighter = this.buildFighter(0x3eb7d7, 0xe9f8ff, 0x175a82, 1, false);
     fighter.position.y = 0.58;
     runtime.playerVisual.add(fighter);
-
     runtime.boostLight.color.setHex(0x53d8ff);
     runtime.boostLight.position.set(0, 0.62, -2.25);
     runtime.playerVisual.add(runtime.boostLight);
@@ -84,13 +237,11 @@ export class SkyDancerWebGLDemo extends CartRogueWebGLDemo {
   private replaceEnemiesWithFighters(runtime: CartRuntimeView): void {
     const enemies = this.getSnapshot().enemies;
     const byId = new Map(enemies.map((enemy) => [enemy.id, enemy]));
-
     for (const [id, group] of runtime.enemyGroups) {
       const enemy = byId.get(id);
       if (!enemy) continue;
       group.clear();
       group.userData.wheels = [];
-
       const boss = enemy.kind === "boss";
       const heavy = enemy.kind === "heavy";
       const chaser = enemy.kind === "chaser";
@@ -123,13 +274,7 @@ export class SkyDancerWebGLDemo extends CartRogueWebGLDemo {
     group.add(back, fill);
   }
 
-  private buildFighter(
-    primary: number,
-    accent: number,
-    dark: number,
-    scale: number,
-    boss: boolean,
-  ): THREE.Group {
+  private buildFighter(primary: number, accent: number, dark: number, scale: number, boss: boolean): THREE.Group {
     const group = new THREE.Group();
     const primaryMat = this.fighterMaterial(primary, 0.2);
     const accentMat = this.fighterMaterial(accent, 0.08);
@@ -155,19 +300,15 @@ export class SkyDancerWebGLDemo extends CartRogueWebGLDemo {
 
     const wingGeometry = new THREE.BufferGeometry();
     wingGeometry.setAttribute("position", new THREE.Float32BufferAttribute([
-      0, 0.35, 0.72,  -2.65, 0.24, -0.62,  0, 0.25, -0.95,
-      0, 0.35, 0.72,   0, 0.25, -0.95,  2.65, 0.24, -0.62,
+      0, 0.35, 0.72, -2.65, 0.24, -0.62, 0, 0.25, -0.95,
+      0, 0.35, 0.72, 0, 0.25, -0.95, 2.65, 0.24, -0.62,
     ], 3));
     wingGeometry.computeVertexNormals();
-    const wings = new THREE.Mesh(wingGeometry, primaryMat);
-    wings.castShadow = true;
-    group.add(wings);
+    group.add(new THREE.Mesh(wingGeometry, primaryMat));
 
     const wingStripe = new THREE.Mesh(new THREE.BoxGeometry(4.25, 0.08, 0.24), accentMat);
     wingStripe.position.set(0, 0.36, -0.48);
-    wingStripe.rotation.y = -0.02;
     group.add(wingStripe);
-
     const tailWing = new THREE.Mesh(new THREE.BoxGeometry(2.05, 0.11, 0.78), darkMat);
     tailWing.position.set(0, 0.5, -1.55);
     const fin = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.88, 0.78), accentMat);
@@ -180,14 +321,7 @@ export class SkyDancerWebGLDemo extends CartRogueWebGLDemo {
     canopy.position.set(0, 0.83, 0.62);
     group.add(canopy);
 
-    const exhaustMat = new THREE.MeshStandardMaterial({
-      color: 0x29455a,
-      roughness: 0.34,
-      metalness: 0.54,
-      emissive: 0x10334e,
-      emissiveIntensity: 0.4,
-      flatShading: true,
-    });
+    const exhaustMat = new THREE.MeshStandardMaterial({ color: 0x29455a, roughness: 0.34, metalness: 0.54, flatShading: true });
     const glowMat = new THREE.MeshBasicMaterial({ color: 0x65ddff, transparent: true, opacity: 0.8 });
     for (const x of [-0.34, 0.34]) {
       const engine = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.27, 0.72, 8), exhaustMat);
@@ -221,40 +355,113 @@ export class SkyDancerWebGLDemo extends CartRogueWebGLDemo {
   }
 
   private fighterMaterial(color: number, metalness: number): THREE.MeshStandardMaterial {
-    return new THREE.MeshStandardMaterial({
-      color,
-      roughness: 0.48,
-      metalness,
-      flatShading: true,
-    });
+    return new THREE.MeshStandardMaterial({ color, roughness: 0.48, metalness, flatShading: true });
+  }
+
+  private buildTerrain150m(scene: THREE.Scene): void {
+    const nodes = CART_WORLD_GRAPH.nodes;
+    let minX = Number.POSITIVE_INFINITY;
+    let maxX = Number.NEGATIVE_INFINITY;
+    let minZ = Number.POSITIVE_INFINITY;
+    let maxZ = Number.NEGATIVE_INFINITY;
+    for (const node of nodes) {
+      minX = Math.min(minX, node.rect.centerX - node.rect.halfWidth);
+      maxX = Math.max(maxX, node.rect.centerX + node.rect.halfWidth);
+      minZ = Math.min(minZ, node.rect.centerZ - node.rect.halfDepth);
+      maxZ = Math.max(maxZ, node.rect.centerZ + node.rect.halfDepth);
+    }
+    const margin = 150;
+    const width = maxX - minX + margin * 2;
+    const depth = maxZ - minZ + margin * 2;
+    const centerX = (minX + maxX) * 0.5;
+    const centerZ = (minZ + maxZ) * 0.5;
+    const groundY = -38;
+
+    const geometry = new THREE.PlaneGeometry(width, depth, 40, 62);
+    geometry.rotateX(-Math.PI / 2);
+    const position = geometry.getAttribute("position") as THREE.BufferAttribute;
+    const colors = new Float32Array(position.count * 3);
+    const low = new THREE.Color(0x648456);
+    const mid = new THREE.Color(0x8f9c5d);
+    const high = new THREE.Color(0x9a8062);
+    const color = new THREE.Color();
+    for (let index = 0; index < position.count; index += 1) {
+      const worldX = position.getX(index) + centerX;
+      const worldZ = position.getZ(index) + centerZ;
+      const ridge = Math.sin(worldX * 0.027) * 2.6 + Math.cos(worldZ * 0.021) * 2.1;
+      const hills = Math.sin((worldX + worldZ) * 0.013) * 2.2 + Math.cos((worldX - worldZ) * 0.009) * 1.7;
+      const elevation = ridge + hills;
+      position.setY(index, elevation);
+      const t = THREE.MathUtils.clamp((elevation + 6) / 12, 0, 1);
+      color.lerpColors(low, t > 0.58 ? high : mid, t > 0.58 ? (t - 0.58) / 0.42 : t / 0.58);
+      colors[index * 3] = color.r;
+      colors[index * 3 + 1] = color.g;
+      colors[index * 3 + 2] = color.b;
+    }
+    position.needsUpdate = true;
+    geometry.setAttribute("color", new THREE.Float32BufferAttribute(colors, 3));
+    geometry.computeVertexNormals();
+    const terrain = new THREE.Mesh(
+      geometry,
+      new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.94, metalness: 0, flatShading: true }),
+    );
+    terrain.name = "sky-dancer-terrain-150m-below";
+    terrain.position.set(centerX, groundY, centerZ);
+    terrain.receiveShadow = false;
+    scene.add(terrain);
+
+    const fieldMaterials = [0x6f8f4e, 0xa9995d, 0x7ea45b, 0xb08f62].map((value) => new THREE.MeshLambertMaterial({ color: value }));
+    for (let index = 0; index < 44; index += 1) {
+      const x = centerX + Math.sin(index * 12.41) * width * 0.38;
+      const z = centerZ + Math.sin(index * 7.93 + 1.7) * depth * 0.39;
+      const tile = new THREE.Mesh(new THREE.BoxGeometry(10 + index % 5 * 4, 0.12, 8 + index % 4 * 5), fieldMaterials[index % fieldMaterials.length]);
+      tile.position.set(x, groundY + 3.2 + Math.sin(x * 0.027) * 1.4, z);
+      tile.rotation.y = (index % 7) * 0.19;
+      scene.add(tile);
+    }
+
+    const riverMat = new THREE.MeshBasicMaterial({ color: 0x4c8fab, transparent: true, opacity: 0.8, depthWrite: false });
+    for (let index = 0; index < 30; index += 1) {
+      const t = index / 29;
+      const z = minZ - margin * 0.7 + t * (depth * 0.92);
+      const x = centerX + Math.sin(t * Math.PI * 4.2) * 34 - 46;
+      const segment = new THREE.Mesh(new THREE.BoxGeometry(8.5, 0.08, depth / 29 + 2), riverMat);
+      segment.position.set(x, groundY + 4.2, z);
+      segment.rotation.y = Math.sin(t * Math.PI * 4.2) * 0.38;
+      scene.add(segment);
+    }
+
+    const cityMat = new THREE.MeshLambertMaterial({ color: 0xa7a59b });
+    for (let index = 0; index < 36; index += 1) {
+      const cluster = index % 3;
+      const x = centerX + (cluster - 1) * 72 + ((index * 17) % 9 - 4) * 4.5;
+      const z = centerZ + 48 + ((index * 29) % 11 - 5) * 5.2;
+      const height = 1.8 + (index % 6) * 0.8;
+      const building = new THREE.Mesh(new THREE.BoxGeometry(2.6 + index % 3, height, 2.8 + (index + 1) % 3), cityMat);
+      building.position.set(x, groundY + 4.1 + height * 0.5, z);
+      scene.add(building);
+    }
   }
 
   private buildCloudDeck(scene: THREE.Scene): void {
     const nodes = CART_WORLD_GRAPH.nodes;
-    const count = Math.max(48, nodes.length * 14);
+    const count = Math.max(54, nodes.length * 14);
     const geometry = new THREE.DodecahedronGeometry(1, 0);
-    const material = new THREE.MeshLambertMaterial({
-      color: 0xf7fcff,
-      transparent: true,
-      opacity: 0.72,
-      depthWrite: false,
-    });
+    const material = new THREE.MeshLambertMaterial({ color: 0xf7fcff, transparent: true, opacity: 0.42, depthWrite: false });
     const clouds = new THREE.InstancedMesh(geometry, material, count);
     const dummy = new THREE.Object3D();
-
     for (let index = 0; index < count; index += 1) {
       const node = nodes[index % nodes.length];
       const seed = index * 12.9898 + (index % 7) * 3.17;
       const rx = Math.sin(seed) * 0.5 + 0.5;
       const rz = Math.sin(seed * 1.91 + 2.4) * 0.5 + 0.5;
-      const side = index % 3 === 0 ? 1 : index % 3 === 1 ? -1 : 0;
-      const x = node.rect.centerX + (rx * 2 - 1) * (node.rect.halfWidth + 22) + side * 11;
-      const z = node.rect.centerZ + (rz * 2 - 1) * (node.rect.halfDepth + 18);
-      const y = -5.2 - (index % 6) * 1.15;
-      const s = 4.4 + (index % 5) * 1.45;
+      const x = node.rect.centerX + (rx * 2 - 1) * (node.rect.halfWidth + 28);
+      const z = node.rect.centerZ + (rz * 2 - 1) * (node.rect.halfDepth + 24);
+      const y = -14 - (index % 6) * 1.15;
+      const s = 4.2 + (index % 5) * 1.3;
       dummy.position.set(x, y, z);
       dummy.rotation.set(index * 0.17, index * 0.31, index * 0.09);
-      dummy.scale.set(s * (1.4 + (index % 3) * 0.22), s * 0.42, s);
+      dummy.scale.set(s * (1.4 + (index % 3) * 0.22), s * 0.38, s);
       dummy.updateMatrix();
       clouds.setMatrixAt(index, dummy.matrix);
     }
@@ -265,7 +472,7 @@ export class SkyDancerWebGLDemo extends CartRogueWebGLDemo {
 
   private buildAirspaceGuides(scene: THREE.Scene): void {
     const positions: number[] = [];
-    const y = -0.48;
+    const y = -0.7;
     for (const node of CART_WORLD_GRAPH.nodes) {
       const minX = node.rect.centerX - node.rect.halfWidth;
       const maxX = node.rect.centerX + node.rect.halfWidth;
@@ -280,12 +487,7 @@ export class SkyDancerWebGLDemo extends CartRogueWebGLDemo {
     }
     const geometry = new THREE.BufferGeometry();
     geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
-    const material = new THREE.LineBasicMaterial({
-      color: 0xbcecff,
-      transparent: true,
-      opacity: 0.28,
-      depthWrite: false,
-    });
+    const material = new THREE.LineBasicMaterial({ color: 0xbcecff, transparent: true, opacity: 0.13, depthWrite: false });
     const guides = new THREE.LineSegments(geometry, material);
     guides.renderOrder = 2;
     scene.add(guides);
