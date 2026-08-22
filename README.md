@@ -1,19 +1,22 @@
 # Sky Dancer
 
-Sky Dancer is a mobile-first air-combat game for iPhone Safari. It uses the
-Cart Rogue project's reusable TypeScript, three.js, PWA, touch-input, and
-WebGL/Canvas fallback foundation, while keeping the new game's source and
-history independent.
+Sky Dancer is the airborne starting point for a gradual Cart Rogue evolution
+on iPhone Safari. The first slice keeps Cart Rogue's route graph, arcade
+steering, auto-drive, GAS, BRAKE, TURBO hold/release, Turbo Ram, enemies,
+obstacles, gates, and run progression. Only the vehicle and the course surface
+have been changed into aircraft and floating flight decks.
 
 ## Initial playable slice
 
-`MOVE THROUGH THE SKY → AIM THE AIRCRAFT → SHOOT DRONES → SURVIVE THE WAVE`
+`STEER THE AIRCRAFT → TURBO RAM → BREAK THROUGH THE AIR ROUTE → CLEAR THE RUN`
 
-- A stylized aircraft flies above floating sky platforms.
-- Drag in the lower-left control area to move horizontally and vertically.
-- Hold FIRE on the lower-right side, or use `Space` on a keyboard.
-- Destroy incoming drones to raise the score and wave.
-- The WebGL renderer and Canvas 2D fallback share one fixed-step simulation.
+- A stylized aircraft runs across connected floating flight decks.
+- Drag the lower-left area to steer, matching Cart Rogue's arcade input.
+- Hold TURBO to drift, then release for the dash; BRAKE is beside it.
+- `A/D` or arrow keys steer, `S`/down brakes, and `Space`/`Shift` uses TURBO.
+- Turbo Ram, rock smash, route gates, pickups, stage clears, and upgrades stay
+  on the Cart Rogue ruleset for the next incremental changes.
+- The WebGL renderer and Canvas 2D fallback share the same Cart Rogue session.
 - The layout is landscape-first and safe-area aware for iPhone Safari.
 
 ## Development

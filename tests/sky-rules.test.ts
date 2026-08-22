@@ -1,51 +1,46 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { FIXED_STEP, SkySimulation } from "../src/sky/SkySimulation";
+import { CartArenaSession } from "../src/cart/CartArenaSession";
 
-test("Sky Simulation stays ready until the player starts the flight", () => {
-  const simulation = new SkySimulation();
-  simulation.step(FIXED_STEP * 30);
-  assert.equal(simulation.phase, "ready");
-  assert.equal(simulation.score, 0);
-  assert.equal(simulation.shots, 0);
+const FIXED_STEP = 1 / 60;
+const DRIVE_INPUT = { throttle: 0.84, brake: 0, steer: 0, boost: false } as const;
+
+test("Sky Dancer starts from the Cart Rogue arena contract", () => {
+  const session = new CartArenaSession();
+  const snapshot = session.snapshot();
+  assert.equal(snapshot.nodeId, "arena-01");
+  assert.equal(snapshot.gas, 1);
+  assert.equal(snapshot.boostCharges, 2);
+  assert.ok(snapshot.enemiesTotal > 0);
+  assert.ok(snapshot.obstacles.length > 0);
 });
 
-test("aircraft movement is bounded and uses the fixed-step loop", () => {
-  const simulation = new SkySimulation();
-  simulation.start();
-  simulation.setMove(4, -4);
-  for (let index = 0; index < 180; index += 1) simulation.step(FIXED_STEP);
-  assert.ok(simulation.plane.x <= 10 && simulation.plane.x >= -10);
-  assert.ok(simulation.plane.y <= 11.5 && simulation.plane.y >= 3.2);
-  assert.ok(simulation.plane.x > 5);
-  assert.ok(simulation.plane.y < 6.5);
+test("the original arcade steering and forward drive remain active", () => {
+  const session = new CartArenaSession();
+  const before = session.snapshot();
+  for (let index = 0; index < 10; index += 1) {
+    session.advance(FIXED_STEP, { ...DRIVE_INPUT, steer: 1 });
+  }
+  const after = session.snapshot();
+  assert.notEqual(after.x, before.x);
+  assert.ok(after.speed > 0);
 });
 
-test("holding fire emits bounded forward bullets", () => {
-  const simulation = new SkySimulation();
-  simulation.start();
-  simulation.setFire(true);
-  for (let index = 0; index < 30; index += 1) simulation.step(FIXED_STEP);
-  assert.ok(simulation.shots >= 2);
-  assert.ok(simulation.bullets.length > 0);
-  assert.ok(simulation.bullets.every((bullet) => bullet.z < 0));
+test("BRAKE and TURBO use the same input contract as Cart Rogue", () => {
+  const session = new CartArenaSession();
+  session.advance(FIXED_STEP, { ...DRIVE_INPUT, boost: true });
+  assert.equal(session.snapshot().boostActive, true);
+  for (let index = 0; index < 150; index += 1) {
+    session.advance(FIXED_STEP, { throttle: 0, brake: 1, steer: 0, boost: false });
+  }
+  assert.equal(session.snapshot().boostActive, false);
+  assert.ok(session.snapshot().gas <= 1);
 });
 
-test("a bullet destroys a drone and increases score", () => {
-  const simulation = new SkySimulation();
-  simulation.start();
-  simulation.enemies.push({ id: 900, x: 0, y: simulation.plane.y, z: -3, phase: 0 });
-  simulation.setFire(true);
-  for (let index = 0; index < 20; index += 1) simulation.step(FIXED_STEP);
-  assert.ok(simulation.hits >= 1);
-  assert.ok(simulation.score >= 25);
-});
-
-test("a drone crossing the player damages the airframe", () => {
-  const simulation = new SkySimulation();
-  simulation.start();
-  simulation.enemies.push({ id: 901, x: 0, y: simulation.plane.y, z: 4.4, phase: 0 });
-  simulation.step(FIXED_STEP);
-  assert.equal(simulation.hull, simulation.maxHull - 1);
-  assert.equal(simulation.phase, "running");
+test("the first airborne conversion keeps the route graph and enemy targets intact", () => {
+  const session = new CartArenaSession();
+  for (let index = 0; index < 30; index += 1) session.advance(FIXED_STEP, DRIVE_INPUT);
+  const snapshot = session.snapshot();
+  assert.equal(snapshot.nodeKind, "arena");
+  assert.ok(snapshot.enemies.some((enemy) => enemy.kind === "blocker" || enemy.kind === "chaser"));
 });

@@ -8,8 +8,8 @@ const githubPagesBasePath = isGitHubPagesBuild
   : "";
 
 export const metadata: Metadata = {
-  title: "Sky Dancer — Air Combat",
-  description: "iPhone Safari向けの空中シューティングゲーム。飛行機を操縦し、飛来するドローンを撃破する。",
+  title: "Sky Dancer — Airborne Turbo Run",
+  description: "Cart Rogueの操作とゲームループを引き継ぎ、航空機と空中飛行面へ置き換えたiPhone Safari向けゲーム。",
   manifest: `${githubPagesBasePath}/manifest.json`,
   appleWebApp: { capable: true, title: "Sky Dancer", statusBarStyle: "black-translucent" },
   formatDetection: { telephone: false },
