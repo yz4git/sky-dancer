@@ -1,0 +1,1 @@
+Validate current main Shot controls, player missiles, distant fighter avoidance, Turbo thrust, V9 terrain density and V10 graphics.
