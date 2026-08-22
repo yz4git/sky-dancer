@@ -22,6 +22,7 @@ interface AirBurst {
 interface AnimatedFlame {
   mesh: THREE.Mesh;
   baseLength: number;
+  baseOpacity: number;
   phase: number;
   material: THREE.MeshBasicMaterial;
 }
@@ -124,10 +125,11 @@ export class SkyDancerAirCombatFx {
     const innerColor = enemy ? 0xfff0ad : 0xe8fdff;
     const engineX = boss ? 0.48 : 0.34;
     for (const x of [-engineX, engineX]) {
+      const outerOpacity = enemy ? 0.54 : 0.66;
       const outerMaterial = new THREE.MeshBasicMaterial({
         color: outerColor,
         transparent: true,
-        opacity: enemy ? 0.54 : 0.66,
+        opacity: outerOpacity,
         blending: THREE.AdditiveBlending,
         depthWrite: false,
       });
@@ -136,12 +138,13 @@ export class SkyDancerAirCombatFx {
       outer.rotation.x = -Math.PI / 2;
       outer.position.set(x, 0.35, boss ? -2.65 : -2.45);
       fighter.add(outer);
-      this.flames.push({ mesh: outer, baseLength: outer.scale.z, phase: this.flames.length * 0.83, material: outerMaterial });
+      this.flames.push({ mesh: outer, baseLength: outer.scale.z, baseOpacity: outerOpacity, phase: this.flames.length * 0.83, material: outerMaterial });
 
+      const innerOpacity = enemy ? 0.68 : 0.9;
       const innerMaterial = new THREE.MeshBasicMaterial({
         color: innerColor,
         transparent: true,
-        opacity: enemy ? 0.68 : 0.9,
+        opacity: innerOpacity,
         blending: THREE.AdditiveBlending,
         depthWrite: false,
       });
@@ -150,7 +153,7 @@ export class SkyDancerAirCombatFx {
       inner.rotation.x = -Math.PI / 2;
       inner.position.set(x, 0.35, boss ? -2.38 : -2.18);
       fighter.add(inner);
-      this.flames.push({ mesh: inner, baseLength: inner.scale.z, phase: this.flames.length * 0.61, material: innerMaterial });
+      this.flames.push({ mesh: inner, baseLength: inner.scale.z, baseOpacity: innerOpacity, phase: this.flames.length * 0.61, material: innerMaterial });
     }
 
     const vaporMaterial = new THREE.MeshBasicMaterial({
@@ -209,7 +212,7 @@ export class SkyDancerAirCombatFx {
     for (const flame of this.flames) {
       const flicker = 0.88 + Math.sin(this.elapsed * 24 + flame.phase) * 0.12 + Math.sin(this.elapsed * 43 + flame.phase * 2) * 0.06;
       flame.mesh.scale.z = flame.baseLength * flicker;
-      flame.material.opacity *= 0.96 + Math.sin(this.elapsed * 31 + flame.phase) * 0.04;
+      flame.material.opacity = flame.baseOpacity * (0.92 + Math.sin(this.elapsed * 31 + flame.phase) * 0.08);
     }
 
     this.updateEnemyDestruction(snapshot);
