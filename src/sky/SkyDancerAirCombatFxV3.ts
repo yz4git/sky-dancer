@@ -84,9 +84,15 @@ export class SkyDancerAirCombatFxV3 extends SkyDancerAirCombatFxV2 {
       if (!(object instanceof THREE.Mesh)) return;
       if (object.geometry.type !== "CircleGeometry") return;
       if (object.position.z > -1.7) return;
-      // CircleGeometry already starts in the XY plane, perpendicular to Z.
-      // V2 baked an unnecessary +90° X rotation; undo it so the nozzle disc
-      // faces aft/forward on the aircraft's +Z/-Z longitudinal axis.
+      // The original Sky fighter already had rotated CircleGeometry engine glows.
+      // V2 nozzle discs have no object-space X rotation because their geometry was
+      // baked. Only correct those baked discs; hide the older primitive discs.
+      if (Math.abs(object.rotation.x) > 0.01) {
+        object.visible = false;
+        return;
+      }
+      // CircleGeometry starts in the XY plane, perpendicular to Z. Undo V2's
+      // unnecessary +90° geometry rotation so the nozzle faces the flight axis.
       object.geometry.rotateX(-Math.PI / 2);
       object.geometry.computeBoundingSphere();
     });
@@ -109,7 +115,6 @@ export class SkyDancerAirCombatFxV3 extends SkyDancerAirCombatFxV2 {
       toneMapped: false,
     });
 
-    // Intake shoulders give the very simple cylinder fuselage a readable jet silhouette.
     for (const side of [-1, 1]) {
       const intake = new THREE.Mesh(new THREE.BoxGeometry(boss ? 0.68 : 0.54, 0.34, boss ? 1.72 : 1.42), body);
       intake.position.set(side * (boss ? 0.82 : 0.66), 0.35, -0.44);
@@ -126,7 +131,6 @@ export class SkyDancerAirCombatFxV3 extends SkyDancerAirCombatFxV2 {
       fighter.add(stabilator);
     }
 
-    // Thin leading-edge strips add definition without textures.
     for (const side of [-1, 1]) {
       const stripGeometry = new THREE.BufferGeometry();
       stripGeometry.setAttribute("position", new THREE.Float32BufferAttribute([
