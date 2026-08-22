@@ -40,9 +40,10 @@ if (await start.isVisible().catch(() => false)) await start.click();
 
 const webglCanvas = page.locator('canvas[aria-label="Sky Dancer WebGL game view"]');
 await webglCanvas.waitFor({ state: "visible", timeout: 30_000 });
-await page.getByText("WEBGL", { exact: true }).waitFor({ state: "visible", timeout: 30_000 });
 await page.waitForTimeout(1_600);
 
+// Verify the actual rendered canvas rather than relying on a HUD badge that can
+// intentionally be hidden by compact/iPhone CSS.
 const webgl = await webglCanvas.evaluate((canvas) => {
   const gl = canvas.getContext("webgl2") || canvas.getContext("webgl");
   if (!gl) return { ok: false };
