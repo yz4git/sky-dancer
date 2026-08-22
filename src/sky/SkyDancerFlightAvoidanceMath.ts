@@ -1,5 +1,5 @@
-export const SKY_DANCER_ENEMY_PREFERRED_STANDOFF = 13;
-export const SKY_DANCER_ENEMY_HARD_CLEARANCE = 2.8;
+export const SKY_DANCER_ENEMY_PREFERRED_STANDOFF = 21;
+export const SKY_DANCER_ENEMY_HARD_CLEARANCE = 3.2;
 export const SKY_DANCER_PLAYER_BODY_RADIUS = 1.45;
 
 export function skyDancerClamp(value: number, min: number, max: number): number {
@@ -33,12 +33,14 @@ export function skyDancerAvoidanceHeading(
 ): number {
   const direct = Math.atan2(playerX - enemyX, playerZ - enemyZ);
 
-  if (distance < 10.5) return skyDancerNormalizeAngle(direct + Math.PI + side * 0.42);
-  if (distance < 17.5) return skyDancerNormalizeAngle(direct + side * 0.42);
+  // Begin the fighter peel well before the two airframes become visually close.
+  if (distance < 15.5) return skyDancerNormalizeAngle(direct + Math.PI + side * 0.58);
+  // Remain in a missile-capable crank rather than flying a head-on intercept.
+  if (distance < 27) return skyDancerNormalizeAngle(direct + side * 0.64);
 
-  const lead = skyDancerClamp(distance * 0.20, 3.2, 9.0);
+  const lead = skyDancerClamp(distance * 0.18, 3.5, 9.5);
   const targetX = playerX + Math.sin(playerHeading) * lead;
   const targetZ = playerZ + Math.cos(playerHeading) * lead;
   const intercept = Math.atan2(targetX - enemyX, targetZ - enemyZ);
-  return skyDancerNormalizeAngle(intercept + side * (distance < 28 ? 0.16 : 0.08));
+  return skyDancerNormalizeAngle(intercept + side * (distance < 38 ? 0.24 : 0.12));
 }
