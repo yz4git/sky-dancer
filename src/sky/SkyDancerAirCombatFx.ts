@@ -8,6 +8,7 @@
 // SkyDancerAirCombatFxV26 as SkyDancerAirCombatFx
 // SkyDancerAirCombatFxV27 as SkyDancerAirCombatFx
 // SkyDancerAirCombatFxV28 as SkyDancerAirCombatFx
+// Audit probe 2: runtime-identical PR validation.
 export {
   SkyDancerAirCombatFxV29 as SkyDancerAirCombatFx,
 } from "./SkyDancerAirCombatFxV29";
