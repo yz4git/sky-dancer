@@ -55,20 +55,26 @@ const controlState = await page.evaluate(() => {
   const brakeButtons = buttons.filter((button) => button.textContent?.trim() === "BRAKE");
   const visibleBrakeButtons = brakeButtons.filter((button) => getComputedStyle(button).display !== "none");
   const shotButton = buttons.find((button) => button.getAttribute("aria-label") === "Fire missile");
-  return { shotVisible: Boolean(shotButton && getComputedStyle(shotButton).display !== "none"), brakeCount: brakeButtons.length, visibleBrakeCount: visibleBrakeButtons.length };
+  return {
+    shotVisible: Boolean(shotButton && getComputedStyle(shotButton).display !== "none"),
+    brakeCount: brakeButtons.length,
+    visibleBrakeCount: visibleBrakeButtons.length,
+    directFireAvailable: typeof window.__skyDancerFireMissile === "function",
+  };
 });
-if (!controlState.shotVisible || controlState.visibleBrakeCount !== 0) throw new Error(`Control replacement failed: ${JSON.stringify(controlState)}`);
+if (!controlState.shotVisible || controlState.visibleBrakeCount !== 0 || !controlState.directFireAvailable) {
+  throw new Error(`Control replacement failed: ${JSON.stringify(controlState)}`);
+}
 
 const openingFlight = await page.evaluate(() => typeof window.__skyDancerGetFlightDebug === "function" ? window.__skyDancerGetFlightDebug() : null);
 if (!openingFlight) throw new Error("Flight telemetry unavailable at opening");
 if (Math.abs(Number(openingFlight.altitudeMeters) - 88) > 0.6) throw new Error(`Unexpected flight level: ${JSON.stringify(openingFlight)}`);
-if (openingFlight.minEnemyDistance != null && Number(openingFlight.minEnemyDistance) < 14) {
-  throw new Error(`Opening fighter spawned too close: ${JSON.stringify(openingFlight)}`);
-}
 
 await page.screenshot({ path: `${outputDir}/01-gameplay-start.png`, fullPage: true });
 await webglCanvas.screenshot({ path: `${outputDir}/01-gameplay-start-canvas.png` });
 
+// Primary regression #1: a real touch must create a missile and that missile
+// must visibly advance in world simulation, not just increment shotSerial.
 const weaponBefore = await page.evaluate(() => typeof window.__skyDancerGetWeaponState === "function" ? window.__skyDancerGetWeaponState() : null);
 const shotBox = await shot.boundingBox();
 if (!shotBox) throw new Error("Shot button has no touchable bounds");
@@ -79,14 +85,23 @@ if (!weaponBefore || !weaponImmediatelyAfter || weaponImmediatelyAfter.shotSeria
 }
 const launched = weaponImmediatelyAfter.missiles[0];
 await page.waitForTimeout(120);
-const weaponAfter = await page.evaluate(() => typeof window.__skyDancerGetWeaponState === "function" ? window.__skyDancerGetWeaponState() : null);
-if (!weaponAfter) throw new Error("Weapon telemetry disappeared after launch");
-const sameMissile = Array.isArray(weaponAfter.missiles) ? weaponAfter.missiles.find((missile) => missile.id === launched.id) : null;
-const missileTravel = sameMissile ? Math.hypot(sameMissile.x - launched.x, sameMissile.z - launched.z) : null;
-const moved = sameMissile
-  ? missileTravel > 0.2 || sameMissile.life < launched.life - 0.02
-  : weaponAfter.hitSerial > weaponImmediatelyAfter.hitSerial;
-if (!moved) throw new Error(`Player missile was created but did not advance: launch=${JSON.stringify(launched)} after=${JSON.stringify(weaponAfter)}`);
+const weaponAfter120 = await page.evaluate(() => typeof window.__skyDancerGetWeaponState === "function" ? window.__skyDancerGetWeaponState() : null);
+if (!weaponAfter120) throw new Error("Weapon telemetry disappeared after launch");
+const sameMissile120 = Array.isArray(weaponAfter120.missiles) ? weaponAfter120.missiles.find((missile) => missile.id === launched.id) : null;
+const missileTravel120 = sameMissile120 ? Math.hypot(sameMissile120.x - launched.x, sameMissile120.z - launched.z) : null;
+const moved120 = sameMissile120
+  ? missileTravel120 > 0.2 || sameMissile120.life < launched.life - 0.02
+  : weaponAfter120.hitSerial > weaponImmediatelyAfter.hitSerial;
+if (!moved120) throw new Error(`Player missile was created but did not advance: launch=${JSON.stringify(launched)} after=${JSON.stringify(weaponAfter120)}`);
+
+await page.waitForTimeout(180);
+const weaponAfter300 = await page.evaluate(() => typeof window.__skyDancerGetWeaponState === "function" ? window.__skyDancerGetWeaponState() : null);
+const sameMissile300 = Array.isArray(weaponAfter300?.missiles) ? weaponAfter300.missiles.find((missile) => missile.id === launched.id) : null;
+const missileTravel300 = sameMissile300 ? Math.hypot(sameMissile300.x - launched.x, sameMissile300.z - launched.z) : null;
+const advancedMeaningfully = sameMissile300
+  ? missileTravel300 > 1 || sameMissile300.life < launched.life - 0.08
+  : (weaponAfter300?.hitSerial ?? 0) > weaponImmediatelyAfter.hitSerial;
+if (!advancedMeaningfully) throw new Error(`Player missile did not achieve visible flight: launch=${JSON.stringify(launched)} after300=${JSON.stringify(weaponAfter300)}`);
 
 await page.screenshot({ path: `${outputDir}/02-player-shot.png`, fullPage: true });
 await webglCanvas.screenshot({ path: `${outputDir}/02-player-shot-canvas.png` });
@@ -99,6 +114,8 @@ await webglCanvas.screenshot({ path: `${outputDir}/03-banked-turn-canvas.png` })
 await page.keyboard.up("ArrowRight");
 await page.waitForTimeout(320);
 
+// Primary regression #2: Turbo hold must keep the aircraft moving and should
+// add obvious forward speed before release, while drift remains available.
 const turboBefore = await page.evaluate(() => typeof window.__skyDancerGetFlightDebug === "function" ? window.__skyDancerGetFlightDebug() : null);
 await page.keyboard.down("Space");
 await page.waitForTimeout(850);
@@ -106,9 +123,10 @@ const turboDuring = await page.evaluate(() => typeof window.__skyDancerGetFlight
 if (!turboBefore || !turboDuring) throw new Error(`Turbo telemetry unavailable: before=${JSON.stringify(turboBefore)} during=${JSON.stringify(turboDuring)}`);
 const beforeForward = Math.abs(Number(turboBefore.forwardVelocity) || 0);
 const duringForward = Math.abs(Number(turboDuring.forwardVelocity) || 0);
+if (duringForward < 12) throw new Error(`Turbo hold left the aircraft effectively stopped: before=${beforeForward.toFixed(3)} during=${duringForward.toFixed(3)}`);
 if (beforeForward > 1 && duringForward < beforeForward * 0.99) throw new Error(`Turbo hold lost forward speed: before=${beforeForward.toFixed(3)} during=${duringForward.toFixed(3)}`);
-if (beforeForward > 1 && beforeForward < 23.2 && duringForward < beforeForward + 0.5) {
-  throw new Error(`Turbo hold failed to accelerate: before=${beforeForward.toFixed(3)} during=${duringForward.toFixed(3)}`);
+if (beforeForward > 1 && beforeForward < 23.5 && duringForward < beforeForward + 1.0) {
+  throw new Error(`Turbo hold failed to accelerate clearly: before=${beforeForward.toFixed(3)} during=${duringForward.toFixed(3)}`);
 }
 await page.waitForTimeout(200);
 await page.screenshot({ path: `${outputDir}/04-turbo-hold.png`, fullPage: true });
@@ -117,6 +135,12 @@ await page.keyboard.up("Space");
 await page.waitForTimeout(180);
 await page.screenshot({ path: `${outputDir}/05-turbo-release.png`, fullPage: true });
 await webglCanvas.screenshot({ path: `${outputDir}/05-turbo-release-canvas.png` });
+
+// Secondary opening spacing is checked after SHOT/Turbo so it can never hide
+// those primary regressions from the audit output.
+if (openingFlight.minEnemyDistance != null && Number(openingFlight.minEnemyDistance) < 14) {
+  throw new Error(`Opening fighter spawned too close: ${JSON.stringify(openingFlight)}`);
+}
 
 await page.keyboard.down("ArrowLeft");
 await page.waitForTimeout(900);
@@ -143,7 +167,8 @@ if (legacyVisible.length) throw new Error(`Legacy vehicle HUD text still visible
 
 const diagnostics = {
   capturedAt: new Date().toISOString(), url: page.url(), viewport: page.viewportSize(), webgl, controlState,
-  openingFlight, weaponBefore, weaponImmediatelyAfter, weaponAfter, missileTravel,
+  openingFlight, weaponBefore, weaponImmediatelyAfter, weaponAfter120, weaponAfter300,
+  missileTravel120, missileTravel300,
   turnFlight, turboBefore, turboDuring, combatWeaponBefore, combatWeaponAfter, combatFlight,
   warningVisible, legacyVisible,
   bodyTextSample: text.split("\n").map((line) => line.trim()).filter(Boolean).slice(0, 120), consoleErrors, pageErrors,
