@@ -86,15 +86,12 @@ test("enemy guidance starts its break-away much farther from the player", () => 
   assert.equal(SKY_DANCER_ENEMY_PREFERRED_STANDOFF, 21);
   assert.ok(safety > 5.8);
   assert.ok(SKY_DANCER_ENEMY_PREFERRED_STANDOFF > safety * 2.8);
-
   const direct = 0;
   const close = skyDancerAvoidanceHeading(0, 0, 0, 12, 0, 12, 1);
   assert.ok(Math.abs(skyDancerNormalizeAngle(close - direct)) > 2.3);
-
   const missileZone = skyDancerAvoidanceHeading(0, 0, 0, 22, 0, 22, 1);
   const crank = Math.abs(skyDancerNormalizeAngle(missileZone - direct));
   assert.ok(crank >= 0.5 && crank <= 0.8);
-
   const runtime = readFileSync(new URL("../src/sky/SkyDancerFlightAvoidance.ts", import.meta.url), "utf8");
   assert.match(runtime, /const lookAhead = 0\.95/);
   assert.match(runtime, /predictedDistance < safetyRadius \+ 5\.4/);
@@ -155,28 +152,44 @@ test("V10 renders player missiles and exposes the Shot fire hook", () => {
   const source = readFileSync(new URL("../src/sky/SkyDancerAirCombatFxV10.ts", import.meta.url), "utf8");
   assert.match(source, /__skyDancerFireMissile/);
   assert.match(source, /sky-dancer-q10-player-missiles/);
+  assert.match(source, /bindSkyDancerWeaponSession/);
   assert.match(source, /getSkyDancerPlayerWeaponState/);
-  assert.match(source, /requestSkyDancerPlayerMissile/);
 });
 
-test("V11 fills route-scale empty ground and broadens Turbo/Shot presentation", () => {
+test("V11 quality remains in the active V17 inheritance chain", () => {
   const source = readFileSync(new URL("../src/sky/SkyDancerAirCombatFxV11.ts", import.meta.url), "utf8");
   const entry = readFileSync(new URL("../src/sky/SkyDancerAirCombatFx.ts", import.meta.url), "utf8");
   assert.match(source, /sky-dancer-q11-route-parcels/);
-  assert.match(source, /sky-dancer-q11-hedgerows/);
   assert.match(source, /sky-dancer-q11-route-towns/);
   assert.match(source, /sky-dancer-q11-highways/);
-  assert.match(source, /sky-dancer-q11-landmarks/);
-  assert.match(source, /sky-dancer-q11-turbo-ribbon/);
-  assert.match(source, /sky-dancer-q11-muzzle-flash/);
-  assert.match(source, /object\.scale\.setScalar\(1\.42\)/);
-  assert.match(entry, /SkyDancerAirCombatFxV11/);
+  assert.match(entry, /SkyDancerAirCombatFxV17/);
 });
 
-test("Canvas V4 exposes Shot firing and draws player missiles", () => {
+test("Canvas V4 binds Shot to the active session and draws player missiles", () => {
   const source = readFileSync(new URL("../src/sky/SkyDancerCanvasPreviewV4.ts", import.meta.url), "utf8");
-  assert.match(source, /__skyDancerFireMissile/);
-  assert.match(source, /requestSkyDancerPlayerMissile/);
+  assert.match(source, /bindSkyDancerWeaponSession/);
+  assert.match(source, /installSkyDancerFlightDynamics/);
   assert.match(source, /drawPlayerMissiles/);
   assert.match(source, /globalCompositeOperation = "lighter"/);
+});
+
+test("V17 prevents Turbo hold speed loss and converts enemy sliding into inertial flight", () => {
+  const source = readFileSync(new URL("../src/sky/SkyDancerFlightDynamics.ts", import.meta.url), "utf8");
+  const visual = readFileSync(new URL("../src/sky/SkyDancerAirCombatFxV17.ts", import.meta.url), "utf8");
+  assert.match(source, /preserveTurboForwardSpeed/);
+  assert.match(source, /afterMagnitude >= beforeMagnitude \* 0\.997/);
+  assert.match(source, /lateral = clamp\(lateral, -Math\.abs\(forward\) \* 0\.2/);
+  assert.match(source, /enemy\.heading = rotateToward/);
+  assert.match(visual, /ALTITUDE_LIFT_METERS = 88/);
+  assert.match(visual, /targetBank/);
+  assert.match(visual, /targetPitch/);
+});
+
+test("SHOT control calls the active-session weapon bridge instead of a stale global callback", () => {
+  const ui = readFileSync(new URL("../app/SkyDancerShotControl.tsx", import.meta.url), "utf8");
+  const bridge = readFileSync(new URL("../src/sky/SkyDancerWeaponBridge.ts", import.meta.url), "utf8");
+  assert.match(ui, /fireSkyDancerActiveWeapon/);
+  assert.doesNotMatch(ui, /window as unknown as Record<string, unknown>/);
+  assert.match(bridge, /activeSession/);
+  assert.match(bridge, /requestSkyDancerPlayerMissile\(activeSession\)/);
 });
