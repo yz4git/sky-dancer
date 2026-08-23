@@ -234,6 +234,14 @@ test("V19 moves graphics toward the midpoint reference without changing chase-ca
   assert.doesNotMatch(source, /camera\.fov\s*=/);
 });
 
+test("V19 HUD uses compact translucent flight instrumentation styling", () => {
+  const source = readFileSync(new URL("../app/SkyDancerHudQualityPass.tsx", import.meta.url), "utf8");
+  assert.match(source, /rgba\(10,43,66,\.76\)/);
+  assert.match(source, /backdrop-filter: blur\(6px\)/);
+  assert.match(source, /rgba\(42,199,248,\.92\)/);
+  assert.match(source, /itemStrip/);
+});
+
 test("the half-density opening formation avoids spawning a large fighter on top of the player", () => {
   const source = readFileSync(new URL("../src/sky/SkyDancerEnemyPopulation.ts", import.meta.url), "utf8");
   assert.match(source, /OPENING_MIN_DISTANCE = 32/);
@@ -251,6 +259,17 @@ test("SHOT control prefers the active renderer callback and falls back to the se
   assert.match(ui, /active renderer's/);
   assert.match(bridge, /activeSession/);
   assert.match(bridge, /requestSkyDancerPlayerMissile\(activeSession\)/);
+});
+
+test("WebGL audit always validates SHOT and Turbo before secondary opening-spacing failure", () => {
+  const source = readFileSync(new URL("../scripts/webgl-visual-audit.mjs", import.meta.url), "utf8");
+  const shotIndex = source.indexOf("Primary regression #1");
+  const turboIndex = source.indexOf("Primary regression #2");
+  const spacingIndex = source.indexOf("Secondary opening spacing");
+  assert.ok(shotIndex >= 0 && turboIndex > shotIndex && spacingIndex > turboIndex);
+  assert.match(source, /missileTravel300/);
+  assert.match(source, /duringForward < 12/);
+  assert.match(source, /duringForward < beforeForward \+ 1\.0/);
 });
 
 test("Sky Dancer combat polish replaces vehicle language and adds an inbound missile warning", () => {
