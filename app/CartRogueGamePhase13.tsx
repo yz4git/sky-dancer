@@ -10,6 +10,7 @@ import CartCombatReadabilityPass from "./CartCombatReadabilityPass";
 import CartGameMenu from "./CartGameMenu";
 import SkyDancerHudQualityPass from "./SkyDancerHudQualityPass";
 import SkyDancerShotControl from "./SkyDancerShotControl";
+import SkyDancerCombatPolish from "./SkyDancerCombatPolish";
 
 export default function CartRogueGamePhase13() {
   const [started, setStarted] = useState(false);
@@ -22,8 +23,6 @@ export default function CartRogueGamePhase13() {
   };
 
   useEffect(() => {
-    // Existing WebGL/gameplay audits intentionally exercise the live game
-    // immediately on NORMAL. Real players still enter through the title screen.
     if (!navigator.webdriver) return undefined;
     const timer = window.setTimeout(() => {
       setCartRunDifficulty("normal");
@@ -40,6 +39,7 @@ export default function CartRogueGamePhase13() {
         <CartCombatReadabilityPass />
         <SkyDancerHudQualityPass />
         <SkyDancerShotControl />
+        <SkyDancerCombatPolish />
       </Fragment>
     )}
     <CartGameMenu
