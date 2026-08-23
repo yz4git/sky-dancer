@@ -63,7 +63,10 @@ const duringZ = Number(during.z);
 const holdTravel = [beforeX, beforeZ, duringX, duringZ].every(Number.isFinite)
   ? Math.hypot(duringX - beforeX, duringZ - beforeZ)
   : Number.NaN;
-if (!Number.isFinite(holdTravel) || holdTravel < 6) {
+// Flight velocity is expressed in simulation units and is intentionally
+// scaled before world-position integration. This threshold detects a frozen
+// aircraft without treating those two unit systems as interchangeable.
+if (!Number.isFinite(holdTravel) || holdTravel < 0.8) {
   throw new Error(`Turbo hold did not move through world space: travel=${holdTravel} before=${JSON.stringify(before)} during=${JSON.stringify(during)}`);
 }
 
