@@ -25,7 +25,7 @@ test("V29 applies the requested second boss reductions and speed increase", () =
 
 test("V29 steering recovery reclaims stale iPhone pointers", () => {
   const source = readFileSync(new URL("../src/sky/SkyDancerSteeringRecovery.ts", import.meta.url), "utf8");
-  assert.match(source, /\[aria-label=\\"Steering\\"\]/);
+  assert.match(source, /\[aria-label="Steering"\]/);
   assert.match(source, /pointercancel/);
   assert.match(source, /visibilitychange/);
   assert.match(source, /activePointerId = event\.pointerId/);
