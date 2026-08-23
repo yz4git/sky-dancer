@@ -62,7 +62,7 @@ test("the application installs Turbo isolation after the legacy Cart runtime boo
   assert.ok(cartRuntime >= 0 && isolation > cartRuntime);
 });
 
-test("V22 is active and raises world/aircraft/effects quality without moving the chase camera", () => {
+test("V22 raises world aircraft and effects quality without moving the chase camera", () => {
   const entry = readFileSync(new URL("../src/sky/SkyDancerAirCombatFx.ts", import.meta.url), "utf8");
   const source = readFileSync(new URL("../src/sky/SkyDancerAirCombatFxV22.ts", import.meta.url), "utf8");
   assert.match(entry, /SkyDancerAirCombatFxV22/);
@@ -79,6 +79,24 @@ test("V22 is active and raises world/aircraft/effects quality without moving the
   assert.match(source, /sky-dancer-v22-engine-system/);
   assert.match(source, /sky-dancer-v22-speed-streaks/);
   assert.match(source, /getSkyDancerTurboState/);
+  assert.doesNotMatch(source, /camera\.position\.set/);
+  assert.doesNotMatch(source, /camera\.fov\s*=/);
+});
+
+test("V23 is active and removes the washed-out overlapping presentation", () => {
+  const entry = readFileSync(new URL("../src/sky/SkyDancerAirCombatFx.ts", import.meta.url), "utf8");
+  const source = readFileSync(new URL("../src/sky/SkyDancerAirCombatFxV23.ts", import.meta.url), "utf8");
+  assert.match(entry, /SkyDancerAirCombatFxV23/);
+  assert.match(source, /extends SkyDancerAirCombatFxV22/);
+  assert.match(source, /toneMappingExposure = 0\.92/);
+  assert.match(source, /sky-dancer-v19-cloud-volume/);
+  assert.match(source, /sky-dancer-v22-cloud-banks/);
+  assert.match(source, /sky-dancer-v19-cinematic-boost/);
+  assert.match(source, /sky-dancer-q13-tapered-afterburner/);
+  assert.match(source, /sky-dancer-v23-facade-window-bands/);
+  assert.match(source, /sky-dancer-v23-refined-clouds/);
+  assert.match(source, /sky-dancer-v23-river-highlights/);
+  assert.match(source, /sky-dancer-v22-engine-system/);
   assert.doesNotMatch(source, /camera\.position\.set/);
   assert.doesNotMatch(source, /camera\.fov\s*=/);
 });
