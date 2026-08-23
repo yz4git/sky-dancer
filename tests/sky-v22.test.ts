@@ -146,6 +146,9 @@ test("V25 activates the supplied reference composition without changing flight r
   assert.match(source, /sky-dancer-v25-hero-presence/);
   assert.match(source, /sky-dancer-v25-missile-heat-system/);
   assert.match(source, /HERO_SCALE = 1\.14/);
+  assert.match(source, /outerCore\.rotation\.y = Math\.PI/);
+  assert.match(source, /plume\.scale\.y \+=/);
+  assert.match(source, /visual\.flame\.scale\.set\(flameWidth/);
   assert.match(source, /toneMappingExposure = 1\.03/);
   assert.doesNotMatch(source, /camera\.position\.set/);
   assert.doesNotMatch(source, /camera\.fov\s*=/);
