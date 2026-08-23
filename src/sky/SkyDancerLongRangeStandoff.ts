@@ -45,9 +45,6 @@ export function installSkyDancerLongRangeStandoff(): void {
       const preferred = enemy.kind === "boss" ? 27 : enemy.kind === "heavy" ? 25 : SKY_DANCER_COMBAT_STANDOFF;
       if (distance >= preferred) continue;
 
-      // Strong enough to beat the inherited intercept speed, but applied as a
-      // continuous velocity-like correction so fighters visibly open distance
-      // instead of teleporting or bouncing on contact.
       const deficit = preferred - distance;
       const outwardSpeed = Math.min(16, 3 + deficit * 1.15);
       enemy.x += dx / distance * outwardSpeed * delta;
@@ -59,5 +56,3 @@ export function installSkyDancerLongRangeStandoff(): void {
     }
   };
 }
-
-installSkyDancerLongRangeStandoff();
