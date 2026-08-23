@@ -267,8 +267,6 @@ export class SkyDancerAirCombatFxV15 extends SkyDancerAirCombatFxV14 {
       const pulse = 0.84 + Math.sin(this.elapsedV15 * 30 + state.phase) * 0.16;
       state.mesh.material.opacity = state.baseOpacity * (0.6 + speed * 0.4) * pulse;
       state.mesh.position.z = state.baseZ - Math.sin(this.elapsedV15 * 21 + state.phase) * 0.025;
-      state.mesh.scale.x *= 0.995 + pulse * 0.005;
-      state.mesh.scale.y *= 0.995 + pulse * 0.005;
     }
   }
 }
