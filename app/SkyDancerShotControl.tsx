@@ -5,12 +5,29 @@ import "../src/sky/SkyDancerControlPatch";
 import { fireSkyDancerActiveWeapon } from "../src/sky/SkyDancerWeaponBridge";
 import styles from "./SkyDancerShotControl.module.css";
 
+const DIRECT_FIRE_KEY = "__skyDancerFireMissile";
+const SHOT_UI_EVENT = "sky-dancer-player-shot-ui";
 let lastSuccessfulFireAt = 0;
 
 function fireMissile(): boolean {
-  const fired = fireSkyDancerActiveWeapon();
+  let fired = false;
+  if (typeof window !== "undefined") {
+    const direct = (window as unknown as Record<string, unknown>)[DIRECT_FIRE_KEY];
+    if (typeof direct === "function") {
+      try {
+        fired = Boolean((direct as () => boolean)());
+      } catch {
+        fired = false;
+      }
+    }
+  }
+  // Fallback keeps Canvas/session transitions safe, but the active renderer's
+  // own callback is authoritative so SHOT can never target a stale session.
+  if (!fired) fired = fireSkyDancerActiveWeapon();
   if (!fired) return false;
+
   lastSuccessfulFireAt = performance.now();
+  if (typeof window !== "undefined") window.dispatchEvent(new Event(SHOT_UI_EVENT));
   if ("vibrate" in navigator) navigator.vibrate?.(8);
   return true;
 }
@@ -20,7 +37,7 @@ function fireWithRuntimeRetry(): void {
   let attempts = 0;
   const retry = () => {
     attempts += 1;
-    if (fireMissile() || attempts >= 10) return;
+    if (fireMissile() || attempts >= 12) return;
     requestAnimationFrame(retry);
   };
   requestAnimationFrame(retry);
@@ -65,13 +82,11 @@ export default function SkyDancerShotControl() {
         onPointerDown={(event) => {
           event.preventDefault();
           pointerFireRef.current = performance.now();
-          // The active game session is called directly. Pointer capture is kept
-          // purely as a gesture helper and can never block weapon firing.
           fireWithRuntimeRetry();
           try {
             event.currentTarget.setPointerCapture(event.pointerId);
           } catch {
-            // Safari may reject capture during orientation/runtime transitions.
+            // Safari can reject capture during an orientation/runtime transition.
           }
         }}
         onClick={(event) => {
