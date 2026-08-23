@@ -76,14 +76,24 @@ if (!controlState.shotVisible || controlState.visibleBrakeCount !== 0) {
 await page.screenshot({ path: `${outputDir}/01-gameplay-start.png`, fullPage: true });
 await webglCanvas.screenshot({ path: `${outputDir}/01-gameplay-start-canvas.png` });
 
-// Fire through the real UI and catch the missile close enough to the player for
-// its body, plume and lock ring to be visually reviewable.
-await shot.click();
-await page.waitForTimeout(180);
+const weaponBefore = await page.evaluate(() => {
+  const getter = window.__skyDancerGetWeaponState;
+  return typeof getter === "function" ? getter() : null;
+});
+const shotBox = await shot.boundingBox();
+if (!shotBox) throw new Error("Shot button has no touchable bounds");
+await page.touchscreen.tap(shotBox.x + shotBox.width * 0.5, shotBox.y + shotBox.height * 0.5);
+await page.waitForTimeout(90);
+const weaponAfter = await page.evaluate(() => {
+  const getter = window.__skyDancerGetWeaponState;
+  return typeof getter === "function" ? getter() : null;
+});
+if (!weaponBefore || !weaponAfter || weaponAfter.shotSerial <= weaponBefore.shotSerial) {
+  throw new Error(`Touch Shot did not launch: before=${JSON.stringify(weaponBefore)} after=${JSON.stringify(weaponAfter)}`);
+}
 await page.screenshot({ path: `${outputDir}/02-player-shot.png`, fullPage: true });
 await webglCanvas.screenshot({ path: `${outputDir}/02-player-shot-canvas.png` });
 
-// Capture while steering remains held so turn-bank amount is measured directly.
 await page.keyboard.down("ArrowRight");
 await page.waitForTimeout(1_350);
 await page.screenshot({ path: `${outputDir}/03-banked-turn.png`, fullPage: true });
@@ -91,8 +101,6 @@ await webglCanvas.screenshot({ path: `${outputDir}/03-banked-turn-canvas.png` })
 await page.keyboard.up("ArrowRight");
 await page.waitForTimeout(320);
 
-// Capture the charged hold phase itself: this is where the old single cone was
-// most visible and where V9 should show plume + diamonds + rings + streaks.
 await page.keyboard.down("Space");
 await page.waitForTimeout(1_050);
 await page.screenshot({ path: `${outputDir}/04-turbo-hold.png`, fullPage: true });
@@ -106,7 +114,8 @@ await page.keyboard.down("ArrowLeft");
 await page.waitForTimeout(900);
 await page.keyboard.up("ArrowLeft");
 await page.waitForTimeout(6_000);
-await shot.click();
+const combatBox = await shot.boundingBox();
+if (combatBox) await page.touchscreen.tap(combatBox.x + combatBox.width * 0.5, combatBox.y + combatBox.height * 0.5);
 await page.waitForTimeout(320);
 await page.screenshot({ path: `${outputDir}/06-combat.png`, fullPage: true });
 await webglCanvas.screenshot({ path: `${outputDir}/06-combat-canvas.png` });
@@ -118,6 +127,8 @@ const diagnostics = {
   viewport: page.viewportSize(),
   webgl,
   controlState,
+  weaponBefore,
+  weaponAfter,
   bodyTextSample: text.split("\n").map((line) => line.trim()).filter(Boolean).slice(0, 100),
   consoleErrors,
   pageErrors,
