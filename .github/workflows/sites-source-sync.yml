@@ -1,0 +1,94 @@
+name: Temporary Sky Dancer Sites Source Sync
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/sites-source-sync.yml"
+
+permissions:
+  contents: read
+  issues: read
+  pull-requests: read
+
+jobs:
+  sync-source:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Checkout exact production source
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Create one-time encrypted handshake
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPOSITORY: ${{ github.repository }}
+          SITES_REMOTE: "https://git.chatgpt-team.site/0f3af533-5687-46f7-9b39-bdf2c4c09654/appgprj_6a898bd02db08191bc395338dc2cc741.git"
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          private_key=/tmp/sky-sites-sync-private.pem
+          public_der=/tmp/sky-sites-sync-public.der
+          token_file=/tmp/sky-sites-sync-token
+          chunk_file=/tmp/sky-sites-sync-chunk
+          cleanup() {
+            rm -f "$private_key" "$public_der" "$token_file" "$chunk_file"
+          }
+          trap cleanup EXIT
+
+          openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:4096 -out "$private_key" >/dev/null 2>&1
+          openssl pkey -in "$private_key" -pubout -outform DER -out "$public_der"
+          public_key_b64="$(base64 -w0 "$public_der")"
+          echo "SITES_SYNC_PUBLIC_KEY_DER_B64=$public_key_b64"
+          echo "Waiting for the one-time encrypted Sites credential."
+
+          encrypted_body=""
+          for attempt in $(seq 1 120); do
+            encrypted_body="$(gh api "repos/$REPOSITORY/issues/$PR_NUMBER/comments" --paginate --jq '[.[] | select(.body | startswith("SITES_SYNC_CIPHERTEXT_V1\n"))][-1].body // ""')"
+            if [[ -n "$encrypted_body" ]]; then
+              break
+            fi
+            sleep 4
+          done
+
+          if [[ -z "$encrypted_body" ]]; then
+            echo "Encrypted credential handoff timed out."
+            exit 1
+          fi
+
+          : > "$token_file"
+          encrypted_payload="${encrypted_body#*$'\n'}"
+          while IFS= read -r encrypted_chunk; do
+            [[ -z "$encrypted_chunk" ]] && continue
+            printf '%s' "$encrypted_chunk" | base64 -d > "$chunk_file"
+            openssl pkeyutl -decrypt               -inkey "$private_key"               -in "$chunk_file"               -pkeyopt rsa_padding_mode:oaep               -pkeyopt rsa_oaep_md:sha256               -pkeyopt rsa_mgf1_md:sha256 >> "$token_file"
+          done <<< "$encrypted_payload"
+
+          if [[ ! -s "$token_file" ]]; then
+            echo "Credential decryption produced no data."
+            exit 1
+          fi
+
+          sites_token="$(<"$token_file")"
+          echo "::add-mask::$sites_token"
+          expected_head="$(git rev-parse HEAD)"
+
+          export GIT_CONFIG_COUNT=1
+          export GIT_CONFIG_KEY_0=http.extraHeader
+          export GIT_CONFIG_VALUE_0="Authorization: Bearer $sites_token"
+
+          git push --force "$SITES_REMOTE" HEAD:main
+          remote_head="$(git ls-remote "$SITES_REMOTE" refs/heads/main | awk '{print $1}')"
+
+          if [[ "$remote_head" != "$expected_head" ]]; then
+            echo "Sites source verification failed."
+            exit 1
+          fi
+
+          echo "SITES_SYNC_REMOTE_HEAD=$remote_head"
+          echo "Sites source sync completed."
