@@ -39,6 +39,7 @@ interface WeaponState {
   lastHitEnemyId: string | null;
   lastHitX: number;
   lastHitZ: number;
+  lastClockMs: number;
 }
 
 interface WeaponSessionView {
@@ -77,6 +78,11 @@ function rotateToward(current: number, target: number, maxTurn: number): number 
   return normalizeAngle(current + clamp(delta, -maxTurn, maxTurn));
 }
 
+function weaponNowMs(): number {
+  if (typeof performance !== "undefined" && Number.isFinite(performance.now())) return performance.now();
+  return Date.now();
+}
+
 function stateFor(session: WeaponSessionView): WeaponState {
   const key = session as unknown as object;
   const current = stateBySession.get(key);
@@ -91,6 +97,7 @@ function stateFor(session: WeaponSessionView): WeaponState {
     lastHitEnemyId: null,
     lastHitX: 0,
     lastHitZ: 0,
+    lastClockMs: weaponNowMs(),
   };
   stateBySession.set(key, created);
   return created;
@@ -149,6 +156,7 @@ function launchRequestedShot(session: WeaponSessionView, state: WeaponState): bo
   };
   state.missiles.push(missile);
   state.shotSerial += 1;
+  state.lastClockMs = weaponNowMs();
   session.lastReward = target ? "FOX TWO · LOCK" : "FOX TWO";
   session.rewardTimer = Math.max(session.rewardTimer, 0.7);
   return true;
@@ -170,6 +178,25 @@ function pointSegmentDistanceSquared(
   const x = ax + abx * t;
   const z = az + abz * t;
   return (px - x) ** 2 + (pz - z) ** 2;
+}
+
+function chooseTargetFromMissile(missile: PlayerMissileInternal, enemies: readonly CartEnemyState[]): CartEnemyState | null {
+  let best: CartEnemyState | null = null;
+  let bestScore = Number.POSITIVE_INFINITY;
+  for (const enemy of enemies) {
+    const dx = enemy.x - missile.x;
+    const dz = enemy.z - missile.z;
+    const distance = Math.hypot(dx, dz);
+    if (distance > 42) continue;
+    const angle = Math.abs(normalizeAngle(Math.atan2(dx, dz) - missile.heading));
+    if (angle > 0.9) continue;
+    const score = distance + angle * 11;
+    if (score < bestScore) {
+      best = enemy;
+      bestScore = score;
+    }
+  }
+  return best;
 }
 
 function updateMissiles(session: WeaponSessionView, state: WeaponState, delta: number): void {
@@ -234,50 +261,39 @@ function updateMissiles(session: WeaponSessionView, state: WeaponState, delta: n
   if (state.missiles.length > 20) state.missiles = state.missiles.filter((missile) => missile.active);
 }
 
-function chooseTargetFromMissile(missile: PlayerMissileInternal, enemies: readonly CartEnemyState[]): CartEnemyState | null {
-  let best: CartEnemyState | null = null;
-  let bestScore = Number.POSITIVE_INFINITY;
-  for (const enemy of enemies) {
-    const dx = enemy.x - missile.x;
-    const dz = enemy.z - missile.z;
-    const distance = Math.hypot(dx, dz);
-    if (distance > 42) continue;
-    const angle = Math.abs(normalizeAngle(Math.atan2(dx, dz) - missile.heading));
-    if (angle > 0.9) continue;
-    const score = distance + angle * 11;
-    if (score < bestScore) {
-      best = enemy;
-      bestScore = score;
-    }
-  }
-  return best;
+function advanceFromClock(session: WeaponSessionView, state: WeaponState): void {
+  const now = weaponNowMs();
+  const elapsed = clamp((now - state.lastClockMs) / 1000, 0, 0.05);
+  state.lastClockMs = now;
+  if (elapsed < 0.001) return;
+  state.cooldownSeconds = Math.max(0, state.cooldownSeconds - elapsed);
+  updateMissiles(session, state, elapsed);
 }
 
 export function requestSkyDancerPlayerMissile(session: CartArenaSession): boolean {
   installSkyDancerPlayerWeapons();
   const view = session as unknown as WeaponSessionView;
   const state = stateFor(view);
+  advanceFromClock(view, state);
   if (state.cooldownSeconds > 0 || state.missiles.filter((missile) => missile.active).length >= SKY_DANCER_PLAYER_MISSILE_MAX_ACTIVE) return false;
   state.requestedShots = 1;
   return launchRequestedShot(view, state);
 }
 
-/**
- * Advance missiles from the final Sky Dancer flight step. Keeping this explicit
- * avoids prototype-wrapper ordering bugs where a later gameplay patch can
- * accidentally bypass the old weapon step wrapper.
- */
+/** Explicit fixed-step path. The wall-clock path in getState is a fail-safe for renderer/prototype ordering. */
 export function stepSkyDancerPlayerWeapons(session: CartArenaSession, fixedDelta = 1 / 60): void {
   const view = session as unknown as WeaponSessionView;
   const state = stateFor(view);
   const delta = Math.max(0.001, Math.min(0.05, fixedDelta));
   state.cooldownSeconds = Math.max(0, state.cooldownSeconds - delta);
   updateMissiles(view, state, delta);
+  state.lastClockMs = weaponNowMs();
 }
 
 export function getSkyDancerPlayerWeaponState(session: CartArenaSession): SkyDancerPlayerWeaponState {
   const view = session as unknown as WeaponSessionView;
   const state = stateFor(view);
+  advanceFromClock(view, state);
   return {
     missiles: state.missiles.filter((missile) => missile.active).map((missile) => ({
       id: missile.id,
