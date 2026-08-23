@@ -2,18 +2,17 @@
 
 import { useEffect, useRef } from "react";
 import "../src/sky/SkyDancerControlPatch";
+import { fireSkyDancerActiveWeapon } from "../src/sky/SkyDancerWeaponBridge";
 import styles from "./SkyDancerShotControl.module.css";
 
-const FIRE_KEY = "__skyDancerFireMissile";
 let lastSuccessfulFireAt = 0;
 
 function fireMissile(): boolean {
-  const callback = (window as unknown as Record<string, unknown>)[FIRE_KEY];
-  if (typeof callback !== "function") return false;
-  const fired = (callback as () => unknown)();
+  const fired = fireSkyDancerActiveWeapon();
+  if (!fired) return false;
   lastSuccessfulFireAt = performance.now();
   if ("vibrate" in navigator) navigator.vibrate?.(8);
-  return fired !== false;
+  return true;
 }
 
 function fireWithRuntimeRetry(): void {
@@ -21,7 +20,7 @@ function fireWithRuntimeRetry(): void {
   let attempts = 0;
   const retry = () => {
     attempts += 1;
-    if (fireMissile() || attempts >= 8) return;
+    if (fireMissile() || attempts >= 10) return;
     requestAnimationFrame(retry);
   };
   requestAnimationFrame(retry);
@@ -65,20 +64,18 @@ export default function SkyDancerShotControl() {
         aria-label="Fire missile"
         onPointerDown={(event) => {
           event.preventDefault();
-          // Fire before pointer capture. Safari can reject setPointerCapture in
-          // edge cases; that must never prevent the weapon command itself.
           pointerFireRef.current = performance.now();
+          // The active game session is called directly. Pointer capture is kept
+          // purely as a gesture helper and can never block weapon firing.
           fireWithRuntimeRetry();
           try {
             event.currentTarget.setPointerCapture(event.pointerId);
           } catch {
-            // Pointer capture is only a gesture-safety enhancement.
+            // Safari may reject capture during orientation/runtime transitions.
           }
         }}
         onClick={(event) => {
           event.preventDefault();
-          // Keyboard/accessibility click fallback without double-firing the
-          // synthetic click that follows a successful pointerdown.
           const sincePointer = performance.now() - pointerFireRef.current;
           const sinceFire = performance.now() - lastSuccessfulFireAt;
           if (sincePointer > 260 && sinceFire > 260) fireWithRuntimeRetry();
