@@ -17,6 +17,7 @@ interface PlayerMissileVisualState {
 }
 
 const GLOBAL_FIRE_KEY = "__skyDancerFireMissile";
+const GLOBAL_WEAPON_STATE_KEY = "__skyDancerGetWeaponState";
 
 export class SkyDancerAirCombatFxV10 extends SkyDancerAirCombatFxV9 {
   private readonly runtimeV10: SkyDancerFxRuntime;
@@ -31,7 +32,9 @@ export class SkyDancerAirCombatFxV10 extends SkyDancerAirCombatFxV9 {
     this.missileRoot.name = "sky-dancer-q10-player-missiles";
     runtime.scene.add(this.missileRoot);
     if (typeof window !== "undefined") {
-      (window as unknown as Record<string, unknown>)[GLOBAL_FIRE_KEY] = () => requestSkyDancerPlayerMissile(runtime.session);
+      const globals = window as unknown as Record<string, unknown>;
+      globals[GLOBAL_FIRE_KEY] = () => requestSkyDancerPlayerMissile(runtime.session);
+      globals[GLOBAL_WEAPON_STATE_KEY] = () => getSkyDancerPlayerWeaponState(runtime.session);
     }
   }
 
