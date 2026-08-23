@@ -2,6 +2,12 @@ import type { RallyInputState } from "../rally/RallyTypes";
 import { CartArenaSession } from "../cart/CartArenaSession";
 import type { CartEnemyState } from "../cart/CartCombat";
 import {
+  CART_TURBO_HUNT_WORLD_DEPTH,
+  CART_TURBO_HUNT_WORLD_WIDTH,
+  cartTurboHuntNearestCoordinate,
+  cartTurboHuntWrappedDelta,
+} from "../cart/CartTurboHuntTrack";
+import {
   CART_RAID_HAZARD_SNAPSHOT_EVENT,
   cancelCartRaidHazards,
   getCartRaidHazardState,
@@ -53,6 +59,7 @@ interface FlightCombatState {
   lastHitSourceEnemyId: string | null;
   lastNodeId: string;
   broadcastClock: number;
+  savedEnemySpeeds: number[];
 }
 
 interface FlightSessionView {
@@ -130,6 +137,7 @@ function stateFor(session: FlightSessionView): FlightCombatState {
     lastHitSourceEnemyId: null,
     lastNodeId: session.location.node.id,
     broadcastClock: 0,
+    savedEnemySpeeds: [],
   };
   stateBySession.set(key, created);
   return created;
@@ -150,7 +158,10 @@ function publicState(session: FlightSessionView, state: FlightCombatState): SkyD
       speed: missile.speed,
       life: missile.life,
       maxLife: missile.maxLife,
-      distanceToPlayer: Math.hypot(px - missile.x, pz - missile.z),
+      distanceToPlayer: Math.hypot(
+        cartTurboHuntWrappedDelta(px, missile.x, CART_TURBO_HUNT_WORLD_WIDTH),
+        cartTurboHuntWrappedDelta(pz, missile.z, CART_TURBO_HUNT_WORLD_DEPTH),
+      ),
     }));
   return {
     missiles,
@@ -327,6 +338,8 @@ function updateMissiles(session: FlightSessionView, delta: number, state: Flight
       continue;
     }
 
+    missile.x = cartTurboHuntNearestCoordinate(missile.x, px, CART_TURBO_HUNT_WORLD_WIDTH);
+    missile.z = cartTurboHuntNearestCoordinate(missile.z, pz, CART_TURBO_HUNT_WORLD_DEPTH);
     const dx = px - missile.x;
     const dz = pz - missile.z;
     const distance = Math.hypot(dx, dz);
@@ -382,8 +395,12 @@ export function installSkyDancerFlightCombat(): void {
 
     // Neutralize the inherited ground-vehicle movement pass without touching
     // collision, progression, Turbo RAM, drops, boss HP or run flow.
-    const savedSpeeds = session.enemies.map((enemy) => enemy.moveSpeed);
-    for (const enemy of session.enemies) enemy.moveSpeed = 0;
+    const savedSpeeds = state.savedEnemySpeeds;
+    savedSpeeds.length = session.enemies.length;
+    for (let index = 0; index < session.enemies.length; index += 1) {
+      savedSpeeds[index] = session.enemies[index].moveSpeed;
+      session.enemies[index].moveSpeed = 0;
+    }
     suppressAoe(session as unknown as CartArenaSession);
     baseStep.call(this, input, fixedDelta);
     for (let index = 0; index < session.enemies.length; index += 1) {

@@ -37,6 +37,7 @@ interface MissileTrailState {
   trail: WorldRibbonTrail;
   seenThisFrame: boolean;
   sampleClock: number;
+  boss: boolean;
 }
 
 interface AirBurst {
@@ -64,9 +65,11 @@ const TMP_A = new THREE.Vector3();
 const TMP_B = new THREE.Vector3();
 const TMP_TANGENT = new THREE.Vector3();
 const TMP_SIDE = new THREE.Vector3();
+const MAX_AIR_BURSTS = 6;
 
 class WorldRibbonTrail {
   private readonly points: TrailPoint[] = [];
+  private readonly pointPool: TrailPoint[] = [];
   private readonly geometry: THREE.BufferGeometry;
   private readonly material: THREE.MeshBasicMaterial;
   private readonly mesh: THREE.Mesh;
@@ -129,6 +132,10 @@ class WorldRibbonTrail {
     this.strength = THREE.MathUtils.clamp(value, 0, 1);
   }
 
+  setName(value: string): void {
+    this.mesh.name = value;
+  }
+
   addPoint(position: THREE.Vector3): void {
     const last = this.points[this.points.length - 1];
     if (last && last.position.distanceToSquared(position) < this.minSpacing * this.minSpacing) {
@@ -136,11 +143,18 @@ class WorldRibbonTrail {
       last.age = 0;
       return;
     }
-    this.points.push({ position: position.clone(), age: 0 });
-    while (this.points.length > this.maxPoints) this.points.shift();
+    const point = this.pointPool.pop() ?? { position: new THREE.Vector3(), age: 0 };
+    point.position.copy(position);
+    point.age = 0;
+    this.points.push(point);
+    while (this.points.length > this.maxPoints) {
+      const oldest = this.points.shift();
+      if (oldest) this.pointPool.push(oldest);
+    }
   }
 
   clear(): void {
+    this.pointPool.push(...this.points);
     this.points.length = 0;
     this.geometry.setDrawRange(0, 0);
     this.mesh.visible = false;
@@ -148,7 +162,10 @@ class WorldRibbonTrail {
 
   update(delta: number): void {
     for (const point of this.points) point.age += delta;
-    while (this.points.length > 0 && this.points[0].age > this.maxAge) this.points.shift();
+    while (this.points.length > 0 && this.points[0].age > this.maxAge) {
+      const oldest = this.points.shift();
+      if (oldest) this.pointPool.push(oldest);
+    }
     this.rebuild();
   }
 
@@ -185,15 +202,13 @@ class WorldRibbonTrail {
       TMP_A.y += point.age * this.riseRate;
       TMP_B.copy(TMP_SIDE).multiplyScalar(width);
 
-      const left = TMP_A.clone().sub(TMP_B);
-      const right = TMP_A.clone().add(TMP_B);
       const vertex = index * 2;
-      this.positions[(vertex + 0) * 3 + 0] = left.x;
-      this.positions[(vertex + 0) * 3 + 1] = left.y;
-      this.positions[(vertex + 0) * 3 + 2] = left.z;
-      this.positions[(vertex + 1) * 3 + 0] = right.x;
-      this.positions[(vertex + 1) * 3 + 1] = right.y;
-      this.positions[(vertex + 1) * 3 + 2] = right.z;
+      this.positions[(vertex + 0) * 3 + 0] = TMP_A.x - TMP_B.x;
+      this.positions[(vertex + 0) * 3 + 1] = TMP_A.y - TMP_B.y;
+      this.positions[(vertex + 0) * 3 + 2] = TMP_A.z - TMP_B.z;
+      this.positions[(vertex + 1) * 3 + 0] = TMP_A.x + TMP_B.x;
+      this.positions[(vertex + 1) * 3 + 1] = TMP_A.y + TMP_B.y;
+      this.positions[(vertex + 1) * 3 + 2] = TMP_A.z + TMP_B.z;
 
       const luminance = (0.08 + freshness * 0.92) * this.strength;
       for (const side of [0, 1]) {
@@ -259,9 +274,13 @@ function clipSpaceEdgeMaterial(color: number): THREE.ShaderMaterial {
 export class SkyDancerAirCombatFxV2 {
   private readonly fighterTrails: FighterTrailState[] = [];
   private readonly missileTrails = new Map<number, MissileTrailState>();
+  private readonly normalMissileTrailPool: MissileTrailState[] = [];
+  private readonly bossMissileTrailPool: MissileTrailState[] = [];
   private readonly flames: AnimatedFlame[] = [];
   private readonly bursts: AirBurst[] = [];
+  private readonly burstPool: AirBurst[] = [];
   private readonly enemyAlive = new Map<string, boolean>();
+  private readonly aliveThisFrame = new Map<string, boolean>();
   private readonly obstacleAlive = new Map<string, boolean>();
   private readonly damageRoot = new THREE.Group();
   private readonly damageFire: THREE.Mesh[] = [];
@@ -270,6 +289,12 @@ export class SkyDancerAirCombatFxV2 {
   private readonly edgeMaterial = clipSpaceEdgeMaterial(0xff2635);
   private readonly warningMaterial = clipSpaceEdgeMaterial(0xffb029);
   private readonly gateVisuals = new Map<string, AerialGateVisual>();
+  private readonly leftTrailPoint = new THREE.Vector3();
+  private readonly rightTrailPoint = new THREE.Vector3();
+  private readonly missileTrailPoint = new THREE.Vector3();
+  private readonly damageTrailPoint = new THREE.Vector3();
+  private readonly hitPoint = new THREE.Vector3();
+  private readonly burstPoint = new THREE.Vector3();
   private worldQualityApplied = false;
   private elapsed = 0;
   private lastHitSerial = 0;
@@ -337,6 +362,8 @@ export class SkyDancerAirCombatFxV2 {
       0.32,
       0.12,
     );
+    this.prewarmMissileTrails();
+    this.prewarmAirBursts();
   }
 
   attachPlayerEffects(playerVisual: THREE.Group): void {
@@ -538,12 +565,13 @@ export class SkyDancerAirCombatFxV2 {
   }
 
   private updateFighterTrails(snapshot: CartArenaSessionSnapshot, delta: number): void {
-    const aliveById = new Map(snapshot.enemies.map((enemy) => [enemy.id, enemy.alive]));
+    this.aliveThisFrame.clear();
+    for (const enemy of snapshot.enemies) this.aliveThisFrame.set(enemy.id, enemy.alive);
     for (const state of this.fighterTrails) {
       state.left.update(delta);
       state.right.update(delta);
       const id = this.resolveFighterId(state);
-      const active = id === "player" || (id ? aliveById.get(id) === true : false);
+      const active = id === "player" || (id ? this.aliveThisFrame.get(id) === true : false);
       if (!active || !state.fighter.parent?.visible) {
         state.left.setStrength(0);
         state.right.setStrength(0);
@@ -565,10 +593,12 @@ export class SkyDancerAirCombatFxV2 {
       if (state.sampleClock > 0) continue;
       state.sampleClock = state.enemy ? 0.055 : 0.038;
       state.fighter.updateWorldMatrix(true, false);
-      const left = state.fighter.localToWorld(new THREE.Vector3(-state.wingSpan, 0.29, -0.58));
-      const right = state.fighter.localToWorld(new THREE.Vector3(state.wingSpan, 0.29, -0.58));
-      state.left.addPoint(left);
-      state.right.addPoint(right);
+      this.leftTrailPoint.set(-state.wingSpan, 0.29, -0.58);
+      this.rightTrailPoint.set(state.wingSpan, 0.29, -0.58);
+      state.fighter.localToWorld(this.leftTrailPoint);
+      state.fighter.localToWorld(this.rightTrailPoint);
+      state.left.addPoint(this.leftTrailPoint);
+      state.right.addPoint(this.rightTrailPoint);
     }
   }
 
@@ -577,22 +607,13 @@ export class SkyDancerAirCombatFxV2 {
     for (const missile of missiles.missiles) {
       let state = this.missileTrails.get(missile.id);
       if (!state) {
-        state = {
-          trail: new WorldRibbonTrail(
-            this.runtime.scene,
-            `sky-dancer-missile-smoke-${missile.id}`,
-            missile.sourceKind === "boss" ? 34 : 28,
-            missile.sourceKind === "boss" ? 0.90 : 0.72,
-            missile.sourceKind === "boss" ? 0.23 : 0.17,
-            missile.sourceKind === "boss" ? 0xdccdc6 : 0xe9eef1,
-            missile.sourceKind === "boss" ? 0.56 : 0.46,
-            false,
-            0.10,
-            0.10,
-          ),
-          seenThisFrame: true,
-          sampleClock: 0,
-        };
+        const boss = missile.sourceKind === "boss";
+        state = (boss ? this.bossMissileTrailPool : this.normalMissileTrailPool).pop()
+          ?? this.createMissileTrailState(boss, missile.id);
+        state.trail.clear();
+        state.trail.setName(`sky-dancer-missile-smoke-${missile.id}`);
+        state.seenThisFrame = true;
+        state.sampleClock = 0;
         this.missileTrails.set(missile.id, state);
       }
       state.seenThisFrame = true;
@@ -600,7 +621,8 @@ export class SkyDancerAirCombatFxV2 {
       state.sampleClock -= delta;
       if (state.sampleClock <= 0) {
         state.sampleClock = 0.025;
-        state.trail.addPoint(new THREE.Vector3(missile.x, 1.18, missile.z));
+        this.missileTrailPoint.set(missile.x, 1.18, missile.z);
+        state.trail.addPoint(this.missileTrailPoint);
       }
     }
 
@@ -608,10 +630,40 @@ export class SkyDancerAirCombatFxV2 {
       if (!state.seenThisFrame) state.trail.setStrength(0.72);
       state.trail.update(delta);
       if (!state.seenThisFrame && state.trail.isEmpty()) {
-        state.trail.dispose();
+        state.trail.clear();
+        (state.boss ? this.bossMissileTrailPool : this.normalMissileTrailPool).push(state);
         this.missileTrails.delete(id);
       }
     }
+  }
+
+  private prewarmMissileTrails(): void {
+    while (this.normalMissileTrailPool.length < 8) {
+      this.normalMissileTrailPool.push(this.createMissileTrailState(false, this.normalMissileTrailPool.length));
+    }
+    while (this.bossMissileTrailPool.length < 3) {
+      this.bossMissileTrailPool.push(this.createMissileTrailState(true, this.bossMissileTrailPool.length));
+    }
+  }
+
+  private createMissileTrailState(boss: boolean, serial: number): MissileTrailState {
+    return {
+      trail: new WorldRibbonTrail(
+        this.runtime.scene,
+        `sky-dancer-missile-smoke-pool-${boss ? "boss" : "normal"}-${serial}`,
+        boss ? 34 : 28,
+        boss ? 0.90 : 0.72,
+        boss ? 0.23 : 0.17,
+        boss ? 0xdccdc6 : 0xe9eef1,
+        boss ? 0.56 : 0.46,
+        false,
+        0.10,
+        0.10,
+      ),
+      seenThisFrame: false,
+      sampleClock: 0,
+      boss,
+    };
   }
 
   private updateDamageTrail(delta: number): void {
@@ -625,13 +677,14 @@ export class SkyDancerAirCombatFxV2 {
     if (!player) return;
     player.updateWorldMatrix(true, false);
     const side = this.lastHitSerial % 2 === 0 ? -0.38 : 0.38;
-    const emitter = player.localToWorld(new THREE.Vector3(side, 0.46, -1.82));
-    this.damageSmokeTrail.addPoint(emitter);
+    this.damageTrailPoint.set(side, 0.46, -1.82);
+    player.localToWorld(this.damageTrailPoint);
+    this.damageSmokeTrail.addPoint(this.damageTrailPoint);
   }
 
   private triggerMissileHit(missiles: SkyDancerMissileState): void {
-    const hit = new THREE.Vector3(missiles.lastHitX, 1.15, missiles.lastHitZ);
-    this.runtime.emitImpactSparks(hit, 34);
+    this.hitPoint.set(missiles.lastHitX, 1.15, missiles.lastHitZ);
+    this.runtime.emitImpactSparks(this.hitPoint, 34);
     this.runtime.cameraShake = Math.max(this.runtime.cameraShake, 1.42);
     this.runtime.impactFlash = Math.max(this.runtime.impactFlash, 1);
     this.runtime.impactOverlayMaterial.color.setHex(0xff3d2c);
@@ -639,7 +692,7 @@ export class SkyDancerAirCombatFxV2 {
     this.damageSmokeLife = Math.max(this.damageSmokeLife, 2.35);
     this.damageSampleClock = 0;
     this.hitRoll = (missiles.hitSerial % 2 === 0 ? -1 : 1) * 0.245;
-    this.spawnAirBurst(hit, 0xff6a2d, 1.65, true);
+    this.spawnAirBurst(this.hitPoint, 0xff6a2d, 1.65, true);
   }
 
   private updateDamagePresentation(): void {
@@ -667,9 +720,9 @@ export class SkyDancerAirCombatFxV2 {
       if (previous === true && !enemy.alive) {
         const group = this.runtime.enemyGroups.get(enemy.id);
         if (group) {
-          const position = group.position.clone();
-          position.y = Math.max(1.15, position.y + 0.45);
-          this.spawnAirBurst(position, enemy.kind === "boss" ? 0xff3e55 : 0xffa13a, enemy.kind === "boss" ? 2.4 : 1.25, false);
+          this.burstPoint.copy(group.position);
+          this.burstPoint.y = Math.max(1.15, this.burstPoint.y + 0.45);
+          this.spawnAirBurst(this.burstPoint, enemy.kind === "boss" ? 0xff3e55 : 0xffa13a, enemy.kind === "boss" ? 2.4 : 1.25, false);
         }
       }
       this.enemyAlive.set(enemy.id, enemy.alive);
@@ -682,16 +735,62 @@ export class SkyDancerAirCombatFxV2 {
       const previous = this.obstacleAlive.get(obstacle.id);
       if (previous === true && !alive) {
         const group = this.runtime.obstacleGroups.get(obstacle.id);
-        if (group) this.spawnAirBurst(group.position.clone().setY(0.9), 0x63dfff, 0.82, false);
+        if (group) {
+          this.burstPoint.copy(group.position);
+          this.burstPoint.y = 0.9;
+          this.spawnAirBurst(this.burstPoint, 0x63dfff, 0.82, false);
+        }
       }
       this.obstacleAlive.set(obstacle.id, alive);
     }
   }
 
   private spawnAirBurst(position: THREE.Vector3, color: number, scale: number, playerHit: boolean): void {
-    const root = new THREE.Group();
+    if (this.bursts.length >= MAX_AIR_BURSTS) {
+      const oldest = this.bursts.shift();
+      if (oldest) this.releaseAirBurst(oldest);
+    }
+    const burst = this.burstPool.pop() ?? this.createAirBurst();
+    const root = burst.root;
+    burst.life = playerHit ? 0.86 : 0.72;
+    burst.maxLife = burst.life;
     root.name = playerHit ? "sky-dancer-player-hit-burst-v2" : "sky-dancer-air-burst-v2";
     root.position.copy(position);
+    root.scale.setScalar(scale);
+    root.visible = true;
+    for (const object of root.children) {
+      if (!(object instanceof THREE.Mesh)) continue;
+      object.position.set(0, 0, 0);
+      object.scale.setScalar(1);
+      const material = object.material as THREE.MeshBasicMaterial;
+      if (object.name === "burst-core") {
+        material.color.setHex(0xfff2c6);
+        material.opacity = 1;
+      } else if (object.name === "burst-hot") {
+        material.color.setHex(color);
+        material.opacity = 0.88;
+      } else if (object.name.startsWith("burst-ring")) {
+        material.color.setHex(0xfff2c6);
+        material.opacity = 1;
+      } else if (object.name === "burst-streak") {
+        material.color.setHex(color);
+        material.opacity = 0.88;
+      } else if (object.name === "burst-smoke") {
+        material.color.setHex(0x34363b);
+        material.opacity = 0.34;
+      }
+    }
+    this.bursts.push(burst);
+  }
+
+  private prewarmAirBursts(): void {
+    while (this.burstPool.length < MAX_AIR_BURSTS) this.burstPool.push(this.createAirBurst());
+  }
+
+  private createAirBurst(): AirBurst {
+    const root = new THREE.Group();
+    root.name = "sky-dancer-air-burst-pool-v2";
+    root.visible = false;
 
     const coreMat = new THREE.MeshBasicMaterial({
       color: 0xfff2c6,
@@ -702,7 +801,7 @@ export class SkyDancerAirCombatFxV2 {
       toneMapped: false,
     });
     const hotMat = new THREE.MeshBasicMaterial({
-      color,
+      color: 0xffa13a,
       transparent: true,
       opacity: 0.88,
       blending: THREE.AdditiveBlending,
@@ -710,22 +809,22 @@ export class SkyDancerAirCombatFxV2 {
       toneMapped: false,
     });
     const smokeMat = new THREE.MeshBasicMaterial({ color: 0x34363b, transparent: true, opacity: 0.34, depthWrite: false });
-    const core = new THREE.Mesh(new THREE.IcosahedronGeometry(0.55 * scale, 1), coreMat);
+    const core = new THREE.Mesh(new THREE.IcosahedronGeometry(0.55, 1), coreMat);
     core.name = "burst-core";
     root.add(core);
-    const hot = new THREE.Mesh(new THREE.IcosahedronGeometry(0.95 * scale, 1), hotMat);
+    const hot = new THREE.Mesh(new THREE.IcosahedronGeometry(0.95, 1), hotMat);
     hot.name = "burst-hot";
     root.add(hot);
 
     for (let ringIndex = 0; ringIndex < 2; ringIndex += 1) {
-      const ring = new THREE.Mesh(new THREE.TorusGeometry(1.05 * scale, 0.055 * scale, 5, 32), coreMat.clone());
+      const ring = new THREE.Mesh(new THREE.TorusGeometry(1.05, 0.055, 5, 32), coreMat.clone());
       ring.name = `burst-ring-${ringIndex}`;
       ring.rotation.set(ringIndex === 0 ? Math.PI / 2 : 0.42, ringIndex === 0 ? 0 : 0.58, ringIndex * 0.4);
       root.add(ring);
     }
 
     for (let index = 0; index < 12; index += 1) {
-      const streak = new THREE.Mesh(new THREE.BoxGeometry(0.045 * scale, 0.045 * scale, (1.2 + index % 4 * 0.32) * scale), hotMat.clone());
+      const streak = new THREE.Mesh(new THREE.BoxGeometry(0.045, 0.045, 1.2 + index % 4 * 0.32), hotMat.clone());
       streak.name = "burst-streak";
       const angle = index / 12 * Math.PI * 2;
       streak.rotation.set((index % 3 - 1) * 0.42, angle, (index % 2 ? 1 : -1) * 0.18);
@@ -735,7 +834,7 @@ export class SkyDancerAirCombatFxV2 {
     }
 
     for (let index = 0; index < 8; index += 1) {
-      const puff = new THREE.Mesh(new THREE.IcosahedronGeometry(0.25 * scale, 0), smokeMat.clone());
+      const puff = new THREE.Mesh(new THREE.IcosahedronGeometry(0.25, 0), smokeMat.clone());
       puff.name = "burst-smoke";
       const angle = index / 8 * Math.PI * 2;
       puff.userData.angle = angle;
@@ -744,7 +843,7 @@ export class SkyDancerAirCombatFxV2 {
     }
 
     this.runtime.scene.add(root);
-    this.bursts.push({ root, life: playerHit ? 0.86 : 0.72, maxLife: playerHit ? 0.86 : 0.72 });
+    return { root, life: 0, maxLife: 0.72 };
   }
 
   private updateBursts(delta: number): void {
@@ -779,16 +878,16 @@ export class SkyDancerAirCombatFxV2 {
         }
       });
       if (burst.life <= 0) {
-        burst.root.removeFromParent();
-        burst.root.traverse((object) => {
-          if (!(object instanceof THREE.Mesh)) return;
-          object.geometry.dispose();
-          const materials = Array.isArray(object.material) ? object.material : [object.material];
-          materials.forEach((material) => material.dispose());
-        });
+        this.releaseAirBurst(burst);
         this.bursts.splice(index, 1);
       }
     }
+  }
+
+  private releaseAirBurst(burst: AirBurst): void {
+    burst.life = 0;
+    burst.root.visible = false;
+    this.burstPool.push(burst);
   }
 
   private applyWorldQualityPass(): void {

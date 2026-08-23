@@ -1,5 +1,10 @@
 import type { CartEnemyState } from "../cart/CartCombat";
 import { CartArenaSession } from "../cart/CartArenaSession";
+import {
+  CART_TURBO_HUNT_WORLD_DEPTH,
+  CART_TURBO_HUNT_WORLD_WIDTH,
+  cartTurboHuntNearestCoordinate,
+} from "../cart/CartTurboHuntTrack";
 
 export interface SkyDancerPlayerMissileSnapshot {
   id: number;
@@ -226,11 +231,23 @@ function updateMissiles(session: WeaponSessionView, state: WeaponState, delta: n
     }
 
     if (target) {
+      missile.x = cartTurboHuntNearestCoordinate(missile.x, target.x, CART_TURBO_HUNT_WORLD_WIDTH);
+      missile.z = cartTurboHuntNearestCoordinate(missile.z, target.z, CART_TURBO_HUNT_WORLD_DEPTH);
       const dx = target.x - missile.x;
       const dz = target.z - missile.z;
       missile.distanceToTarget = Math.hypot(dx, dz);
       missile.heading = rotateToward(missile.heading, Math.atan2(dx, dz), missile.turnRate * delta);
     } else {
+      missile.x = cartTurboHuntNearestCoordinate(
+        missile.x,
+        session.car.position.x,
+        CART_TURBO_HUNT_WORLD_WIDTH,
+      );
+      missile.z = cartTurboHuntNearestCoordinate(
+        missile.z,
+        session.car.position.z,
+        CART_TURBO_HUNT_WORLD_DEPTH,
+      );
       missile.distanceToTarget = Number.POSITIVE_INFINITY;
     }
 

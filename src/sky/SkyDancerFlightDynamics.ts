@@ -20,8 +20,15 @@ interface EnemyDynamicsState {
   vz: number;
 }
 
+interface EnemyPose {
+  x: number;
+  z: number;
+  heading: number;
+}
+
 const PATCHED_KEY = "__skyDancerFlightDynamicsInstalled__";
 const stateBySession = new WeakMap<object, Map<string, EnemyDynamicsState>>();
+const posesBySession = new WeakMap<object, Map<string, EnemyPose>>();
 export const SKY_DANCER_ENEMY_SPEED_MULTIPLIER = 1.12;
 
 function clamp(value: number, min: number, max: number): number {
@@ -170,9 +177,25 @@ export function installSkyDancerFlightDynamics(): void {
   const previous = prototype.step;
 
   prototype.step = function skyDancerFlightDynamicsStep(input: RallyInputState, fixedDelta?: number): void {
-    const before = new Map<string, { x: number; z: number; heading: number }>();
+    const key = this as unknown as object;
+    let before = posesBySession.get(key);
+    if (!before) {
+      before = new Map();
+      posesBySession.set(key, before);
+    }
     for (const enemy of this.enemies) {
-      if (enemy.alive) before.set(enemy.id, { x: enemy.x, z: enemy.z, heading: enemy.heading });
+      if (!enemy.alive) {
+        before.delete(enemy.id);
+        continue;
+      }
+      const pose = before.get(enemy.id);
+      if (pose) {
+        pose.x = enemy.x;
+        pose.z = enemy.z;
+        pose.heading = enemy.heading;
+      } else {
+        before.set(enemy.id, { x: enemy.x, z: enemy.z, heading: enemy.heading });
+      }
     }
 
     previous.call(this, input, fixedDelta);

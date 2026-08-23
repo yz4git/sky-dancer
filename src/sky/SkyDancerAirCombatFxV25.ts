@@ -32,6 +32,8 @@ export class SkyDancerAirCombatFxV25 extends SkyDancerAirCombatFxV24 {
   private readonly referenceWorld = new THREE.Group();
   private readonly missileHeatRoot = new THREE.Group();
   private readonly missileHeat = new Map<number, MissileHeatVisual>();
+  private readonly missileHeatPool: MissileHeatVisual[] = [];
+  private readonly activeMissileHeatIds = new Set<number>();
   private readonly engineCores: THREE.Mesh<THREE.CircleGeometry, THREE.MeshBasicMaterial>[] = [];
   private readonly enginePlumes: THREE.Mesh<THREE.ConeGeometry, THREE.MeshBasicMaterial>[] = [];
   private readonly cameraWorldPosition = new THREE.Vector3();
@@ -64,6 +66,7 @@ export class SkyDancerAirCombatFxV25 extends SkyDancerAirCombatFxV24 {
       this.buildNavigationBeacons();
       this.buildHeroPresence();
       this.runtimeV25.scene.add(this.referenceWorld, this.missileHeatRoot);
+      this.prewarmMissileHeat();
     }
 
     this.updateWorldAnchor(snapshot);
@@ -538,45 +541,53 @@ export class SkyDancerAirCombatFxV25 extends SkyDancerAirCombatFxV24 {
 
     for (let index = 0; index < this.enginePlumes.length; index += 1) {
       const plume = this.enginePlumes[index];
-      const targetLength = 0.78 + speed * 0.52 + turbo * 1.22;
-      plume.scale.y += (targetLength - plume.scale.y) * Math.min(1, delta * 9);
-      plume.scale.x = 0.88 + turbo * 0.18;
-      plume.scale.z = 0.88 + turbo * 0.18;
-      plume.material.opacity = 0.34 + speed * 0.2 + turbo * 0.24;
+      const targetLength = 0.84 + speed * 0.68 + turbo * 2.35;
+      plume.scale.y += (targetLength - plume.scale.y) * Math.min(1, delta * 13);
+      plume.scale.x = 0.88 + turbo * 0.32;
+      plume.scale.z = 0.88 + turbo * 0.32;
+      plume.material.opacity = 0.36 + speed * 0.22 + turbo * 0.36;
     }
   }
 
   private updateMissileHeat(state: SkyDancerMissileState, delta: number): void {
-    const active = new Set<number>();
+    this.activeMissileHeatIds.clear();
+    const active = this.activeMissileHeatIds;
     for (const missile of state.missiles) {
       active.add(missile.id);
       let visual = this.missileHeat.get(missile.id);
       if (!visual) {
-        visual = this.createMissileHeat(missile);
+        visual = this.missileHeatPool.pop() ?? this.createMissileHeat();
+        visual.root.name = `sky-dancer-v25-missile-heat-${missile.id}`;
+        visual.root.visible = true;
+        visual.root.scale.setScalar(missile.sourceKind === "boss" ? 1.22 : 1);
+        visual.phase = missile.id * 0.77;
         this.missileHeat.set(missile.id, visual);
-        this.missileHeatRoot.add(visual.root);
       }
       this.positionMissileHeat(visual, missile, delta);
     }
 
     for (const [id, visual] of this.missileHeat) {
       if (active.has(id)) continue;
-      visual.root.removeFromParent();
-      visual.root.traverse((object) => {
-        if (!(object instanceof THREE.Mesh)) return;
-        object.geometry.dispose();
-        const materials = Array.isArray(object.material) ? object.material : [object.material];
-        materials.forEach((material) => material.dispose());
-      });
+      visual.root.visible = false;
+      visual.light.intensity = 0;
+      this.missileHeatPool.push(visual);
       this.missileHeat.delete(id);
     }
   }
 
-  private createMissileHeat(missile: SkyDancerMissileSnapshot): MissileHeatVisual {
+  private prewarmMissileHeat(): void {
+    while (this.missileHeatPool.length < 8) {
+      const visual = this.createMissileHeat();
+      visual.root.visible = false;
+      this.missileHeatPool.push(visual);
+    }
+  }
+
+  private createMissileHeat(): MissileHeatVisual {
     const root = new THREE.Group();
-    root.name = `sky-dancer-v25-missile-heat-${missile.id}`;
+    root.name = "sky-dancer-v25-missile-heat-pooled";
     const core = new THREE.Mesh(
-      new THREE.IcosahedronGeometry(missile.sourceKind === "boss" ? 0.26 : 0.2, 1),
+      new THREE.IcosahedronGeometry(0.2, 1),
       new THREE.MeshBasicMaterial({
         color: 0xfff7dc,
         transparent: true,
@@ -588,7 +599,7 @@ export class SkyDancerAirCombatFxV25 extends SkyDancerAirCombatFxV24 {
     );
     core.position.z = -0.96;
     const halo = new THREE.Mesh(
-      new THREE.SphereGeometry(missile.sourceKind === "boss" ? 0.48 : 0.38, 10, 7),
+      new THREE.SphereGeometry(0.38, 10, 7),
       new THREE.MeshBasicMaterial({
         color: 0xff6d2d,
         transparent: true,
@@ -600,7 +611,7 @@ export class SkyDancerAirCombatFxV25 extends SkyDancerAirCombatFxV24 {
     );
     halo.position.z = -1.02;
     const flame = new THREE.Mesh(
-      new THREE.ConeGeometry(missile.sourceKind === "boss" ? 0.34 : 0.27, missile.sourceKind === "boss" ? 2.65 : 2.15, 10, 1, true),
+      new THREE.ConeGeometry(0.27, 2.15, 10, 1, true),
       new THREE.MeshBasicMaterial({
         color: 0xff8a34,
         transparent: true,
@@ -611,11 +622,12 @@ export class SkyDancerAirCombatFxV25 extends SkyDancerAirCombatFxV24 {
       }),
     );
     flame.rotation.x = -Math.PI / 2;
-    flame.position.z = missile.sourceKind === "boss" ? -2.16 : -1.86;
+    flame.position.z = -1.86;
     const light = new THREE.PointLight(0xff7a32, 2.3, 9, 2);
     light.position.z = -1.05;
     root.add(core, halo, flame, light);
-    return { root, core, halo, flame, light, phase: missile.id * 0.77 };
+    this.missileHeatRoot.add(root);
+    return { root, core, halo, flame, light, phase: 0 };
   }
 
   private positionMissileHeat(visual: MissileHeatVisual, missile: SkyDancerMissileSnapshot, delta: number): void {

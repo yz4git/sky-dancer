@@ -17,6 +17,31 @@ export const CART_TURBO_HUNT_FIELD = {
   spawnZ: 162,
 } as const;
 
+export const CART_TURBO_HUNT_WORLD_WIDTH = CART_TURBO_HUNT_FIELD.halfWidth * 2;
+export const CART_TURBO_HUNT_WORLD_DEPTH = CART_TURBO_HUNT_FIELD.halfDepth * 2;
+
+/** Wrap a coordinate into the authored Turbo Hunt tile. */
+export function cartTurboHuntWrapCoordinate(value: number, center: number, period: number): number {
+  if (!Number.isFinite(value) || !Number.isFinite(center) || !Number.isFinite(period) || period <= 0) return value;
+  const half = period * 0.5;
+  const wrapped = ((value - center + half) % period + period) % period;
+  return center + wrapped - half;
+}
+
+/** Return the repeated image of value that is closest to reference. */
+export function cartTurboHuntNearestCoordinate(value: number, reference: number, period: number): number {
+  return reference + cartTurboHuntWrapCoordinate(value - reference, 0, period);
+}
+
+export function cartTurboHuntWrappedDelta(value: number, reference: number, period: number): number {
+  return cartTurboHuntWrapCoordinate(value - reference, 0, period);
+}
+
+export function cartTurboHuntTileCenter(value: number, center: number, period: number): number {
+  if (!Number.isFinite(value) || !Number.isFinite(center) || !Number.isFinite(period) || period <= 0) return center;
+  return center + Math.floor((value - center + period * 0.5) / period) * period;
+}
+
 export const CART_TURBO_HUNT_TRACK: RallyTrackDefinition = {
   id: "cart-turbo-hunt-field-01",
   name: "Turbo Hunt Field",

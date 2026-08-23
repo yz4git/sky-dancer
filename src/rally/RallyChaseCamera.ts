@@ -116,11 +116,9 @@ export class RallyChaseCamera {
     // Keep the physical road corridor stable in frame while allowing strafe
     // to visibly move the racer across it.  This avoids the old 100% player
     // follow that made every lane look like the screen center.
-    const anchor = car.isHoverMode
-      ? roadCenteredCameraAnchor(roadCenterX, roadCenterZ, car.position.x, car.position.z)
-      : { x: car.position.x, z: car.position.z };
-    const anchorX = anchor.x;
-    const anchorZ = anchor.z;
+    const roadWeight = car.isHoverMode ? 0.65 : 0;
+    const anchorX = roadCenterX * roadWeight + car.position.x * (1 - roadWeight);
+    const anchorZ = roadCenterZ * roadWeight + car.position.z * (1 - roadWeight);
     this.desiredTarget.set(
       aheadX + car.velocity.x * (car.drifting ? 0.11 : 0.035),
       car.position.y + 1.1 + Math.sin(this.pitch) * 1.8,
