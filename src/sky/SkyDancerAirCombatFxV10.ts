@@ -26,6 +26,8 @@ export class SkyDancerAirCombatFxV10 extends SkyDancerAirCombatFxV9 {
   private readonly runtimeV10: SkyDancerFxRuntime;
   private readonly missileRoot = new THREE.Group();
   private readonly missileVisuals = new Map<number, PlayerMissileVisualState>();
+  private readonly missilePool: PlayerMissileVisualState[] = [];
+  private readonly activeMissileIds = new Set<number>();
   private elapsedV10 = 0;
   private weaponAccumulator = 0;
 
@@ -36,6 +38,11 @@ export class SkyDancerAirCombatFxV10 extends SkyDancerAirCombatFxV9 {
     bindSkyDancerWeaponSession(runtime.session);
     this.missileRoot.name = "sky-dancer-q10-player-missiles";
     runtime.scene.add(this.missileRoot);
+    while (this.missilePool.length < 5) {
+      const visual = this.buildPlayerMissile();
+      visual.root.visible = false;
+      this.missilePool.push(visual);
+    }
     if (typeof window !== "undefined") {
       const globals = window as unknown as Record<string, unknown>;
       globals[GLOBAL_FIRE_KEY] = () => requestSkyDancerPlayerMissile(runtime.session);
@@ -59,14 +66,14 @@ export class SkyDancerAirCombatFxV10 extends SkyDancerAirCombatFxV9 {
 
   private updatePlayerMissiles(delta: number): void {
     const state = getSkyDancerPlayerWeaponState(this.runtimeV10.session);
-    const active = new Set<number>();
+    this.activeMissileIds.clear();
+    const active = this.activeMissileIds;
     for (const missile of state.missiles) {
       active.add(missile.id);
       let visual = this.missileVisuals.get(missile.id);
       if (!visual) {
-        visual = this.buildPlayerMissile();
+        visual = this.missilePool.pop() ?? this.buildPlayerMissile();
         this.missileVisuals.set(missile.id, visual);
-        this.missileRoot.add(visual.root);
       }
       visual.root.visible = true;
       visual.root.position.set(missile.x, 1.12 + Math.sin(this.elapsedV10 * 8.5 + missile.id) * 0.035, missile.z);
@@ -85,13 +92,8 @@ export class SkyDancerAirCombatFxV10 extends SkyDancerAirCombatFxV9 {
     for (const [id, visual] of this.missileVisuals) {
       if (active.has(id)) continue;
       this.missileVisuals.delete(id);
-      visual.root.removeFromParent();
-      visual.root.traverse((object) => {
-        if (!(object instanceof THREE.Mesh)) return;
-        object.geometry.dispose();
-        const materials = Array.isArray(object.material) ? object.material : [object.material];
-        materials.forEach((material) => material.dispose());
-      });
+      visual.root.visible = false;
+      this.missilePool.push(visual);
     }
   }
 
@@ -124,6 +126,7 @@ export class SkyDancerAirCombatFxV10 extends SkyDancerAirCombatFxV9 {
     ring.rotation.x = Math.PI / 2;
     ring.position.z = 0.02;
     root.add(body, nose, tail, core, ring);
+    this.missileRoot.add(root);
     return { root, tail, core, ring };
   }
 }

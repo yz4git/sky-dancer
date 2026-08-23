@@ -24,10 +24,10 @@ interface InternalTurboState {
 const stateBySession = new WeakMap<object, InternalTurboState>();
 
 export const SKY_DANCER_TURBO_FULL_CHARGE_SECONDS = 0.78;
-export const SKY_DANCER_TURBO_RELEASE_BASE_KICK = 4.6;
-export const SKY_DANCER_TURBO_RELEASE_CHARGE_KICK = 9.4;
-export const SKY_DANCER_TURBO_RELEASE_DURATION_BASE = 1.05;
-export const SKY_DANCER_TURBO_RELEASE_DURATION_CHARGE = 0.72;
+export const SKY_DANCER_TURBO_RELEASE_BASE_KICK = 6.4;
+export const SKY_DANCER_TURBO_RELEASE_CHARGE_KICK = 12.8;
+export const SKY_DANCER_TURBO_RELEASE_DURATION_BASE = 1.18;
+export const SKY_DANCER_TURBO_RELEASE_DURATION_CHARGE = 0.82;
 
 function nowMs(): number {
   return typeof performance !== "undefined" ? performance.now() : Date.now();
@@ -78,7 +78,7 @@ function releaseTurbo(session: CartArenaSession, state: InternalTurboState, char
 
   const direction = car.forwardVelocity < -0.2 ? -1 : 1;
   const launch = SKY_DANCER_TURBO_RELEASE_BASE_KICK + charge * SKY_DANCER_TURBO_RELEASE_CHARGE_KICK;
-  const cap = car.definition.maxSpeed * (1.62 + charge * 0.16);
+  const cap = car.definition.maxSpeed * (1.76 + charge * 0.22);
   car.forwardVelocity = direction * Math.min(cap, Math.abs(car.forwardVelocity) + launch);
   car.lateralVelocity *= 0.62 - charge * 0.18;
   car.boostActive = true;

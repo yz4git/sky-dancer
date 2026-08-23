@@ -10,7 +10,15 @@ import { getCartPerfectStrikeState } from "./CartRoguePhase61PerfectStrike";
 import { getCartPerfectShockwaveState } from "./CartRoguePhase62PerfectShockwave";
 import { CartRogueCanvasPreview } from "./CartRogueCanvasPreview";
 import { CartRogueWebGLDemo } from "./CartRogueWebGLDemo";
-import { CART_TURBO_HUNT_FIELD, CART_TURBO_HUNT_TRACK } from "./CartTurboHuntTrack";
+import {
+  CART_TURBO_HUNT_FIELD,
+  CART_TURBO_HUNT_TRACK,
+  CART_TURBO_HUNT_WORLD_DEPTH,
+  CART_TURBO_HUNT_WORLD_WIDTH,
+  cartTurboHuntNearestCoordinate,
+  cartTurboHuntTileCenter,
+  cartTurboHuntWrapCoordinate,
+} from "./CartTurboHuntTrack";
 import {
   CART_WORLD_GRAPH,
   getActiveCartRunSeed,
@@ -104,6 +112,8 @@ interface HuntWebGLDemo {
   session: CartArenaSession;
   scene: THREE.Scene;
   enemyGroups: Map<string, THREE.Group>;
+  resourceGroups: Map<string, THREE.Group>;
+  obstacleGroups: Map<string, THREE.Group>;
   enemyAlive: Map<string, boolean>;
   buildWorld(): void;
   buildEnemies(enemies: CartArenaSessionSnapshot["enemies"]): void;
@@ -317,8 +327,16 @@ export function createCartTurboHuntResources(): CartResourcePickupState[] {
 }
 
 export function cartTurboHuntRegion(x: number, z: number): CartTurboHuntRegion {
-  const localX = x - CART_TURBO_HUNT_FIELD.centerX;
-  const localZ = z - CART_TURBO_HUNT_FIELD.centerZ;
+  const localX = cartTurboHuntWrapCoordinate(
+    x,
+    CART_TURBO_HUNT_FIELD.centerX,
+    CART_TURBO_HUNT_WORLD_WIDTH,
+  ) - CART_TURBO_HUNT_FIELD.centerX;
+  const localZ = cartTurboHuntWrapCoordinate(
+    z,
+    CART_TURBO_HUNT_FIELD.centerZ,
+    CART_TURBO_HUNT_WORLD_DEPTH,
+  ) - CART_TURBO_HUNT_FIELD.centerZ;
   if (localZ < -38) return "DROP YARD";
   if (localZ > 40) return "CROWN GROUNDS";
   if (localX < -34) return "SMASH GARDEN";
@@ -656,8 +674,16 @@ function spawnBoss(session: MutableHuntSession, state: TurboHuntState): void {
   state.bossSpawned = true;
   resetEnemyForSpawn(
     boss,
-    CART_TURBO_HUNT_FIELD.centerX,
-    CART_TURBO_HUNT_FIELD.centerZ + 62,
+    cartTurboHuntNearestCoordinate(
+      CART_TURBO_HUNT_FIELD.centerX,
+      session.car.position.x,
+      CART_TURBO_HUNT_WORLD_WIDTH,
+    ),
+    cartTurboHuntNearestCoordinate(
+      CART_TURBO_HUNT_FIELD.centerZ + 62,
+      session.car.position.z,
+      CART_TURBO_HUNT_WORLD_DEPTH,
+    ),
     Math.PI,
   );
   state.previousAlive.set(boss.id, true);
@@ -871,28 +897,6 @@ function buildHuntVisualWorld(demo: HuntWebGLDemo): HuntVisualState {
   addBox(root, [82, 0.045, 82], [cx, -0.025, cz], 0xe7c68f);
   addBox(root, [hw * 1.92, 0.04, 34], [cx, -0.035, cz + 66], 0xc8abd9);
 
-  const boundaryMaterial = new THREE.MeshStandardMaterial({ color: 0xf1eadb, roughness: 0.78, flatShading: true });
-  const postGeometry = new THREE.BoxGeometry(1.05, 3.2, 1.05);
-  const posts: Array<{ x: number; z: number }> = [];
-  const step = 9.5;
-  for (let x = -hw; x <= hw; x += step) {
-    posts.push({ x: cx + x, z: cz - hd }, { x: cx + x, z: cz + hd });
-  }
-  for (let z = -hd + step; z < hd; z += step) {
-    posts.push({ x: cx - hw, z: cz + z }, { x: cx + hw, z: cz + z });
-  }
-  const postMesh = new THREE.InstancedMesh(postGeometry, boundaryMaterial, posts.length);
-  const dummy = new THREE.Object3D();
-  posts.forEach((post, index) => {
-    dummy.position.set(post.x, 1.6, post.z);
-    dummy.rotation.set(0, (index % 3 - 1) * 0.08, 0);
-    dummy.scale.set(1, index % 4 === 0 ? 1.35 : 1, 1);
-    dummy.updateMatrix();
-    postMesh.setMatrixAt(index, dummy.matrix);
-  });
-  postMesh.instanceMatrix.needsUpdate = true;
-  root.add(postMesh);
-
   const landmarkColors = [0x7ac9c0, 0xe798b9, 0x73b4d8, 0xe2cf72, 0xa78ad0];
   const landmarks = [
     [cx, cz - 72], [cx - 65, cz + 5], [cx + 65, cz + 5], [cx, cz], [cx, cz + 72],
@@ -983,7 +987,17 @@ function drawHuntCanvas(demo: HuntCanvasDemo): void {
   const centerX = width * 0.5;
   const centerY = height * 0.62;
   const worldToScreen = (x: number, z: number) => ({ x: centerX + (x - base.x) * scale, y: centerY - (z - base.z) * scale });
-  const field = worldToScreen(CART_TURBO_HUNT_FIELD.centerX, CART_TURBO_HUNT_FIELD.centerZ);
+  const fieldCenterX = cartTurboHuntTileCenter(
+    base.x,
+    CART_TURBO_HUNT_FIELD.centerX,
+    CART_TURBO_HUNT_WORLD_WIDTH,
+  );
+  const fieldCenterZ = cartTurboHuntTileCenter(
+    base.z,
+    CART_TURBO_HUNT_FIELD.centerZ,
+    CART_TURBO_HUNT_WORLD_DEPTH,
+  );
+  const field = worldToScreen(fieldCenterX, fieldCenterZ);
   ctx.fillStyle = "#dfbb82";
   ctx.fillRect(field.x - CART_TURBO_HUNT_FIELD.halfWidth * scale, field.y - CART_TURBO_HUNT_FIELD.halfDepth * scale, CART_TURBO_HUNT_FIELD.halfWidth * 2 * scale, CART_TURBO_HUNT_FIELD.halfDepth * 2 * scale);
 
@@ -991,14 +1005,10 @@ function drawHuntCanvas(demo: HuntCanvasDemo): void {
     [0, -66, 176, 34, "#c8d99e"], [-62, 2, 46, 108, "#b6cf84"], [62, 2, 46, 108, "#dcc892"], [0, 0, 80, 80, "#e9ca93"], [0, 66, 176, 34, "#c9adde"],
   ] as const;
   for (const [x, z, w, d, color] of patches) {
-    const p = worldToScreen(CART_TURBO_HUNT_FIELD.centerX + x, CART_TURBO_HUNT_FIELD.centerZ + z);
+    const p = worldToScreen(fieldCenterX + x, fieldCenterZ + z);
     ctx.fillStyle = color;
     ctx.fillRect(p.x - w * 0.5 * scale, p.y - d * 0.5 * scale, w * scale, d * scale);
   }
-
-  ctx.strokeStyle = "rgba(255,255,255,.82)";
-  ctx.lineWidth = Math.max(1.5, scale * 0.18);
-  ctx.strokeRect(field.x - CART_TURBO_HUNT_FIELD.halfWidth * scale, field.y - CART_TURBO_HUNT_FIELD.halfDepth * scale, CART_TURBO_HUNT_FIELD.halfWidth * 2 * scale, CART_TURBO_HUNT_FIELD.halfDepth * 2 * scale);
 
   for (const obstacle of base.obstacles) {
     if (obstacle.destroyed) continue;
@@ -1097,10 +1107,20 @@ export function installCartRoguePhase67TurboHunt(): void {
   webglPrototype.updateVisuals = function turboHuntUpdateVisuals(this: HuntWebGLDemo, delta: number): void {
     if (isCartTurboHuntEnabled(this.session)) {
       for (const enemy of this.session.enemies) {
-        const group = this.enemyGroups.get(enemy.id);
-        if (!group) continue;
-        const wasAlive = Boolean(group.userData.huntWasAlive);
-        if (!wasAlive && enemy.alive) {
+      const group = this.enemyGroups.get(enemy.id);
+      if (!group) continue;
+      const wasAlive = Boolean(group.userData.huntWasAlive);
+      const lastX = Number(group.userData.lastX ?? enemy.x);
+      const lastZ = Number(group.userData.lastZ ?? enemy.z);
+      const crossedRepeatedSeam = Math.abs(enemy.x - lastX) > CART_TURBO_HUNT_FIELD.halfWidth
+        || Math.abs(enemy.z - lastZ) > CART_TURBO_HUNT_FIELD.halfDepth;
+      if (crossedRepeatedSeam) {
+        group.position.x = enemy.x;
+        group.position.z = enemy.z;
+        group.userData.lastX = enemy.x;
+        group.userData.lastZ = enemy.z;
+      }
+      if (!wasAlive && enemy.alive) {
           group.position.set(enemy.x, 0, enemy.z);
           group.rotation.y = enemy.heading;
           group.userData.lastX = enemy.x;
@@ -1111,6 +1131,20 @@ export function installCartRoguePhase67TurboHunt(): void {
     previousUpdateVisuals.call(this, delta);
     if (!isCartTurboHuntEnabled(this.session)) return;
     updateTargetMarker(this, delta);
+    for (const pickup of this.session.resources) {
+      const group = this.resourceGroups.get(pickup.id);
+      if (group) {
+        group.position.x = pickup.x;
+        group.position.z = pickup.z;
+      }
+    }
+    for (const obstacle of this.session.obstacles) {
+      const group = this.obstacleGroups.get(obstacle.id);
+      if (group) {
+        group.position.x = obstacle.x;
+        group.position.z = obstacle.z;
+      }
+    }
     for (const enemy of this.session.enemies) {
       const group = this.enemyGroups.get(enemy.id);
       if (group) group.userData.huntWasAlive = enemy.alive;

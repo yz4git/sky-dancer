@@ -65,8 +65,10 @@ test("aircraft exhaust geometry points backward on the -Z flight axis", () => {
 test("WebGL air combat FX records wing and enemy missile trails in world space", () => {
   const source = readFileSync(new URL("../src/sky/SkyDancerAirCombatFxV2.ts", import.meta.url), "utf8");
   assert.match(source, /class WorldRibbonTrail/);
-  assert.match(source, /localToWorld\(new THREE\.Vector3\(-state\.wingSpan/);
-  assert.match(source, /localToWorld\(new THREE\.Vector3\(state\.wingSpan/);
+  assert.match(source, /leftTrailPoint\.set\(-state\.wingSpan/);
+  assert.match(source, /rightTrailPoint\.set\(state\.wingSpan/);
+  assert.match(source, /localToWorld\(this\.leftTrailPoint\)/);
+  assert.match(source, /localToWorld\(this\.rightTrailPoint\)/);
   assert.match(source, /sky-dancer-missile-smoke-\$\{missile\.id\}/);
   assert.match(source, /geometry\.rotateX\(-Math\.PI \/ 2\)/);
   assert.match(source, /flame\.mesh\.scale\.z = flame\.baseLength/);
@@ -250,7 +252,7 @@ test("V21 makes missile hits unmistakable", () => {
   const source = readFileSync(new URL("../src/sky/SkyDancerAirCombatFxV21.ts", import.meta.url), "utf8");
   assert.match(source, /sky-dancer-v21-missile-hit-confirm/);
   assert.match(source, /sky-dancer-v21-player-missile-impact/);
-  assert.match(source, /emitImpactSparks\(position, 20\)/);
+  assert.match(source, /emitImpactSparks\(this\.hitPoint, 20\)/);
   assert.match(source, /cameraShake = Math\.max/);
   assert.match(source, /impactFlash = Math\.max/);
   assert.match(source, /new THREE\.PointLight\(0xffa43d, 7\.5, 18, 2\)/);

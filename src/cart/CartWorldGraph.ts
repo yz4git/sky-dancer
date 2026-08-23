@@ -335,7 +335,10 @@ export function locateCartWorldNode(
       if (x > 0) return a.lane === "right" ? -1 : b.lane === "right" ? 1 : 0;
       return 0;
     });
-  const node = containing[0];
+  // Turbo Hunt temporarily expands its logical node while its repeated tile is
+  // simulated. It must retain ownership even when an unbounded flight path
+  // passes over coordinates used by the inherited route graph.
+  const node = containing.find((candidate) => candidate.id === "hunt-field") ?? containing[0];
   if (!node) return null;
   return {
     node,

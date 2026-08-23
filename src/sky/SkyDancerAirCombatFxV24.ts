@@ -49,6 +49,7 @@ export class SkyDancerAirCombatFxV24 extends SkyDancerAirCombatFxV23 {
   private readonly atmosphereRoot = new THREE.Group();
   private readonly muzzleSockets: MuzzleSocket[] = [];
   private readonly impactResidues: ImpactResidue[] = [];
+  private readonly impactResiduePool: ImpactResidue[] = [];
   private readonly impactDummy = new THREE.Object3D();
   private readonly cameraWorldPosition = new THREE.Vector3();
   private readonly screenGrade: THREE.Mesh<THREE.PlaneGeometry, THREE.ShaderMaterial>;
@@ -83,6 +84,7 @@ export class SkyDancerAirCombatFxV24 extends SkyDancerAirCombatFxV23 {
       this.buildAtmosphericSilhouettes();
       this.buildHeroAircraftDetail();
       this.buildMuzzleSystem();
+      this.prewarmImpactResidues();
       this.tuneAircraftMaterialsV24(this.runtimeV24.playerVisual, false);
       this.runtimeV24.scene.add(this.atmosphereRoot);
       this.runtimeV24.camera.add(this.screenGrade);
@@ -503,7 +505,7 @@ export class SkyDancerAirCombatFxV24 extends SkyDancerAirCombatFxV23 {
       residue.smoke.material.opacity = Math.sin(ratio * Math.PI) * 0.32;
 
       if (residue.life > 0) continue;
-      this.disposeImpactResidue(residue);
+      this.releaseImpactResidue(residue);
       this.impactResidues.splice(index, 1);
     }
   }
@@ -511,17 +513,74 @@ export class SkyDancerAirCombatFxV24 extends SkyDancerAirCombatFxV23 {
   private spawnImpactResidue(weapon: SkyDancerPlayerWeaponState): void {
     while (this.impactResidues.length >= MAX_IMPACT_RESIDUES) {
       const oldest = this.impactResidues.shift();
-      if (oldest) this.disposeImpactResidue(oldest);
+      if (oldest) this.releaseImpactResidue(oldest);
     }
 
-    const root = new THREE.Group();
-    root.name = "sky-dancer-v24-impact-residue";
+    const residue = this.impactResiduePool.pop() ?? this.createImpactResidue();
+    residue.life = residue.maxLife;
+    residue.root.visible = true;
     const target = weapon.lastHitEnemyId
       ? this.runtimeV24.enemyGroups.get(weapon.lastHitEnemyId)
       : undefined;
-    if (target) target.getWorldPosition(root.position);
-    else root.position.set(weapon.lastHitX, 1.55, weapon.lastHitZ);
-    if (root.position.y < 0.8) root.position.y = 1.55;
+    if (target) target.getWorldPosition(residue.root.position);
+    else residue.root.position.set(weapon.lastHitX, 1.55, weapon.lastHitZ);
+    if (residue.root.position.y < 0.8) residue.root.position.y = 1.55;
+
+    residue.flash.scale.setScalar(0.8);
+    residue.flash.material.opacity = 0.72;
+    residue.rings.forEach((ring, index) => {
+      ring.scale.setScalar(0.7);
+      ring.rotation.set(Math.PI * (0.25 + index * 0.3), index * 0.75, 0);
+      ring.material.opacity = 0.5 - index * 0.09;
+    });
+    residue.light.intensity = 4.4;
+
+    const sparkCount = residue.sparkPositions.length;
+    for (let index = 0; index < sparkCount; index += 1) {
+      const angle = index / sparkCount * Math.PI * 2 + (index % 3) * 0.16;
+      const position = residue.sparkPositions[index];
+      const velocity = residue.sparkVelocities[index];
+      position.set(Math.cos(angle) * 0.18, (index % 4 - 1.5) * 0.08, Math.sin(angle) * 0.18);
+      velocity.set(
+        Math.cos(angle) * (3.2 + (index % 5) * 0.68),
+        -0.35 + (index % 6) * 0.42,
+        Math.sin(angle) * (3.2 + ((index + 2) % 5) * 0.68),
+      );
+      this.impactDummy.position.copy(position);
+      this.impactDummy.scale.setScalar(1);
+      this.impactDummy.updateMatrix();
+      residue.sparks.setMatrixAt(index, this.impactDummy.matrix);
+    }
+    residue.sparks.instanceMatrix.needsUpdate = true;
+    residue.sparks.material.opacity = 0.82;
+
+    const smokeCount = residue.smokePositions.length;
+    for (let index = 0; index < smokeCount; index += 1) {
+      const angle = index / smokeCount * Math.PI * 2;
+      const position = residue.smokePositions[index];
+      const velocity = residue.smokeVelocities[index];
+      position.set(Math.cos(angle) * 0.28, 0.12 + (index % 3) * 0.1, Math.sin(angle) * 0.28);
+      velocity.set(Math.cos(angle) * 0.32, 0.45 + (index % 3) * 0.16, Math.sin(angle) * 0.32);
+      this.impactDummy.position.copy(position);
+      this.impactDummy.scale.setScalar(0.7);
+      this.impactDummy.updateMatrix();
+      residue.smoke.setMatrixAt(index, this.impactDummy.matrix);
+    }
+    residue.smoke.instanceMatrix.needsUpdate = true;
+    residue.smoke.material.opacity = 0;
+    this.impactResidues.push(residue);
+  }
+
+  private prewarmImpactResidues(): void {
+    while (this.impactResiduePool.length < MAX_IMPACT_RESIDUES) {
+      this.impactResiduePool.push(this.createImpactResidue());
+    }
+  }
+
+  private createImpactResidue(): ImpactResidue {
+    const root = new THREE.Group();
+    root.name = "sky-dancer-v24-impact-residue";
+    root.visible = false;
 
     const flash = new THREE.Mesh(
       new THREE.IcosahedronGeometry(0.54, 1),
@@ -571,13 +630,8 @@ export class SkyDancerAirCombatFxV24 extends SkyDancerAirCombatFxV23 {
     const sparkPositions: THREE.Vector3[] = [];
     const sparkVelocities: THREE.Vector3[] = [];
     for (let index = 0; index < sparkCount; index += 1) {
-      const angle = index / sparkCount * Math.PI * 2 + (index % 3) * 0.16;
-      const position = new THREE.Vector3(Math.cos(angle) * 0.18, (index % 4 - 1.5) * 0.08, Math.sin(angle) * 0.18);
-      const velocity = new THREE.Vector3(
-        Math.cos(angle) * (3.2 + (index % 5) * 0.68),
-        -0.35 + (index % 6) * 0.42,
-        Math.sin(angle) * (3.2 + ((index + 2) % 5) * 0.68),
-      );
+      const position = new THREE.Vector3();
+      const velocity = new THREE.Vector3();
       sparkPositions.push(position);
       sparkVelocities.push(velocity);
       this.impactDummy.position.copy(position);
@@ -604,9 +658,8 @@ export class SkyDancerAirCombatFxV24 extends SkyDancerAirCombatFxV23 {
     const smokePositions: THREE.Vector3[] = [];
     const smokeVelocities: THREE.Vector3[] = [];
     for (let index = 0; index < smokeCount; index += 1) {
-      const angle = index / smokeCount * Math.PI * 2;
-      const position = new THREE.Vector3(Math.cos(angle) * 0.28, 0.12 + (index % 3) * 0.1, Math.sin(angle) * 0.28);
-      const velocity = new THREE.Vector3(Math.cos(angle) * 0.32, 0.45 + (index % 3) * 0.16, Math.sin(angle) * 0.32);
+      const position = new THREE.Vector3();
+      const velocity = new THREE.Vector3();
       smokePositions.push(position);
       smokeVelocities.push(velocity);
       this.impactDummy.position.copy(position);
@@ -620,9 +673,9 @@ export class SkyDancerAirCombatFxV24 extends SkyDancerAirCombatFxV23 {
     const light = new THREE.PointLight(0xff9b42, 4.4, 14, 2);
     root.add(light);
     this.runtimeV24.scene.add(root);
-    this.impactResidues.push({
+    return {
       root,
-      life: 1.35,
+      life: 0,
       maxLife: 1.35,
       flash,
       rings,
@@ -633,17 +686,14 @@ export class SkyDancerAirCombatFxV24 extends SkyDancerAirCombatFxV23 {
       smoke,
       smokePositions,
       smokeVelocities,
-    });
+    };
   }
 
-  private disposeImpactResidue(residue: ImpactResidue): void {
-    residue.root.removeFromParent();
-    residue.root.traverse((object) => {
-      if (!(object instanceof THREE.Mesh)) return;
-      object.geometry.dispose();
-      const materials = Array.isArray(object.material) ? object.material : [object.material];
-      materials.forEach((material) => material.dispose());
-    });
+  private releaseImpactResidue(residue: ImpactResidue): void {
+    residue.life = 0;
+    residue.root.visible = false;
+    residue.light.intensity = 0;
+    this.impactResiduePool.push(residue);
   }
 
   private createScreenGrade(): THREE.Mesh<THREE.PlaneGeometry, THREE.ShaderMaterial> {

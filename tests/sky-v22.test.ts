@@ -48,8 +48,9 @@ test("Turbo model has no held-speed mutation and owns a substantially stronger r
   assert.doesNotMatch(heldBranch, /forwardVelocity\s*=/);
   assert.doesNotMatch(heldBranch, /lateralVelocity\s*=/);
   assert.doesNotMatch(heldBranch, /boostActive\s*=/);
-  assert.match(source, /SKY_DANCER_TURBO_RELEASE_BASE_KICK = 4\.6/);
-  assert.match(source, /SKY_DANCER_TURBO_RELEASE_CHARGE_KICK = 9\.4/);
+  assert.match(source, /SKY_DANCER_TURBO_RELEASE_BASE_KICK = 6\.4/);
+  assert.match(source, /SKY_DANCER_TURBO_RELEASE_CHARGE_KICK = 12\.8/);
+  assert.match(source, /maxSpeed \* \(1\.76 \+ charge \* 0\.22\)/);
   assert.match(source, /car\.consumeBoostCharge\(\)/);
   assert.match(source, /car\.boostActive = true/);
   assert.match(source, /SKY_DANCER_TURBO_RELEASE_DURATION_BASE \+ charge \* SKY_DANCER_TURBO_RELEASE_DURATION_CHARGE/);

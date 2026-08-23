@@ -10,6 +10,8 @@ import {
   installSkyDancerFlightCombat,
   type SkyDancerMissileState,
 } from "./SkyDancerFlightCombat";
+import { installSkyDancerInfiniteWorld } from "./SkyDancerInfiniteWorld";
+import { getSkyDancerTurboState } from "./SkyDancerTurboModel";
 
 interface CartRuntimeView {
   renderer: THREE.WebGLRenderer;
@@ -37,6 +39,10 @@ interface CartRuntimeView {
 export class SkyDancerWebGLDemo extends CartRogueWebGLDemo {
   private readonly missileRoot = new THREE.Group();
   private readonly missileGroups = new Map<number, THREE.Group>();
+  private readonly normalMissilePool: THREE.Group[] = [];
+  private readonly bossMissilePool: THREE.Group[] = [];
+  private readonly activeMissileIds = new Set<number>();
+  private readonly cameraTarget = new THREE.Vector3();
   private readonly airFx: SkyDancerAirCombatFx;
 
   constructor(
@@ -49,7 +55,9 @@ export class SkyDancerWebGLDemo extends CartRogueWebGLDemo {
     const runtime = this as unknown as CartRuntimeView;
     this.airFx = new SkyDancerAirCombatFx(runtime as unknown as SkyDancerFxRuntime);
     this.applySkyDancerTheme(runtime);
+    this.prewarmVisualPipeline(runtime);
     this.installFlightPresentation(runtime);
+    installSkyDancerInfiniteWorld();
   }
 
   private applySkyDancerTheme(runtime: CartRuntimeView): void {
@@ -69,12 +77,6 @@ export class SkyDancerWebGLDemo extends CartRogueWebGLDemo {
       ...runtime.resourceGroups.values(),
       ...runtime.obstacleGroups.values(),
     ]);
-    for (const bar of runtime.gateBars.values()) {
-      let root: THREE.Object3D = bar;
-      while (root.parent && root.parent !== runtime.scene) root = root.parent;
-      if (root.parent === runtime.scene) keep.add(root);
-    }
-
     for (const object of runtime.scene.children) {
       if (keep.has(object) || object instanceof THREE.Light || object instanceof THREE.Camera) continue;
       object.visible = false;
@@ -102,20 +104,29 @@ export class SkyDancerWebGLDemo extends CartRogueWebGLDemo {
     const baseCameraPresentation = runtime.applyCameraPresentation.bind(this);
     runtime.applyCameraPresentation = (snapshot: CartArenaSessionSnapshot) => {
       baseCameraPresentation(snapshot);
+      const turbo = getSkyDancerTurboState(runtime.session);
+      const release = turbo.releaseAgeSeconds < 0.95
+        ? 1 - THREE.MathUtils.clamp(turbo.releaseAgeSeconds / 0.95, 0, 1)
+        : 0;
+      const releaseFov = release * (6.2 + turbo.releaseCharge * 4.8);
+      const sustainedFov = snapshot.boostActive ? 1.8 : 0;
+      runtime.camera.fov = Math.min(96, runtime.camera.fov + releaseFov + sustainedFov);
+      runtime.camera.updateProjectionMatrix();
       const lookAhead = 30;
-      const target = new THREE.Vector3(
+      this.cameraTarget.set(
         snapshot.x + Math.sin(snapshot.heading) * lookAhead,
         -9.5,
         snapshot.z + Math.cos(snapshot.heading) * lookAhead,
       );
-      runtime.camera.lookAt(target);
+      runtime.camera.lookAt(this.cameraTarget);
       runtime.camera.rotateZ(runtime.cameraRoll * 0.72 + this.airFx.getCameraRollImpulse());
     };
   }
 
   private updateAircraftBank(runtime: CartRuntimeView, snapshot: CartArenaSessionSnapshot, delta: number): void {
+    const now = performance.now();
     runtime.playerVisual.rotation.z += ((-runtime.steer * 0.43) - runtime.playerVisual.rotation.z) * Math.min(1, delta * 5.8);
-    runtime.playerVisual.position.y = 0.62 + Math.sin(performance.now() * 0.0024) * 0.04;
+    runtime.playerVisual.position.y = 0.62 + Math.sin(now * 0.0024) * 0.04;
 
     for (const enemy of snapshot.enemies) {
       if (!enemy.alive) continue;
@@ -129,25 +140,27 @@ export class SkyDancerWebGLDemo extends CartRogueWebGLDemo {
       const targetBank = THREE.MathUtils.clamp(-turnRate * 0.34, -0.58, 0.58);
       group.rotation.z += (targetBank - group.rotation.z) * Math.min(1, delta * 5.2);
       const baseY = enemy.kind === "boss" ? 1.7 : enemy.kind === "heavy" ? 1.3 : 1.08;
-      group.position.y = baseY + Math.sin(performance.now() * 0.0018 + enemy.x * 0.11 + enemy.z * 0.05) * 0.18;
+      group.position.y = baseY + Math.sin(now * 0.0018 + enemy.x * 0.11 + enemy.z * 0.05) * 0.18;
       group.userData.skyHeading = enemy.heading;
     }
   }
 
   private updateMissileVisuals(runtime: CartRuntimeView): SkyDancerMissileState {
     const state = getSkyDancerMissileState(runtime.session);
-    const activeIds = new Set<number>();
+    this.activeMissileIds.clear();
+    const activeIds = this.activeMissileIds;
+    const now = performance.now();
 
     for (const missile of state.missiles) {
       activeIds.add(missile.id);
       let group = this.missileGroups.get(missile.id);
       if (!group) {
-        group = this.buildMissile(missile.sourceKind === "boss");
+        const boss = missile.sourceKind === "boss";
+        group = (boss ? this.bossMissilePool : this.normalMissilePool).pop() ?? this.buildMissile(boss);
         this.missileGroups.set(missile.id, group);
-        this.missileRoot.add(group);
       }
       group.visible = true;
-      group.position.set(missile.x, 1.18 + Math.sin(missile.id * 1.7 + performance.now() * 0.006) * 0.05, missile.z);
+      group.position.set(missile.x, 1.18 + Math.sin(missile.id * 1.7 + now * 0.006) * 0.05, missile.z);
       group.rotation.y = missile.heading;
       const warning = Math.max(0, Math.min(1, (14 - missile.distanceToPlayer) / 12));
       group.scale.setScalar(1 + warning * 0.2);
@@ -160,20 +173,16 @@ export class SkyDancerWebGLDemo extends CartRogueWebGLDemo {
       if (halo) {
         const material = halo.material as THREE.MeshBasicMaterial;
         material.opacity = 0.34 + warning * 0.58;
-        halo.scale.setScalar(0.9 + warning * 0.75 + Math.sin(performance.now() * 0.018 + missile.id) * 0.08);
+        halo.scale.setScalar(0.9 + warning * 0.75 + Math.sin(now * 0.018 + missile.id) * 0.08);
       }
     }
 
     for (const [id, group] of this.missileGroups) {
       if (activeIds.has(id)) continue;
       this.missileGroups.delete(id);
-      this.missileRoot.remove(group);
-      group.traverse((object) => {
-        if (!(object instanceof THREE.Mesh)) return;
-        object.geometry.dispose();
-        const materials = Array.isArray(object.material) ? object.material : [object.material];
-        materials.forEach((material) => material.dispose());
-      });
+      group.visible = false;
+      const pool = group.userData.skyDancerBossMissile === true ? this.bossMissilePool : this.normalMissilePool;
+      pool.push(group);
     }
 
     return state;
@@ -181,6 +190,7 @@ export class SkyDancerWebGLDemo extends CartRogueWebGLDemo {
 
   private buildMissile(boss: boolean): THREE.Group {
     const group = new THREE.Group();
+    group.userData.skyDancerBossMissile = boss;
     const bodyMat = new THREE.MeshStandardMaterial({
       color: boss ? 0x7d2635 : 0xddd6c6,
       roughness: 0.42,
@@ -222,7 +232,21 @@ export class SkyDancerWebGLDemo extends CartRogueWebGLDemo {
     }
     group.add(body, nose, tail);
     this.airFx.decorateMissile(group, boss);
+    this.missileRoot.add(group);
     return group;
+  }
+
+  private prewarmVisualPipeline(runtime: CartRuntimeView): void {
+    while (this.normalMissilePool.length < 8) this.normalMissilePool.push(this.buildMissile(false));
+    while (this.bossMissilePool.length < 3) this.bossMissilePool.push(this.buildMissile(true));
+    const warmMissiles = [...this.normalMissilePool, ...this.bossMissilePool];
+    for (const missile of warmMissiles) {
+      missile.visible = true;
+      missile.position.set(runtime.session.car.position.x, -80, runtime.session.car.position.z);
+    }
+    this.airFx.update(runtime.session.snapshot(), getSkyDancerMissileState(runtime.session), 1 / 60);
+    runtime.renderer.compile(runtime.scene, runtime.camera);
+    for (const missile of warmMissiles) missile.visible = false;
   }
 
   private replacePlayerWithFighter(runtime: CartRuntimeView): void {
@@ -479,6 +503,7 @@ export class SkyDancerWebGLDemo extends CartRogueWebGLDemo {
     const positions: number[] = [];
     const y = -0.7;
     for (const node of CART_WORLD_GRAPH.nodes) {
+      if (node.id === "hunt-field") continue;
       const minX = node.rect.centerX - node.rect.halfWidth;
       const maxX = node.rect.centerX + node.rect.halfWidth;
       const minZ = node.rect.centerZ - node.rect.halfDepth;

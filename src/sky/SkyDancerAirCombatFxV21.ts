@@ -16,6 +16,8 @@ interface HitBurst {
 export class SkyDancerAirCombatFxV21 extends SkyDancerAirCombatFxV20 {
   private readonly runtimeV21: SkyDancerFxRuntime;
   private readonly hitBursts: HitBurst[] = [];
+  private readonly hitBurstPool: HitBurst[] = [];
+  private readonly hitPoint = new THREE.Vector3();
   private readonly hitConfirm = new THREE.Group();
   private lastHitSerial = 0;
   private hitConfirmLife = 0;
@@ -25,6 +27,7 @@ export class SkyDancerAirCombatFxV21 extends SkyDancerAirCombatFxV20 {
     super(runtime);
     this.runtimeV21 = runtime;
     this.buildHitConfirm();
+    this.prewarmHitBursts();
   }
 
   override update(snapshot: CartArenaSessionSnapshot, missiles: SkyDancerMissileState, delta: number): void {
@@ -75,25 +78,50 @@ export class SkyDancerAirCombatFxV21 extends SkyDancerAirCombatFxV20 {
     const target = state.lastHitEnemyId
       ? this.runtimeV21.enemyGroups.get(state.lastHitEnemyId)
       : undefined;
-    const position = target
-      ? target.position.clone()
-      : new THREE.Vector3(state.lastHitX, 1.55, state.lastHitZ);
-    if (position.y < 0.8) position.y = 1.55;
-    this.spawnMissileHitBurst(position);
+    if (target) this.hitPoint.copy(target.position);
+    else this.hitPoint.set(state.lastHitX, 1.55, state.lastHitZ);
+    if (this.hitPoint.y < 0.8) this.hitPoint.y = 1.55;
+    this.spawnMissileHitBurst(this.hitPoint);
 
     this.runtimeV21.cameraShake = Math.max(this.runtimeV21.cameraShake, 0.78);
     this.runtimeV21.impactFlash = Math.max(this.runtimeV21.impactFlash, 0.9);
     this.runtimeV21.impactOverlayMaterial.color.setHex(0xffd85c);
-    this.runtimeV21.emitImpactSparks(position, 20);
+    this.runtimeV21.emitImpactSparks(this.hitPoint, 20);
     this.hitConfirmLife = 0.34;
     this.hitConfirm.visible = true;
     this.hitConfirm.scale.setScalar(0.7);
   }
 
   private spawnMissileHitBurst(position: THREE.Vector3): void {
+    if (this.hitBursts.length >= 4) {
+      const oldest = this.hitBursts.shift();
+      if (oldest) this.releaseMissileHitBurst(oldest);
+    }
+    const burst = this.hitBurstPool.pop() ?? this.createMissileHitBurst();
+    burst.life = burst.maxLife;
+    burst.root.visible = true;
+    burst.root.position.copy(position);
+    burst.root.scale.setScalar(1);
+    burst.root.rotation.set(0, 0, 0);
+    burst.light.intensity = 7.5;
+    for (const child of burst.root.children) {
+      if (!(child instanceof THREE.Mesh)) continue;
+      const materials = Array.isArray(child.material) ? child.material : [child.material];
+      for (const material of materials) {
+        if ("opacity" in material) material.opacity = child.name === "sky-dancer-v21-impact-core" ? 1 : 0.9;
+      }
+    }
+    this.hitBursts.push(burst);
+  }
+
+  private prewarmHitBursts(): void {
+    while (this.hitBurstPool.length < 4) this.hitBurstPool.push(this.createMissileHitBurst());
+  }
+
+  private createMissileHitBurst(): HitBurst {
     const root = new THREE.Group();
     root.name = "sky-dancer-v21-player-missile-impact";
-    root.position.copy(position);
+    root.visible = false;
 
     const hot = new THREE.MeshBasicMaterial({
       color: 0xfff4b0,
@@ -153,7 +181,7 @@ export class SkyDancerAirCombatFxV21 extends SkyDancerAirCombatFxV20 {
     const light = new THREE.PointLight(0xffa43d, 7.5, 18, 2);
     root.add(light);
     this.runtimeV21.scene.add(root);
-    this.hitBursts.push({ root, life: 0.62, maxLife: 0.62, light });
+    return { root, life: 0, maxLife: 0.62, light };
   }
 
   private updateHitBursts(delta: number): void {
@@ -173,15 +201,16 @@ export class SkyDancerAirCombatFxV21 extends SkyDancerAirCombatFxV20 {
         }
       }
       if (burst.life > 0) continue;
-      burst.root.removeFromParent();
-      burst.root.traverse((object) => {
-        if (!(object instanceof THREE.Mesh)) return;
-        object.geometry.dispose();
-        const materials = Array.isArray(object.material) ? object.material : [object.material];
-        materials.forEach((material) => material.dispose());
-      });
+      this.releaseMissileHitBurst(burst);
       this.hitBursts.splice(index, 1);
     }
+  }
+
+  private releaseMissileHitBurst(burst: HitBurst): void {
+    burst.life = 0;
+    burst.root.visible = false;
+    burst.light.intensity = 0;
+    this.hitBurstPool.push(burst);
   }
 
   private updateHitConfirm(delta: number): void {

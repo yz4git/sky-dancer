@@ -10,6 +10,7 @@ import {
   requestSkyDancerPlayerMissile,
 } from "./SkyDancerPlayerWeapons";
 import { bindSkyDancerWeaponSession } from "./SkyDancerWeaponBridge";
+import { installSkyDancerInfiniteWorld } from "./SkyDancerInfiniteWorld";
 
 interface CanvasRuntimeView {
   canvas: HTMLCanvasElement;
@@ -30,6 +31,7 @@ export class SkyDancerCanvasPreviewV4 extends SkyDancerCanvasPreviewV3 {
     installSkyDancerEnemyPopulation();
     installSkyDancerPlayerWeapons();
     installSkyDancerFlightDynamics();
+    installSkyDancerInfiniteWorld();
     this.runtimeV4 = this as unknown as CanvasRuntimeView;
     bindSkyDancerWeaponSession(this.runtimeV4.session);
     if (typeof window !== "undefined") {

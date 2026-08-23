@@ -141,6 +141,7 @@ export class CartRogueWebGLDemo implements CartRogueDemoHandle {
     depthWrite: false,
   });
   private readonly impactOverlay = new THREE.Mesh(new THREE.PlaneGeometry(0.68, 0.4), this.impactOverlayMaterial);
+  private readonly cameraLookTarget = new THREE.Vector3();
   private readonly boostLight = new THREE.PointLight(C.turbo, 0, 16, 2);
   private readonly dustMesh: THREE.InstancedMesh;
   private readonly dustParticles: DustParticle[] = [];
@@ -1241,7 +1242,8 @@ export class CartRogueWebGLDemo implements CartRogueDemoHandle {
       particle.maxLife = 0.3 + (index % 4) * 0.035;
       particle.life = particle.maxLife;
       particle.size = 0.75 + (index % 3) * 0.18;
-      particle.position.copy(position).add(new THREE.Vector3(0, 0.9 + (index % 3) * 0.15, 0));
+      particle.position.copy(position);
+      particle.position.y += 0.9 + (index % 3) * 0.15;
       particle.velocity.set(Math.cos(angle) * speed, 2.8 + (index % 4) * 1.1, Math.sin(angle) * speed);
       this.sparkCursor = (this.sparkCursor + 1) % SPARK_COUNT;
     }
@@ -1426,8 +1428,11 @@ export class CartRogueWebGLDemo implements CartRogueDemoHandle {
       this.camera.position.z += Math.cos(this.elapsed * 81) * shake * 0.14;
     }
     const lookAhead = THREE.MathUtils.clamp(Math.abs(snapshot.speed) / 24, 0, 1) * 1.8;
-    const target = this.chaseCamera.target.clone().add(new THREE.Vector3(Math.sin(snapshot.heading) * lookAhead, 0.12, Math.cos(snapshot.heading) * lookAhead));
-    this.camera.lookAt(target);
+    this.cameraLookTarget.copy(this.chaseCamera.target);
+    this.cameraLookTarget.x += Math.sin(snapshot.heading) * lookAhead;
+    this.cameraLookTarget.y += 0.12;
+    this.cameraLookTarget.z += Math.cos(snapshot.heading) * lookAhead;
+    this.camera.lookAt(this.cameraLookTarget);
     this.camera.rotateZ(this.cameraRoll + Math.sin(this.elapsed * 79) * shake * 0.008);
   }
 
