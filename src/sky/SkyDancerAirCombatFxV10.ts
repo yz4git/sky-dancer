@@ -7,6 +7,7 @@ import {
   getSkyDancerPlayerWeaponState,
   installSkyDancerPlayerWeapons,
   requestSkyDancerPlayerMissile,
+  stepSkyDancerPlayerWeapons,
 } from "./SkyDancerPlayerWeapons";
 import { bindSkyDancerWeaponSession } from "./SkyDancerWeaponBridge";
 
@@ -19,12 +20,14 @@ interface PlayerMissileVisualState {
 
 const GLOBAL_FIRE_KEY = "__skyDancerFireMissile";
 const GLOBAL_WEAPON_STATE_KEY = "__skyDancerGetWeaponState";
+const WEAPON_FIXED_STEP = 1 / 60;
 
 export class SkyDancerAirCombatFxV10 extends SkyDancerAirCombatFxV9 {
   private readonly runtimeV10: SkyDancerFxRuntime;
   private readonly missileRoot = new THREE.Group();
   private readonly missileVisuals = new Map<number, PlayerMissileVisualState>();
   private elapsedV10 = 0;
+  private weaponAccumulator = 0;
 
   constructor(runtime: SkyDancerFxRuntime) {
     super(runtime);
@@ -35,8 +38,6 @@ export class SkyDancerAirCombatFxV10 extends SkyDancerAirCombatFxV9 {
     runtime.scene.add(this.missileRoot);
     if (typeof window !== "undefined") {
       const globals = window as unknown as Record<string, unknown>;
-      // Kept for diagnostics/backward compatibility only. The UI now fires via
-      // SkyDancerWeaponBridge so WebGL/Canvas swaps cannot target a stale run.
       globals[GLOBAL_FIRE_KEY] = () => requestSkyDancerPlayerMissile(runtime.session);
       globals[GLOBAL_WEAPON_STATE_KEY] = () => getSkyDancerPlayerWeaponState(runtime.session);
     }
@@ -45,6 +46,14 @@ export class SkyDancerAirCombatFxV10 extends SkyDancerAirCombatFxV9 {
   override update(snapshot: CartArenaSessionSnapshot, missiles: SkyDancerMissileState, delta: number): void {
     super.update(snapshot, missiles, delta);
     this.elapsedV10 += delta;
+    // Weapon simulation lives on the renderer clock rather than the heavily
+    // patched CartArenaSession.step chain. A fixed accumulator keeps missile
+    // speed/homing consistent at 30/60/120 Hz rendering.
+    this.weaponAccumulator = Math.min(0.12, this.weaponAccumulator + Math.max(0, delta));
+    while (this.weaponAccumulator >= WEAPON_FIXED_STEP) {
+      stepSkyDancerPlayerWeapons(this.runtimeV10.session, WEAPON_FIXED_STEP);
+      this.weaponAccumulator -= WEAPON_FIXED_STEP;
+    }
     this.updatePlayerMissiles(delta);
   }
 
@@ -89,36 +98,13 @@ export class SkyDancerAirCombatFxV10 extends SkyDancerAirCombatFxV9 {
   private buildPlayerMissile(): PlayerMissileVisualState {
     const root = new THREE.Group();
     root.name = "sky-dancer-q10-player-missile";
-
     const bodyGeometry = new THREE.CylinderGeometry(0.085, 0.12, 1.05, 8);
     bodyGeometry.rotateX(Math.PI / 2);
-    const body = new THREE.Mesh(
-      bodyGeometry,
-      new THREE.MeshStandardMaterial({
-        color: 0xe9f7fa,
-        roughness: 0.24,
-        metalness: 0.48,
-        flatShading: true,
-        emissive: 0x0e3440,
-        emissiveIntensity: 0.2,
-      }),
-    );
-
+    const body = new THREE.Mesh(bodyGeometry, new THREE.MeshStandardMaterial({ color: 0xe9f7fa, roughness: 0.24, metalness: 0.48, flatShading: true, emissive: 0x0e3440, emissiveIntensity: 0.2 }));
     const noseGeometry = new THREE.ConeGeometry(0.12, 0.4, 8);
     noseGeometry.rotateX(Math.PI / 2);
-    const nose = new THREE.Mesh(
-      noseGeometry,
-      new THREE.MeshStandardMaterial({
-        color: 0x70eaff,
-        emissive: 0x1b8fab,
-        emissiveIntensity: 0.75,
-        roughness: 0.25,
-        metalness: 0.2,
-        flatShading: true,
-      }),
-    );
+    const nose = new THREE.Mesh(noseGeometry, new THREE.MeshStandardMaterial({ color: 0x70eaff, emissive: 0x1b8fab, emissiveIntensity: 0.75, roughness: 0.25, metalness: 0.2, flatShading: true }));
     nose.position.z = 0.7;
-
     const finMaterial = new THREE.MeshStandardMaterial({ color: 0x25526a, roughness: 0.5, metalness: 0.2, flatShading: true });
     for (const rotation of [0, Math.PI / 2]) {
       const fin = new THREE.Mesh(new THREE.BoxGeometry(0.48, 0.035, 0.3), finMaterial.clone());
@@ -126,51 +112,17 @@ export class SkyDancerAirCombatFxV10 extends SkyDancerAirCombatFxV9 {
       fin.rotation.z = rotation;
       root.add(fin);
     }
-
     const tailGeometry = new THREE.CylinderGeometry(0.022, 0.105, 1.5, 8, 1, true);
     tailGeometry.rotateX(-Math.PI / 2);
-    const tail = new THREE.Mesh(
-      tailGeometry,
-      new THREE.MeshBasicMaterial({
-        color: 0x55e6ff,
-        transparent: true,
-        opacity: 0.7,
-        blending: THREE.AdditiveBlending,
-        depthWrite: false,
-        toneMapped: false,
-      }),
-    );
+    const tail = new THREE.Mesh(tailGeometry, new THREE.MeshBasicMaterial({ color: 0x55e6ff, transparent: true, opacity: 0.7, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }));
     tail.position.z = -1.1;
-
     const coreGeometry = new THREE.CylinderGeometry(0.014, 0.042, 1.0, 7, 1, true);
     coreGeometry.rotateX(-Math.PI / 2);
-    const core = new THREE.Mesh(
-      coreGeometry,
-      new THREE.MeshBasicMaterial({
-        color: 0xf5ffff,
-        transparent: true,
-        opacity: 0.9,
-        blending: THREE.AdditiveBlending,
-        depthWrite: false,
-        toneMapped: false,
-      }),
-    );
+    const core = new THREE.Mesh(coreGeometry, new THREE.MeshBasicMaterial({ color: 0xf5ffff, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }));
     core.position.z = -0.9;
-
-    const ring = new THREE.Mesh(
-      new THREE.TorusGeometry(0.24, 0.017, 4, 18),
-      new THREE.MeshBasicMaterial({
-        color: 0x91f5ff,
-        transparent: true,
-        opacity: 0.5,
-        blending: THREE.AdditiveBlending,
-        depthWrite: false,
-        toneMapped: false,
-      }),
-    );
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(0.24, 0.017, 4, 18), new THREE.MeshBasicMaterial({ color: 0x91f5ff, transparent: true, opacity: 0.5, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }));
     ring.rotation.x = Math.PI / 2;
     ring.position.z = 0.02;
-
     root.add(body, nose, tail, core, ring);
     return { root, tail, core, ring };
   }
