@@ -9,6 +9,7 @@ on:
       - "src/sky/**"
       - "public/**"
       - "scripts/webgl-visual-audit.mjs"
+      - "scripts/webgl-turbo-isolation-audit.mjs"
       - "tests/**"
       - "package.json"
       - ".github/workflows/webgl-audit.yml"
@@ -19,6 +20,7 @@ on:
       - "src/sky/**"
       - "public/**"
       - "scripts/webgl-visual-audit.mjs"
+      - "scripts/webgl-turbo-isolation-audit.mjs"
       - "tests/**"
       - "package.json"
       - ".github/workflows/webgl-audit.yml"
@@ -69,6 +71,9 @@ jobs:
 
       - name: Capture real WebGL frames
         run: node scripts/webgl-visual-audit.mjs
+
+      - name: Verify isolated Turbo world motion
+        run: node scripts/webgl-turbo-isolation-audit.mjs
 
       - name: Upload WebGL visual audit
         if: always()
