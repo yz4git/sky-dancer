@@ -134,7 +134,24 @@ export default function SkyDancerHudQualityPass() {
     }
 
     .${huntStyles.hud} {
+      inset: max(48px, calc(env(safe-area-inset-top) + 38px)) max(9px, env(safe-area-inset-right)) auto max(9px, env(safe-area-inset-left)) !important;
+      grid-template-columns: minmax(108px,.62fr) minmax(260px,1.6fr) minmax(108px,.62fr) !important;
+      gap: 8px !important;
       filter: drop-shadow(0 8px 20px rgba(2,17,29,.16)) !important;
+    }
+    .${huntStyles.orderCard} {
+      border-width: 0 1px 1px !important;
+      border-radius: 2px 2px 9px 9px !important;
+      background: linear-gradient(180deg, rgba(7,35,55,.44), rgba(4,19,33,.68)) !important;
+    }
+    .${huntStyles.card},
+    .${huntStyles.heatCard} {
+      border-radius: 4px 12px 4px 12px !important;
+    }
+    .${huntStyles.progressTrack},
+    .${huntStyles.heatTrack} {
+      height: 3px !important;
+      border-radius: 0 !important;
     }
     .${huntStyles.card},
     .${huntStyles.orderCard},
@@ -150,6 +167,115 @@ export default function SkyDancerHudQualityPass() {
       background: linear-gradient(160deg, #5be8ff 0%, #1ea9df 48%, #0b5896 100%) !important;
       border-color: rgba(220,251,255,.72) !important;
       box-shadow: 0 5px 0 rgba(4,42,69,.62), 0 11px 25px rgba(0,80,135,.28), inset 0 1px 0 rgba(255,255,255,.35) !important;
+    }
+    .skyDancerReferenceBrand {
+      position: absolute;
+      left: max(16px,calc(env(safe-area-inset-left) + 9px));
+      top: max(10px,calc(env(safe-area-inset-top) + 4px));
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: rgba(241,252,255,.92);
+      font-size: clamp(10px,1.25vw,15px);
+      font-weight: 900;
+      letter-spacing: .11em;
+      text-shadow: 0 2px 8px rgba(0,29,48,.5);
+    }
+    .skyDancerReferenceBrand i {
+      width: 19px;
+      height: 13px;
+      display: block;
+      border: 2px solid rgba(214,250,255,.9);
+      border-top: 0;
+      clip-path: polygon(0 0,45% 28%,50% 100%,55% 28%,100% 0,72% 62%,50% 100%,28% 62%);
+      background: rgba(90,220,255,.28);
+      filter: drop-shadow(0 0 6px rgba(82,218,255,.55));
+    }
+    .skyDancerCompassRail {
+      position: absolute;
+      left: 50%;
+      top: max(8px,calc(env(safe-area-inset-top) + 2px));
+      width: min(38vw,390px);
+      height: 30px;
+      transform: translateX(-50%);
+      display: grid;
+      grid-template-columns: repeat(7,1fr);
+      align-items: start;
+      color: rgba(230,250,255,.82);
+      font-size: 9px;
+      font-weight: 800;
+      letter-spacing: .08em;
+      text-align: center;
+      text-shadow: 0 1px 6px rgba(0,31,53,.68);
+    }
+    .skyDancerCompassRail::before {
+      content: "";
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: 15px;
+      height: 1px;
+      background: repeating-linear-gradient(90deg,rgba(217,249,255,.16) 0 1px,transparent 1px 12.5%);
+      border-left: 1px solid rgba(217,249,255,.45);
+      border-right: 1px solid rgba(217,249,255,.45);
+    }
+    .skyDancerCompassRail span:nth-child(4) {
+      color: #fff;
+      font-size: 12px;
+      transform: translateY(-2px);
+    }
+    .skyDancerCompassRail b {
+      position: absolute;
+      left: 50%;
+      top: 18px;
+      width: 0;
+      height: 0;
+      border-left: 4px solid transparent;
+      border-right: 4px solid transparent;
+      border-bottom: 6px solid rgba(240,253,255,.95);
+      transform: translateX(-50%);
+      filter: drop-shadow(0 0 5px rgba(82,218,255,.7));
+    }
+    .skyDancerTargetBracket {
+      position: absolute;
+      left: 50%;
+      top: 43%;
+      width: 112px;
+      height: 68px;
+      transform: translate(-50%,-50%);
+      opacity: .66;
+      filter: drop-shadow(0 1px 5px rgba(0,34,54,.5));
+    }
+    .skyDancerTargetBracket span {
+      position: absolute;
+      width: 19px;
+      height: 15px;
+      border-color: rgba(133,235,255,.72);
+      border-style: solid;
+    }
+    .skyDancerTargetBracket span:nth-child(1) { left:0; top:0; border-width:2px 0 0 2px; }
+    .skyDancerTargetBracket span:nth-child(2) { right:0; top:0; border-width:2px 2px 0 0; }
+    .skyDancerTargetBracket span:nth-child(3) { left:0; bottom:0; border-width:0 0 2px 2px; }
+    .skyDancerTargetBracket span:nth-child(4) { right:0; bottom:0; border-width:0 2px 2px 0; }
+    .skyDancerHorizonCue {
+      position: absolute;
+      left: 50%;
+      top: 50.5%;
+      width: min(25vw,250px);
+      height: 1px;
+      transform: translateX(-50%);
+      background: linear-gradient(90deg,transparent,rgba(191,244,255,.18) 22%,transparent 22% 30%,rgba(213,250,255,.34) 30% 70%,transparent 70% 78%,rgba(191,244,255,.18) 78%,transparent);
+    }
+    .skyDancerHorizonCue::after {
+      content: "";
+      position: absolute;
+      left: 50%;
+      top: -3px;
+      width: 7px;
+      height: 7px;
+      border: 1px solid rgba(218,251,255,.52);
+      transform: translateX(-50%) rotate(45deg);
+      background: rgba(22,135,180,.12);
     }
     .skyDancerProductFrame {
       position: fixed;
@@ -222,6 +348,10 @@ export default function SkyDancerHudQualityPass() {
     .skyDancerFrameCornerC { left: max(11px,env(safe-area-inset-left)); bottom: 18%; border-width: 0 0 1px 1px; }
     .skyDancerFrameCornerD { right: max(11px,env(safe-area-inset-right)); bottom: 18%; border-width: 0 1px 1px 0; }
     @media(max-height:360px) {
+      .${huntStyles.hud} { inset: max(37px,calc(env(safe-area-inset-top) + 31px)) max(7px,env(safe-area-inset-right)) auto max(7px,env(safe-area-inset-left)) !important; }
+      .skyDancerReferenceBrand { font-size: 9px; top: max(7px,calc(env(safe-area-inset-top) + 2px)); }
+      .skyDancerCompassRail { width: min(34vw,310px); height: 25px; font-size: 8px; }
+      .skyDancerTargetBracket { width: 96px; height: 56px; top: 42%; }
       .skyDancerGunsight { width: 60px; height: 60px; top: 51%; }
       .skyDancerGunsight::before { width: 82px; }
       .skyDancerGunsight::after { height: 32px; }
@@ -231,6 +361,12 @@ export default function SkyDancerHudQualityPass() {
     }
   `}</style>
     <div className={shotPulse ? "skyDancerProductFrame skyDancerShotPulse" : "skyDancerProductFrame"} aria-hidden="true">
+      <span className="skyDancerReferenceBrand"><i />SKY DANCER</span>
+      <span className="skyDancerCompassRail">
+        <span>W</span><span>·</span><span>·</span><span>N</span><span>·</span><span>·</span><span>E</span><b />
+      </span>
+      <span className="skyDancerTargetBracket"><span /><span /><span /><span /></span>
+      <span className="skyDancerHorizonCue" />
       <span className="skyDancerGunsight"><i /><b /></span>
       <span className="skyDancerFrameCorner skyDancerFrameCornerA" />
       <span className="skyDancerFrameCorner skyDancerFrameCornerB" />
