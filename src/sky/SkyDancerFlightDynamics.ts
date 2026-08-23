@@ -113,8 +113,6 @@ function smoothEnemyFlight(
     const rawDistance = Math.hypot(rawDx, rawDz);
     const maxSpeed = enemyMaxSpeed(enemy);
     const desiredSpeed = clamp(rawDistance / Math.max(delta, 0.001), 5.2, maxSpeed);
-    // Guidance may only rotate heading now. Use that heading whenever the raw
-    // position request is tiny so the aircraft still flies forward naturally.
     const desiredHeading = rawDistance > 0.0001 ? Math.atan2(rawDx, rawDz) : enemy.heading;
 
     let state = dynamics.get(enemy.id);
@@ -146,11 +144,39 @@ function smoothEnemyFlight(
     state.vx = forwardX * forward + rightX * lateral;
     state.vz = forwardZ * forward + rightZ * lateral;
 
+    // Inside the combat standoff envelope, remove inward radial velocity and
+    // replace it with a smooth outward component. This changes the flight
+    // vector rather than teleporting the aircraft sideways.
+    const preAwayX = previous.x - px;
+    const preAwayZ = previous.z - pz;
+    const preDistance = Math.hypot(preAwayX, preAwayZ);
+    const preferred = enemy.kind === "boss" ? 32 : enemy.kind === "heavy" ? 30 : 28;
+    if (preDistance > 0.001 && preDistance < preferred) {
+      const ux = preAwayX / preDistance;
+      const uz = preAwayZ / preDistance;
+      const radialSpeed = state.vx * ux + state.vz * uz;
+      const minimumOutward = Math.min(9.5, 2.6 + (preferred - preDistance) * 0.48);
+      if (radialSpeed < minimumOutward) {
+        const correction = minimumOutward - radialSpeed;
+        state.vx += ux * correction;
+        state.vz += uz * correction;
+        const correctedSpeed = Math.hypot(state.vx, state.vz);
+        const speedCap = maxSpeed * 1.12;
+        if (correctedSpeed > speedCap) {
+          state.vx *= speedCap / correctedSpeed;
+          state.vz *= speedCap / correctedSpeed;
+        }
+        enemy.heading = rotateToward(
+          enemy.heading,
+          Math.atan2(state.vx, state.vz),
+          enemyTurnRate(enemy) * 1.8 * delta,
+        );
+      }
+    }
+
     enemy.x = previous.x + state.vx * delta;
     enemy.z = previous.z + state.vz * delta;
 
-    // Only the true collision bubble gets a hard positional correction. Normal
-    // standoff is achieved through heading, bank and forward velocity.
     const awayX = enemy.x - px;
     const awayZ = enemy.z - pz;
     const distance = Math.hypot(awayX, awayZ);
