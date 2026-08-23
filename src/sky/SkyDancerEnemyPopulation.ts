@@ -4,6 +4,13 @@ import type { RallyInputState } from "../rally/RallyTypes";
 
 interface PopulationSession {
   enemies: CartEnemyState[];
+  location: {
+    node: {
+      id: string;
+      rect: { centerX: number; centerZ: number; halfWidth: number; halfDepth: number };
+    };
+  };
+  car: { position: { x: number; z: number } };
   step(input: RallyInputState, fixedDelta?: number): void;
 }
 
@@ -14,6 +21,7 @@ interface PopulationState {
 
 const PATCHED_KEY = "__skyDancerEnemyPopulationInstalled__";
 const stateBySession = new WeakMap<object, PopulationState>();
+const OPENING_MIN_DISTANCE = 32;
 
 function stableHash(value: string): number {
   let hash = 2166136261;
@@ -24,6 +32,10 @@ function stableHash(value: string): number {
   return hash >>> 0;
 }
 
+function clamp(value: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, value));
+}
+
 function stateFor(session: PopulationSession): PopulationState {
   const key = session as unknown as object;
   const current = stateBySession.get(key);
@@ -31,6 +43,43 @@ function stateFor(session: PopulationSession): PopulationState {
   const created: PopulationState = { initialized: false, seenIds: new Set<string>() };
   stateBySession.set(key, created);
   return created;
+}
+
+function openingPriority(enemy: CartEnemyState): number {
+  if (enemy.kind === "heavy") return 4;
+  if (enemy.archetype === "bomber") return 3;
+  if (enemy.archetype === "striker") return 2;
+  if (enemy.archetype === "orbiter") return 1;
+  if (enemy.archetype === "drifter") return -1;
+  if (enemy.kind === "chaser") return -2;
+  return 0;
+}
+
+function spreadOpeningFormation(session: PopulationSession): void {
+  const node = session.location.node;
+  const px = session.car.position.x;
+  const pz = session.car.position.z;
+  const active = session.enemies.filter((enemy) => enemy.nodeId === node.id && enemy.kind !== "boss");
+  active.forEach((enemy, index) => {
+    const dx = enemy.x - px;
+    const dz = enemy.z - pz;
+    if (Math.hypot(dx, dz) >= OPENING_MIN_DISTANCE) return;
+    const hash = stableHash(enemy.id);
+    const angle = ((hash % 3600) / 3600) * Math.PI * 2 + index * 0.72;
+    const radius = OPENING_MIN_DISTANCE + 2 + (hash % 7);
+    const margin = 3;
+    enemy.x = clamp(
+      px + Math.sin(angle) * radius,
+      node.rect.centerX - node.rect.halfWidth + margin,
+      node.rect.centerX + node.rect.halfWidth - margin,
+    );
+    enemy.z = clamp(
+      pz + Math.cos(angle) * radius,
+      node.rect.centerZ - node.rect.halfDepth + margin,
+      node.rect.centerZ + node.rect.halfDepth - margin,
+    );
+    enemy.heading = Math.atan2(enemy.x - px, enemy.z - pz) + (index % 2 === 0 ? 0.52 : -0.52);
+  });
 }
 
 function reduceInitialPopulation(session: PopulationSession, state: PopulationState): void {
@@ -49,9 +98,8 @@ function reduceInitialPopulation(session: PopulationSession, state: PopulationSt
     const regular = enemies.filter((enemy) => enemy.kind !== "boss");
     const target = Math.max(1, Math.ceil(regular.length * 0.5));
     const ranked = [...regular].sort((a, b) => {
-      const aPriority = a.kind === "heavy" ? -2 : a.archetype === "bomber" ? -1 : 0;
-      const bPriority = b.kind === "heavy" ? -2 : b.archetype === "bomber" ? -1 : 0;
-      if (aPriority !== bPriority) return aPriority - bPriority;
+      const priorityDelta = openingPriority(a) - openingPriority(b);
+      if (priorityDelta !== 0) return priorityDelta;
       return stableHash(a.id) - stableHash(b.id);
     });
     for (let index = 0; index < target; index += 1) keep.add(ranked[index].id);
@@ -60,6 +108,7 @@ function reduceInitialPopulation(session: PopulationSession, state: PopulationSt
   for (let index = session.enemies.length - 1; index >= 0; index -= 1) {
     if (!keep.has(session.enemies[index].id)) session.enemies.splice(index, 1);
   }
+  spreadOpeningFormation(session);
   state.initialized = true;
 }
 
