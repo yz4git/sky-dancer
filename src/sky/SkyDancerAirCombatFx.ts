@@ -1,5 +1,5 @@
-// V12 is the active pass and extends SkyDancerAirCombatFxV11.
+// V13 is active and extends SkyDancerAirCombatFxV12 -> SkyDancerAirCombatFxV11.
 export {
-  SkyDancerAirCombatFxV12 as SkyDancerAirCombatFx,
-} from "./SkyDancerAirCombatFxV12";
+  SkyDancerAirCombatFxV13 as SkyDancerAirCombatFx,
+} from "./SkyDancerAirCombatFxV13";
 export type { SkyDancerFxRuntime } from "./SkyDancerAirCombatFxV2";
