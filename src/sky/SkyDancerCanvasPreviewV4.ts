@@ -3,6 +3,7 @@ import type { CartRogueSnapshotHandler } from "../cart/CartRogueDemo";
 import { SkyDancerCanvasPreviewV3 } from "./SkyDancerCanvasPreviewV3";
 import { installSkyDancerCombatDoctrine } from "./SkyDancerCombatDoctrine";
 import { installSkyDancerEnemyPopulation } from "./SkyDancerEnemyPopulation";
+import { installSkyDancerFlightDynamics } from "./SkyDancerFlightDynamics";
 import {
   getSkyDancerPlayerWeaponState,
   installSkyDancerPlayerWeapons,
@@ -28,6 +29,7 @@ export class SkyDancerCanvasPreviewV4 extends SkyDancerCanvasPreviewV3 {
     installSkyDancerCombatDoctrine();
     installSkyDancerEnemyPopulation();
     installSkyDancerPlayerWeapons();
+    installSkyDancerFlightDynamics();
     this.runtimeV4 = this as unknown as CanvasRuntimeView;
     bindSkyDancerWeaponSession(this.runtimeV4.session);
     if (typeof window !== "undefined") {
