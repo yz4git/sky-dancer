@@ -29,7 +29,27 @@ const start = page.getByRole("button", { name: /START(?: HARD)? RUN/i });
 if (await start.isVisible().catch(() => false)) await start.click();
 
 const webglCanvas = page.locator('canvas[aria-label="Sky Dancer WebGL game view"]');
-await webglCanvas.waitFor({ state: "visible", timeout: 30_000 });
+try {
+  await webglCanvas.waitFor({ state: "visible", timeout: 30_000 });
+} catch (error) {
+  const diagnostics = await page.evaluate(() => ({
+    bodyText: document.body.innerText.slice(0, 2400),
+    canvases: Array.from(document.querySelectorAll("canvas")).map((canvas) => ({
+      ariaLabel: canvas.getAttribute("aria-label"),
+      width: canvas.width,
+      height: canvas.height,
+      display: getComputedStyle(canvas).display,
+    })),
+  })).catch(() => ({ bodyText: "", canvases: [] }));
+  const failure = {
+    error: String(error),
+    consoleErrors,
+    pageErrors,
+    diagnostics,
+  };
+  await writeFile(`${outputDir}/00-startup-failure.json`, JSON.stringify(failure, null, 2));
+  throw new Error(`WebGL canvas unavailable: ${JSON.stringify(failure)}`, { cause: error });
+}
 const shot = page.getByRole("button", { name: "Fire missile" });
 await shot.waitFor({ state: "visible", timeout: 10_000 });
 await page.waitForTimeout(1_600);

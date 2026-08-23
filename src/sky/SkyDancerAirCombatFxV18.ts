@@ -190,6 +190,8 @@ export class SkyDancerAirCombatFxV18 extends SkyDancerAirCombatFxV17 {
       forwardVelocity: this.runtimeV18.session.car.forwardVelocity,
       lateralVelocity: this.runtimeV18.session.car.lateralVelocity,
       speed: this.runtimeV18.session.snapshot().speed,
+      x: snapshot.x,
+      z: snapshot.z,
       altitudeMeters: this.runtimeV18.scene.userData.skyDancerAltitudeMeters,
       minEnemyDistance: Number.isFinite(minEnemyDistance) ? minEnemyDistance : null,
       enemyVerticalSpread: Number.isFinite(minEnemyY) && Number.isFinite(maxEnemyY) ? maxEnemyY - minEnemyY : 0,
