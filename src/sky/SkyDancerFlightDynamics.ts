@@ -22,8 +22,6 @@ interface EnemyDynamicsState {
 
 const PATCHED_KEY = "__skyDancerFlightDynamicsInstalled__";
 const stateBySession = new WeakMap<object, Map<string, EnemyDynamicsState>>();
-export const SKY_DANCER_TURBO_HOLD_ACCEL = 4.2;
-export const SKY_DANCER_TURBO_HOLD_SPEED_CAP = 24;
 export const SKY_DANCER_ENEMY_SPEED_MULTIPLIER = 1.12;
 
 function clamp(value: number, min: number, max: number): number {
@@ -60,32 +58,6 @@ function enemyTurnRate(enemy: CartEnemyState): number {
   return 1.35;
 }
 
-function syncPlayerVelocity(session: DynamicsSession): void {
-  const car = session.car;
-  const forwardX = Math.sin(car.heading);
-  const forwardZ = Math.cos(car.heading);
-  const rightX = Math.cos(car.heading);
-  const rightZ = -Math.sin(car.heading);
-  car.velocity.x = forwardX * car.forwardVelocity + rightX * car.lateralVelocity;
-  car.velocity.z = forwardZ * car.forwardVelocity + rightZ * car.lateralVelocity;
-  car.speed = Math.hypot(car.velocity.x, car.velocity.z);
-}
-
-function preserveTurboForwardSpeed(session: DynamicsSession, beforeForward: number, input: RallyInputState, delta: number): void {
-  if (!input.boost) return;
-  const beforeMagnitude = Math.abs(beforeForward);
-  if (beforeMagnitude < 0.35) return;
-  const afterMagnitude = Math.abs(session.car.forwardVelocity);
-  const acceleratedFloor = Math.min(
-    SKY_DANCER_TURBO_HOLD_SPEED_CAP,
-    beforeMagnitude + SKY_DANCER_TURBO_HOLD_ACCEL * delta,
-  );
-  if (afterMagnitude >= acceleratedFloor) return;
-  session.car.forwardVelocity = Math.sign(beforeForward || 1) * acceleratedFloor;
-  // Keep lateralVelocity untouched: Turbo still allows the existing drift/slip.
-  syncPlayerVelocity(session);
-}
-
 function smoothEnemyFlight(
   session: DynamicsSession,
   before: Map<string, { x: number; z: number; heading: number }>,
@@ -118,8 +90,6 @@ function smoothEnemyFlight(
       5.8,
       maxSpeed,
     );
-    // Guidance may only rotate heading now. Use that heading whenever the raw
-    // position request is tiny so the aircraft still flies forward naturally.
     const desiredHeading = rawDistance > 0.0001 ? Math.atan2(rawDx, rawDz) : enemy.heading;
 
     let state = dynamics.get(enemy.id);
@@ -172,8 +142,6 @@ function smoothEnemyFlight(
     enemy.x = previous.x + state.vx * delta;
     enemy.z = previous.z + state.vz * delta;
 
-    // Only the true collision bubble gets a hard positional correction. Normal
-    // standoff is achieved through heading, bank and forward velocity.
     const awayX = enemy.x - px;
     const awayZ = enemy.z - pz;
     const distance = Math.hypot(awayX, awayZ);
@@ -202,7 +170,6 @@ export function installSkyDancerFlightDynamics(): void {
   const previous = prototype.step;
 
   prototype.step = function skyDancerFlightDynamicsStep(input: RallyInputState, fixedDelta?: number): void {
-    const beforeForward = this.car.forwardVelocity;
     const before = new Map<string, { x: number; z: number; heading: number }>();
     for (const enemy of this.enemies) {
       if (enemy.alive) before.set(enemy.id, { x: enemy.x, z: enemy.z, heading: enemy.heading });
@@ -210,7 +177,8 @@ export function installSkyDancerFlightDynamics(): void {
 
     previous.call(this, input, fixedDelta);
     const delta = Math.max(0.001, Math.min(0.05, fixedDelta ?? 1 / 60));
-    preserveTurboForwardSpeed(this, beforeForward, input, delta);
+    // Player Turbo speed is deliberately untouched here. Phase15 owns the
+    // release dash; holding Turbo only changes its drift/charge presentation.
     smoothEnemyFlight(this, before, delta);
     stepSkyDancerPlayerWeapons(this as unknown as CartArenaSession, delta);
   };
