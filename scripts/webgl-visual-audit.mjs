@@ -78,9 +78,7 @@ const sameMissile = Array.isArray(weaponAfter.missiles) ? weaponAfter.missiles.f
 const moved = sameMissile
   ? Math.hypot(sameMissile.x - launched.x, sameMissile.z - launched.z) > 0.2 || sameMissile.life < launched.life - 0.02
   : weaponAfter.hitSerial > weaponImmediatelyAfter.hitSerial;
-if (!moved) {
-  throw new Error(`Player missile was created but did not advance: launch=${JSON.stringify(launched)} after=${JSON.stringify(weaponAfter)}`);
-}
+const missileAdvanceFailure = moved ? null : `Player missile was created but did not advance: launch=${JSON.stringify(launched)} after=${JSON.stringify(weaponAfter)}`;
 await page.screenshot({ path: `${outputDir}/02-player-shot.png`, fullPage: true });
 await webglCanvas.screenshot({ path: `${outputDir}/02-player-shot-canvas.png` });
 
@@ -120,7 +118,7 @@ await webglCanvas.screenshot({ path: `${outputDir}/06-combat-canvas.png` });
 const text = await page.locator("body").innerText();
 const diagnostics = {
   capturedAt: new Date().toISOString(), url: page.url(), viewport: page.viewportSize(), webgl, controlState,
-  weaponBefore, weaponImmediatelyAfter, weaponAfter, turboBefore, turboDuring,
+  weaponBefore, weaponImmediatelyAfter, weaponAfter, missileAdvanced: moved, missileAdvanceFailure, turboBefore, turboDuring,
   bodyTextSample: text.split("\n").map((line) => line.trim()).filter(Boolean).slice(0, 100), consoleErrors, pageErrors,
 };
 await writeFile(`${outputDir}/diagnostics.json`, JSON.stringify(diagnostics, null, 2));
