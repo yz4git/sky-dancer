@@ -108,6 +108,14 @@ function currentEnemies(session: WeaponSessionView): CartEnemyState[] {
   return session.enemies.filter((enemy) => enemy.alive && enemy.nodeId === nodeId);
 }
 
+function missileDamage(enemy: CartEnemyState | null): number {
+  if (!enemy) return 38;
+  if (enemy.kind === "boss") return 24;
+  if (enemy.kind === "heavy") return 30;
+  // Standard fighters are intentionally one-shot missile targets.
+  return Math.max(enemy.maxHp, enemy.hp, 1);
+}
+
 function chooseTarget(session: WeaponSessionView): CartEnemyState | null {
   const px = session.car.position.x;
   const pz = session.car.position.z;
@@ -151,7 +159,7 @@ function launchRequestedShot(session: WeaponSessionView, state: WeaponState): bo
     targetEnemyId: target?.id ?? null,
     distanceToTarget: target ? Math.hypot(target.x - session.car.position.x, target.z - session.car.position.z) : Number.POSITIVE_INFINITY,
     turnRate: target ? 2.35 : 0,
-    damage: target?.kind === "boss" ? 24 : target?.kind === "heavy" ? 30 : 38,
+    damage: missileDamage(target),
     active: true,
   };
   state.missiles.push(missile);
@@ -214,7 +222,7 @@ function updateMissiles(session: WeaponSessionView, state: WeaponState, delta: n
       target = chooseTargetFromMissile(missile, enemies);
       missile.targetEnemyId = target?.id ?? null;
       missile.turnRate = target ? 2.15 : 0;
-      if (target) missile.damage = target.kind === "boss" ? 24 : target.kind === "heavy" ? 30 : 38;
+      if (target) missile.damage = missileDamage(target);
     }
 
     if (target) {
@@ -244,14 +252,14 @@ function updateMissiles(session: WeaponSessionView, state: WeaponState, delta: n
     if (!hit) continue;
 
     missile.active = false;
-    const damage = hit.kind === "boss" ? 24 : hit.kind === "heavy" ? 30 : 38;
+    const damage = missileDamage(hit);
     hit.hp = Math.max(0, hit.hp - damage);
     const destroyed = hit.hp <= 0;
     hit.alive = !destroyed;
     if (destroyed) session.car.ramCount += 1;
-    session.car.collisionImpact = Math.max(session.car.collisionImpact, destroyed ? 0.84 : 0.54);
+    session.car.collisionImpact = Math.max(session.car.collisionImpact, destroyed ? 1 : 0.72);
     session.lastReward = destroyed ? "MISSILE SPLASH · TARGET DOWN" : `MISSILE HIT · ${Math.ceil(hit.hp)} HP`;
-    session.rewardTimer = Math.max(session.rewardTimer, destroyed ? 1.25 : 0.85);
+    session.rewardTimer = Math.max(session.rewardTimer, destroyed ? 1.45 : 1.0);
     state.hitSerial += 1;
     state.lastHitEnemyId = hit.id;
     state.lastHitX = missile.x;
