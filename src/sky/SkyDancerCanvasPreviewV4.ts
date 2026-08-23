@@ -1,6 +1,7 @@
 import type { CartArenaSession } from "../cart/CartArenaSession";
 import type { CartRogueSnapshotHandler } from "../cart/CartRogueDemo";
 import { SkyDancerCanvasPreviewV3 } from "./SkyDancerCanvasPreviewV3";
+import { installSkyDancerLongRangeStandoff } from "./SkyDancerLongRangeStandoff";
 import {
   getSkyDancerPlayerWeaponState,
   installSkyDancerPlayerWeapons,
@@ -21,6 +22,7 @@ export class SkyDancerCanvasPreviewV4 extends SkyDancerCanvasPreviewV3 {
 
   constructor(mount: HTMLElement, onSnapshot: CartRogueSnapshotHandler) {
     super(mount, onSnapshot);
+    installSkyDancerLongRangeStandoff();
     installSkyDancerPlayerWeapons();
     this.runtimeV4 = this as unknown as CanvasRuntimeView;
     if (typeof window !== "undefined") {
