@@ -8,7 +8,7 @@ on:
 
 permissions:
   contents: read
-  issues: read
+  issues: write
   pull-requests: read
 
 jobs:
@@ -44,12 +44,13 @@ jobs:
           openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:4096 -out "$private_key" >/dev/null 2>&1
           openssl pkey -in "$private_key" -pubout -outform DER -out "$public_der"
           public_key_b64="$(base64 -w0 "$public_der")"
-          echo "SITES_SYNC_PUBLIC_KEY_DER_B64=$public_key_b64"
-          echo "Waiting for the one-time encrypted Sites credential."
+          handshake_body="$(printf 'SITES_SYNC_PUBLIC_KEY_V1:%s\n%s' "$GITHUB_RUN_ID" "$public_key_b64")"
+          gh api "repos/$REPOSITORY/issues/$PR_NUMBER/comments" --method POST -f body="$handshake_body" >/dev/null
+          echo "Published one-time public key for run $GITHUB_RUN_ID."
 
           encrypted_body=""
           for attempt in $(seq 1 120); do
-            encrypted_body="$(gh api "repos/$REPOSITORY/issues/$PR_NUMBER/comments" --paginate --jq '[.[] | select(.body | startswith("SITES_SYNC_CIPHERTEXT_V1\n"))][-1].body // ""')"
+            encrypted_body="$(gh api "repos/$REPOSITORY/issues/$PR_NUMBER/comments" --paginate --jq "[.[] | select(.body | startswith(\"SITES_SYNC_CIPHERTEXT_V1:$GITHUB_RUN_ID\\n\"))][-1].body // \"\"")"
             if [[ -n "$encrypted_body" ]]; then
               break
             fi
@@ -66,7 +67,7 @@ jobs:
           while IFS= read -r encrypted_chunk; do
             [[ -z "$encrypted_chunk" ]] && continue
             printf '%s' "$encrypted_chunk" | base64 -d > "$chunk_file"
-            openssl pkeyutl -decrypt               -inkey "$private_key"               -in "$chunk_file"               -pkeyopt rsa_padding_mode:oaep               -pkeyopt rsa_oaep_md:sha256               -pkeyopt rsa_mgf1_md:sha256 >> "$token_file"
+            openssl pkeyutl -decrypt -inkey "$private_key" -in "$chunk_file" -pkeyopt rsa_padding_mode:oaep -pkeyopt rsa_oaep_md:sha256 -pkeyopt rsa_mgf1_md:sha256 >> "$token_file"
           done <<< "$encrypted_payload"
 
           if [[ ! -s "$token_file" ]]; then
