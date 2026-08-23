@@ -83,14 +83,26 @@ const weaponBefore = await page.evaluate(() => {
 const shotBox = await shot.boundingBox();
 if (!shotBox) throw new Error("Shot button has no touchable bounds");
 await page.touchscreen.tap(shotBox.x + shotBox.width * 0.5, shotBox.y + shotBox.height * 0.5);
-await page.waitForTimeout(90);
+// Read synchronously after the real touch gesture, before a later hit can retire
+// the projectile. This verifies that an actual active missile was created.
+const weaponImmediatelyAfter = await page.evaluate(() => {
+  const getter = window.__skyDancerGetWeaponState;
+  return typeof getter === "function" ? getter() : null;
+});
+if (
+  !weaponBefore
+  || !weaponImmediatelyAfter
+  || weaponImmediatelyAfter.shotSerial <= weaponBefore.shotSerial
+  || !Array.isArray(weaponImmediatelyAfter.missiles)
+  || weaponImmediatelyAfter.missiles.length < 1
+) {
+  throw new Error(`Touch Shot did not create an active missile: before=${JSON.stringify(weaponBefore)} after=${JSON.stringify(weaponImmediatelyAfter)}`);
+}
+await page.waitForTimeout(120);
 const weaponAfter = await page.evaluate(() => {
   const getter = window.__skyDancerGetWeaponState;
   return typeof getter === "function" ? getter() : null;
 });
-if (!weaponBefore || !weaponAfter || weaponAfter.shotSerial <= weaponBefore.shotSerial) {
-  throw new Error(`Touch Shot did not launch: before=${JSON.stringify(weaponBefore)} after=${JSON.stringify(weaponAfter)}`);
-}
 await page.screenshot({ path: `${outputDir}/02-player-shot.png`, fullPage: true });
 await webglCanvas.screenshot({ path: `${outputDir}/02-player-shot-canvas.png` });
 
@@ -101,8 +113,25 @@ await webglCanvas.screenshot({ path: `${outputDir}/03-banked-turn-canvas.png` })
 await page.keyboard.up("ArrowRight");
 await page.waitForTimeout(320);
 
+const turboBefore = await page.evaluate(() => {
+  const getter = window.__skyDancerGetFlightDebug;
+  return typeof getter === "function" ? getter() : null;
+});
 await page.keyboard.down("Space");
-await page.waitForTimeout(1_050);
+await page.waitForTimeout(850);
+const turboDuring = await page.evaluate(() => {
+  const getter = window.__skyDancerGetFlightDebug;
+  return typeof getter === "function" ? getter() : null;
+});
+if (!turboBefore || !turboDuring) {
+  throw new Error(`Turbo telemetry unavailable: before=${JSON.stringify(turboBefore)} during=${JSON.stringify(turboDuring)}`);
+}
+const beforeForward = Math.abs(Number(turboBefore.forwardVelocity) || 0);
+const duringForward = Math.abs(Number(turboDuring.forwardVelocity) || 0);
+if (beforeForward > 1 && duringForward < beforeForward * 0.95) {
+  throw new Error(`Turbo hold lost forward speed: before=${beforeForward.toFixed(3)} during=${duringForward.toFixed(3)}`);
+}
+await page.waitForTimeout(200);
 await page.screenshot({ path: `${outputDir}/04-turbo-hold.png`, fullPage: true });
 await webglCanvas.screenshot({ path: `${outputDir}/04-turbo-hold-canvas.png` });
 await page.keyboard.up("Space");
@@ -128,7 +157,10 @@ const diagnostics = {
   webgl,
   controlState,
   weaponBefore,
+  weaponImmediatelyAfter,
   weaponAfter,
+  turboBefore,
+  turboDuring,
   bodyTextSample: text.split("\n").map((line) => line.trim()).filter(Boolean).slice(0, 100),
   consoleErrors,
   pageErrors,
