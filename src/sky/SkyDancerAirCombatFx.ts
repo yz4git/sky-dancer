@@ -1,5 +1,5 @@
-// V18 adds true 3D enemy maneuvers, skyline clearance and missile warnings.
+// V19 keeps the current chase camera while moving visuals toward the midpoint reference.
 export {
-  SkyDancerAirCombatFxV18 as SkyDancerAirCombatFx,
-} from "./SkyDancerAirCombatFxV18";
+  SkyDancerAirCombatFxV19 as SkyDancerAirCombatFx,
+} from "./SkyDancerAirCombatFxV19";
 export type { SkyDancerFxRuntime } from "./SkyDancerAirCombatFxV2";
