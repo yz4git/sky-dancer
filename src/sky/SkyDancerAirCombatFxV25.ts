@@ -464,7 +464,7 @@ export class SkyDancerAirCombatFxV25 extends SkyDancerAirCombatFxV24 {
         }),
       );
       outerCore.position.set(side * 0.34, 0.35, -2.115);
-      outerCore.rotation.x = -Math.PI / 2;
+      outerCore.rotation.y = Math.PI;
 
       const innerCore = new THREE.Mesh(
         new THREE.CircleGeometry(0.145, 14),
@@ -478,7 +478,7 @@ export class SkyDancerAirCombatFxV25 extends SkyDancerAirCombatFxV24 {
         }),
       );
       innerCore.position.set(side * 0.34, 0.35, -2.13);
-      innerCore.rotation.x = -Math.PI / 2;
+      innerCore.rotation.y = Math.PI;
 
       const plume = new THREE.Mesh(
         new THREE.ConeGeometry(0.24, 1.75, 12, 1, true),
@@ -539,9 +539,9 @@ export class SkyDancerAirCombatFxV25 extends SkyDancerAirCombatFxV24 {
     for (let index = 0; index < this.enginePlumes.length; index += 1) {
       const plume = this.enginePlumes[index];
       const targetLength = 0.78 + speed * 0.52 + turbo * 1.22;
-      plume.scale.z += (targetLength - plume.scale.z) * Math.min(1, delta * 9);
+      plume.scale.y += (targetLength - plume.scale.y) * Math.min(1, delta * 9);
       plume.scale.x = 0.88 + turbo * 0.18;
-      plume.scale.y = 0.88 + turbo * 0.18;
+      plume.scale.z = 0.88 + turbo * 0.18;
       plume.material.opacity = 0.34 + speed * 0.2 + turbo * 0.24;
     }
   }
@@ -627,7 +627,8 @@ export class SkyDancerAirCombatFxV25 extends SkyDancerAirCombatFxV24 {
     visual.core.scale.setScalar(pulse * (1 + danger * 0.28));
     visual.halo.scale.setScalar((1.02 + danger * 0.48) * pulse);
     visual.halo.material.opacity = 0.34 + danger * 0.28;
-    visual.flame.scale.set(0.9 + danger * 0.16, 0.9 + danger * 0.16, 0.9 + danger * 0.5);
+    const flameWidth = 0.9 + danger * 0.16;
+    visual.flame.scale.set(flameWidth, 0.9 + danger * 0.5, flameWidth);
     visual.flame.material.opacity = 0.58 + danger * 0.3;
     visual.light.intensity = 1.8 + danger * 2.5;
   }
