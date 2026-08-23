@@ -272,11 +272,13 @@ test("WebGL audit always validates SHOT and Turbo before secondary opening-spaci
   assert.match(source, /duringForward < beforeForward \+ 1\.0/);
 });
 
-test("Sky Dancer combat polish replaces vehicle language and adds an inbound missile warning", () => {
+test("Sky Dancer combat polish removes vehicle phrasing and uses flight terminology", () => {
   const source = readFileSync(new URL("../app/SkyDancerCombatPolish.tsx", import.meta.url), "utf8");
   assert.match(source, /WALL RIDE.*LOW PASS/);
   assert.match(source, /TURBO RAM.*BOOST STRIKE/);
   assert.match(source, /HOLD DRIFT · RELEASE DASH.*HOLD BOOST · RELEASE DASH/);
+  assert.match(source, /ARCADE TURN.*FLIGHT CONTROL/);
+  assert.match(source, /GATE OPEN.*ROUTE OPEN/);
   assert.match(source, /MISSILE WARNING/);
   assert.match(source, /SKY_DANCER_MISSILE_EVENT/);
 });
