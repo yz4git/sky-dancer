@@ -81,26 +81,33 @@ test("Canvas fallback stores historical world positions instead of fighter-attac
   assert.match(source, /drawMissileTrails/);
 });
 
-test("enemy guidance starts its break-away much farther from the player", () => {
+test("enemy guidance breaks away early without nonphysical standoff sliding", () => {
   const safety = skyDancerEnemySafetyRadius(1.75);
   assert.equal(SKY_DANCER_ENEMY_PREFERRED_STANDOFF, 21);
   assert.ok(safety > 5.8);
-  assert.ok(SKY_DANCER_ENEMY_PREFERRED_STANDOFF > safety * 2.8);
   const direct = 0;
   const close = skyDancerAvoidanceHeading(0, 0, 0, 12, 0, 12, 1);
   assert.ok(Math.abs(skyDancerNormalizeAngle(close - direct)) > 2.3);
   const missileZone = skyDancerAvoidanceHeading(0, 0, 0, 22, 0, 22, 1);
   const crank = Math.abs(skyDancerNormalizeAngle(missileZone - direct));
   assert.ok(crank >= 0.5 && crank <= 0.8);
-  const runtime = readFileSync(new URL("../src/sky/SkyDancerFlightAvoidance.ts", import.meta.url), "utf8");
-  assert.match(runtime, /const lookAhead = 0\.95/);
-  assert.match(runtime, /predictedDistance < safetyRadius \+ 5\.4/);
-  assert.match(runtime, /distance < 34/);
-  assert.match(runtime, /if \(distance < preferred && distance > 0\.001\)/);
-  assert.match(runtime, /const outwardSpeed = Math\.min\(6\.5/);
+
+  const avoidance = readFileSync(new URL("../src/sky/SkyDancerFlightAvoidance.ts", import.meta.url), "utf8");
+  assert.match(avoidance, /const lookAhead = 0\.95/);
+  assert.match(avoidance, /predictedDistance < safetyRadius \+ 5\.4/);
+  assert.match(avoidance, /distance < 36/);
+  assert.doesNotMatch(avoidance, /outwardSpeed/);
+  assert.match(avoidance, /Only the actual collision bubble is position-corrected/);
+
+  const standoff = readFileSync(new URL("../src/sky/SkyDancerLongRangeStandoff.ts", import.meta.url), "utf8");
+  assert.match(standoff, /SKY_DANCER_COMBAT_STANDOFF = 26/);
+  assert.match(standoff, /enemy\.kind === "boss" \? 30 : enemy\.kind === "heavy" \? 28/);
+  assert.match(standoff, /enemy\.heading = rotateToward/);
+  assert.doesNotMatch(standoff, /enemy\.x \+=/);
+  assert.doesNotMatch(standoff, /enemy\.z \+=/);
 });
 
-test("Turbo hold keeps forward throttle while preserving drift yaw and slip", () => {
+test("Turbo hold keeps base throttle and drift behavior", () => {
   const source = readFileSync(new URL("../src/cart/CartRoguePhase15Turbo.ts", import.meta.url), "utf8");
   assert.match(source, /throttle: input\.throttle/);
   assert.doesNotMatch(source, /Math\.min\(input\.throttle, 0\.24\)/);
@@ -111,16 +118,29 @@ test("Turbo hold keeps forward throttle while preserving drift yaw and slip", ()
   assert.match(source, /applyReleaseDash/);
 });
 
-test("player missiles support forward lock homing swept hits and enemy damage", () => {
+test("Turbo hold now adds sustained forward acceleration without deleting lateral slip", () => {
+  const source = readFileSync(new URL("../src/sky/SkyDancerFlightDynamics.ts", import.meta.url), "utf8");
+  assert.match(source, /SKY_DANCER_TURBO_HOLD_ACCEL = 4\.2/);
+  assert.match(source, /SKY_DANCER_TURBO_HOLD_SPEED_CAP = 24/);
+  assert.match(source, /acceleratedFloor/);
+  assert.match(source, /beforeMagnitude \+ SKY_DANCER_TURBO_HOLD_ACCEL \* delta/);
+  assert.match(source, /Keep lateralVelocity untouched/);
+  assert.match(source, /lateral = clamp\(lateral, -Math\.abs\(forward\) \* 0\.16/);
+});
+
+test("player missiles support lock homing swept hits damage and a wall-clock flight fallback", () => {
   const source = readFileSync(new URL("../src/sky/SkyDancerPlayerWeapons.ts", import.meta.url), "utf8");
   assert.match(source, /SKY_DANCER_PLAYER_MISSILE_COOLDOWN = 0\.34/);
   assert.match(source, /SKY_DANCER_PLAYER_MISSILE_MAX_ACTIVE = 5/);
   assert.match(source, /SKY_DANCER_PLAYER_MISSILE_LOCK_DISTANCE = 58/);
   assert.match(source, /function pointSegmentDistanceSquared/);
   assert.match(source, /targetEnemyId/);
-  assert.match(source, /requestSkyDancerPlayerMissile/);
   assert.match(source, /hit\.hp = Math\.max\(0, hit\.hp - damage\)/);
   assert.match(source, /hit\.kind === "boss" \? 24 : hit\.kind === "heavy" \? 30 : 38/);
+  assert.match(source, /lastClockMs/);
+  assert.match(source, /function advanceFromClock/);
+  assert.match(source, /getSkyDancerPlayerWeaponState/);
+  assert.match(source, /advanceFromClock\(view, state\)/);
 });
 
 test("V7 drives fighter roll from actual turn rate and lowers presentation altitude", () => {
@@ -148,21 +168,20 @@ test("V9 replaces the cheap Turbo cone with layered jet structure", () => {
   assert.match(source, /object\.name === "sky-dancer-jet-flame-v2"/);
 });
 
-test("V10 renders player missiles and exposes the Shot fire hook", () => {
+test("V10 renders player missiles and binds the active weapon session", () => {
   const source = readFileSync(new URL("../src/sky/SkyDancerAirCombatFxV10.ts", import.meta.url), "utf8");
-  assert.match(source, /__skyDancerFireMissile/);
   assert.match(source, /sky-dancer-q10-player-missiles/);
   assert.match(source, /bindSkyDancerWeaponSession/);
   assert.match(source, /getSkyDancerPlayerWeaponState/);
 });
 
-test("V11 quality remains in the active V17 inheritance chain", () => {
+test("V11 quality remains in the active V18 inheritance chain", () => {
   const source = readFileSync(new URL("../src/sky/SkyDancerAirCombatFxV11.ts", import.meta.url), "utf8");
   const entry = readFileSync(new URL("../src/sky/SkyDancerAirCombatFx.ts", import.meta.url), "utf8");
   assert.match(source, /sky-dancer-q11-route-parcels/);
   assert.match(source, /sky-dancer-q11-route-towns/);
   assert.match(source, /sky-dancer-q11-highways/);
-  assert.match(entry, /SkyDancerAirCombatFxV17/);
+  assert.match(entry, /SkyDancerAirCombatFxV18/);
 });
 
 test("Canvas V4 binds Shot to the active session and draws player missiles", () => {
@@ -173,16 +192,25 @@ test("Canvas V4 binds Shot to the active session and draws player missiles", () 
   assert.match(source, /globalCompositeOperation = "lighter"/);
 });
 
-test("V17 prevents Turbo hold speed loss and converts enemy sliding into inertial flight", () => {
-  const source = readFileSync(new URL("../src/sky/SkyDancerFlightDynamics.ts", import.meta.url), "utf8");
-  const visual = readFileSync(new URL("../src/sky/SkyDancerAirCombatFxV17.ts", import.meta.url), "utf8");
-  assert.match(source, /preserveTurboForwardSpeed/);
-  assert.match(source, /afterMagnitude >= beforeMagnitude \* 0\.997/);
-  assert.match(source, /lateral = clamp\(lateral, -Math\.abs\(forward\) \* 0\.2/);
-  assert.match(source, /enemy\.heading = rotateToward/);
-  assert.match(visual, /ALTITUDE_LIFT_METERS = 88/);
-  assert.match(visual, /targetBank/);
-  assert.match(visual, /targetPitch/);
+test("V18 restores city clearance and gives enemies visible three-dimensional maneuvers", () => {
+  const source = readFileSync(new URL("../src/sky/SkyDancerAirCombatFxV18.ts", import.meta.url), "utf8");
+  assert.match(source, /STREAMED_SCENERY_DROP = 3\.2/);
+  assert.match(source, /HIGHRISE_SCALE = 0\.9/);
+  assert.match(source, /sky-dancer-q16-streamed-scenery/);
+  assert.match(source, /sky-dancer-q16-city-blocks/);
+  assert.match(source, /updateEnemyThreeDimensionalFlight/);
+  assert.match(source, /closeManeuver/);
+  assert.match(source, /breakClimb/);
+  assert.match(source, /enemyVerticalSpread/);
+  assert.match(source, /sky-dancer-v18-missile-warning/);
+});
+
+test("the half-density opening formation avoids spawning a large fighter on top of the player", () => {
+  const source = readFileSync(new URL("../src/sky/SkyDancerEnemyPopulation.ts", import.meta.url), "utf8");
+  assert.match(source, /OPENING_MIN_DISTANCE = 32/);
+  assert.match(source, /Math\.ceil\(regular\.length \* 0\.5\)/);
+  assert.match(source, /if \(enemy\.kind === "heavy"\) return 4/);
+  assert.match(source, /spreadOpeningFormation/);
 });
 
 test("SHOT control calls the active-session weapon bridge instead of a stale global callback", () => {
@@ -192,4 +220,13 @@ test("SHOT control calls the active-session weapon bridge instead of a stale glo
   assert.doesNotMatch(ui, /window as unknown as Record<string, unknown>/);
   assert.match(bridge, /activeSession/);
   assert.match(bridge, /requestSkyDancerPlayerMissile\(activeSession\)/);
+});
+
+test("Sky Dancer combat polish replaces vehicle language and adds an inbound missile warning", () => {
+  const source = readFileSync(new URL("../app/SkyDancerCombatPolish.tsx", import.meta.url), "utf8");
+  assert.match(source, /WALL RIDE.*LOW PASS/);
+  assert.match(source, /TURBO RAM.*BOOST STRIKE/);
+  assert.match(source, /HOLD DRIFT · RELEASE DASH.*HOLD BOOST · RELEASE DASH/);
+  assert.match(source, /MISSILE WARNING/);
+  assert.match(source, /SKY_DANCER_MISSILE_EVENT/);
 });
