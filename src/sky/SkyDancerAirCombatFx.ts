@@ -1,4 +1,4 @@
 export {
-  SkyDancerAirCombatFxV11 as SkyDancerAirCombatFx,
-} from "./SkyDancerAirCombatFxV11";
+  SkyDancerAirCombatFxV12 as SkyDancerAirCombatFx,
+} from "./SkyDancerAirCombatFxV12";
 export type { SkyDancerFxRuntime } from "./SkyDancerAirCombatFxV2";
