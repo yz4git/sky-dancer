@@ -118,13 +118,26 @@ test("Turbo hold keeps base throttle and drift behavior", () => {
   assert.match(source, /applyReleaseDash/);
 });
 
-test("Turbo hold now adds sustained forward acceleration without deleting lateral slip", () => {
+test("Turbo has both fixed-step acceleration and a renderer-level final authority", () => {
+  const dynamics = readFileSync(new URL("../src/sky/SkyDancerFlightDynamics.ts", import.meta.url), "utf8");
+  const runtime = readFileSync(new URL("../src/sky/SkyDancerRuntimeControlPatch.ts", import.meta.url), "utf8");
+  const entry = readFileSync(new URL("../app/CartRogueGamePhase13.tsx", import.meta.url), "utf8");
+  assert.match(dynamics, /SKY_DANCER_TURBO_HOLD_ACCEL = 4\.2/);
+  assert.match(dynamics, /SKY_DANCER_TURBO_HOLD_SPEED_CAP = 24/);
+  assert.match(dynamics, /Keep lateralVelocity untouched/);
+  assert.match(runtime, /SKY_DANCER_RUNTIME_TURBO_MIN_SPEED = 15\.8/);
+  assert.match(runtime, /SKY_DANCER_RUNTIME_TURBO_ACCEL = 6\.4/);
+  assert.match(runtime, /SKY_DANCER_RUNTIME_TURBO_SPEED_CAP = 25\.5/);
+  assert.match(runtime, /Rebuild world velocity after every inherited Cart step/);
+  assert.match(runtime, /prototype\.updateVisuals = function skyDancerRuntimeUpdateVisuals/);
+  assert.match(entry, /SkyDancerRuntimeControlPatch/);
+});
+
+test("enemy flight is slightly faster while keeping inertial turn limits", () => {
   const source = readFileSync(new URL("../src/sky/SkyDancerFlightDynamics.ts", import.meta.url), "utf8");
-  assert.match(source, /SKY_DANCER_TURBO_HOLD_ACCEL = 4\.2/);
-  assert.match(source, /SKY_DANCER_TURBO_HOLD_SPEED_CAP = 24/);
-  assert.match(source, /acceleratedFloor/);
-  assert.match(source, /beforeMagnitude \+ SKY_DANCER_TURBO_HOLD_ACCEL \* delta/);
-  assert.match(source, /Keep lateralVelocity untouched/);
+  assert.match(source, /SKY_DANCER_ENEMY_SPEED_MULTIPLIER = 1\.12/);
+  assert.match(source, /rawDistance \/ Math\.max\(delta, 0\.001\) \* SKY_DANCER_ENEMY_SPEED_MULTIPLIER/);
+  assert.match(source, /if \(enemy\.archetype === "striker"\) return 20/);
   assert.match(source, /lateral = clamp\(lateral, -Math\.abs\(forward\) \* 0\.16/);
 });
 
@@ -168,20 +181,22 @@ test("V9 replaces the cheap Turbo cone with layered jet structure", () => {
   assert.match(source, /object\.name === "sky-dancer-jet-flame-v2"/);
 });
 
-test("V10 renders player missiles and binds the active weapon session", () => {
+test("V10 renders player missiles and exposes the active renderer fire callback", () => {
   const source = readFileSync(new URL("../src/sky/SkyDancerAirCombatFxV10.ts", import.meta.url), "utf8");
   assert.match(source, /sky-dancer-q10-player-missiles/);
   assert.match(source, /bindSkyDancerWeaponSession/);
+  assert.match(source, /GLOBAL_FIRE_KEY/);
+  assert.match(source, /requestSkyDancerPlayerMissile\(runtime\.session\)/);
   assert.match(source, /getSkyDancerPlayerWeaponState/);
 });
 
-test("V11 quality remains in the active V18 inheritance chain", () => {
+test("V11 quality remains in the active V19 inheritance chain", () => {
   const source = readFileSync(new URL("../src/sky/SkyDancerAirCombatFxV11.ts", import.meta.url), "utf8");
   const entry = readFileSync(new URL("../src/sky/SkyDancerAirCombatFx.ts", import.meta.url), "utf8");
   assert.match(source, /sky-dancer-q11-route-parcels/);
   assert.match(source, /sky-dancer-q11-route-towns/);
   assert.match(source, /sky-dancer-q11-highways/);
-  assert.match(entry, /SkyDancerAirCombatFxV18/);
+  assert.match(entry, /SkyDancerAirCombatFxV19/);
 });
 
 test("Canvas V4 binds Shot to the active session and draws player missiles", () => {
@@ -205,6 +220,20 @@ test("V18 restores city clearance and gives enemies visible three-dimensional ma
   assert.match(source, /sky-dancer-v18-missile-warning/);
 });
 
+test("V19 moves graphics toward the midpoint reference without changing chase-camera distance", () => {
+  const source = readFileSync(new URL("../src/sky/SkyDancerAirCombatFxV19.ts", import.meta.url), "utf8");
+  assert.match(source, /sky-dancer-v19-readable-city/);
+  assert.match(source, /sky-dancer-v19-skyline/);
+  assert.match(source, /sky-dancer-v19-river-bridges/);
+  assert.match(source, /sky-dancer-v19-wind-farm/);
+  assert.match(source, /sky-dancer-v19-cloud-volume/);
+  assert.match(source, /sky-dancer-v19-cinematic-boost/);
+  assert.match(source, /sky-dancer-v19-player-missile-trail/);
+  assert.match(source, /chase-camera distance unchanged/);
+  assert.doesNotMatch(source, /camera\.position\.set/);
+  assert.doesNotMatch(source, /camera\.fov\s*=/);
+});
+
 test("the half-density opening formation avoids spawning a large fighter on top of the player", () => {
   const source = readFileSync(new URL("../src/sky/SkyDancerEnemyPopulation.ts", import.meta.url), "utf8");
   assert.match(source, /OPENING_MIN_DISTANCE = 32/);
@@ -213,11 +242,13 @@ test("the half-density opening formation avoids spawning a large fighter on top 
   assert.match(source, /spreadOpeningFormation/);
 });
 
-test("SHOT control calls the active-session weapon bridge instead of a stale global callback", () => {
+test("SHOT control prefers the active renderer callback and falls back to the session bridge", () => {
   const ui = readFileSync(new URL("../app/SkyDancerShotControl.tsx", import.meta.url), "utf8");
   const bridge = readFileSync(new URL("../src/sky/SkyDancerWeaponBridge.ts", import.meta.url), "utf8");
+  assert.match(ui, /DIRECT_FIRE_KEY = "__skyDancerFireMissile"/);
+  assert.match(ui, /typeof direct === "function"/);
   assert.match(ui, /fireSkyDancerActiveWeapon/);
-  assert.doesNotMatch(ui, /window as unknown as Record<string, unknown>/);
+  assert.match(ui, /active renderer's/);
   assert.match(bridge, /activeSession/);
   assert.match(bridge, /requestSkyDancerPlayerMissile\(activeSession\)/);
 });
