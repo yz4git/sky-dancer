@@ -24,6 +24,7 @@ const PATCHED_KEY = "__skyDancerFlightDynamicsInstalled__";
 const stateBySession = new WeakMap<object, Map<string, EnemyDynamicsState>>();
 export const SKY_DANCER_TURBO_HOLD_ACCEL = 4.2;
 export const SKY_DANCER_TURBO_HOLD_SPEED_CAP = 24;
+export const SKY_DANCER_ENEMY_SPEED_MULTIPLIER = 1.12;
 
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
@@ -42,13 +43,13 @@ function rotateToward(current: number, target: number, maxTurn: number): number 
 }
 
 function enemyMaxSpeed(enemy: CartEnemyState): number {
-  if (enemy.kind === "boss") return 12.5;
-  if (enemy.kind === "heavy") return 13.5;
-  if (enemy.archetype === "striker") return 18;
-  if (enemy.archetype === "drifter") return 17;
-  if (enemy.archetype === "orbiter") return 16;
-  if (enemy.archetype === "bomber") return 14.5;
-  return 15.5;
+  if (enemy.kind === "boss") return 13.8;
+  if (enemy.kind === "heavy") return 14.8;
+  if (enemy.archetype === "striker") return 20;
+  if (enemy.archetype === "drifter") return 19;
+  if (enemy.archetype === "orbiter") return 17.8;
+  if (enemy.archetype === "bomber") return 16.2;
+  return 17.2;
 }
 
 function enemyTurnRate(enemy: CartEnemyState): number {
@@ -112,7 +113,13 @@ function smoothEnemyFlight(
     const rawDz = postZ - previous.z;
     const rawDistance = Math.hypot(rawDx, rawDz);
     const maxSpeed = enemyMaxSpeed(enemy);
-    const desiredSpeed = clamp(rawDistance / Math.max(delta, 0.001), 5.2, maxSpeed);
+    const desiredSpeed = clamp(
+      rawDistance / Math.max(delta, 0.001) * SKY_DANCER_ENEMY_SPEED_MULTIPLIER,
+      5.8,
+      maxSpeed,
+    );
+    // Guidance may only rotate heading now. Use that heading whenever the raw
+    // position request is tiny so the aircraft still flies forward naturally.
     const desiredHeading = rawDistance > 0.0001 ? Math.atan2(rawDx, rawDz) : enemy.heading;
 
     let state = dynamics.get(enemy.id);
@@ -126,7 +133,7 @@ function smoothEnemyFlight(
 
     const desiredVx = Math.sin(desiredHeading) * desiredSpeed;
     const desiredVz = Math.cos(desiredHeading) * desiredSpeed;
-    const response = 1 - Math.exp(-delta * 2.6);
+    const response = 1 - Math.exp(-delta * 2.8);
     state.vx += (desiredVx - state.vx) * response;
     state.vz += (desiredVz - state.vz) * response;
 
@@ -139,44 +146,34 @@ function smoothEnemyFlight(
     const rightZ = -Math.sin(enemy.heading);
     let forward = state.vx * forwardX + state.vz * forwardZ;
     let lateral = state.vx * rightX + state.vz * rightZ;
-    forward = Math.max(5.4, forward);
+    forward = Math.max(5.9, forward);
     lateral = clamp(lateral, -Math.abs(forward) * 0.16, Math.abs(forward) * 0.16);
     state.vx = forwardX * forward + rightX * lateral;
     state.vz = forwardZ * forward + rightZ * lateral;
 
-    // Inside the combat standoff envelope, remove inward radial velocity and
-    // replace it with a smooth outward component. This changes the flight
-    // vector rather than teleporting the aircraft sideways.
-    const preAwayX = previous.x - px;
-    const preAwayZ = previous.z - pz;
-    const preDistance = Math.hypot(preAwayX, preAwayZ);
-    const preferred = enemy.kind === "boss" ? 32 : enemy.kind === "heavy" ? 30 : 28;
-    if (preDistance > 0.001 && preDistance < preferred) {
-      const ux = preAwayX / preDistance;
-      const uz = preAwayZ / preDistance;
-      const radialSpeed = state.vx * ux + state.vz * uz;
-      const minimumOutward = Math.min(9.5, 2.6 + (preferred - preDistance) * 0.48);
-      if (radialSpeed < minimumOutward) {
-        const correction = minimumOutward - radialSpeed;
-        state.vx += ux * correction;
-        state.vz += uz * correction;
-        const correctedSpeed = Math.hypot(state.vx, state.vz);
-        const speedCap = maxSpeed * 1.12;
-        if (correctedSpeed > speedCap) {
-          state.vx *= speedCap / correctedSpeed;
-          state.vz *= speedCap / correctedSpeed;
-        }
-        enemy.heading = rotateToward(
-          enemy.heading,
-          Math.atan2(state.vx, state.vz),
-          enemyTurnRate(enemy) * 1.8 * delta,
-        );
+    const awayXBefore = previous.x - px;
+    const awayZBefore = previous.z - pz;
+    const distanceBefore = Math.hypot(awayXBefore, awayZBefore);
+    if (distanceBefore > 0.001 && distanceBefore < 32) {
+      const inv = 1 / distanceBefore;
+      const awayX = awayXBefore * inv;
+      const awayZ = awayZBefore * inv;
+      const outwardComponent = state.vx * awayX + state.vz * awayZ;
+      const desiredOutward = distanceBefore < 20
+        ? 8.8 + (20 - distanceBefore) * 0.62
+        : 3.6 + (32 - distanceBefore) * 0.34;
+      if (outwardComponent < desiredOutward) {
+        const correction = (desiredOutward - outwardComponent) * (1 - Math.exp(-delta * 7.2));
+        state.vx += awayX * correction;
+        state.vz += awayZ * correction;
       }
     }
 
     enemy.x = previous.x + state.vx * delta;
     enemy.z = previous.z + state.vz * delta;
 
+    // Only the true collision bubble gets a hard positional correction. Normal
+    // standoff is achieved through heading, bank and forward velocity.
     const awayX = enemy.x - px;
     const awayZ = enemy.z - pz;
     const distance = Math.hypot(awayX, awayZ);
