@@ -2,6 +2,7 @@ import type { CartArenaSession } from "../cart/CartArenaSession";
 import type { CartRogueSnapshotHandler } from "../cart/CartRogueDemo";
 import { SkyDancerCanvasPreviewV3 } from "./SkyDancerCanvasPreviewV3";
 import { installSkyDancerCombatDoctrine } from "./SkyDancerCombatDoctrine";
+import { installSkyDancerEnemyPopulation } from "./SkyDancerEnemyPopulation";
 import {
   getSkyDancerPlayerWeaponState,
   installSkyDancerPlayerWeapons,
@@ -16,6 +17,7 @@ interface CanvasRuntimeView {
 }
 
 const GLOBAL_FIRE_KEY = "__skyDancerFireMissile";
+const GLOBAL_WEAPON_STATE_KEY = "__skyDancerGetWeaponState";
 
 export class SkyDancerCanvasPreviewV4 extends SkyDancerCanvasPreviewV3 {
   private readonly runtimeV4: CanvasRuntimeView;
@@ -23,10 +25,13 @@ export class SkyDancerCanvasPreviewV4 extends SkyDancerCanvasPreviewV3 {
   constructor(mount: HTMLElement, onSnapshot: CartRogueSnapshotHandler) {
     super(mount, onSnapshot);
     installSkyDancerCombatDoctrine();
+    installSkyDancerEnemyPopulation();
     installSkyDancerPlayerWeapons();
     this.runtimeV4 = this as unknown as CanvasRuntimeView;
     if (typeof window !== "undefined") {
-      (window as unknown as Record<string, unknown>)[GLOBAL_FIRE_KEY] = () => requestSkyDancerPlayerMissile(this.runtimeV4.session);
+      const globals = window as unknown as Record<string, unknown>;
+      globals[GLOBAL_FIRE_KEY] = () => requestSkyDancerPlayerMissile(this.runtimeV4.session);
+      globals[GLOBAL_WEAPON_STATE_KEY] = () => getSkyDancerPlayerWeaponState(this.runtimeV4.session);
     }
     const previousDraw = this.runtimeV4.draw.bind(this);
     this.runtimeV4.draw = () => {
