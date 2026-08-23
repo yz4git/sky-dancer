@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
-test("V12 is the active aerial quality pass", () => {
+test("V12 remains the terrain/readability base under the active pass", () => {
   const entry = readFileSync(new URL("../src/sky/SkyDancerAirCombatFx.ts", import.meta.url), "utf8");
   const source = readFileSync(new URL("../src/sky/SkyDancerAirCombatFxV12.ts", import.meta.url), "utf8");
 
@@ -17,7 +17,7 @@ test("V12 is the active aerial quality pass", () => {
   assert.match(source, /object\.material\.color\.setHex\(0x36b9df\)/);
 });
 
-test("long-range standoff actively opens distance before collision range", () => {
+test("long-range standoff remains underneath the final missile doctrine", () => {
   const source = readFileSync(new URL("../src/sky/SkyDancerLongRangeStandoff.ts", import.meta.url), "utf8");
   const canvas = readFileSync(new URL("../src/sky/SkyDancerCanvasPreviewV4.ts", import.meta.url), "utf8");
 
@@ -26,7 +26,7 @@ test("long-range standoff actively opens distance before collision range", () =>
   assert.match(source, /const outwardSpeed = Math\.min\(16, 3 \+ deficit \* 1\.15\)/);
   assert.match(source, /enemy\.x \+= dx \/ distance \* outwardSpeed \* delta/);
   assert.match(source, /enemy\.z \+= dz \/ distance \* outwardSpeed \* delta/);
-  assert.match(canvas, /installSkyDancerLongRangeStandoff/);
+  assert.match(canvas, /installSkyDancerCombatDoctrine/);
 });
 
 test("V12 keeps Turbo plume broad while suppressing the white rod core", () => {
