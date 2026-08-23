@@ -1,7 +1,6 @@
-// V27 installs the stage-based air-combat loop, removes airborne obstacles,
-// and keeps landmark buildings resident around the camera to avoid visible popping.
-// V26 remains in the inheritance chain through SkyDancerAirCombatFxV27.
+// V28 applies the requested combat rebalance and the supplied high-altitude
+// arcade reference pass while keeping the V27 stage loop and smooth city ring.
 export {
-  SkyDancerAirCombatFxV27 as SkyDancerAirCombatFx,
-} from "./SkyDancerAirCombatFxV27";
+  SkyDancerAirCombatFxV28 as SkyDancerAirCombatFx,
+} from "./SkyDancerAirCombatFxV28";
 export type { SkyDancerFxRuntime } from "./SkyDancerAirCombatFxV2";
