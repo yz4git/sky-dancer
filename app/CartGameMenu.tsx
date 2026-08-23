@@ -179,10 +179,10 @@ export default function CartGameMenu({ started, onStart, onReturnTitle }: CartGa
           <div className={styles.titleControls}>
             <span>DRAG LEFT · STEER</span>
             <span>HOLD TURBO · CHARGE / RELEASE · DASH</span>
-            <span>BRAKE · CUT BACK</span>
+            <span>SHOT · MISSILE</span>
           </div>
         </div>
-        <div className={styles.titleFooter}>ONE MAP · TURBO RAM · ADAPTIVE RAID</div>
+        <div className={styles.titleFooter}>ONE SKY · MISSILE HUNT · ADAPTIVE RAID</div>
       </div>
     );
   }

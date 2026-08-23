@@ -100,3 +100,31 @@ test("V23 is active and removes the washed-out overlapping presentation", () => 
   assert.doesNotMatch(source, /camera\.position\.set/);
   assert.doesNotMatch(source, /camera\.fov\s*=/);
 });
+
+test("V24 integrates product-quality atmosphere, aircraft and staged combat effects", () => {
+  const entry = readFileSync(new URL("../src/sky/SkyDancerAirCombatFx.ts", import.meta.url), "utf8");
+  const source = readFileSync(new URL("../src/sky/SkyDancerAirCombatFxV24.ts", import.meta.url), "utf8");
+  assert.match(entry, /SkyDancerAirCombatFxV24/);
+  assert.match(entry, /V23 remains in the inheritance chain/);
+  assert.match(source, /extends SkyDancerAirCombatFxV23/);
+  assert.match(source, /sky-dancer-v24-sky-dome/);
+  assert.match(source, /sky-dancer-v24-horizon-silhouettes/);
+  assert.match(source, /sky-dancer-v24-far-cloud-layer/);
+  assert.match(source, /sky-dancer-v24-hero-detail/);
+  assert.match(source, /sky-dancer-v24-enemy-signature/);
+  assert.match(source, /sky-dancer-v24-muzzle-left/);
+  assert.match(source, /sky-dancer-v24-impact-residue/);
+  assert.match(source, /sky-dancer-v24-cinematic-edge-grade/);
+  assert.match(source, /MAX_IMPACT_RESIDUES = 4/);
+  assert.match(source, /toneMappingExposure = 0\.96/);
+  assert.doesNotMatch(source, /camera\.position\.set/);
+});
+
+test("the product HUD adds a restrained flight frame and launch response", () => {
+  const source = readFileSync(new URL("../app/SkyDancerHudQualityPass.tsx", import.meta.url), "utf8");
+  assert.match(source, /sky-dancer-player-shot-ui/);
+  assert.match(source, /skyDancerProductFrame/);
+  assert.match(source, /skyDancerGunsight/);
+  assert.match(source, /skyDancerShotPulse/);
+  assert.match(source, /CartTurboHuntHudOverlay\.module\.css/);
+});
