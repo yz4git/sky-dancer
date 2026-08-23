@@ -83,7 +83,7 @@ export class SkyDancerAirCombatFxV24 extends SkyDancerAirCombatFxV23 {
       this.buildAtmosphericSilhouettes();
       this.buildHeroAircraftDetail();
       this.buildMuzzleSystem();
-      this.polishAircraftMaterials(this.runtimeV24.playerVisual, false);
+      this.tuneAircraftMaterialsV24(this.runtimeV24.playerVisual, false);
       this.runtimeV24.scene.add(this.atmosphereRoot);
       this.runtimeV24.camera.add(this.screenGrade);
       this.runtimeV24.camera.getWorldPosition(this.cameraWorldPosition);
@@ -356,11 +356,11 @@ export class SkyDancerAirCombatFxV24 extends SkyDancerAirCombatFxV23 {
       beacon.position.set(0, boss ? 1.42 : 1.04, -0.45);
       signature.add(beacon);
       fighter.add(signature);
-      this.polishAircraftMaterials(group, true);
+      this.tuneAircraftMaterialsV24(group, true);
     }
   }
 
-  private polishAircraftMaterials(root: THREE.Object3D, enemy: boolean): void {
+  private tuneAircraftMaterialsV24(root: THREE.Object3D, enemy: boolean): void {
     root.traverse((object) => {
       if (!(object instanceof THREE.Mesh)) return;
       const materials = Array.isArray(object.material) ? object.material : [object.material];
