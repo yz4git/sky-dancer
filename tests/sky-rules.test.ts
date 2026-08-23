@@ -267,6 +267,7 @@ test("WebGL audit always validates SHOT and Turbo before secondary opening-spaci
   const turboIndex = source.indexOf("Primary regression #2");
   const spacingIndex = source.indexOf("Secondary opening spacing");
   assert.ok(shotIndex >= 0 && turboIndex > shotIndex && spacingIndex > turboIndex);
+  assert.match(source, /waitForTimeout\(80\)/);
   assert.match(source, /missileTravel300/);
   assert.match(source, /duringForward < 12/);
   assert.match(source, /duringForward < beforeForward \+ 1\.0/);
