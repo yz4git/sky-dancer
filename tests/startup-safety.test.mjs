@@ -39,6 +39,7 @@ test("Sky Dancer keeps steering/Turbo touch safety and replaces Brake with Shot"
   const phase = await readFile(new URL("../app/CartRogueGamePhase13.tsx", import.meta.url), "utf8");
   const shot = await readFile(new URL("../app/SkyDancerShotControl.tsx", import.meta.url), "utf8");
   const patch = await readFile(new URL("../src/sky/SkyDancerControlPatch.ts", import.meta.url), "utf8");
+  const bridge = await readFile(new URL("../src/sky/SkyDancerWeaponBridge.ts", import.meta.url), "utf8");
 
   assert.match(page, /setPointerCapture/);
   assert.match(page, /onPointerCancel=\{releaseSteer\}/);
@@ -47,7 +48,8 @@ test("Sky Dancer keeps steering/Turbo touch safety and replaces Brake with Shot"
   assert.match(phase, /SkyDancerShotControl/);
   assert.match(shot, />SHOT</);
   assert.match(shot, />MISSILE</);
-  assert.match(shot, /__skyDancerFireMissile/);
+  assert.match(shot, /fireSkyDancerActiveWeapon/);
+  assert.match(bridge, /bindSkyDancerWeaponSession/);
   assert.match(shot, /setPointerCapture/);
   assert.match(shot, /textContent\?\.trim\(\) === "BRAKE"/);
   assert.match(patch, /original\.call\(this, false\)/);
