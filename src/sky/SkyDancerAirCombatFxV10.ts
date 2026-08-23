@@ -8,6 +8,7 @@ import {
   installSkyDancerPlayerWeapons,
   requestSkyDancerPlayerMissile,
 } from "./SkyDancerPlayerWeapons";
+import { bindSkyDancerWeaponSession } from "./SkyDancerWeaponBridge";
 
 interface PlayerMissileVisualState {
   root: THREE.Group;
@@ -29,10 +30,13 @@ export class SkyDancerAirCombatFxV10 extends SkyDancerAirCombatFxV9 {
     super(runtime);
     this.runtimeV10 = runtime;
     installSkyDancerPlayerWeapons();
+    bindSkyDancerWeaponSession(runtime.session);
     this.missileRoot.name = "sky-dancer-q10-player-missiles";
     runtime.scene.add(this.missileRoot);
     if (typeof window !== "undefined") {
       const globals = window as unknown as Record<string, unknown>;
+      // Kept for diagnostics/backward compatibility only. The UI now fires via
+      // SkyDancerWeaponBridge so WebGL/Canvas swaps cannot target a stale run.
       globals[GLOBAL_FIRE_KEY] = () => requestSkyDancerPlayerMissile(runtime.session);
       globals[GLOBAL_WEAPON_STATE_KEY] = () => getSkyDancerPlayerWeaponState(runtime.session);
     }
