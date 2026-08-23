@@ -115,3 +115,5 @@ jobs:
           echo "Sites source sync completed."
 
 # Retry after executable-mode fix e863182c7bee281045859406b29fc7ad8396c5a7
+
+# Retry after full script-mode fix e9991b22d9922e7ae1c7b99241e2cb40ae52eb9b
