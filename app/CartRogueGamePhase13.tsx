@@ -3,7 +3,6 @@
 import { Fragment, useEffect, useState } from "react";
 import "../src/cart/CartRogueRuntime";
 import "../src/cart/CartGameMenuRuntime";
-import "../src/sky/SkyDancerRuntimeControlPatch";
 import { setCartRunDifficulty, type CartRunDifficulty } from "../src/cart/CartRunDifficulty";
 import CartRogueGame from "./CartRogueGame";
 import CartTurboHuntHudOverlay from "./CartTurboHuntHudOverlay";
