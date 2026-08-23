@@ -1,5 +1,5 @@
-// V21 adds strong player-missile impact feedback while keeping V19/V20 visuals and the current chase camera.
+// V22 deepens world, aircraft and Turbo-release presentation without changing chase-camera distance.
 export {
-  SkyDancerAirCombatFxV21 as SkyDancerAirCombatFx,
-} from "./SkyDancerAirCombatFxV21";
+  SkyDancerAirCombatFxV22 as SkyDancerAirCombatFx,
+} from "./SkyDancerAirCombatFxV22";
 export type { SkyDancerFxRuntime } from "./SkyDancerAirCombatFxV2";
