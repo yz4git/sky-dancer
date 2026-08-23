@@ -1,5 +1,5 @@
-// V13 is active and extends SkyDancerAirCombatFxV12 -> SkyDancerAirCombatFxV11.
+// V14 is active and extends the V13 cinematic aerial presentation.
 export {
-  SkyDancerAirCombatFxV13 as SkyDancerAirCombatFx,
-} from "./SkyDancerAirCombatFxV13";
+  SkyDancerAirCombatFxV14 as SkyDancerAirCombatFx,
+} from "./SkyDancerAirCombatFxV14";
 export type { SkyDancerFxRuntime } from "./SkyDancerAirCombatFxV2";
