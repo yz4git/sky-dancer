@@ -1,6 +1,6 @@
-// V28 applies the requested combat rebalance and the supplied high-altitude
-// arcade reference pass while keeping the V27 stage loop and smooth city ring.
+// V29 fixes long-session steering ownership, raises the flight level again,
+// further sharpens the boss encounter, and strengthens the supplied reference look.
 export {
-  SkyDancerAirCombatFxV28 as SkyDancerAirCombatFx,
-} from "./SkyDancerAirCombatFxV28";
+  SkyDancerAirCombatFxV29 as SkyDancerAirCombatFx,
+} from "./SkyDancerAirCombatFxV29";
 export type { SkyDancerFxRuntime } from "./SkyDancerAirCombatFxV2";
