@@ -21,13 +21,22 @@ const start = page.getByRole("button", { name: /START(?: HARD)? RUN/i });
 if (await start.isVisible().catch(() => false)) await start.click();
 const canvas = page.locator('canvas[aria-label="Sky Dancer WebGL game view"]');
 await canvas.waitFor({ state: "visible", timeout: 30_000 });
-await page.waitForTimeout(1_800);
 
 const flight = async () => page.evaluate(() => typeof window.__skyDancerGetFlightDebug === "function" ? window.__skyDancerGetFlightDebug() : null);
 const turbo = async () => page.evaluate(() => typeof window.__skyDancerGetTurboState === "function" ? window.__skyDancerGetTurboState() : null);
 
-const before = await flight();
-if (!before) throw new Error("Flight telemetry unavailable before isolated Turbo check");
+// Start the check only after the aircraft has reached a representative cruise
+// speed. A fresh second browser begins from 0, which is not a useful Turbo-hold
+// regression state and can make an absolute-speed assertion meaningless.
+let before = null;
+for (let attempt = 0; attempt < 24; attempt += 1) {
+  await page.waitForTimeout(300);
+  before = await flight();
+  if (before && Math.abs(Number(before.forwardVelocity) || 0) >= 12) break;
+}
+if (!before || Math.abs(Number(before.forwardVelocity) || 0) < 12) {
+  throw new Error(`Aircraft never reached cruise speed before Turbo check: ${JSON.stringify(before)}`);
+}
 
 await page.keyboard.down("Space");
 await page.waitForTimeout(920);
@@ -40,10 +49,10 @@ if (turboDuring.held !== true || Number(turboDuring.charge) < 0.98) {
 
 const beforeForward = Math.abs(Number(before.forwardVelocity) || 0);
 const duringForward = Math.abs(Number(during.forwardVelocity) || 0);
-if (duringForward < 8) {
+if (duringForward < 10) {
   throw new Error(`Turbo hold left aircraft effectively stopped: before=${beforeForward.toFixed(3)} during=${duringForward.toFixed(3)}`);
 }
-if (beforeForward > 4 && duringForward < beforeForward * 0.88) {
+if (duringForward < beforeForward * 0.88) {
   throw new Error(`Turbo hold lost too much normal flight speed: before=${beforeForward.toFixed(3)} during=${duringForward.toFixed(3)}`);
 }
 
