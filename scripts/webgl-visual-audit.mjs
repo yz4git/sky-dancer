@@ -84,7 +84,10 @@ if (!weaponBefore || !weaponImmediatelyAfter || weaponImmediatelyAfter.shotSeria
   throw new Error(`Touch Shot did not create an active missile: before=${JSON.stringify(weaponBefore)} after=${JSON.stringify(weaponImmediatelyAfter)}`);
 }
 const launched = weaponImmediatelyAfter.missiles[0];
-await page.waitForTimeout(120);
+await page.waitForTimeout(80);
+await page.screenshot({ path: `${outputDir}/02-player-shot.png`, fullPage: true });
+await webglCanvas.screenshot({ path: `${outputDir}/02-player-shot-canvas.png` });
+await page.waitForTimeout(40);
 const weaponAfter120 = await page.evaluate(() => typeof window.__skyDancerGetWeaponState === "function" ? window.__skyDancerGetWeaponState() : null);
 if (!weaponAfter120) throw new Error("Weapon telemetry disappeared after launch");
 const sameMissile120 = Array.isArray(weaponAfter120.missiles) ? weaponAfter120.missiles.find((missile) => missile.id === launched.id) : null;
@@ -102,9 +105,6 @@ const advancedMeaningfully = sameMissile300
   ? missileTravel300 > 1 || sameMissile300.life < launched.life - 0.08
   : (weaponAfter300?.hitSerial ?? 0) > weaponImmediatelyAfter.hitSerial;
 if (!advancedMeaningfully) throw new Error(`Player missile did not achieve visible flight: launch=${JSON.stringify(launched)} after300=${JSON.stringify(weaponAfter300)}`);
-
-await page.screenshot({ path: `${outputDir}/02-player-shot.png`, fullPage: true });
-await webglCanvas.screenshot({ path: `${outputDir}/02-player-shot-canvas.png` });
 
 await page.keyboard.down("ArrowRight");
 await page.waitForTimeout(1_350);
