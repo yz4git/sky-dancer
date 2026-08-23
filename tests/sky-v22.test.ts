@@ -125,6 +125,28 @@ test("the product HUD adds a restrained flight frame and launch response", () =>
   assert.match(source, /sky-dancer-player-shot-ui/);
   assert.match(source, /skyDancerProductFrame/);
   assert.match(source, /skyDancerGunsight/);
+  assert.match(source, /skyDancerReferenceBrand/);
+  assert.match(source, /skyDancerCompassRail/);
+  assert.match(source, /skyDancerTargetBracket/);
   assert.match(source, /skyDancerShotPulse/);
   assert.match(source, /CartTurboHuntHudOverlay\.module\.css/);
+});
+
+test("V25 activates the supplied reference composition without changing flight rules or chase-camera position", () => {
+  const entry = readFileSync(new URL("../src/sky/SkyDancerAirCombatFx.ts", import.meta.url), "utf8");
+  const source = readFileSync(new URL("../src/sky/SkyDancerAirCombatFxV25.ts", import.meta.url), "utf8");
+  assert.match(entry, /SkyDancerAirCombatFxV25/);
+  assert.match(entry, /V24 remains in the inheritance chain/);
+  assert.match(source, /extends SkyDancerAirCombatFxV24/);
+  assert.match(source, /sky-dancer-v25-reference-sky/);
+  assert.match(source, /sky-dancer-v25-valley-fields/);
+  assert.match(source, /sky-dancer-v25-river-basin/);
+  assert.match(source, /sky-dancer-v25-landmark-city/);
+  assert.match(source, /sky-dancer-v25-horizon-cloud-banks/);
+  assert.match(source, /sky-dancer-v25-hero-presence/);
+  assert.match(source, /sky-dancer-v25-missile-heat-system/);
+  assert.match(source, /HERO_SCALE = 1\.14/);
+  assert.match(source, /toneMappingExposure = 1\.03/);
+  assert.doesNotMatch(source, /camera\.position\.set/);
+  assert.doesNotMatch(source, /camera\.fov\s*=/);
 });
