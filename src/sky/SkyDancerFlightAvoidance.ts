@@ -79,7 +79,7 @@ function applyCollisionAvoidance(session: AvoidanceSessionView, delta: number): 
     let distance = Math.hypot(awayX, awayZ);
     const side = stableSide(enemy.id);
     const safetyRadius = skyDancerEnemySafetyRadius(enemy.radius);
-    const preferred = enemy.kind === "boss" ? 24 : enemy.kind === "heavy" ? 22.5 : SKY_DANCER_ENEMY_PREFERRED_STANDOFF;
+    const preferred = enemy.kind === "boss" ? 30 : enemy.kind === "heavy" ? 28 : 26;
 
     const desired = skyDancerAvoidanceHeading(
       enemy.x,
@@ -94,7 +94,7 @@ function applyCollisionAvoidance(session: AvoidanceSessionView, delta: number): 
       ? 2.45
       : distance < preferred
         ? 1.95
-        : distance < 30
+        : distance < 34
           ? 1.35
           : 0.82;
     enemy.heading = skyDancerRotateToward(enemy.heading, desired, turnRate(enemy) * urgency * delta);
@@ -107,25 +107,14 @@ function applyCollisionAvoidance(session: AvoidanceSessionView, delta: number): 
     const predictedEnemyX = enemy.x + Math.sin(enemy.heading) * enemyTravel;
     const predictedEnemyZ = enemy.z + Math.cos(enemy.heading) * enemyTravel;
     const predictedDistance = Math.hypot(predictedEnemyX - predictedPlayerX, predictedEnemyZ - predictedPlayerZ);
-    if (predictedDistance < safetyRadius + 5.4 && distance < 34) {
+    if (predictedDistance < safetyRadius + 5.4 && distance < 36) {
       const awayHeading = skyDancerNormalizeAngle(Math.atan2(px - enemy.x, pz - enemy.z) + Math.PI + side * 0.78);
       enemy.heading = skyDancerRotateToward(enemy.heading, awayHeading, turnRate(enemy) * 2.35 * delta);
     }
 
-    // Standoff enforcement begins well outside the collision bubble. This is a
-    // small radial flight-path correction, not a contact bounce: it makes the
-    // enemy open separation while its nose is already peeling away.
-    if (distance < preferred && distance > 0.001) {
-      const deficit = preferred - distance;
-      const outwardSpeed = Math.min(6.5, 0.8 + deficit * 0.46);
-      const inv = 1 / distance;
-      enemy.x += awayX * inv * outwardSpeed * delta;
-      enemy.z += awayZ * inv * outwardSpeed * delta;
-      awayX = enemy.x - px;
-      awayZ = enemy.z - pz;
-      distance = Math.hypot(awayX, awayZ);
-    }
-
+    // Only the actual collision bubble is position-corrected. Normal combat
+    // separation is achieved by heading + inertial forward flight, never by a
+    // radial slide that makes the aircraft look like a top-down game token.
     if (distance < safetyRadius) {
       if (distance < 0.001) {
         awayX = Math.cos(playerHeading) * side;
