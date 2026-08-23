@@ -126,9 +126,9 @@ function chooseTarget(session: WeaponSessionView): CartEnemyState | null {
   return best;
 }
 
-function launchRequestedShot(session: WeaponSessionView, state: WeaponState): void {
-  if (state.requestedShots <= 0 || state.cooldownSeconds > 0) return;
-  if (state.missiles.filter((missile) => missile.active).length >= SKY_DANCER_PLAYER_MISSILE_MAX_ACTIVE) return;
+function launchRequestedShot(session: WeaponSessionView, state: WeaponState): boolean {
+  if (state.requestedShots <= 0 || state.cooldownSeconds > 0) return false;
+  if (state.missiles.filter((missile) => missile.active).length >= SKY_DANCER_PLAYER_MISSILE_MAX_ACTIVE) return false;
   state.requestedShots -= 1;
   state.cooldownSeconds = SKY_DANCER_PLAYER_MISSILE_COOLDOWN;
   const target = chooseTarget(session);
@@ -153,6 +153,7 @@ function launchRequestedShot(session: WeaponSessionView, state: WeaponState): vo
   state.shotSerial += 1;
   session.lastReward = target ? "FOX TWO · LOCK" : "FOX TWO";
   session.rewardTimer = Math.max(session.rewardTimer, 0.7);
+  return true;
 }
 
 function pointSegmentDistanceSquared(
@@ -259,8 +260,12 @@ export function requestSkyDancerPlayerMissile(session: CartArenaSession): boolea
   const view = session as unknown as WeaponSessionView;
   const state = stateFor(view);
   if (state.cooldownSeconds > 0 || state.missiles.filter((missile) => missile.active).length >= SKY_DANCER_PLAYER_MISSILE_MAX_ACTIVE) return false;
-  state.requestedShots = Math.min(2, state.requestedShots + 1);
-  return true;
+
+  // Fire synchronously from the UI event. The previous implementation only
+  // queued a request and waited for a later simulation step, which made iOS
+  // taps appear dead when pointer capture or frame scheduling was interrupted.
+  state.requestedShots = 1;
+  return launchRequestedShot(view, state);
 }
 
 export function getSkyDancerPlayerWeaponState(session: CartArenaSession): SkyDancerPlayerWeaponState {
@@ -297,7 +302,7 @@ export function installSkyDancerPlayerWeapons(): void {
     const delta = Math.max(0.001, Math.min(0.05, fixedDelta ?? 1 / 60));
     const state = stateFor(this as unknown as WeaponSessionView);
     state.cooldownSeconds = Math.max(0, state.cooldownSeconds - delta);
-    launchRequestedShot(this as unknown as WeaponSessionView, state);
+    if (state.requestedShots > 0) launchRequestedShot(this as unknown as WeaponSessionView, state);
     updateMissiles(this as unknown as WeaponSessionView, state, delta);
   };
 }
