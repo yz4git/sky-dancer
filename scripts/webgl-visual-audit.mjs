@@ -114,8 +114,9 @@ await webglCanvas.screenshot({ path: `${outputDir}/03-banked-turn-canvas.png` })
 await page.keyboard.up("ArrowRight");
 await page.waitForTimeout(320);
 
-// Primary regression #2: Turbo hold must keep the aircraft moving and should
-// add obvious forward speed before release, while drift remains available.
+// Primary regression #2: holding Turbo must not apply a Sky Dancer speed floor,
+// brake, clamp, or acceleration override. Normal throttle may still change speed.
+// The acceleration event belongs to the release dash, exactly as in Cart Rogue.
 const turboBefore = await page.evaluate(() => typeof window.__skyDancerGetFlightDebug === "function" ? window.__skyDancerGetFlightDebug() : null);
 await page.keyboard.down("Space");
 await page.waitForTimeout(850);
@@ -123,16 +124,20 @@ const turboDuring = await page.evaluate(() => typeof window.__skyDancerGetFlight
 if (!turboBefore || !turboDuring) throw new Error(`Turbo telemetry unavailable: before=${JSON.stringify(turboBefore)} during=${JSON.stringify(turboDuring)}`);
 const beforeForward = Math.abs(Number(turboBefore.forwardVelocity) || 0);
 const duringForward = Math.abs(Number(turboDuring.forwardVelocity) || 0);
-if (duringForward < 12) throw new Error(`Turbo hold left the aircraft effectively stopped: before=${beforeForward.toFixed(3)} during=${duringForward.toFixed(3)}`);
-if (beforeForward > 1 && duringForward < beforeForward * 0.99) throw new Error(`Turbo hold lost forward speed: before=${beforeForward.toFixed(3)} during=${duringForward.toFixed(3)}`);
-if (beforeForward > 1 && beforeForward < 23.5 && duringForward < beforeForward + 1.0) {
-  throw new Error(`Turbo hold failed to accelerate clearly: before=${beforeForward.toFixed(3)} during=${duringForward.toFixed(3)}`);
+if (beforeForward > 3 && duringForward < beforeForward * 0.96) {
+  throw new Error(`Turbo hold still decelerated the aircraft: before=${beforeForward.toFixed(3)} during=${duringForward.toFixed(3)}`);
 }
 await page.waitForTimeout(200);
 await page.screenshot({ path: `${outputDir}/04-turbo-hold.png`, fullPage: true });
 await webglCanvas.screenshot({ path: `${outputDir}/04-turbo-hold-canvas.png` });
 await page.keyboard.up("Space");
 await page.waitForTimeout(180);
+const turboAfterRelease = await page.evaluate(() => typeof window.__skyDancerGetFlightDebug === "function" ? window.__skyDancerGetFlightDebug() : null);
+if (!turboAfterRelease) throw new Error("Turbo telemetry disappeared after release");
+const releasedForward = Math.abs(Number(turboAfterRelease.forwardVelocity) || 0);
+if (duringForward > 3 && releasedForward < duringForward + 1.2) {
+  throw new Error(`Turbo release dash did not restore its acceleration: during=${duringForward.toFixed(3)} release=${releasedForward.toFixed(3)}`);
+}
 await page.screenshot({ path: `${outputDir}/05-turbo-release.png`, fullPage: true });
 await webglCanvas.screenshot({ path: `${outputDir}/05-turbo-release-canvas.png` });
 
@@ -148,7 +153,7 @@ await page.keyboard.up("ArrowLeft");
 await page.waitForTimeout(3_000);
 
 const combatWeaponBefore = await page.evaluate(() => typeof window.__skyDancerGetWeaponState === "function" ? window.__skyDancerGetWeaponState() : null);
-for (let index = 0; index < 3; index += 1) {
+for (let index = 0; index < 5; index += 1) {
   const combatBox = await shot.boundingBox();
   if (combatBox) await page.touchscreen.tap(combatBox.x + combatBox.width * 0.5, combatBox.y + combatBox.height * 0.5);
   await page.waitForTimeout(390);
@@ -169,7 +174,8 @@ const diagnostics = {
   capturedAt: new Date().toISOString(), url: page.url(), viewport: page.viewportSize(), webgl, controlState,
   openingFlight, weaponBefore, weaponImmediatelyAfter, weaponAfter120, weaponAfter300,
   missileTravel120, missileTravel300,
-  turnFlight, turboBefore, turboDuring, combatWeaponBefore, combatWeaponAfter, combatFlight,
+  turnFlight, turboBefore, turboDuring, turboAfterRelease,
+  combatWeaponBefore, combatWeaponAfter, combatFlight,
   warningVisible, legacyVisible,
   bodyTextSample: text.split("\n").map((line) => line.trim()).filter(Boolean).slice(0, 120), consoleErrors, pageErrors,
 };
