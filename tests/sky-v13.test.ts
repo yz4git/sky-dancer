@@ -2,11 +2,11 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
-test("V13 is the active real-WebGL-derived quality pass", () => {
+test("V13 remains the cinematic base for the active quality pass", () => {
   const entry = readFileSync(new URL("../src/sky/SkyDancerAirCombatFx.ts", import.meta.url), "utf8");
   const source = readFileSync(new URL("../src/sky/SkyDancerAirCombatFxV13.ts", import.meta.url), "utf8");
 
-  assert.match(entry, /SkyDancerAirCombatFxV13/);
+  assert.match(entry, /SkyDancerAirCombatFxV14/);
   assert.match(source, /extends SkyDancerAirCombatFxV12/);
   assert.match(source, /new THREE\.Fog\(0xcfe1e5, 150, 520\)/);
   assert.match(source, /sky-dancer-q13-near-fields/);
