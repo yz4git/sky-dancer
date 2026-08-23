@@ -1,5 +1,5 @@
-// V16 is active and extends SkyDancerAirCombatFxV15 -> V14 -> V13 -> V12 -> SkyDancerAirCombatFxV11.
+// V17 is active and extends the streamed-scenery V16 presentation.
 export {
-  SkyDancerAirCombatFxV16 as SkyDancerAirCombatFx,
-} from "./SkyDancerAirCombatFxV16";
+  SkyDancerAirCombatFxV17 as SkyDancerAirCombatFx,
+} from "./SkyDancerAirCombatFxV17";
 export type { SkyDancerFxRuntime } from "./SkyDancerAirCombatFxV2";
