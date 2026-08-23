@@ -15,6 +15,10 @@ function skyText(value: string): string {
   next = next.replaceAll("TURBO RAM", "BOOST STRIKE");
   next = next.replaceAll("TURBO SMASH", "BOOST STRIKE");
   next = next.replaceAll("TURBO STORM", "BOOST STORM");
+  next = next.replaceAll("ARCADE TURN", "FLIGHT CONTROL");
+  next = next.replaceAll("BRAWL", "AIRSPACE");
+  next = next.replaceAll("ROOM CLEAR", "AIRSPACE CLEAR");
+  next = next.replaceAll("GATE OPEN", "ROUTE OPEN");
   next = next.replace(/\bRAM\b/g, "BOOST");
   next = next.replace(/\bP0\b/g, "LOCK");
   next = next.replace(/\bSCR0\b/g, "SCORE");
