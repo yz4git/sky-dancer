@@ -8,14 +8,6 @@ import {
   type SkyDancerPlayerMissileSnapshot,
 } from "./SkyDancerPlayerWeapons";
 
-interface FlightCarView {
-  heading: number;
-  forwardVelocity: number;
-  lateralVelocity: number;
-  velocity: { x: number; z: number };
-  speed: number;
-}
-
 interface PlayerShotVisual {
   root: THREE.Group;
   body: THREE.Mesh;
@@ -23,22 +15,17 @@ interface PlayerShotVisual {
   trail: THREE.Mesh;
 }
 
-const TURBO_MIN_SPEED = 18;
-const TURBO_ACCEL = 8.5;
-const TURBO_SPEED_CAP = 26.5;
 const MAX_SHOT_VISUALS = 5;
 
 /**
- * V20 is the gameplay-visibility finish on top of the V19 midpoint graphics.
- * It does not touch the chase camera. Turbo speed is enforced at the final FX
- * update after the inherited Cart simulation, and player missiles get a large,
- * high-contrast wing-launch presentation so SHOT is unmistakable on iPhone.
+ * V20 keeps the V19 midpoint graphics and makes player missiles unmistakable
+ * on iPhone. It deliberately performs no Turbo speed modification: Phase15
+ * owns the original release dash and Turbo hold never edits forward speed.
  */
 export class SkyDancerAirCombatFxV20 extends SkyDancerAirCombatFxV19 {
   private readonly runtimeV20: SkyDancerFxRuntime;
   private readonly shotVisualRoot = new THREE.Group();
   private readonly shotVisuals: PlayerShotVisual[] = [];
-  private turboFloor = 0;
   private builtV20 = false;
 
   constructor(runtime: SkyDancerFxRuntime) {
@@ -48,7 +35,6 @@ export class SkyDancerAirCombatFxV20 extends SkyDancerAirCombatFxV19 {
   }
 
   override update(snapshot: CartArenaSessionSnapshot, missiles: SkyDancerMissileState, delta: number): void {
-    this.enforceTurboAfterSimulation(snapshot, delta);
     super.update(snapshot, missiles, delta);
     if (!this.builtV20) {
       this.builtV20 = true;
@@ -57,33 +43,6 @@ export class SkyDancerAirCombatFxV20 extends SkyDancerAirCombatFxV19 {
       this.reduceBlackBuildingDominance();
     }
     this.updateVisiblePlayerShots();
-  }
-
-  private enforceTurboAfterSimulation(snapshot: CartArenaSessionSnapshot, delta: number): void {
-    const session = this.runtimeV20.session as unknown as CartArenaSession & { car: FlightCarView };
-    const car = session.car;
-    if (!snapshot.boostActive) {
-      this.turboFloor = 0;
-      return;
-    }
-
-    const current = Math.abs(car.forwardVelocity);
-    if (this.turboFloor <= 0) this.turboFloor = Math.max(TURBO_MIN_SPEED, current);
-    this.turboFloor = Math.min(
-      TURBO_SPEED_CAP,
-      Math.max(this.turboFloor, current, TURBO_MIN_SPEED) + TURBO_ACCEL * Math.max(0.001, Math.min(0.05, delta)),
-    );
-    if (current >= this.turboFloor - 0.01) return;
-
-    const sign = car.forwardVelocity < -0.2 ? -1 : 1;
-    car.forwardVelocity = sign * this.turboFloor;
-    const forwardX = Math.sin(car.heading);
-    const forwardZ = Math.cos(car.heading);
-    const rightX = Math.cos(car.heading);
-    const rightZ = -Math.sin(car.heading);
-    car.velocity.x = forwardX * car.forwardVelocity + rightX * car.lateralVelocity;
-    car.velocity.z = forwardZ * car.forwardVelocity + rightZ * car.lateralVelocity;
-    car.speed = Math.hypot(car.velocity.x, car.velocity.z);
   }
 
   private buildShotVisualPool(): void {
