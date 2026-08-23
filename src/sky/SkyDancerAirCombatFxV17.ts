@@ -18,6 +18,7 @@ interface RuntimeV17 extends SkyDancerFxRuntime {
 
 const ALTITUDE_LIFT_METERS = 88;
 const LANDSCAPE_DROP = 3.2;
+const FLIGHT_DEBUG_KEY = "__skyDancerGetFlightDebug";
 
 /**
  * V17 restores a little clearance over V16's city while making enemy motion
@@ -35,6 +36,14 @@ export class SkyDancerAirCombatFxV17 extends SkyDancerAirCombatFxV16 {
     // Install after the inherited combat/doctrine patches so this wrapper is
     // the final authority over Turbo thrust preservation and enemy inertia.
     installSkyDancerFlightDynamics();
+    if (typeof window !== "undefined") {
+      (window as unknown as Record<string, unknown>)[FLIGHT_DEBUG_KEY] = () => ({
+        forwardVelocity: runtime.session.car.forwardVelocity,
+        lateralVelocity: runtime.session.car.lateralVelocity,
+        speed: runtime.session.snapshot().speed,
+        altitudeMeters: runtime.scene.userData.skyDancerAltitudeMeters,
+      });
+    }
   }
 
   override update(snapshot: CartArenaSessionSnapshot, missiles: SkyDancerMissileState, delta: number): void {
