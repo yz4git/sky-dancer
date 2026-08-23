@@ -118,19 +118,19 @@ test("Turbo hold keeps base throttle and drift behavior", () => {
   assert.match(source, /applyReleaseDash/);
 });
 
-test("Turbo has both fixed-step acceleration and a renderer-level final authority", () => {
+test("Turbo hold has no Sky Dancer speed authority and release dash stays original", () => {
+  const phase15 = readFileSync(new URL("../src/cart/CartRoguePhase15Turbo.ts", import.meta.url), "utf8");
   const dynamics = readFileSync(new URL("../src/sky/SkyDancerFlightDynamics.ts", import.meta.url), "utf8");
-  const runtime = readFileSync(new URL("../src/sky/SkyDancerRuntimeControlPatch.ts", import.meta.url), "utf8");
+  const v20 = readFileSync(new URL("../src/sky/SkyDancerAirCombatFxV20.ts", import.meta.url), "utf8");
   const entry = readFileSync(new URL("../app/CartRogueGamePhase13.tsx", import.meta.url), "utf8");
-  assert.match(dynamics, /SKY_DANCER_TURBO_HOLD_ACCEL = 4\.2/);
-  assert.match(dynamics, /SKY_DANCER_TURBO_HOLD_SPEED_CAP = 24/);
-  assert.match(dynamics, /Keep lateralVelocity untouched/);
-  assert.match(runtime, /SKY_DANCER_RUNTIME_TURBO_MIN_SPEED = 15\.8/);
-  assert.match(runtime, /SKY_DANCER_RUNTIME_TURBO_ACCEL = 6\.4/);
-  assert.match(runtime, /SKY_DANCER_RUNTIME_TURBO_SPEED_CAP = 25\.5/);
-  assert.match(runtime, /Rebuild world velocity after every inherited Cart step/);
-  assert.match(runtime, /prototype\.updateVisuals = function skyDancerRuntimeUpdateVisuals/);
-  assert.match(entry, /SkyDancerRuntimeControlPatch/);
+  assert.doesNotMatch(dynamics, /SKY_DANCER_TURBO_HOLD_ACCEL/);
+  assert.doesNotMatch(dynamics, /SKY_DANCER_TURBO_HOLD_SPEED_CAP/);
+  assert.doesNotMatch(dynamics, /preserveTurboForwardSpeed/);
+  assert.doesNotMatch(v20, /TURBO_MIN_SPEED|TURBO_ACCEL|TURBO_SPEED_CAP|enforceTurboAfterSimulation/);
+  assert.doesNotMatch(entry, /SkyDancerRuntimeControlPatch/);
+  assert.match(phase15, /const launch = 1\.8 \+ charge \* 3\.35/);
+  assert.match(phase15, /const cap = car\.definition\.maxSpeed \* \(1\.43 \+ charge \* 0\.07\)/);
+  assert.match(phase15, /car\.boostTimeRemaining = Math\.min\(3\.2, car\.boostTimeRemaining \+ 0\.1 \+ charge \* 0\.3\)/);
 });
 
 test("enemy flight is slightly faster while keeping inertial turn limits", () => {
@@ -141,15 +141,18 @@ test("enemy flight is slightly faster while keeping inertial turn limits", () =>
   assert.match(source, /lateral = clamp\(lateral, -Math\.abs\(forward\) \* 0\.16/);
 });
 
-test("player missiles support lock homing swept hits damage and a wall-clock flight fallback", () => {
+test("player missiles support swept hits and one-shot standard fighters", () => {
   const source = readFileSync(new URL("../src/sky/SkyDancerPlayerWeapons.ts", import.meta.url), "utf8");
   assert.match(source, /SKY_DANCER_PLAYER_MISSILE_COOLDOWN = 0\.34/);
   assert.match(source, /SKY_DANCER_PLAYER_MISSILE_MAX_ACTIVE = 5/);
   assert.match(source, /SKY_DANCER_PLAYER_MISSILE_LOCK_DISTANCE = 58/);
   assert.match(source, /function pointSegmentDistanceSquared/);
-  assert.match(source, /targetEnemyId/);
+  assert.match(source, /function missileDamage/);
+  assert.match(source, /if \(enemy\.kind === "boss"\) return 24/);
+  assert.match(source, /if \(enemy\.kind === "heavy"\) return 30/);
+  assert.match(source, /return Math\.max\(enemy\.maxHp, enemy\.hp, 1\)/);
   assert.match(source, /hit\.hp = Math\.max\(0, hit\.hp - damage\)/);
-  assert.match(source, /hit\.kind === "boss" \? 24 : hit\.kind === "heavy" \? 30 : 38/);
+  assert.match(source, /MISSILE SPLASH · TARGET DOWN/);
   assert.match(source, /lastClockMs/);
   assert.match(source, /function advanceFromClock/);
   assert.match(source, /getSkyDancerPlayerWeaponState/);
@@ -190,13 +193,13 @@ test("V10 renders player missiles and exposes the active renderer fire callback"
   assert.match(source, /getSkyDancerPlayerWeaponState/);
 });
 
-test("V11 quality remains in the active V19 inheritance chain", () => {
+test("V11 quality remains in the active V21 inheritance chain", () => {
   const source = readFileSync(new URL("../src/sky/SkyDancerAirCombatFxV11.ts", import.meta.url), "utf8");
   const entry = readFileSync(new URL("../src/sky/SkyDancerAirCombatFx.ts", import.meta.url), "utf8");
   assert.match(source, /sky-dancer-q11-route-parcels/);
   assert.match(source, /sky-dancer-q11-route-towns/);
   assert.match(source, /sky-dancer-q11-highways/);
-  assert.match(entry, /SkyDancerAirCombatFxV19/);
+  assert.match(entry, /SkyDancerAirCombatFxV21/);
 });
 
 test("Canvas V4 binds Shot to the active session and draws player missiles", () => {
@@ -234,6 +237,25 @@ test("V19 moves graphics toward the midpoint reference without changing chase-ca
   assert.doesNotMatch(source, /camera\.fov\s*=/);
 });
 
+test("V20 keeps large visible player shots without Turbo speed overrides", () => {
+  const source = readFileSync(new URL("../src/sky/SkyDancerAirCombatFxV20.ts", import.meta.url), "utf8");
+  assert.match(source, /sky-dancer-v20-visible-player-shots/);
+  assert.match(source, /new THREE\.BoxGeometry\(0\.13, 0\.13, 7\.4\)/);
+  assert.match(source, /lateralOffset = launchSide \* 1\.05 \* wingBlend/);
+  assert.doesNotMatch(source, /enforceTurboAfterSimulation/);
+  assert.doesNotMatch(source, /TURBO_MIN_SPEED|TURBO_ACCEL|TURBO_SPEED_CAP/);
+});
+
+test("V21 makes missile hits unmistakable", () => {
+  const source = readFileSync(new URL("../src/sky/SkyDancerAirCombatFxV21.ts", import.meta.url), "utf8");
+  assert.match(source, /sky-dancer-v21-missile-hit-confirm/);
+  assert.match(source, /sky-dancer-v21-player-missile-impact/);
+  assert.match(source, /emitImpactSparks\(position, 20\)/);
+  assert.match(source, /cameraShake = Math\.max/);
+  assert.match(source, /impactFlash = Math\.max/);
+  assert.match(source, /new THREE\.PointLight\(0xffa43d, 7\.5, 18, 2\)/);
+});
+
 test("V19 HUD uses compact translucent flight instrumentation styling", () => {
   const source = readFileSync(new URL("../app/SkyDancerHudQualityPass.tsx", import.meta.url), "utf8");
   assert.match(source, /rgba\(10,43,66,\.76\)/);
@@ -261,7 +283,7 @@ test("SHOT control prefers the active renderer callback and falls back to the se
   assert.match(bridge, /requestSkyDancerPlayerMissile\(activeSession\)/);
 });
 
-test("WebGL audit always validates SHOT and Turbo before secondary opening-spacing failure", () => {
+test("WebGL audit validates neutral Turbo hold then restored release dash", () => {
   const source = readFileSync(new URL("../scripts/webgl-visual-audit.mjs", import.meta.url), "utf8");
   const shotIndex = source.indexOf("Primary regression #1");
   const turboIndex = source.indexOf("Primary regression #2");
@@ -269,8 +291,9 @@ test("WebGL audit always validates SHOT and Turbo before secondary opening-spaci
   assert.ok(shotIndex >= 0 && turboIndex > shotIndex && spacingIndex > turboIndex);
   assert.match(source, /waitForTimeout\(80\)/);
   assert.match(source, /missileTravel300/);
-  assert.match(source, /duringForward < 12/);
-  assert.match(source, /duringForward < beforeForward \+ 1\.0/);
+  assert.match(source, /duringForward < beforeForward \* 0\.96/);
+  assert.match(source, /releasedForward < duringForward \+ 1\.2/);
+  assert.match(source, /Turbo release dash did not restore its acceleration/);
 });
 
 test("Sky Dancer combat polish removes vehicle phrasing and uses flight terminology", () => {
