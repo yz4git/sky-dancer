@@ -113,3 +113,5 @@ jobs:
 
           echo "SITES_SYNC_REMOTE_HEAD=$remote_head"
           echo "Sites source sync completed."
+
+# Retry after executable-mode fix e863182c7bee281045859406b29fc7ad8396c5a7
