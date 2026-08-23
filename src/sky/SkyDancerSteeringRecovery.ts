@@ -4,6 +4,7 @@ export interface SkyDancerSteeringRuntime {
 
 interface SteeringRecoveryHost extends Window {
   __skyDancerV29SteeringCleanup?: () => void;
+  __skyDancerGetSteeringRecoveryDebug?: () => { activePointerId: number | null; steer: number };
 }
 
 const STEERING_SELECTOR = '[aria-label="Steering"]';
@@ -68,6 +69,10 @@ export function installSkyDancerSteeringRecovery(runtime: SkyDancerSteeringRunti
   window.addEventListener("blur", reset);
   document.addEventListener("visibilitychange", onVisibilityChange);
 
+  // Lightweight runtime telemetry lets the real-browser audit deliberately
+  // strand one pointer and verify that the next touch takes ownership again.
+  host.__skyDancerGetSteeringRecoveryDebug = () => ({ activePointerId, steer: runtime.steer });
+
   host.__skyDancerV29SteeringCleanup = () => {
     window.removeEventListener("pointerdown", onPointerDown, true);
     window.removeEventListener("pointermove", onPointerMove, true);
@@ -76,6 +81,7 @@ export function installSkyDancerSteeringRecovery(runtime: SkyDancerSteeringRunti
     window.removeEventListener("blur", reset);
     document.removeEventListener("visibilitychange", onVisibilityChange);
     reset();
+    delete host.__skyDancerGetSteeringRecoveryDebug;
     delete host.__skyDancerV29SteeringCleanup;
   };
 }
