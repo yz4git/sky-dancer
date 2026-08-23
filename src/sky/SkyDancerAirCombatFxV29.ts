@@ -85,6 +85,43 @@ export class SkyDancerAirCombatFxV29 extends SkyDancerAirCombatFxV28 {
     const scenicRoot = scene.getObjectByName("sky-dancer-v28-reference-scenery");
     if (scenicRoot) scenicRoot.position.y = -V29_EXTRA_SHIFT_UNITS;
 
+    // V11/V22 ground detail is authored with its elevation baked into child or
+    // instance matrices, while the parent object itself sits at y=0. Earlier
+    // altitude passes therefore missed it, leaving buildings visually at the
+    // old flight level. Move those legacy layers by the complete +150 m lift.
+    for (const name of [
+      "sky-dancer-q11-route-parcels",
+      "sky-dancer-q11-hedgerows",
+      "sky-dancer-q11-route-towns",
+      "sky-dancer-q11-highways",
+      "sky-dancer-q11-landmarks",
+      "sky-dancer-v22-quality-world",
+    ]) {
+      const object = scene.getObjectByName(name);
+      if (object) object.position.y = -TOTAL_ALTITUDE_SHIFT_UNITS;
+    }
+
+    // The old Cart Hunt presentation draws its own ground at y≈0. It is a
+    // vehicle-era duplicate of the Sky Dancer terrain and was the main reason
+    // the real V29 capture still looked like the aircraft was inside a city.
+    const legacyHuntWorld = scene.getObjectByName("phase67-turbo-hunt-world");
+    if (legacyHuntWorld) legacyHuntWorld.visible = false;
+
+    // At 300 m, roads and close warm town blocks should read as subtle ground
+    // detail, not as giant flight-level obstacles. The V25/V28/V29 valley and
+    // the dedicated right-side skyline now carry those visual roles instead.
+    for (const name of [
+      "sky-dancer-q11-route-towns",
+      "sky-dancer-q11-highways",
+      "sky-dancer-q11-landmarks",
+      "sky-dancer-v22-road-grid",
+      "sky-dancer-v22-rooftop-detail",
+      "sky-dancer-v22-industrial-landmarks",
+    ]) {
+      const object = scene.getObjectByName(name);
+      if (object) object.visible = false;
+    }
+
     // Base environment objects that V28 already moved receive exactly one
     // additional 100 m shift. Player/enemy aircraft stay near y=0.
     for (const object of scene.children) {
@@ -116,6 +153,11 @@ export class SkyDancerAirCombatFxV29 extends SkyDancerAirCombatFxV28 {
       lake.material.emissive.setHex(0x0a496c);
       lake.material.emissiveIntensity = 0.3;
       lake.material.roughness = 0.12;
+    }
+
+    const patchwork = scene.getObjectByName("sky-dancer-v28-patchwork-valley");
+    if (patchwork instanceof THREE.InstancedMesh && patchwork.material instanceof THREE.MeshLambertMaterial) {
+      patchwork.material.opacity = 1;
     }
   }
 
