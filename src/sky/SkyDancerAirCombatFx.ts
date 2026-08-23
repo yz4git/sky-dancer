@@ -1,5 +1,5 @@
-// V19 keeps the current chase camera while moving visuals toward the midpoint reference.
+// V20 keeps SkyDancerAirCombatFxV19 in its inheritance chain and does not alter the chase camera.
 export {
-  SkyDancerAirCombatFxV19 as SkyDancerAirCombatFx,
-} from "./SkyDancerAirCombatFxV19";
+  SkyDancerAirCombatFxV20 as SkyDancerAirCombatFx,
+} from "./SkyDancerAirCombatFxV20";
 export type { SkyDancerFxRuntime } from "./SkyDancerAirCombatFxV2";
