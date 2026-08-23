@@ -1,6 +1,5 @@
 import type { CartEnemyState } from "../cart/CartCombat";
 import { CartArenaSession } from "../cart/CartArenaSession";
-import type { RallyInputState } from "../rally/RallyTypes";
 
 export interface SkyDancerPlayerMissileSnapshot {
   id: number;
@@ -54,10 +53,9 @@ interface WeaponSessionView {
     collisionImpact: number;
     ramCount: number;
   };
-  step(input: RallyInputState, fixedDelta?: number): void;
 }
 
-const PATCHED_KEY = "__skyDancerPlayerWeaponsInstalled__";
+const INSTALLED_KEY = "__skyDancerPlayerWeaponsInstalled__";
 const stateBySession = new WeakMap<object, WeaponState>();
 export const SKY_DANCER_PLAYER_MISSILE_COOLDOWN = 0.34;
 export const SKY_DANCER_PLAYER_MISSILE_MAX_ACTIVE = 5;
@@ -260,12 +258,21 @@ export function requestSkyDancerPlayerMissile(session: CartArenaSession): boolea
   const view = session as unknown as WeaponSessionView;
   const state = stateFor(view);
   if (state.cooldownSeconds > 0 || state.missiles.filter((missile) => missile.active).length >= SKY_DANCER_PLAYER_MISSILE_MAX_ACTIVE) return false;
-
-  // Fire synchronously from the UI event. The previous implementation only
-  // queued a request and waited for a later simulation step, which made iOS
-  // taps appear dead when pointer capture or frame scheduling was interrupted.
   state.requestedShots = 1;
   return launchRequestedShot(view, state);
+}
+
+/**
+ * Advance missiles from the final Sky Dancer flight step. Keeping this explicit
+ * avoids prototype-wrapper ordering bugs where a later gameplay patch can
+ * accidentally bypass the old weapon step wrapper.
+ */
+export function stepSkyDancerPlayerWeapons(session: CartArenaSession, fixedDelta = 1 / 60): void {
+  const view = session as unknown as WeaponSessionView;
+  const state = stateFor(view);
+  const delta = Math.max(0.001, Math.min(0.05, fixedDelta));
+  state.cooldownSeconds = Math.max(0, state.cooldownSeconds - delta);
+  updateMissiles(view, state, delta);
 }
 
 export function getSkyDancerPlayerWeaponState(session: CartArenaSession): SkyDancerPlayerWeaponState {
@@ -293,18 +300,9 @@ export function getSkyDancerPlayerWeaponState(session: CartArenaSession): SkyDan
 }
 
 export function installSkyDancerPlayerWeapons(): void {
-  const prototype = CartArenaSession.prototype as unknown as WeaponSessionView & Record<string, unknown>;
-  if (prototype[PATCHED_KEY]) return;
-  prototype[PATCHED_KEY] = true;
-  const previous = prototype.step;
-  prototype.step = function skyDancerPlayerWeaponsStep(input: RallyInputState, fixedDelta?: number): void {
-    previous.call(this, input, fixedDelta);
-    const delta = Math.max(0.001, Math.min(0.05, fixedDelta ?? 1 / 60));
-    const state = stateFor(this as unknown as WeaponSessionView);
-    state.cooldownSeconds = Math.max(0, state.cooldownSeconds - delta);
-    if (state.requestedShots > 0) launchRequestedShot(this as unknown as WeaponSessionView, state);
-    updateMissiles(this as unknown as WeaponSessionView, state, delta);
-  };
+  const prototype = CartArenaSession.prototype as unknown as Record<string, unknown>;
+  if (prototype[INSTALLED_KEY]) return;
+  prototype[INSTALLED_KEY] = true;
 }
 
 installSkyDancerPlayerWeapons();
