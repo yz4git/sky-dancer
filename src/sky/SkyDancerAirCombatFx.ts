@@ -1,5 +1,5 @@
-// V20 keeps SkyDancerAirCombatFxV19 in its inheritance chain and does not alter the chase camera.
+// V21 adds strong player-missile impact feedback while keeping V19/V20 visuals and the current chase camera.
 export {
-  SkyDancerAirCombatFxV20 as SkyDancerAirCombatFx,
-} from "./SkyDancerAirCombatFxV20";
+  SkyDancerAirCombatFxV21 as SkyDancerAirCombatFx,
+} from "./SkyDancerAirCombatFxV21";
 export type { SkyDancerFxRuntime } from "./SkyDancerAirCombatFxV2";
