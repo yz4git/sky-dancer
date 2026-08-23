@@ -47,7 +47,7 @@ export class SkyDancerAirCombatFxV19 extends SkyDancerAirCombatFxV18 {
   }
 
   private tuneAtmosphere(): void {
-    const renderer = this.runtimeV19.renderer as THREE.WebGLRenderer | undefined;
+    const renderer = (this.runtimeV19 as SkyDancerFxRuntime & { renderer?: THREE.WebGLRenderer }).renderer;
     if (renderer) renderer.toneMappingExposure = 1.18;
     this.runtimeV19.scene.background = new THREE.Color(0x62b9ed);
     if (this.runtimeV19.scene.fog instanceof THREE.Fog) {
