@@ -1,5 +1,5 @@
-// V17 is active and extends the streamed-scenery V16 presentation.
+// V18 adds true 3D enemy maneuvers, skyline clearance and missile warnings.
 export {
-  SkyDancerAirCombatFxV17 as SkyDancerAirCombatFx,
-} from "./SkyDancerAirCombatFxV17";
+  SkyDancerAirCombatFxV18 as SkyDancerAirCombatFx,
+} from "./SkyDancerAirCombatFxV18";
 export type { SkyDancerFxRuntime } from "./SkyDancerAirCombatFxV2";
