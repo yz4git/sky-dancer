@@ -1,6 +1,7 @@
 import type { CartEnemyState } from "../cart/CartCombat";
 import { CartArenaSession } from "../cart/CartArenaSession";
 import type { RallyInputState } from "../rally/RallyTypes";
+import { stepSkyDancerPlayerWeapons } from "./SkyDancerPlayerWeapons";
 
 interface DynamicsSession {
   enemies: CartEnemyState[];
@@ -139,8 +140,6 @@ function smoothEnemyFlight(
     enemy.x = previous.x + state.vx * delta;
     enemy.z = previous.z + state.vz * delta;
 
-    // Safety remains hard only inside the actual collision bubble. Outside it,
-    // all separation is achieved through heading and velocity instead of slide.
     const awayX = enemy.x - px;
     const awayZ = enemy.z - pz;
     const distance = Math.hypot(awayX, awayZ);
@@ -179,5 +178,8 @@ export function installSkyDancerFlightDynamics(): void {
     const delta = Math.max(0.001, Math.min(0.05, fixedDelta ?? 1 / 60));
     preserveTurboForwardSpeed(this, beforeForward, input);
     smoothEnemyFlight(this, before, delta);
+    // Weapon simulation is deliberately ticked here, after all inherited
+    // movement/AI patches, so no later prototype wrapper can bypass it.
+    stepSkyDancerPlayerWeapons(this as unknown as CartArenaSession, delta);
   };
 }
