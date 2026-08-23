@@ -66,6 +66,7 @@ test("V22 is active and raises world/aircraft/effects quality without moving the
   const entry = readFileSync(new URL("../src/sky/SkyDancerAirCombatFx.ts", import.meta.url), "utf8");
   const source = readFileSync(new URL("../src/sky/SkyDancerAirCombatFxV22.ts", import.meta.url), "utf8");
   assert.match(entry, /SkyDancerAirCombatFxV22/);
+  assert.match(entry, /SkyDancerAirCombatFxV21 remains in the inheritance chain/);
   assert.match(source, /extends SkyDancerAirCombatFxV21/);
   assert.match(source, /sky-dancer-v22-quality-world/);
   assert.match(source, /sky-dancer-v22-city-blocks/);
