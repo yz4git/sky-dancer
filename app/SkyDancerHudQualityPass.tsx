@@ -3,9 +3,63 @@
 import legacyStyles from "./CartRogueGame.module.css";
 import phaseStyles from "./CartRoguePhase3.module.css";
 
-/** Sky-specific HUD declutter pass applied after all inherited Cart overlays. */
+/** Sky-specific HUD and presentation polish applied after inherited Cart overlays. */
 export default function SkyDancerHudQualityPass() {
   return <style>{`
+    .${legacyStyles.topHud} {
+      gap: clamp(6px, 1.1vw, 12px) !important;
+      padding: max(8px, env(safe-area-inset-top)) max(10px, env(safe-area-inset-right)) 0 max(10px, env(safe-area-inset-left)) !important;
+    }
+    .${legacyStyles.runCard},
+    .${legacyStyles.objective},
+    .${legacyStyles.enemyCard},
+    .${legacyStyles.meterCard} {
+      background: linear-gradient(180deg, rgba(10,43,66,.76), rgba(6,25,42,.68)) !important;
+      border: 1px solid rgba(127,224,255,.30) !important;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.07), 0 6px 20px rgba(4,18,32,.18) !important;
+      backdrop-filter: blur(6px) saturate(1.08) !important;
+      -webkit-backdrop-filter: blur(6px) saturate(1.08) !important;
+    }
+    .${legacyStyles.objective} {
+      color: #e8faff !important;
+      letter-spacing: .055em !important;
+      text-shadow: 0 1px 7px rgba(0,20,36,.55) !important;
+    }
+    .${legacyStyles.runCard} small,
+    .${legacyStyles.enemyCard} small,
+    .${legacyStyles.meterHead} span {
+      color: rgba(207,242,255,.78) !important;
+      letter-spacing: .09em !important;
+    }
+    .${legacyStyles.bottomHud} {
+      padding: 0 max(10px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom)) max(10px, env(safe-area-inset-left)) !important;
+    }
+    .${legacyStyles.itemStrip} {
+      opacity: .62 !important;
+      transform: scale(.88) !important;
+      transform-origin: 50% 100% !important;
+      filter: saturate(.78) !important;
+    }
+    .${legacyStyles.steerZone} {
+      border-color: rgba(120,224,255,.13) !important;
+      background: linear-gradient(90deg, rgba(5,35,55,.04), rgba(85,210,255,.08), rgba(5,35,55,.04)) !important;
+      color: rgba(210,247,255,.50) !important;
+      text-shadow: 0 1px 5px rgba(0,15,28,.65) !important;
+    }
+    .${legacyStyles.boostButton} {
+      background: linear-gradient(180deg, rgba(42,199,248,.92), rgba(18,117,190,.88)) !important;
+      border-color: rgba(203,248,255,.62) !important;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.26), 0 5px 18px rgba(0,140,220,.24) !important;
+      text-shadow: 0 1px 5px rgba(0,41,73,.65) !important;
+    }
+    .${legacyStyles.turboCard} {
+      border-color: rgba(84,218,255,.38) !important;
+    }
+    .${legacyStyles.rendererBadge} {
+      opacity: .38 !important;
+      transform: scale(.82) !important;
+      transform-origin: 100% 0 !important;
+    }
     .${legacyStyles.combo} {
       top: 14% !important;
       max-width: 52vw !important;
