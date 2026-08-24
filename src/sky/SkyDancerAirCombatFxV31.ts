@@ -27,10 +27,6 @@ export class SkyDancerAirCombatFxV31 extends SkyDancerAirCombatFxV30 {
     this.groundDensity = new SkyDancerGroundDensityV31(v31Runtime);
     this.groundReadability = new SkyDancerGroundReadabilityV31(v31Runtime);
     this.cloudQuality = new SkyDancerCloudQualityV31(v31Runtime);
-
-    // SkyDancerWebGLDemo installs its final camera wrapper after constructing the
-    // FX chain. Defer one microtask so V31 decorates that final wrapper rather
-    // than being overwritten by it during the same constructor task.
     if (typeof queueMicrotask === "function") queueMicrotask(() => this.installCameraPitch());
   }
 
@@ -50,7 +46,7 @@ export class SkyDancerAirCombatFxV31 extends SkyDancerAirCombatFxV30 {
     const base = inherited.bind(runtime);
     runtime.applyCameraPresentation = (snapshot: CartArenaSessionSnapshot) => {
       base(snapshot);
-      runtime.camera.rotateX(-0.14);
+      runtime.camera.rotateX(-0.20);
     };
     runtime.camera.userData.skyDancerV31PitchInstalled = true;
   }
