@@ -25,6 +25,7 @@ test("V30 removes inherited field conflicts and connects dedicated opaque valley
   assert.match(ground, /sky-dancer-v30-river/);
   assert.match(ground, /transparent: false/);
   assert.match(ground, /depthWrite: true/);
+  assert.match(ground, /fog: false/);
   assert.match(fx, /SkyDancerGroundDetailV30/);
   assert.match(fx, /groundDetail\.update\(snapshot\)/);
 });
@@ -44,6 +45,29 @@ test("V30 replaces the oversized legacy mountain silhouettes with a lighter belt
   assert.match(source, /const count = 96/);
   assert.match(source, /radius = 420/);
   assert.match(source, /sky-dancer-v24-horizon-silhouettes/);
+});
+
+test("V30 final grade opens the valley and places one city in the right-front distance", () => {
+  const source = readFileSync(new URL("../src/sky/SkyDancerWorldPresentationV30.ts", import.meta.url), "utf8");
+  assert.match(source, /skyline\.position\.set\(0, 0, 260\)/);
+  assert.match(source, /skyline\.scale\.setScalar\(0\.82\)/);
+  assert.match(source, /Fog\(0x77b9d4, 560, 1460\)/);
+  assert.match(source, /scene\.background = new THREE\.Color\(0x1676b7\)/);
+  assert.match(source, /sky-dancer-v28-layered-cloud-banks/);
+  assert.match(source, /sky-dancer-v29-reference-cloud-bank/);
+});
+
+test("V30 consolidates inherited Cart HUD into the flight reference hierarchy", () => {
+  const hud = readFileSync(new URL("../app/SkyDancerHudV30.tsx", import.meta.url), "utf8");
+  const page = readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8");
+  assert.match(hud, /data-sd-gas-card/);
+  assert.match(hud, /data-sd-item-strip/);
+  assert.match(hud, /data-sd-hunt-objective/);
+  assert.match(hud, /data-sd-hunt-heat/);
+  assert.match(hud, /content: "HP"/);
+  assert.match(hud, /HOLD · RELEASE/);
+  assert.match(page, /SkyDancerHudV30/);
+  assert.match(page, /<SkyDancerHudV30 \/>/);
 });
 
 test("V30 is the active Sky Dancer effects entry point", () => {
