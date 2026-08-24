@@ -17,6 +17,20 @@ type SceneLayerDebug = {
   depthWrite: boolean | null;
   fog: boolean | null;
   renderOrder: number;
+  effectiveVisible: boolean;
+};
+
+type RayHitDebug = {
+  name: string;
+  type: string;
+  distance: number;
+  point: { x: number; y: number; z: number };
+  material: string | null;
+  color: number | null;
+  transparent: boolean | null;
+  opacity: number | null;
+  depthWrite: boolean | null;
+  effectiveVisible: boolean;
 };
 
 interface V31DebugHost extends Window {
@@ -24,7 +38,17 @@ interface V31DebugHost extends Window {
     camera: { x: number; y: number; z: number; dx: number; dy: number; dz: number };
     centerGroundHit: { x: number; y: number; z: number; t: number } | null;
     layers: SceneLayerDebug[];
+    rays: Record<string, RayHitDebug[]>;
   };
+}
+
+function isEffectivelyVisible(object: THREE.Object3D): boolean {
+  let cursor: THREE.Object3D | null = object;
+  while (cursor) {
+    if (!cursor.visible) return false;
+    cursor = cursor.parent;
+  }
+  return true;
 }
 
 /**
@@ -95,7 +119,7 @@ export class SkyDancerGroundReadabilityV31 {
       const world = new THREE.Vector3();
       const layers: SceneLayerDebug[] = [];
       this.runtime.scene.traverse((object) => {
-        if (!object.visible || (!(object instanceof THREE.Mesh) && !(object instanceof THREE.InstancedMesh))) return;
+        if (!(object instanceof THREE.Mesh) && !(object instanceof THREE.InstancedMesh)) return;
         const name = object.name.toLowerCase();
         if (!name.includes("ground") && !name.includes("terrain") && !name.includes("field") && !name.includes("lake") && !name.includes("river") && !name.includes("landscape")) return;
         object.getWorldPosition(world);
@@ -113,8 +137,46 @@ export class SkyDancerGroundReadabilityV31 {
           depthWrite: material ? material.depthWrite : null,
           fog: material && "fog" in material ? Boolean((material as THREE.Material & { fog?: boolean }).fog) : null,
           renderOrder: object.renderOrder,
+          effectiveVisible: isEffectivelyVisible(object),
         });
       });
+
+      const raycaster = new THREE.Raycaster();
+      const ndcSamples: Record<string, THREE.Vector2> = {
+        center: new THREE.Vector2(0, 0),
+        lowerCenter: new THREE.Vector2(0, -0.55),
+        lowerLeft: new THREE.Vector2(-0.52, -0.55),
+        lowerRight: new THREE.Vector2(0.52, -0.55),
+      };
+      const rays: Record<string, RayHitDebug[]> = {};
+      for (const [label, ndc] of Object.entries(ndcSamples)) {
+        raycaster.setFromCamera(ndc, camera);
+        rays[label] = raycaster.intersectObjects(this.runtime.scene.children, true)
+          .filter((hit) => isEffectivelyVisible(hit.object))
+          .slice(0, 12)
+          .map((hit) => {
+            const object = hit.object as THREE.Mesh;
+            const material = Array.isArray(object.material) ? object.material[0] : object.material;
+            const color = material && "color" in material && material.color instanceof THREE.Color ? material.color.getHex() : null;
+            return {
+              name: object.name || object.parent?.name || "(unnamed)",
+              type: object.type,
+              distance: Number(hit.distance.toFixed(3)),
+              point: {
+                x: Number(hit.point.x.toFixed(3)),
+                y: Number(hit.point.y.toFixed(3)),
+                z: Number(hit.point.z.toFixed(3)),
+              },
+              material: material?.type ?? null,
+              color,
+              transparent: material ? material.transparent : null,
+              opacity: material ? material.opacity : null,
+              depthWrite: material ? material.depthWrite : null,
+              effectiveVisible: true,
+            };
+          });
+      }
+
       return {
         camera: {
           x: Number(camera.position.x.toFixed(3)),
@@ -126,6 +188,7 @@ export class SkyDancerGroundReadabilityV31 {
         },
         centerGroundHit,
         layers,
+        rays,
       };
     };
   }
