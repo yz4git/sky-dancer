@@ -21,6 +21,15 @@ test("V30 removes ground holes and keeps modern valley layers opaque", () => {
   assert.match(source, /__skyDancerGetWorldPresentationDebug/);
 });
 
+test("V30 suppresses accumulated low-altitude city and road worlds", () => {
+  const source = readFileSync(new URL("../src/sky/SkyDancerLegacySceneryCleanupV30.ts", import.meta.url), "utf8");
+  assert.match(source, /sky-dancer-q15-/);
+  assert.match(source, /sky-dancer-q16-/);
+  assert.match(source, /sky-dancer-v19-midpoint-world/);
+  assert.match(source, /sky-dancer-v25-landmark-city/);
+  assert.match(source, /scene\.getObjectByName/);
+});
+
 test("V30 replaces the oversized legacy mountain silhouettes with a lighter belt", () => {
   const source = readFileSync(new URL("../src/sky/SkyDancerWorldPresentationV30.ts", import.meta.url), "utf8");
   assert.match(source, /sky-dancer-v30-mountain-belt/);
@@ -34,5 +43,6 @@ test("V30 is the active Sky Dancer effects entry point", () => {
   const source = readFileSync(new URL("../src/sky/SkyDancerAirCombatFxV30.ts", import.meta.url), "utf8");
   assert.match(entry, /SkyDancerAirCombatFxV30 as SkyDancerAirCombatFx/);
   assert.match(source, /extends SkyDancerAirCombatFxV29/);
+  assert.match(source, /SkyDancerLegacySceneryCleanupV30/);
   assert.match(source, /SkyDancerWorldPresentationV30/);
 });
