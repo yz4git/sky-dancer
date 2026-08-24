@@ -1,6 +1,7 @@
 import type { CartArenaSessionSnapshot } from "../cart/CartArenaSession";
 import { SkyDancerAirCombatFxV29 } from "./SkyDancerAirCombatFxV29";
 import type { SkyDancerFxRuntime } from "./SkyDancerAirCombatFxV2";
+import { installSkyDancerBossCombatV34 } from "./SkyDancerBossCombatV34";
 import type { SkyDancerMissileState } from "./SkyDancerFlightCombat";
 import { SkyDancerPresentationPipeline } from "./presentation/SkyDancerPresentationPipeline";
 
@@ -21,15 +22,17 @@ import { SkyDancerPresentationPipeline } from "./presentation/SkyDancerPresentat
 /**
  * Stable production facade introduced by the V33 architecture refactor.
  *
- * V29 remains the legacy gameplay/FX compatibility boundary. V30-V32 visual
- * responsibilities are now explicit composition passes rather than additional
- * production inheritance levels.
+ * V29 remains the legacy gameplay/FX compatibility boundary. V30+ visual work
+ * is composed through the presentation pipeline. V34 installs its boss combat
+ * director after the legacy wrappers so it owns the final aerial boss motion
+ * and durability without reviving the version-inheritance chain.
  */
 export class SkyDancerAirCombatFx extends SkyDancerAirCombatFxV29 {
   private readonly presentation: SkyDancerPresentationPipeline;
 
   constructor(runtime: SkyDancerFxRuntime) {
     super(runtime);
+    installSkyDancerBossCombatV34();
     this.presentation = new SkyDancerPresentationPipeline(runtime);
   }
 
