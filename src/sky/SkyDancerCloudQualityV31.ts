@@ -41,7 +41,6 @@ export class SkyDancerCloudQualityV31 {
   private readonly layers: THREE.InstancedMesh[] = [];
   private snapX = Number.NaN;
   private snapZ = Number.NaN;
-  private legacyHidden = false;
 
   constructor(private readonly runtime: CloudRuntime) {
     this.root.name = "sky-dancer-v31-cloud-system";
@@ -108,7 +107,20 @@ export class SkyDancerCloudQualityV31 {
       const cloud = this.runtime.scene.getObjectByName(name);
       if (cloud) cloud.visible = false;
     }
-    this.legacyHidden = true;
+
+    // The original SkyDancerWebGLDemo cloud deck predates scene naming. Detect
+    // only that exact low-poly signature so V31 can replace it without touching
+    // unrelated instanced scenery.
+    for (const child of this.runtime.scene.children) {
+      if (!(child instanceof THREE.InstancedMesh) || child === this.layers[0] || child === this.layers[1] || child === this.layers[2]) continue;
+      const material = child.material;
+      if (child.name) continue;
+      if (child.geometry.type !== "DodecahedronGeometry") continue;
+      if (!(material instanceof THREE.MeshLambertMaterial)) continue;
+      if (!material.transparent || material.opacity < 0.35 || material.opacity > 0.5) continue;
+      child.visible = false;
+      child.userData.skyDancerV31LegacyCloudHidden = true;
+    }
   }
 
   private buildLayer(config: CloudLayerConfig, seedOffset: number): THREE.InstancedMesh {
