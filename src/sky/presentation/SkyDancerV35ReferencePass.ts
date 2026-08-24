@@ -3,282 +3,148 @@ import type { CartArenaSessionSnapshot } from "../../cart/CartArenaSession";
 import type { SkyDancerFxRuntime } from "../SkyDancerAirCombatFxV2";
 import { scheduleSkyDancerV35ReferenceFraming } from "./SkyDancerCameraPresentation";
 
-const METRO_SNAP = 360;
-const CLOUD_SNAP = 420;
-const GROUND_Y = -66.38;
-const MAX_CITY_LOW = 220;
-const MAX_CITY_MID = 132;
-const MAX_CITY_HIGH = 64;
-const MAX_ROADS = 48;
-const MAX_RIVER = 24;
+const CITY_SNAP = 420;
+const GROUND_Y = -66.30;
+const MAX_FOCUS_BUILDINGS = 500;
+const MAX_FOCUS_STREETS = 40;
+const MAX_FOCUS_RIVER = 24;
+const FRONT_MOUNTAIN_FAR_COUNT = 22;
+const FRONT_MOUNTAIN_NEAR_COUNT = 20;
+const FRONT_CLOUD_COUNT = 32;
+const FOCUS_CITY_LOCAL_CENTER_Z = 160;
+const LEGACY_DYNAMIC_LAYER_NAMES = [
+  "sky-dancer-v32-polish-ridge-near",
+  "sky-dancer-v32-polish-ridge-far",
+  "sky-dancer-v32-ridge-near",
+  "sky-dancer-v32-ridge-far",
+  "sky-dancer-v32-polish-cloud-main",
+  "sky-dancer-v32-polish-cloud-shade",
+  "sky-dancer-v32-hero-clouds",
+  "sky-dancer-v32-hero-cloud-shade",
+] as const;
 
 function hash2(x: number, z: number, salt = 0): number {
-  let n = Math.imul(x + 0x6d2b79f5 + salt * 919, 0x1b873593) ^ Math.imul(z - salt * 733, 0x85ebca6b);
+  let n = Math.imul(x + 0x5bd1e995 + salt * 809, 0x27d4eb2d) ^ Math.imul(z - salt * 617, 0x165667b1);
   n ^= n >>> 15;
-  n = Math.imul(n, 0x2c1b3c6d);
-  n ^= n >>> 12;
+  n = Math.imul(n, 0x85ebca6b);
+  n ^= n >>> 13;
   return (n >>> 0) / 0xffffffff;
 }
 
-function setInstance(
-  mesh: THREE.InstancedMesh,
-  index: number,
-  dummy: THREE.Object3D,
-  color?: THREE.Color,
-): number {
-  dummy.updateMatrix();
-  mesh.setMatrixAt(index, dummy.matrix);
-  if (color) mesh.setColorAt(index, color);
-  return index + 1;
-}
-
 /**
- * V35 reference-art-direction pass.
+ * Capture-driven V35 presentation owner.
  *
- * V34 intentionally reduced the rectangular field read, but in combination
- * with V32 hiding V31 settlement meshes it also removed the metropolitan scale
- * that made the strongest earlier Sky Dancer captures work. V35 is the final
- * owner of visual hierarchy: recover useful V31 density, suppress the degraded
- * ridge/cloud stacks, add a fixed-cost metro core, and keep low clouds below the
- * aircraft. No gameplay coordinates or the 300 m flight model are changed.
+ * The earlier implementation built a complete first-pass city, mountains and
+ * clouds, then built this focal composition and hid the first pass every frame.
+ * This class preserves the latest capture-tuned midground while owning only the
+ * final visible hierarchy. Tile crossings now do one bounded rebuild, and
+ * steady-state frames avoid scene searches and bulk allocations. Gameplay
+ * coordinates and the 300 m flight model remain untouched.
  */
 export class SkyDancerV35ReferencePass {
-  private readonly metroRoot = new THREE.Group();
-  private readonly cityLow: THREE.InstancedMesh;
-  private readonly cityMid: THREE.InstancedMesh;
-  private readonly cityHigh: THREE.InstancedMesh;
-  private readonly roads: THREE.InstancedMesh;
-  private readonly river: THREE.InstancedMesh;
-  private readonly mountainRoot = new THREE.Group();
-  private readonly cloudRoot = new THREE.Group();
-  private metroTileX = Number.NaN;
-  private metroTileZ = Number.NaN;
-  private cloudTileX = Number.NaN;
-  private cloudTileZ = Number.NaN;
+  private readonly focusRoot = new THREE.Group();
+  private readonly focusBuildings: THREE.InstancedMesh;
+  private readonly focusStreets: THREE.InstancedMesh;
+  private readonly focusRiver: THREE.InstancedMesh;
+  private readonly frontMountainsFar: THREE.InstancedMesh;
+  private readonly frontMountainsNear: THREE.InstancedMesh;
+  private readonly frontClouds: THREE.InstancedMesh;
+  private readonly instanceDummy = new THREE.Object3D();
+  private readonly cityPalette = [0x96aab3, 0xaebdc2, 0xc8d0d1, 0x879da8, 0xd8dddd, 0xa1b3ba]
+    .map((value) => new THREE.Color(value));
+  private readonly atmosphereColor = new THREE.Color(0x68acd2);
+  private readonly legacyDynamicLayers: THREE.Object3D[];
+  private readonly fields: THREE.Object3D | undefined;
+  private readonly forest: THREE.Object3D | undefined;
+  private readonly settlements: THREE.Object3D | undefined;
+  private readonly towers: THREE.Object3D | undefined;
+  private readonly roads: THREE.Object3D | undefined;
+  private readonly v34Masses: THREE.Object3D | undefined;
+  private focusTileX = Number.NaN;
+  private focusTileZ = Number.NaN;
+  private hierarchyTuned = false;
   private heroTuned = false;
 
   constructor(private readonly runtime: SkyDancerFxRuntime) {
-    this.metroRoot.name = "sky-dancer-v35-reference-metro";
-    this.cityLow = this.makeBuildingMesh("sky-dancer-v35-city-low", 0x93a9b3, MAX_CITY_LOW, 0.72, 0.04);
-    this.cityMid = this.makeBuildingMesh("sky-dancer-v35-city-mid", 0xb3c1c6, MAX_CITY_MID, 0.58, 0.08);
-    this.cityHigh = this.makeBuildingMesh("sky-dancer-v35-city-high", 0xd4dde0, MAX_CITY_HIGH, 0.42, 0.16);
-    this.roads = this.makeRoadMesh();
-    this.river = this.makeRiverMesh();
-    this.metroRoot.add(this.roads, this.river, this.cityLow, this.cityMid, this.cityHigh);
-
-    this.mountainRoot.name = "sky-dancer-v35-angular-mountains";
-    this.mountainRoot.add(
-      this.makeMountainMesh("sky-dancer-v35-mountain-far", 0x668aa0, 34, true),
-      this.makeMountainMesh("sky-dancer-v35-mountain-near", 0x496f82, 30, false),
+    this.focusRoot.name = "sky-dancer-v35-reference-focus-city";
+    this.focusRoot.userData.skyDancerV35LocalCenterZ = FOCUS_CITY_LOCAL_CENTER_Z;
+    this.focusBuildings = this.makeFocusBuildings();
+    this.focusStreets = this.makeFocusStreets();
+    this.focusRiver = this.makeFocusRiver();
+    this.frontMountainsFar = this.makeFrontMountainBelt(
+      "sky-dancer-v35-front-mountains-far",
+      FRONT_MOUNTAIN_FAR_COUNT,
+      true,
     );
-
-    this.cloudRoot.name = "sky-dancer-v35-below-flight-clouds";
-    this.cloudRoot.add(
-      this.makeCloudMesh("sky-dancer-v35-cloud-main", 0xf4f8fa, 44, 0.34, false),
-      this.makeCloudMesh("sky-dancer-v35-cloud-shade", 0xb8d1dc, 44, 0.14, true),
+    this.frontMountainsNear = this.makeFrontMountainBelt(
+      "sky-dancer-v35-front-mountains-near",
+      FRONT_MOUNTAIN_NEAR_COUNT,
+      false,
     );
+    this.frontClouds = this.makeFrontClouds();
+    this.focusRoot.add(
+      this.focusStreets,
+      this.focusRiver,
+      this.focusBuildings,
+      this.frontMountainsFar,
+      this.frontMountainsNear,
+      this.frontClouds,
+    );
+    this.legacyDynamicLayers = LEGACY_DYNAMIC_LAYER_NAMES
+      .map((name) => runtime.scene.getObjectByName(name))
+      .filter((object): object is THREE.Object3D => object !== undefined);
+    this.fields = runtime.scene.getObjectByName("sky-dancer-v31-patchwork-fields");
+    this.forest = runtime.scene.getObjectByName("sky-dancer-v31-forest-belts");
+    this.settlements = runtime.scene.getObjectByName("sky-dancer-v31-settlement-buildings");
+    this.towers = runtime.scene.getObjectByName("sky-dancer-v31-landmark-towers");
+    this.roads = runtime.scene.getObjectByName("sky-dancer-v31-road-network");
+    this.v34Masses = runtime.scene.getObjectByName("sky-dancer-v34-irregular-terrain-masses");
 
-    runtime.scene.add(this.metroRoot, this.mountainRoot, this.cloudRoot);
+    this.hideStaticLegacyLayers();
+    runtime.scene.add(this.focusRoot);
+    runtime.scene.userData.skyDancerV35ReferenceOwner = "single-pass";
     runtime.camera.far = Math.max(runtime.camera.far, 1900);
     runtime.camera.updateProjectionMatrix();
     scheduleSkyDancerV35ReferenceFraming(runtime);
   }
 
   update(snapshot: CartArenaSessionSnapshot): void {
-    this.restoreUsefulWorldDensity();
-    this.suppressRegressedLayers();
-    this.updateMetro(snapshot);
-    this.updateAtmosphereAnchors(snapshot);
+    // V32 restores these own layers in its update, so cached references are
+    // suppressed after V32 without repeated scene traversal.
+    for (const object of this.legacyDynamicLayers) object.visible = false;
+    if (!this.hierarchyTuned) this.tuneFinalHierarchy();
+    this.updateFocusCity(snapshot);
     this.tuneAtmosphere();
     this.tuneHeroAircraft();
   }
 
-  private restoreUsefulWorldDensity(): void {
-    const fields = this.runtime.scene.getObjectByName("sky-dancer-v31-patchwork-fields");
-    if (fields instanceof THREE.InstancedMesh) {
-      fields.visible = true;
-      if (fields.material instanceof THREE.MeshBasicMaterial) {
-        fields.material.transparent = true;
-        fields.material.opacity = 0.67;
-        fields.material.depthWrite = true;
-        fields.material.fog = true;
-        fields.material.needsUpdate = true;
-      }
-    }
-
-    const settlements = this.runtime.scene.getObjectByName("sky-dancer-v31-settlement-buildings");
-    if (settlements instanceof THREE.InstancedMesh) {
-      settlements.visible = true;
-      if (settlements.material instanceof THREE.MeshLambertMaterial) {
-        settlements.material.color.setHex(0xe1ebed);
-        settlements.material.fog = true;
-        settlements.material.needsUpdate = true;
-      }
-    }
-
-    const towers = this.runtime.scene.getObjectByName("sky-dancer-v31-landmark-towers");
-    if (towers instanceof THREE.InstancedMesh) {
-      towers.visible = true;
-      if (towers.material instanceof THREE.MeshStandardMaterial || towers.material instanceof THREE.MeshLambertMaterial) {
-        towers.material.color.setHex(0xc8d8dc);
-        towers.material.fog = true;
-        towers.material.needsUpdate = true;
-      }
-    }
-
-    const roads = this.runtime.scene.getObjectByName("sky-dancer-v31-road-network");
-    if (roads instanceof THREE.InstancedMesh) {
-      roads.visible = true;
-      if (roads.material instanceof THREE.MeshBasicMaterial) {
-        roads.material.color.setHex(0x61787f);
-        roads.material.fog = true;
-        roads.material.needsUpdate = true;
-      }
-    }
+  private hideStaticLegacyLayers(): void {
+    if (this.settlements) this.settlements.visible = false;
+    if (this.towers) this.towers.visible = false;
+    if (this.roads) this.roads.visible = false;
+    if (this.v34Masses) this.v34Masses.visible = false;
   }
 
-  private suppressRegressedLayers(): void {
-    const v34Masses = this.runtime.scene.getObjectByName("sky-dancer-v34-irregular-terrain-masses");
-    if (v34Masses) v34Masses.visible = false;
+  private tuneFinalHierarchy(): void {
+    this.hierarchyTuned = true;
+    this.hideStaticLegacyLayers();
 
-    // The V34 vertical stretch turned the shallow V32 ridges into large rounded
-    // mid-screen masses. V35 owns a new faceted horizon instead.
-    for (const name of [
-      "sky-dancer-v32-polish-ridge-near",
-      "sky-dancer-v32-polish-ridge-far",
-      "sky-dancer-v32-ridge-near",
-      "sky-dancer-v32-ridge-far",
-    ]) {
-      const object = this.runtime.scene.getObjectByName(name);
-      if (object) object.visible = false;
+    if (this.fields instanceof THREE.InstancedMesh && this.fields.material instanceof THREE.MeshBasicMaterial) {
+      this.fields.visible = true;
+      this.fields.material.transparent = true;
+      this.fields.material.opacity = 0.64;
+      this.fields.material.depthWrite = true;
+      this.fields.material.fog = true;
+      this.fields.material.needsUpdate = true;
     }
 
-    // Keep the reference requirement: cloud patches below the flight plane,
-    // never an opaque cloud sea occupying the horizon.
-    for (const name of [
-      "sky-dancer-v32-polish-cloud-main",
-      "sky-dancer-v32-polish-cloud-shade",
-      "sky-dancer-v32-hero-clouds",
-      "sky-dancer-v32-hero-cloud-shade",
-    ]) {
-      const object = this.runtime.scene.getObjectByName(name);
-      if (object) object.visible = false;
-    }
-  }
-
-  private updateMetro(snapshot: CartArenaSessionSnapshot): void {
-    const tileX = Math.floor(snapshot.x / METRO_SNAP);
-    const tileZ = Math.floor(snapshot.z / METRO_SNAP);
-    if (tileX === this.metroTileX && tileZ === this.metroTileZ) return;
-    this.metroTileX = tileX;
-    this.metroTileZ = tileZ;
-    this.metroRoot.position.set(tileX * METRO_SNAP, 0, tileZ * METRO_SNAP);
-    this.rebuildMetro(tileX, tileZ);
-  }
-
-  private rebuildMetro(tileX: number, tileZ: number): void {
-    const dummy = new THREE.Object3D();
-    const lowPalette = [0x91a9b4, 0xa4b6bc, 0x829aa8, 0xb1bec0, 0x7791a0].map((value) => new THREE.Color(value));
-    const midPalette = [0xb8c7ca, 0xc6d0d0, 0xaabac0, 0xd2d9d8, 0x9db0b9].map((value) => new THREE.Color(value));
-    const highPalette = [0xdbe3e4, 0xe7ebea, 0xbccbd0, 0xcfdadd, 0xaec3cc].map((value) => new THREE.Color(value));
-    let lowIndex = 0;
-    let midIndex = 0;
-    let highIndex = 0;
-    let roadIndex = 0;
-    let riverIndex = 0;
-
-    const spacingX = 18;
-    const spacingZ = 18;
-    const cityCenterZ = 84;
-    const seedOffset = Math.floor(hash2(tileX, tileZ, 900) * 1000);
-
-    for (let row = -5; row <= 10; row += 1) {
-      for (let column = -8; column <= 8; column += 1) {
-        const baseX = column * spacingX;
-        const baseZ = row * spacingZ + cityCenterZ;
-        const riverX = 32 + Math.sin((baseZ + seedOffset) * 0.021) * 22;
-        const roadColumn = (column + 8) % 4 === 0;
-        const roadRow = (row + 5) % 4 === 0;
-        if (roadColumn || roadRow || Math.abs(baseX - riverX) < 13) continue;
-
-        const noise = hash2(tileX + column, tileZ + row, 1200 + seedOffset);
-        const centerDistance = Math.hypot(baseX * 0.82, (baseZ - 92) * 0.58);
-        const core = THREE.MathUtils.clamp(1 - centerDistance / 175, 0, 1);
-        const footprintX = 5.2 + hash2(column, row, 1400 + seedOffset) * 5.4;
-        const footprintZ = 5.0 + hash2(column, row, 1600 + seedOffset) * 5.6;
-        const height = 6.5 + noise * 13 + core * (7 + noise * 26);
-        const jitterX = (hash2(column, row, 1800 + seedOffset) - 0.5) * 4.2;
-        const jitterZ = (hash2(row, column, 1900 + seedOffset) - 0.5) * 4.2;
-        dummy.position.set(baseX + jitterX, GROUND_Y + 0.62 + height * 0.5, baseZ + jitterZ);
-        dummy.rotation.set(0, (hash2(column, row, 2000 + seedOffset) - 0.5) * 0.1, 0);
-        dummy.scale.set(footprintX, height, footprintZ);
-
-        if (height > 31 && highIndex < MAX_CITY_HIGH) {
-          highIndex = setInstance(this.cityHigh, highIndex, dummy, highPalette[(row + column + highPalette.length * 8) % highPalette.length]);
-        } else if (height > 17 && midIndex < MAX_CITY_MID) {
-          midIndex = setInstance(this.cityMid, midIndex, dummy, midPalette[(row * 3 + column + midPalette.length * 8) % midPalette.length]);
-        } else if (lowIndex < MAX_CITY_LOW) {
-          lowIndex = setInstance(this.cityLow, lowIndex, dummy, lowPalette[(row * 5 + column + lowPalette.length * 8) % lowPalette.length]);
-        }
-      }
-    }
-
-    // A recognisable skyline landmark, intentionally much taller than the
-    // surrounding grid so the city reads at iPhone scale like the reference.
-    const landmarks = [
-      { x: 66, z: 118, h: 66, w: 7.2 },
-      { x: -58, z: 92, h: 48, w: 6.3 },
-      { x: 8, z: 152, h: 43, w: 6.0 },
-    ];
-    for (const landmark of landmarks) {
-      if (highIndex >= MAX_CITY_HIGH) break;
-      dummy.position.set(landmark.x, GROUND_Y + 0.7 + landmark.h * 0.5, landmark.z);
-      dummy.rotation.set(0, 0.08 * Math.sign(landmark.x), 0);
-      dummy.scale.set(landmark.w, landmark.h, landmark.w * 0.86);
-      highIndex = setInstance(this.cityHigh, highIndex, dummy, new THREE.Color(0xe6edef));
-    }
-
-    // Orthogonal streets provide the visual scale cues that were lost when the
-    // V34 irregular ground masses replaced the patchwork city hierarchy.
-    for (let lane = -8; lane <= 8 && roadIndex < MAX_ROADS; lane += 4) {
-      dummy.position.set(lane * spacingX, GROUND_Y + 0.74, cityCenterZ + 40);
-      dummy.rotation.set(0, 0, 0);
-      dummy.scale.set(3.2, 0.12, 300);
-      roadIndex = setInstance(this.roads, roadIndex, dummy);
-    }
-    for (let lane = -5; lane <= 11 && roadIndex < MAX_ROADS; lane += 4) {
-      dummy.position.set(0, GROUND_Y + 0.76, lane * spacingZ + cityCenterZ);
-      dummy.rotation.set(0, Math.PI / 2, 0);
-      dummy.scale.set(3.0, 0.12, 310);
-      roadIndex = setInstance(this.roads, roadIndex, dummy);
-    }
-
-    const segmentLength = 18;
-    for (let segment = 0; segment < MAX_RIVER; segment += 1) {
-      const z = -84 + segment * segmentLength;
-      const x = 32 + Math.sin((z + seedOffset) * 0.021) * 22;
-      const nextX = 32 + Math.sin((z + segmentLength + seedOffset) * 0.021) * 22;
-      dummy.position.set((x + nextX) * 0.5, GROUND_Y + 0.70, z + segmentLength * 0.5);
-      dummy.rotation.set(0, Math.atan2(nextX - x, segmentLength), 0);
-      dummy.scale.set(20 + hash2(tileX, tileZ, 2400 + segment) * 7, 0.13, segmentLength * 1.08);
-      riverIndex = setInstance(this.river, riverIndex, dummy);
-    }
-
-    this.finish(this.cityLow, lowIndex);
-    this.finish(this.cityMid, midIndex);
-    this.finish(this.cityHigh, highIndex);
-    this.finish(this.roads, roadIndex);
-    this.finish(this.river, riverIndex);
-  }
-
-  private updateAtmosphereAnchors(snapshot: CartArenaSessionSnapshot): void {
-    this.mountainRoot.position.set(snapshot.x, 0, snapshot.z);
-    const cloudTileX = Math.floor(snapshot.x / CLOUD_SNAP);
-    const cloudTileZ = Math.floor(snapshot.z / CLOUD_SNAP);
-    if (cloudTileX !== this.cloudTileX || cloudTileZ !== this.cloudTileZ) {
-      this.cloudTileX = cloudTileX;
-      this.cloudTileZ = cloudTileZ;
-      this.cloudRoot.position.set(cloudTileX * CLOUD_SNAP, 0, cloudTileZ * CLOUD_SNAP);
+    if (this.forest instanceof THREE.InstancedMesh && this.forest.material instanceof THREE.MeshLambertMaterial) {
+      this.forest.visible = true;
+      this.forest.material.transparent = true;
+      this.forest.material.opacity = 0.30;
+      this.forest.material.color.setHex(0x4b7757);
+      this.forest.material.fog = true;
+      this.forest.material.needsUpdate = true;
     }
   }
 
@@ -289,7 +155,9 @@ export class SkyDancerV35ReferencePass {
       fog.near = 620;
       fog.far = 1760;
     }
-    this.runtime.scene.background = new THREE.Color(0x68acd2);
+    if (this.runtime.scene.background !== this.atmosphereColor) {
+      this.runtime.scene.background = this.atmosphereColor;
+    }
   }
 
   private tuneHeroAircraft(): void {
@@ -307,65 +175,160 @@ export class SkyDancerV35ReferencePass {
     });
   }
 
-  private makeBuildingMesh(
-    name: string,
-    color: number,
-    maxCount: number,
-    roughness: number,
-    metalness: number,
-  ): THREE.InstancedMesh {
-    const mesh = new THREE.InstancedMesh(
-      new THREE.BoxGeometry(1, 1, 1),
-      new THREE.MeshStandardMaterial({
-        color,
-        roughness,
-        metalness,
-        flatShading: true,
-        fog: true,
-      }),
-      maxCount,
-    );
-    mesh.name = name;
-    mesh.frustumCulled = false;
-    return mesh;
+  private updateFocusCity(snapshot: CartArenaSessionSnapshot): void {
+    const tileX = Math.floor(snapshot.x / CITY_SNAP);
+    const tileZ = Math.floor(snapshot.z / CITY_SNAP);
+    if (tileX === this.focusTileX && tileZ === this.focusTileZ) return;
+    this.focusTileX = tileX;
+    this.focusTileZ = tileZ;
+
+    // Pass 4 centered at world z≈500 but projected too close to the horizon.
+    // Pass 5 starts the urban fabric around z≈264 and ends around z≈540 so the
+    // lower half of the view contains city scale cues while the skyline remains
+    // near the reference focal point.
+    this.focusRoot.position.set(tileX * CITY_SNAP + 140, 0, tileZ * CITY_SNAP + 240);
+    this.focusRoot.userData.skyDancerV35WorldCenterZ = this.focusRoot.position.z + FOCUS_CITY_LOCAL_CENTER_Z;
+    this.rebuildFocusCity(tileX, tileZ);
   }
 
-  private makeRoadMesh(): THREE.InstancedMesh {
-    const mesh = new THREE.InstancedMesh(
-      new THREE.BoxGeometry(1, 1, 1),
-      new THREE.MeshBasicMaterial({ color: 0x5f737b, fog: true, toneMapped: false }),
-      MAX_ROADS,
-    );
-    mesh.name = "sky-dancer-v35-metro-road-grid";
-    mesh.frustumCulled = false;
-    return mesh;
+  private rebuildFocusCity(tileX: number, tileZ: number): void {
+    const dummy = this.instanceDummy;
+    const palette = this.cityPalette;
+    let buildingIndex = 0;
+    let streetIndex = 0;
+    let riverIndex = 0;
+    const seed = Math.floor(hash2(tileX, tileZ, 400) * 1000);
+    const spacing = 9.2;
+    const startZ = 24;
+
+    for (let row = 0; row < 31; row += 1) {
+      const z = startZ + row * spacing;
+      const riverX = 22 + Math.sin((z + seed) * 0.025) * 17;
+      for (let column = -15; column <= 15 && buildingIndex < MAX_FOCUS_BUILDINGS; column += 1) {
+        const x = column * spacing;
+        const roadColumn = (column + 15) % 5 === 0;
+        const roadRow = row % 5 === 0;
+        if (roadColumn || roadRow || Math.abs(x - riverX) < 7.0) continue;
+
+        const noise = hash2(tileX + column, tileZ + row, 800 + seed);
+        const centerDistance = Math.hypot(x * 0.88, (z - FOCUS_CITY_LOCAL_CENTER_Z) * 0.52);
+        const core = THREE.MathUtils.clamp(1 - centerDistance / 158, 0, 1);
+        const depthGain = THREE.MathUtils.clamp((z - 26) / 118, 0.18, 1);
+        let height = 3.2 + noise * 5.8 + core * depthGain * (7.0 + noise * 22.0);
+        let width = 2.25 + hash2(column, row, 1000 + seed) * 1.95;
+        let depth = 2.25 + hash2(row, column, 1100 + seed) * 2.05;
+
+        const landmark = (row === 14 && column === -5) || (row === 19 && column === 5) || (row === 23 && column === 0);
+        if (landmark) {
+          height = 54 + hash2(column, row, 1200 + seed) * 22;
+          width = 4.9;
+          depth = 4.9;
+        }
+
+        dummy.position.set(
+          x + (hash2(column, row, 1300 + seed) - 0.5) * 1.0,
+          GROUND_Y + 0.72 + height * 0.5,
+          z + (hash2(row, column, 1400 + seed) - 0.5) * 1.0,
+        );
+        dummy.rotation.set(0, (hash2(column, row, 1500 + seed) - 0.5) * 0.04, 0);
+        dummy.scale.set(width, height, depth);
+        dummy.updateMatrix();
+        this.focusBuildings.setMatrixAt(buildingIndex, dummy.matrix);
+        this.focusBuildings.setColorAt(buildingIndex, palette[(row * 3 + column + palette.length * 8) % palette.length]);
+        buildingIndex += 1;
+      }
+    }
+
+    for (let column = -15; column <= 15 && streetIndex < MAX_FOCUS_STREETS; column += 5) {
+      dummy.position.set(column * spacing, GROUND_Y + 0.78, 162);
+      dummy.rotation.set(0, 0, 0);
+      dummy.scale.set(1.08, 0.07, 300);
+      dummy.updateMatrix();
+      this.focusStreets.setMatrixAt(streetIndex++, dummy.matrix);
+    }
+    for (let row = 0; row < 31 && streetIndex < MAX_FOCUS_STREETS; row += 5) {
+      dummy.position.set(0, GROUND_Y + 0.79, startZ + row * spacing);
+      dummy.rotation.set(0, Math.PI / 2, 0);
+      dummy.scale.set(1.02, 0.07, 302);
+      dummy.updateMatrix();
+      this.focusStreets.setMatrixAt(streetIndex++, dummy.matrix);
+    }
+
+    const riverSegmentLength = 13.0;
+    for (let segment = 0; segment < MAX_FOCUS_RIVER; segment += 1) {
+      const z = 17 + segment * riverSegmentLength;
+      const x = 22 + Math.sin((z + seed) * 0.025) * 17;
+      const nextX = 22 + Math.sin((z + riverSegmentLength + seed) * 0.025) * 17;
+      dummy.position.set((x + nextX) * 0.5, GROUND_Y + 0.80, z + riverSegmentLength * 0.5);
+      dummy.rotation.set(0, Math.atan2(nextX - x, riverSegmentLength), 0);
+      dummy.scale.set(9.8 + hash2(tileX, tileZ, 1700 + segment) * 2.8, 0.08, riverSegmentLength * 1.12);
+      dummy.updateMatrix();
+      this.focusRiver.setMatrixAt(riverIndex++, dummy.matrix);
+    }
+
+    this.focusBuildings.count = buildingIndex;
+    this.focusBuildings.instanceMatrix.needsUpdate = true;
+    if (this.focusBuildings.instanceColor) this.focusBuildings.instanceColor.needsUpdate = true;
+    this.focusStreets.count = streetIndex;
+    this.focusStreets.instanceMatrix.needsUpdate = true;
+    this.focusRiver.count = riverIndex;
+    this.focusRiver.instanceMatrix.needsUpdate = true;
   }
 
-  private makeRiverMesh(): THREE.InstancedMesh {
+  private makeFocusBuildings(): THREE.InstancedMesh {
     const mesh = new THREE.InstancedMesh(
       new THREE.BoxGeometry(1, 1, 1),
-      new THREE.MeshStandardMaterial({
-        color: 0x2e9ac3,
-        emissive: 0x0d506d,
-        emissiveIntensity: 0.24,
-        roughness: 0.22,
-        metalness: 0.02,
-        fog: true,
-      }),
-      MAX_RIVER,
-    );
-    mesh.name = "sky-dancer-v35-metro-river";
-    mesh.frustumCulled = false;
-    return mesh;
-  }
-
-  private makeMountainMesh(name: string, color: number, count: number, far: boolean): THREE.InstancedMesh {
-    const mesh = new THREE.InstancedMesh(
-      new THREE.ConeGeometry(1, 1, 6),
       new THREE.MeshBasicMaterial({
-        color,
+        color: 0xffffff,
+        fog: true,
+        toneMapped: false,
+      }),
+      MAX_FOCUS_BUILDINGS,
+    );
+    mesh.name = "sky-dancer-v35-focus-buildings";
+    mesh.frustumCulled = false;
+    return mesh;
+  }
+
+  private makeFocusStreets(): THREE.InstancedMesh {
+    const mesh = new THREE.InstancedMesh(
+      new THREE.BoxGeometry(1, 1, 1),
+      new THREE.MeshBasicMaterial({
+        color: 0x7b8d92,
         transparent: true,
-        opacity: far ? 0.45 : 0.68,
+        opacity: 0.84,
+        fog: true,
+        toneMapped: false,
+      }),
+      MAX_FOCUS_STREETS,
+    );
+    mesh.name = "sky-dancer-v35-focus-streets";
+    mesh.frustumCulled = false;
+    return mesh;
+  }
+
+  private makeFocusRiver(): THREE.InstancedMesh {
+    const mesh = new THREE.InstancedMesh(
+      new THREE.BoxGeometry(1, 1, 1),
+      new THREE.MeshBasicMaterial({
+        color: 0x3e9fc5,
+        fog: true,
+        toneMapped: false,
+      }),
+      MAX_FOCUS_RIVER,
+    );
+    mesh.name = "sky-dancer-v35-focus-river";
+    mesh.frustumCulled = false;
+    return mesh;
+  }
+
+  private makeFrontMountainBelt(name: string, count: number, far: boolean): THREE.InstancedMesh {
+    const mesh = new THREE.InstancedMesh(
+      new THREE.ConeGeometry(1, 1, 5),
+      new THREE.MeshBasicMaterial({
+        color: far ? 0x7190a1 : 0x4f7488,
+        transparent: true,
+        opacity: far ? 0.52 : 0.78,
         depthWrite: false,
         depthTest: true,
         fog: true,
@@ -376,13 +339,15 @@ export class SkyDancerV35ReferencePass {
     mesh.name = name;
     const dummy = new THREE.Object3D();
     for (let index = 0; index < count; index += 1) {
-      const angle = index / count * Math.PI * 2 + Math.sin(index * 2.17) * 0.055;
-      const radius = far ? 820 + (index % 6) * 28 : 590 + (index % 5) * 26;
-      const height = far ? 47 + (index % 7) * 5.2 : 38 + (index % 6) * 5.8;
-      const width = far ? 112 + (index % 5) * 18 : 86 + (index % 5) * 16;
-      dummy.position.set(Math.cos(angle) * radius, GROUND_Y + height * 0.48, Math.sin(angle) * radius);
-      dummy.rotation.set(0, -angle + (index % 3) * 0.08, 0);
-      dummy.scale.set(width, height, width * (0.48 + (index % 3) * 0.08));
+      const x = -540 + index * (1080 / Math.max(1, count - 1));
+      const height = far
+        ? 86 + (index % 6) * 8.0 + Math.sin(index * 1.57) * 5
+        : 108 + (index % 6) * 9.0 + Math.sin(index * 1.79) * 7;
+      const width = far ? 102 + (index % 5) * 15 : 88 + (index % 5) * 14;
+      const z = far ? 485 + (index % 4) * 20 : 405 + (index % 4) * 18;
+      dummy.position.set(x, GROUND_Y + height * 0.49, z);
+      dummy.rotation.set(0, (index % 3 - 1) * 0.10, 0);
+      dummy.scale.set(width, height, width * (far ? 0.58 : 0.52));
       dummy.updateMatrix();
       mesh.setMatrixAt(index, dummy.matrix);
     }
@@ -391,51 +356,36 @@ export class SkyDancerV35ReferencePass {
     return mesh;
   }
 
-  private makeCloudMesh(
-    name: string,
-    color: number,
-    count: number,
-    opacity: number,
-    shade: boolean,
-  ): THREE.InstancedMesh {
+  private makeFrontClouds(): THREE.InstancedMesh {
     const mesh = new THREE.InstancedMesh(
       new THREE.IcosahedronGeometry(1, 1),
       new THREE.MeshBasicMaterial({
-        color,
+        color: 0xf6f9fa,
         transparent: true,
-        opacity,
+        opacity: 0.24,
         depthWrite: false,
         depthTest: true,
         fog: true,
         toneMapped: false,
       }),
-      count,
+      FRONT_CLOUD_COUNT,
     );
-    mesh.name = name;
+    mesh.name = "sky-dancer-v35-front-cloud-patches";
     const dummy = new THREE.Object3D();
-    for (let index = 0; index < count; index += 1) {
-      const angle = index / count * Math.PI * 2 + Math.sin(index * 1.63) * 0.24;
-      const radius = 150 + (index % 9) * 31;
-      const size = 11 + (index % 5) * 2.6;
-      const y = -24 - (index % 4) * 3.1 - (shade ? 1.2 : 0);
-      dummy.position.set(
-        Math.cos(angle) * radius + Math.sin(index * 2.33) * 18,
-        y,
-        Math.sin(angle) * radius + Math.cos(index * 1.91) * 18,
-      );
-      dummy.rotation.set(0.03 * (index % 3), angle, 0.02 * (index % 5));
-      dummy.scale.set(size * 1.65, size * (shade ? 0.20 : 0.28), size * 1.06);
+    for (let index = 0; index < FRONT_CLOUD_COUNT; index += 1) {
+      const side = index % 2 === 0 ? -1 : 1;
+      const lane = Math.floor(index / 2) % 8;
+      const z = 105 + lane * 32 + Math.sin(index * 1.31) * 12;
+      const x = side * (48 + (index % 6) * 27) + Math.cos(index * 1.87) * 12;
+      const size = 12.5 + (index % 5) * 2.1;
+      dummy.position.set(x, -42 - (index % 4) * 1.6, z);
+      dummy.rotation.set(0.02 * (index % 3), index * 0.27, 0.015 * (index % 5));
+      dummy.scale.set(size * 1.74, size * 0.14, size * 1.10);
       dummy.updateMatrix();
       mesh.setMatrixAt(index, dummy.matrix);
     }
     mesh.instanceMatrix.needsUpdate = true;
     mesh.frustumCulled = false;
     return mesh;
-  }
-
-  private finish(mesh: THREE.InstancedMesh, count: number): void {
-    mesh.count = count;
-    mesh.instanceMatrix.needsUpdate = true;
-    if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
   }
 }

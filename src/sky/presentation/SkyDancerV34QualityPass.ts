@@ -27,6 +27,7 @@ function hash2(x: number, z: number, salt = 0): number {
 export class SkyDancerV34QualityPass {
   private readonly skyGradient: THREE.Mesh;
   private readonly terrainPatches: THREE.InstancedMesh;
+  private readonly atmosphereColor = new THREE.Color(0x76b8d8);
   private terrainTileX = Number.NaN;
   private terrainTileZ = Number.NaN;
   private worldTuned = false;
@@ -41,7 +42,7 @@ export class SkyDancerV34QualityPass {
   update(snapshot: CartArenaSessionSnapshot): void {
     this.elapsed += 1 / 60;
     this.skyGradient.position.set(snapshot.x, 0, snapshot.z);
-    this.updateTerrainPatches(snapshot);
+    if (this.terrainPatches.visible) this.updateTerrainPatches(snapshot);
     if (!this.worldTuned) {
       this.worldTuned = true;
       this.tuneGroundHierarchy();
@@ -49,7 +50,9 @@ export class SkyDancerV34QualityPass {
       this.tuneRidgeSilhouettes();
       this.tuneCityDepth();
     }
-    this.enforceAtmosphericDepth();
+    if (this.runtime.scene.userData.skyDancerV35ReferenceOwner !== "single-pass") {
+      this.enforceAtmosphericDepth();
+    }
     this.reduceMissileWarningObstruction();
     this.updateBossIdentity(snapshot);
   }
@@ -248,7 +251,7 @@ export class SkyDancerV34QualityPass {
       fog.near = 500;
       fog.far = 1420;
     }
-    this.runtime.scene.background = new THREE.Color(0x76b8d8);
+    this.runtime.scene.background = this.atmosphereColor;
   }
 
   private reduceMissileWarningObstruction(): void {

@@ -56,7 +56,7 @@ export function scheduleSkyDancerV35ReferenceFraming(runtime: SkyDancerFxRuntime
     const base = inherited.bind(cameraRuntime);
     cameraRuntime.applyCameraPresentation = (snapshot: CartArenaSessionSnapshot) => {
       base(snapshot);
-      cameraRuntime.camera.rotateX(0.085);
+      cameraRuntime.camera.rotateX(0.160);
     };
     cameraRuntime.camera.userData.skyDancerV35ReferenceFraming = true;
   });

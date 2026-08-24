@@ -12,65 +12,75 @@ test("V35 locks the supplied reference image as the graphics quality contract", 
   assert.match(contract, /If V35 visual capture is visibly worse than V32\/V33/);
 });
 
-test("V35 presentation remains composed after V34 and ends in the capture-driven polish owner", () => {
+test("V35 presentation pipeline has one final owner after V34", () => {
   const pipeline = read("../src/sky/presentation/SkyDancerPresentationPipeline.ts");
   assert.match(pipeline, /SkyDancerV35ReferencePass/);
-  assert.match(pipeline, /SkyDancerV35ReferencePolishPass/);
-  assert.match(pipeline, /this\.v34\.update\(snapshot\);\n    this\.v35\.update\(snapshot\);\n    this\.v35Polish\.update\(snapshot\);/);
+  assert.doesNotMatch(pipeline, /SkyDancerV35ReferencePolishPass|v35Polish/);
+  assert.match(pipeline, /this\.v34\.update\(snapshot\);\n    this\.v35\.update\(snapshot\);/);
 });
 
-test("V35 recovers city detail lost by V34 and replaces degraded horizon layers", () => {
+test("V35 single owner spans dense metro river mountains and low clouds through the visible midground", () => {
   const source = read("../src/sky/presentation/SkyDancerV35ReferencePass.ts");
-  assert.match(source, /sky-dancer-v31-patchwork-fields/);
-  assert.match(source, /sky-dancer-v31-settlement-buildings/);
-  assert.match(source, /sky-dancer-v31-landmark-towers/);
-  assert.match(source, /sky-dancer-v34-irregular-terrain-masses/);
-  assert.match(source, /sky-dancer-v35-reference-metro/);
-  assert.match(source, /sky-dancer-v35-metro-river/);
-  assert.match(source, /sky-dancer-v35-angular-mountains/);
-  assert.match(source, /sky-dancer-v35-below-flight-clouds/);
+  assert.match(source, /MAX_FOCUS_BUILDINGS = 500/);
+  assert.match(source, /MAX_FOCUS_RIVER = 24/);
+  assert.match(source, /FRONT_CLOUD_COUNT = 32/);
+  assert.match(source, /sky-dancer-v35-focus-buildings/);
+  assert.match(source, /sky-dancer-v35-focus-streets/);
+  assert.match(source, /sky-dancer-v35-focus-river/);
+  assert.match(source, /sky-dancer-v35-front-mountains-far/);
+  assert.match(source, /sky-dancer-v35-front-mountains-near/);
+  assert.match(source, /sky-dancer-v35-front-cloud-patches/);
+  assert.match(source, /tileZ \* CITY_SNAP \+ 240/);
+  assert.match(source, /FOCUS_CITY_LOCAL_CENTER_Z = 160/);
+  assert.match(source, /depthGain = THREE\.MathUtils\.clamp/);
+  assert.match(source, /dummy\.position\.set\(x, -42/);
   assert.match(source, /fog\.near = 620/);
   assert.match(source, /fog\.far = 1760/);
+  assert.match(source, /skyDancerV35ReferenceOwner = "single-pass"/);
 });
 
-test("V35 focal pass spans dense metro river mountains and low clouds through the visible midground", () => {
-  const polish = read("../src/sky/presentation/SkyDancerV35ReferencePolishPass.ts");
-  assert.match(polish, /MAX_FOCUS_BUILDINGS = 500/);
-  assert.match(polish, /MAX_FOCUS_RIVER = 24/);
-  assert.match(polish, /FRONT_CLOUD_COUNT = 32/);
-  assert.match(polish, /sky-dancer-v35-focus-buildings/);
-  assert.match(polish, /sky-dancer-v35-focus-streets/);
-  assert.match(polish, /sky-dancer-v35-focus-river/);
-  assert.match(polish, /sky-dancer-v35-front-mountains-far/);
-  assert.match(polish, /sky-dancer-v35-front-mountains-near/);
-  assert.match(polish, /sky-dancer-v35-front-cloud-patches/);
-  assert.match(polish, /tileZ \* CITY_SNAP \+ 240/);
-  assert.match(polish, /FOCUS_CITY_LOCAL_CENTER_Z = 160/);
-  assert.match(polish, /depthGain = THREE\.MathUtils\.clamp/);
-  assert.match(polish, /new THREE\.ConeGeometry\(1, 1, 5\)/);
-  assert.match(polish, /dummy\.position\.set\(x, -42/);
-  assert.match(polish, /cameraRuntime\.camera\.rotateX\(0\.075\)/);
+test("V35 removes superseded scene work and reuses rebuild scratch objects", () => {
+  const source = read("../src/sky/presentation/SkyDancerV35ReferencePass.ts");
+  const v34 = read("../src/sky/presentation/SkyDancerV34QualityPass.ts");
+  const rebuild = source.slice(
+    source.indexOf("private rebuildFocusCity"),
+    source.indexOf("private makeFocusBuildings"),
+  );
+
+  assert.doesNotMatch(source, /sky-dancer-v35-city-low|sky-dancer-v35-metro-road-grid|sky-dancer-v35-cloud-main/);
+  assert.match(source, /private readonly instanceDummy = new THREE\.Object3D/);
+  assert.match(source, /private readonly cityPalette =/);
+  assert.match(source, /private readonly legacyDynamicLayers/);
+  assert.doesNotMatch(rebuild, /new THREE\.Object3D|\.map\(\(value\) => new THREE\.Color/);
+  assert.match(v34, /if \(this\.terrainPatches\.visible\) this\.updateTerrainPatches\(snapshot\)/);
+  assert.match(v34, /skyDancerV35ReferenceOwner !== "single-pass"/);
+  assert.match(v34, /private readonly atmosphereColor = new THREE\.Color/);
+  assert.doesNotMatch(v34, /scene\.background = new THREE\.Color/);
 });
 
-test("V35 webdriver audit checks current focal composition and a visible midground corridor", () => {
+test("V35 webdriver audit verifies the visible single-owner midground composition", () => {
   const bridge = read("../src/sky/presentation/SkyDancerV35VisualAuditBridge.ts");
   const audit = read("../scripts/webgl-v35-reference-audit.mjs");
   assert.match(bridge, /sky-dancer-v35-front-cloud-patches/);
   assert.match(bridge, /sky-dancer-v35-front-mountains-far/);
   assert.match(bridge, /sky-dancer-v35-front-mountains-near/);
   assert.match(bridge, /sky-dancer-v35-focus-river/);
+  assert.match(bridge, /singleOwnerInstalled/);
+  assert.doesNotMatch(bridge, /cityLow|firstPassCityVisible|polishFramingInstalled/);
   assert.match(audit, /focusCityCount\) < 440/);
   assert.match(audit, /visible midground corridor/i);
   assert.match(audit, /focalDelta < 150 \|\| focalDelta > 320/);
-  assert.match(audit, /settlementsVisible \|\| visual\.towersVisible/);
+  assert.match(audit, /settlementsVisible \|\| visual\.towersVisible \|\| visual\.roadsVisible/);
+  assert.match(audit, /singleOwnerInstalled/);
 });
 
-test("V35 reference framing lowers the horizon without changing the 300m gameplay model", () => {
+test("V35 uses one equivalent camera decorator without changing the 300m gameplay model", () => {
   const camera = read("../src/sky/presentation/SkyDancerCameraPresentation.ts");
   const pass = read("../src/sky/presentation/SkyDancerV35ReferencePass.ts");
   assert.match(camera, /scheduleSkyDancerV35ReferenceFraming/);
-  assert.match(camera, /cameraRuntime\.camera\.rotateX\(0\.085\)/);
+  assert.match(camera, /cameraRuntime\.camera\.rotateX\(0\.160\)/);
   assert.doesNotMatch(pass, /SKY_DANCER_V29_ALTITUDE_METERS\s*=/);
+  assert.doesNotMatch(pass, /applyCameraPresentation/);
 });
 
 test("V35 HUD follows the reference hierarchy using real existing telemetry", () => {
