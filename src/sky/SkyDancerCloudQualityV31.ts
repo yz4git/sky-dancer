@@ -37,9 +37,9 @@ function rand(seed: number): number {
  * Texture-free V31 cumulus system.
  *
  * Old cloud passes are suppressed by both their known names and a conservative
- * name-based sweep. The replacement uses compact near-spherical lobes at useful
- * middle distance, so real gameplay sees recognizable cumulus without the giant
- * translucent ellipse artifacts from the inherited cloud banks.
+ * name-based sweep. Replacement clusters are distributed evenly around each
+ * flight chunk with slight seeded jitter, guaranteeing useful forward/side cloud
+ * mass instead of occasionally rolling an empty camera hemisphere.
  */
 export class SkyDancerCloudQualityV31 {
   private readonly root = new THREE.Group();
@@ -52,40 +52,40 @@ export class SkyDancerCloudQualityV31 {
     const configs: CloudLayerConfig[] = [
       {
         name: "sky-dancer-v31-low-clouds",
-        clusters: 10,
+        clusters: 12,
         lobes: 10,
-        radiusMin: 260,
-        radiusMax: 520,
+        radiusMin: 250,
+        radiusMax: 500,
         yMin: -38,
-        yMax: -24,
-        sizeMin: 3.6,
-        sizeMax: 6.2,
+        yMax: -23,
+        sizeMin: 4.0,
+        sizeMax: 6.8,
         opacity: 1,
         solid: true,
       },
       {
         name: "sky-dancer-v31-mid-clouds",
-        clusters: 14,
+        clusters: 16,
         lobes: 12,
-        radiusMin: 420,
-        radiusMax: 700,
+        radiusMin: 390,
+        radiusMax: 680,
         yMin: -20,
-        yMax: 2,
-        sizeMin: 4.8,
-        sizeMax: 8.2,
+        yMax: 4,
+        sizeMin: 5.2,
+        sizeMax: 9.2,
         opacity: 0.98,
         solid: true,
       },
       {
         name: "sky-dancer-v31-horizon-clouds",
-        clusters: 18,
+        clusters: 20,
         lobes: 14,
-        radiusMin: 620,
-        radiusMax: 920,
+        radiusMin: 590,
+        radiusMax: 900,
         yMin: -8,
-        yMax: 20,
-        sizeMin: 6.2,
-        sizeMax: 10.8,
+        yMax: 22,
+        sizeMin: 7.0,
+        sizeMax: 12.0,
         opacity: 0.90,
         solid: false,
       },
@@ -129,7 +129,6 @@ export class SkyDancerCloudQualityV31 {
       }
     });
 
-    // The original SkyDancerWebGLDemo cloud deck predates scene naming.
     for (const child of this.runtime.scene.children) {
       if (!(child instanceof THREE.InstancedMesh) || this.layers.includes(child)) continue;
       const material = child.material;
@@ -168,7 +167,8 @@ export class SkyDancerCloudQualityV31 {
 
     for (let cluster = 0; cluster < config.clusters; cluster += 1) {
       const baseSeed = seedOffset + cluster * 97;
-      const angle = rand(baseSeed + 1) * Math.PI * 2;
+      const evenAngle = cluster / config.clusters * Math.PI * 2;
+      const angle = evenAngle + (rand(baseSeed + 1) - 0.5) * 0.22;
       const radius = THREE.MathUtils.lerp(config.radiusMin, config.radiusMax, rand(baseSeed + 2));
       const centerX = Math.cos(angle) * radius;
       const centerZ = Math.sin(angle) * radius;
