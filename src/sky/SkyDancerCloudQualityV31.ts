@@ -37,10 +37,10 @@ function rand(seed: number): number {
 /**
  * Texture-free V31 cumulus system.
  *
- * The previous Lambert cloud lobes could turn into near-black faceted slabs when
- * viewed from below in SwiftShader/mobile WebGL. V31 uses authored per-lobe
- * values on unlit MeshBasic materials instead: silhouette and lobe clustering
- * provide volume while lighting can never collapse the underside to black.
+ * Per-lobe color is carried by InstancedMesh.instanceColor only. The primitive
+ * cloud geometry has no vertex color attribute, so material.vertexColors must
+ * remain disabled or mobile/SwiftShader paths can multiply instance color by a
+ * missing/zero vertex color and render black cloud lobes.
  */
 export class SkyDancerCloudQualityV31 {
   private readonly root = new THREE.Group();
@@ -150,7 +150,7 @@ export class SkyDancerCloudQualityV31 {
     const geometry = new THREE.IcosahedronGeometry(1, 1);
     const material = new THREE.MeshBasicMaterial({
       color: 0xffffff,
-      vertexColors: true,
+      vertexColors: false,
       transparent: !config.solid,
       opacity: config.opacity,
       depthWrite: config.solid,
