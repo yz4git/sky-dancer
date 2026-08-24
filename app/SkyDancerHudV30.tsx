@@ -28,16 +28,22 @@ export default function SkyDancerHudV30() {
 
       for (const element of document.querySelectorAll<HTMLElement>("div")) {
         const text = textOf(element);
-        if (/^GAS\s*\d+%$/i.test(text) && element.querySelector("strong")) {
+        if (/^(?:RAM|BOOST)\s*P\d+\s*SCR\d+$/i.test(text)) {
+          element.dataset.sdItemStrip = "true";
+          continue;
+        }
+
+        // Only tag the outer meter card. Its first child is the meter-head DIV;
+        // the nested head itself also contains the same text and must not become
+        // a second fixed-position HUD card.
+        const firstChild = element.firstElementChild;
+        if (!(firstChild instanceof HTMLDivElement) || !firstChild.querySelector("strong")) continue;
+        if (/^GAS\s*\d+%$/i.test(text)) {
           element.dataset.sdGasCard = "true";
           continue;
         }
-        if (/^TURBO\s*×\d+\s*RECHARGE\b/i.test(text) && element.querySelector("strong")) {
+        if (/^TURBO\s*×\d+\s*RECHARGE\b/i.test(text)) {
           element.dataset.sdTurboCard = "true";
-          continue;
-        }
-        if (/^(?:RAM|BOOST)\s*P\d+\s*SCR\d+$/i.test(text)) {
-          element.dataset.sdItemStrip = "true";
         }
       }
 
