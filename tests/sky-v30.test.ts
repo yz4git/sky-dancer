@@ -57,9 +57,10 @@ test("V30 final grade opens the valley and places one city in the right-front di
   assert.match(source, /sky-dancer-v29-reference-cloud-bank/);
 });
 
-test("V30 consolidates inherited Cart HUD into the flight reference hierarchy", () => {
+test("V30 consolidates inherited Cart HUD into the flight reference hierarchy in both runtimes", () => {
   const hud = readFileSync(new URL("../app/SkyDancerHudV30.tsx", import.meta.url), "utf8");
   const page = readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8");
+  const pagesEntry = readFileSync(new URL("../pages-entry.tsx", import.meta.url), "utf8");
   assert.match(hud, /data-sd-gas-card/);
   assert.match(hud, /data-sd-item-strip/);
   assert.match(hud, /data-sd-hunt-objective/);
@@ -68,6 +69,8 @@ test("V30 consolidates inherited Cart HUD into the flight reference hierarchy", 
   assert.match(hud, /HOLD · RELEASE/);
   assert.match(page, /SkyDancerHudV30/);
   assert.match(page, /<SkyDancerHudV30 \/>/);
+  assert.match(pagesEntry, /SkyDancerHudV30/);
+  assert.match(pagesEntry, /<SkyDancerHudV30 \/>/);
 });
 
 test("V30 is the active Sky Dancer effects entry point", () => {
