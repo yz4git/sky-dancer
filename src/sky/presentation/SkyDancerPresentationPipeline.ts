@@ -5,6 +5,7 @@ import { SkyDancerV31PresentationPass } from "./SkyDancerV31PresentationPass";
 import { SkyDancerV32PresentationPass } from "./SkyDancerV32PresentationPass";
 import { SkyDancerV34QualityPass } from "./SkyDancerV34QualityPass";
 import { SkyDancerV35ReferencePass } from "./SkyDancerV35ReferencePass";
+import { installSkyDancerV35VisualAuditBridge } from "./SkyDancerV35VisualAuditBridge";
 
 /**
  * Stable modern presentation pipeline.
@@ -26,6 +27,7 @@ export class SkyDancerPresentationPipeline {
     this.v32 = new SkyDancerV32PresentationPass(runtime);
     this.v34 = new SkyDancerV34QualityPass(runtime);
     this.v35 = new SkyDancerV35ReferencePass(runtime);
+    installSkyDancerV35VisualAuditBridge(runtime);
   }
 
   update(snapshot: CartArenaSessionSnapshot): void {
