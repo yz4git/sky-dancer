@@ -36,18 +36,10 @@ try {
   const diagnostics = await page.evaluate(() => ({
     bodyText: document.body.innerText.slice(0, 2400),
     canvases: Array.from(document.querySelectorAll("canvas")).map((canvas) => ({
-      ariaLabel: canvas.getAttribute("aria-label"),
-      width: canvas.width,
-      height: canvas.height,
-      display: getComputedStyle(canvas).display,
+      ariaLabel: canvas.getAttribute("aria-label"), width: canvas.width, height: canvas.height, display: getComputedStyle(canvas).display,
     })),
   })).catch(() => ({ bodyText: "", canvases: [] }));
-  const failure = {
-    error: String(error),
-    consoleErrors,
-    pageErrors,
-    diagnostics,
-  };
+  const failure = { error: String(error), consoleErrors, pageErrors, diagnostics };
   await writeFile(`${outputDir}/00-startup-failure.json`, JSON.stringify(failure, null, 2));
   throw new Error(`WebGL canvas unavailable: ${JSON.stringify(failure)}`, { cause: error });
 }
@@ -60,11 +52,7 @@ const webgl = await webglCanvas.evaluate((canvas) => {
   if (!gl) return { ok: false };
   const debug = gl.getExtension("WEBGL_debug_renderer_info");
   return {
-    ok: true,
-    width: canvas.width,
-    height: canvas.height,
-    clientWidth: canvas.clientWidth,
-    clientHeight: canvas.clientHeight,
+    ok: true, width: canvas.width, height: canvas.height, clientWidth: canvas.clientWidth, clientHeight: canvas.clientHeight,
     vendor: debug ? gl.getParameter(debug.UNMASKED_VENDOR_WEBGL) : gl.getParameter(gl.VENDOR),
     renderer: debug ? gl.getParameter(debug.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER),
   };
@@ -110,15 +98,13 @@ if (
 }
 
 const openingFlight = await page.evaluate(() => typeof window.__skyDancerGetFlightDebug === "function" ? window.__skyDancerGetFlightDebug() : null);
+const v31World = await page.evaluate(() => typeof window.__skyDancerGetV31WorldDebug === "function" ? window.__skyDancerGetV31WorldDebug() : null);
 if (!openingFlight) throw new Error("Flight telemetry unavailable at opening");
 if (Math.abs(Number(openingFlight.altitudeMeters) - EXPECTED_ALTITUDE_METERS) > 0.6) throw new Error(`Unexpected flight level: ${JSON.stringify(openingFlight)}`);
 
 await page.screenshot({ path: `${outputDir}/01-gameplay-start.png`, fullPage: true });
 await webglCanvas.screenshot({ path: `${outputDir}/01-gameplay-start-canvas.png` });
 
-// Primary regression #1: a real touch must create a missile flight event. A
-// close target can legitimately be hit in the same simulation step, in which
-// case the missile is already retired and hitSerial is the stronger proof.
 const weaponBefore = await page.evaluate(() => typeof window.__skyDancerGetWeaponState === "function" ? window.__skyDancerGetWeaponState() : null);
 const shotBox = await shot.boundingBox();
 if (!shotBox) throw new Error("Shot button has no touchable bounds");
@@ -140,9 +126,7 @@ if (!weaponAfter120) throw new Error("Weapon telemetry disappeared after launch"
 const sameMissile120 = launched && Array.isArray(weaponAfter120.missiles) ? weaponAfter120.missiles.find((missile) => missile.id === launched.id) : null;
 const missileTravel120 = sameMissile120 && launched ? Math.hypot(sameMissile120.x - launched.x, sameMissile120.z - launched.z) : null;
 const moved120 = launched
-  ? (sameMissile120
-    ? missileTravel120 > 0.2 || sameMissile120.life < launched.life - 0.02
-    : weaponAfter120.hitSerial > weaponImmediatelyAfter.hitSerial)
+  ? (sameMissile120 ? missileTravel120 > 0.2 || sameMissile120.life < launched.life - 0.02 : weaponAfter120.hitSerial > weaponImmediatelyAfter.hitSerial)
   : immediateHit;
 if (!moved120) throw new Error(`Player missile did not advance or hit: launch=${JSON.stringify(launched)} after=${JSON.stringify(weaponAfter120)}`);
 
@@ -151,9 +135,7 @@ const weaponAfter300 = await page.evaluate(() => typeof window.__skyDancerGetWea
 const sameMissile300 = launched && Array.isArray(weaponAfter300?.missiles) ? weaponAfter300.missiles.find((missile) => missile.id === launched.id) : null;
 const missileTravel300 = sameMissile300 && launched ? Math.hypot(sameMissile300.x - launched.x, sameMissile300.z - launched.z) : null;
 const advancedMeaningfully = launched
-  ? (sameMissile300
-    ? missileTravel300 > 1 || sameMissile300.life < launched.life - 0.08
-    : (weaponAfter300?.hitSerial ?? 0) > weaponImmediatelyAfter.hitSerial)
+  ? (sameMissile300 ? missileTravel300 > 1 || sameMissile300.life < launched.life - 0.08 : (weaponAfter300?.hitSerial ?? 0) > weaponImmediatelyAfter.hitSerial)
   : immediateHit;
 if (!advancedMeaningfully) throw new Error(`Player missile did not achieve visible flight or an immediate hit: launch=${JSON.stringify(launched)} after300=${JSON.stringify(weaponAfter300)}`);
 
@@ -165,9 +147,6 @@ await webglCanvas.screenshot({ path: `${outputDir}/03-banked-turn-canvas.png` })
 await page.keyboard.up("ArrowRight");
 await page.waitForTimeout(320);
 
-// Primary regression #2: holding Turbo must not apply a Sky Dancer speed floor,
-// brake, clamp, or acceleration override. Normal throttle may still change speed.
-// The acceleration event belongs to the release dash, exactly as in Cart Rogue.
 const turboBefore = await page.evaluate(() => typeof window.__skyDancerGetFlightDebug === "function" ? window.__skyDancerGetFlightDebug() : null);
 await page.keyboard.down("Space");
 await page.waitForTimeout(850);
@@ -192,9 +171,6 @@ if (duringForward > 3 && releasedForward < duringForward + 1.2) {
 await page.screenshot({ path: `${outputDir}/05-turbo-release.png`, fullPage: true });
 await webglCanvas.screenshot({ path: `${outputDir}/05-turbo-release-canvas.png` });
 
-// Secondary opening spacing is checked after SHOT/Turbo so it can never hide
-// those primary regressions from the audit output. The generated opening is
-// allowed a small SwiftShader sampling tolerance around the 14 m design floor.
 if (openingFlight.minEnemyDistance != null && Number(openingFlight.minEnemyDistance) < 13.5) {
   throw new Error(`Opening fighter spawned too close: ${JSON.stringify(openingFlight)}`);
 }
@@ -224,7 +200,7 @@ if (legacyVisible.length) throw new Error(`Legacy vehicle HUD text still visible
 
 const diagnostics = {
   capturedAt: new Date().toISOString(), url: page.url(), viewport: page.viewportSize(), webgl, controlState,
-  openingFlight, weaponBefore, weaponImmediatelyAfter, immediateHit, weaponAfter120, weaponAfter300,
+  openingFlight, v31World, weaponBefore, weaponImmediatelyAfter, immediateHit, weaponAfter120, weaponAfter300,
   missileTravel120, missileTravel300,
   turnFlight, turboBefore, turboDuring, turboAfterRelease,
   combatWeaponBefore, combatWeaponAfter, combatFlight,
