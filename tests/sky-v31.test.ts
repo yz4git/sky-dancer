@@ -18,32 +18,37 @@ test("V31 activates the ground density and cloud quality pass", () => {
 test("V31 ground density uses a deterministic 5x5 instanced neighborhood", () => {
   const source = readFileSync(new URL("../src/sky/SkyDancerGroundDensityV31.ts", import.meta.url), "utf8");
   assert.match(source, /TILE_RADIUS = 2/);
+  assert.match(source, /sky-dancer-v31-patchwork-fields/);
   assert.match(source, /sky-dancer-v31-settlement-buildings/);
   assert.match(source, /sky-dancer-v31-forest-belts/);
   assert.match(source, /sky-dancer-v31-road-network/);
   assert.match(source, /sky-dancer-v31-landmark-towers/);
+  assert.match(source, /fieldCount = 6/);
   assert.match(source, /InstancedMesh/);
   assert.match(source, /transparent: false/);
   assert.match(source, /depthWrite: true/);
   assert.match(source, /function pick/);
 });
 
-test("V31 amplifies ground readability without adding draw-call-heavy duplicate districts", () => {
+test("V31 keeps district scale authored in one place and only tunes atmosphere in the readability pass", () => {
   const source = readFileSync(new URL("../src/sky/SkyDancerGroundReadabilityV31.ts", import.meta.url), "utf8");
-  assert.match(source, /buildings\.geometry\.scale\(1\.48, 1\.95, 1\.48\)/);
-  assert.match(source, /roads\.geometry\.scale\(1\.65, 1, 1\)/);
-  assert.match(source, /Fog\(0x4c98ba, 780, 1810\)/);
+  assert.match(source, /sky-dancer-v31-patchwork-fields/);
+  assert.doesNotMatch(source, /geometry\.scale/);
+  assert.match(source, /Fog\(0x5da4be, 690, 1760\)/);
 });
 
-test("V31 replaces low-poly legacy clouds with compact three-layer cumulus clusters", () => {
+test("V31 replaces legacy clouds with sparse distant three-layer cumulus clusters", () => {
   const source = readFileSync(new URL("../src/sky/SkyDancerCloudQualityV31.ts", import.meta.url), "utf8");
   assert.match(source, /sky-dancer-v31-low-clouds/);
   assert.match(source, /sky-dancer-v31-mid-clouds/);
   assert.match(source, /sky-dancer-v31-horizon-clouds/);
   assert.match(source, /IcosahedronGeometry\(1, 1\)/);
-  assert.match(source, /clusters: 22/);
+  assert.match(source, /clusters: 8/);
+  assert.match(source, /radiusMin: 500/);
+  assert.match(source, /radiusMin: 820/);
   assert.match(source, /solid: true/);
   assert.match(source, /depthWrite: config\.solid/);
+  assert.match(source, /name\.includes\("cloud"\)/);
   assert.match(source, /DodecahedronGeometry/);
 });
 
