@@ -11,6 +11,7 @@ on:
       - "scripts/webgl-visual-audit.mjs"
       - "scripts/webgl-boss-audit.mjs"
       - "scripts/webgl-turbo-isolation-audit.mjs"
+      - "scripts/webgl-v35-reference-audit.mjs"
       - "tests/**"
       - "package.json"
       - ".github/workflows/webgl-audit.yml"
@@ -23,6 +24,7 @@ on:
       - "scripts/webgl-visual-audit.mjs"
       - "scripts/webgl-boss-audit.mjs"
       - "scripts/webgl-turbo-isolation-audit.mjs"
+      - "scripts/webgl-v35-reference-audit.mjs"
       - "tests/**"
       - "package.json"
       - ".github/workflows/webgl-audit.yml"
@@ -73,6 +75,9 @@ jobs:
 
       - name: Capture real WebGL frames
         run: node scripts/webgl-visual-audit.mjs
+
+      - name: Validate V35 reference composition
+        run: node scripts/webgl-v35-reference-audit.mjs
 
       - name: Playcheck V34 boss encounter
         run: node scripts/webgl-boss-audit.mjs
