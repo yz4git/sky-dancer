@@ -68,6 +68,7 @@ export class SkyDancerGroundReadabilityV31 {
     if (this.prepared) return;
     const scene = this.runtime.scene;
     const foundation = scene.getObjectByName("sky-dancer-v30-ground-foundation");
+    const legacyFields = scene.getObjectByName("sky-dancer-v30-patchwork-fields");
     const fields = scene.getObjectByName("sky-dancer-v31-patchwork-fields");
     const buildings = scene.getObjectByName("sky-dancer-v31-settlement-buildings");
     const trees = scene.getObjectByName("sky-dancer-v31-forest-belts");
@@ -75,7 +76,6 @@ export class SkyDancerGroundReadabilityV31 {
     const towers = scene.getObjectByName("sky-dancer-v31-landmark-towers");
     const skyline = scene.getObjectByName("sky-dancer-v29-reference-skyline");
     if (!(foundation instanceof THREE.Mesh)
-      || !(foundation.material instanceof THREE.MeshLambertMaterial)
       || !(fields instanceof THREE.InstancedMesh)
       || !(buildings instanceof THREE.InstancedMesh)
       || !(trees instanceof THREE.InstancedMesh)
@@ -83,13 +83,23 @@ export class SkyDancerGroundReadabilityV31 {
       || !(towers instanceof THREE.InstancedMesh)
       || !skyline) return;
 
-    foundation.material.fog = false;
-    foundation.material.transparent = false;
-    foundation.material.depthWrite = true;
-    foundation.material.color.setHex(0xffffff);
-    foundation.material.emissive.setHex(0x0a1e10);
-    foundation.material.emissiveIntensity = 0.12;
-    foundation.material.needsUpdate = true;
+    // V30's field overlay used an older instancing/color path and sits above the
+    // V31 macro landscape. The V31 7x7 fields fully replace it; leaving both
+    // visible can produce black slabs on SwiftShader/mobile GPUs.
+    if (legacyFields) {
+      legacyFields.visible = false;
+      legacyFields.userData.skyDancerV31SupersededFieldLayer = true;
+    }
+
+    if (foundation.material instanceof THREE.MeshLambertMaterial) {
+      foundation.material.fog = false;
+      foundation.material.transparent = false;
+      foundation.material.depthWrite = true;
+      foundation.material.color.setHex(0xffffff);
+      foundation.material.emissive.setHex(0x0a1e10);
+      foundation.material.emissiveIntensity = 0.12;
+      foundation.material.needsUpdate = true;
+    }
 
     skyline.position.set(-18, 0, 336);
     skyline.scale.setScalar(0.64);
