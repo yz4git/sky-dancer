@@ -15,9 +15,9 @@ test("V31 activates the ground density and cloud quality pass", () => {
   assert.match(source, /cloudQuality\.update\(snapshot\)/);
 });
 
-test("V31 ground density uses a deterministic 5x5 instanced neighborhood", () => {
+test("V31 ground density uses a deterministic 7x7 instanced neighborhood", () => {
   const source = readFileSync(new URL("../src/sky/SkyDancerGroundDensityV31.ts", import.meta.url), "utf8");
-  assert.match(source, /TILE_RADIUS = 2/);
+  assert.match(source, /TILE_RADIUS = 3/);
   assert.match(source, /sky-dancer-v31-patchwork-fields/);
   assert.match(source, /sky-dancer-v31-settlement-buildings/);
   assert.match(source, /sky-dancer-v31-forest-belts/);
@@ -39,15 +39,16 @@ test("V31 keeps district scale authored in one place and balances the legacy sky
   assert.match(source, /Fog\(0x5b9fb9, 760, 1780\)/);
 });
 
-test("V31 replaces legacy clouds with visible compact three-layer cumulus clusters", () => {
+test("V31 replaces legacy clouds with evenly distributed compact cumulus clusters", () => {
   const source = readFileSync(new URL("../src/sky/SkyDancerCloudQualityV31.ts", import.meta.url), "utf8");
   assert.match(source, /sky-dancer-v31-low-clouds/);
   assert.match(source, /sky-dancer-v31-mid-clouds/);
   assert.match(source, /sky-dancer-v31-horizon-clouds/);
   assert.match(source, /IcosahedronGeometry\(1, 1\)/);
-  assert.match(source, /clusters: 10/);
-  assert.match(source, /radiusMin: 260/);
-  assert.match(source, /radiusMin: 620/);
+  assert.match(source, /clusters: 12/);
+  assert.match(source, /radiusMin: 250/);
+  assert.match(source, /radiusMin: 590/);
+  assert.match(source, /evenAngle = cluster \/ config\.clusters/);
   assert.match(source, /solid: true/);
   assert.match(source, /depthWrite: config\.solid/);
   assert.match(source, /name\.includes\("cloud"\)/);
@@ -58,7 +59,19 @@ test("V31 tilts only the final camera view downward for more landscape", () => {
   const source = readFileSync(new URL("../src/sky/SkyDancerAirCombatFxV31.ts", import.meta.url), "utf8");
   assert.match(source, /queueMicrotask/);
   assert.match(source, /applyCameraPresentation/);
-  assert.match(source, /camera\.rotateX\(-0\.14\)/);
+  assert.match(source, /camera\.rotateX\(-0\.20\)/);
+});
+
+test("V31 preserves green land by replacing the full-screen V30 blue grade in both runtimes", () => {
+  const grade = readFileSync(new URL("../app/SkyDancerColorGradeV31.tsx", import.meta.url), "utf8");
+  const app = readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8");
+  const pages = readFileSync(new URL("../pages-entry.tsx", import.meta.url), "utf8");
+  assert.match(grade, /rgba\(0, 0, 0, 0\) 61%/);
+  assert.match(grade, /mix-blend-mode: multiply/);
+  assert.match(app, /SkyDancerColorGradeV31/);
+  assert.doesNotMatch(app, /SkyDancerColorGradeV30/);
+  assert.match(pages, /SkyDancerColorGradeV31/);
+  assert.doesNotMatch(pages, /SkyDancerColorGradeV30/);
 });
 
 test("V31 removes world-space boss HP obstruction and moves boss HUD off center", () => {
