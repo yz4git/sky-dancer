@@ -33,7 +33,7 @@ test("V35 recovers city detail lost by V34 and replaces degraded horizon layers"
   assert.match(source, /fog\.far = 1760/);
 });
 
-test("V35 focal pass places dense metro river mountains and low clouds in the opening camera corridor", () => {
+test("V35 focal pass spans dense metro river mountains and low clouds through the visible midground", () => {
   const polish = read("../src/sky/presentation/SkyDancerV35ReferencePolishPass.ts");
   assert.match(polish, /MAX_FOCUS_BUILDINGS = 500/);
   assert.match(polish, /MAX_FOCUS_RIVER = 24/);
@@ -44,14 +44,15 @@ test("V35 focal pass places dense metro river mountains and low clouds in the op
   assert.match(polish, /sky-dancer-v35-front-mountains-far/);
   assert.match(polish, /sky-dancer-v35-front-mountains-near/);
   assert.match(polish, /sky-dancer-v35-front-cloud-patches/);
-  assert.match(polish, /tileZ \* CITY_SNAP \+ 340/);
+  assert.match(polish, /tileZ \* CITY_SNAP \+ 240/);
   assert.match(polish, /FOCUS_CITY_LOCAL_CENTER_Z = 160/);
+  assert.match(polish, /depthGain = THREE\.MathUtils\.clamp/);
   assert.match(polish, /new THREE\.ConeGeometry\(1, 1, 5\)/);
-  assert.match(polish, /dummy\.position\.set\(x, -38/);
+  assert.match(polish, /dummy\.position\.set\(x, -42/);
   assert.match(polish, /cameraRuntime\.camera\.rotateX\(0\.075\)/);
 });
 
-test("V35 webdriver audit checks visible focal composition rather than stale pass names", () => {
+test("V35 webdriver audit checks current focal composition and a visible midground corridor", () => {
   const bridge = read("../src/sky/presentation/SkyDancerV35VisualAuditBridge.ts");
   const audit = read("../scripts/webgl-v35-reference-audit.mjs");
   assert.match(bridge, /sky-dancer-v35-front-cloud-patches/);
@@ -59,7 +60,8 @@ test("V35 webdriver audit checks visible focal composition rather than stale pas
   assert.match(bridge, /sky-dancer-v35-front-mountains-near/);
   assert.match(bridge, /sky-dancer-v35-focus-river/);
   assert.match(audit, /focusCityCount\) < 440/);
-  assert.match(audit, /focal metro is outside the opening camera corridor/i);
+  assert.match(audit, /visible midground corridor/i);
+  assert.match(audit, /focalDelta < 150 \|\| focalDelta > 320/);
   assert.match(audit, /settlementsVisible \|\| visual\.towersVisible/);
 });
 
