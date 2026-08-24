@@ -15,7 +15,7 @@ test("V32 activates the reference quality pass on top of V31 without colliding w
   assert.doesNotMatch(source, /private readonly referenceWorld:/);
 });
 
-test("V32 removes close blob hills and composes shallow ridges plus clustered cities", () => {
+test("V32 first pass removes close blob hills and composes shallow ridges plus clustered cities", () => {
   const source = readFileSync(new URL("../src/sky/SkyDancerReferenceWorldV32.ts", import.meta.url), "utf8");
   assert.match(source, /sky-dancer-v30-mountain-belt/);
   assert.match(source, /sky-dancer-v31-settlement-buildings/);
@@ -29,7 +29,7 @@ test("V32 removes close blob hills and composes shallow ridges plus clustered ci
   assert.match(source, /height = 68/);
 });
 
-test("V32 builds compact multi-lobe cumulus banks and a dedicated blue sky dome", () => {
+test("V32 first pass builds compact multi-lobe cumulus banks and a dedicated blue sky dome", () => {
   const source = readFileSync(new URL("../src/sky/SkyDancerReferenceWorldV32.ts", import.meta.url), "utf8");
   assert.match(source, /sky-dancer-v32-hero-clouds/);
   assert.match(source, /sky-dancer-v32-hero-cloud-shade/);
@@ -49,20 +49,20 @@ test("V32 final polish replaces first-pass ridges cities and clouds with distant
   assert.match(source, /sky-dancer-v32-polish-ridge-far/);
   assert.match(source, /IcosahedronGeometry\(1, 1\)/);
   assert.match(source, /sky-dancer-v32-polish-city-high/);
-  assert.match(source, /cx = 365/);
-  assert.match(source, /radius = 420/);
+  assert.match(source, /\{ x: -315, z: 485, count: 48, hero: true \}/);
   assert.match(source, /sky-dancer-v32-polish-cloud-main/);
-  assert.match(source, /clusters = 5/);
-  assert.match(source, /lobes = 18/);
-  assert.match(source, /sky-dancer-v32-ridge-near/);
+  assert.match(source, /angle: -0\.72, radius: 430/);
+  assert.match(source, /sky-dancer-v25-horizon-cloud-banks/);
+  assert.match(source, /sky-dancer-v29-reference-cloud-bank/);
   assert.match(source, /object\.visible = false/);
+  assert.match(source, /Number\.isFinite\(snapshot\.x\)/);
 });
 
 test("V32 increases hero aircraft presence without changing gameplay collision", () => {
   const source = readFileSync(new URL("../src/sky/SkyDancerReferenceWorldV32.ts", import.meta.url), "utf8");
   const polish = readFileSync(new URL("../src/sky/SkyDancerReferencePolishV32.ts", import.meta.url), "utf8");
   assert.match(source, /player\.scale\.multiplyScalar\(1\.32\)/);
-  assert.match(polish, /player\.scale\.multiplyScalar\(1\.28\)/);
+  assert.match(polish, /player\.scale\.multiplyScalar\(1\.38\)/);
   assert.match(source, /sky-dancer-v32-player-detail/);
   assert.match(source, /CylinderGeometry\(0\.29, 0\.34, 0\.98, 8\)/);
   assert.match(source, /TorusGeometry\(0\.24, 0\.045, 5, 10\)/);
@@ -82,6 +82,7 @@ test("V32 HUD polish is mounted in app and static pages runtimes", () => {
   const pages = readFileSync(new URL("../pages-entry.tsx", import.meta.url), "utf8");
   assert.match(hud, /data-sd-gas-card/);
   assert.match(hud, /data-sd-turbo-card/);
+  assert.match(hud, /left: max\(18px, env\(safe-area-inset-left\)\)/);
   assert.match(hud, /Fire missile/);
   assert.match(app, /SkyDancerHudV32/);
   assert.match(pages, /SkyDancerHudV32/);
