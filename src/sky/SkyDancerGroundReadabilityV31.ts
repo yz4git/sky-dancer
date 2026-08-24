@@ -2,6 +2,29 @@ import * as THREE from "three";
 
 interface GroundReadabilityRuntime {
   scene: THREE.Scene;
+  camera: THREE.PerspectiveCamera;
+}
+
+type SceneLayerDebug = {
+  name: string;
+  type: string;
+  geometry: string | null;
+  material: string | null;
+  color: number | null;
+  worldY: number;
+  transparent: boolean | null;
+  opacity: number | null;
+  depthWrite: boolean | null;
+  fog: boolean | null;
+  renderOrder: number;
+};
+
+interface V31DebugHost extends Window {
+  __skyDancerGetV31WorldDebug?: () => {
+    camera: { x: number; y: number; z: number; dx: number; dy: number; dz: number };
+    centerGroundHit: { x: number; y: number; z: number; t: number } | null;
+    layers: SceneLayerDebug[];
+  };
 }
 
 /**
@@ -36,9 +59,6 @@ export class SkyDancerGroundReadabilityV31 {
       || !(towers instanceof THREE.InstancedMesh)
       || !skyline) return;
 
-    // The V30 foundation is the safety layer that eliminated black/transparent
-    // ground gaps. Keep it opaque and depth-writing, but remove fog from that
-    // material so its authored green vertex colours survive the 300 m view.
     foundation.material.fog = false;
     foundation.material.transparent = false;
     foundation.material.depthWrite = true;
@@ -49,11 +69,64 @@ export class SkyDancerGroundReadabilityV31 {
 
     skyline.position.set(-18, 0, 336);
     skyline.scale.setScalar(0.64);
-
-    // Atmosphere begins beyond the useful ground-detail range. Mountains and
-    // horizon clouds still fade with distance, while fields and settlements are
-    // explicitly fog-free and remain legible like the supplied arcade reference.
     scene.fog = new THREE.Fog(0x6ba8be, 900, 1920);
+    this.exposeDebug();
     this.prepared = true;
+  }
+
+  private exposeDebug(): void {
+    if (typeof window === "undefined") return;
+    const host = window as V31DebugHost;
+    host.__skyDancerGetV31WorldDebug = () => {
+      const camera = this.runtime.camera;
+      const direction = new THREE.Vector3();
+      camera.getWorldDirection(direction);
+      const groundY = -66.33;
+      const t = Math.abs(direction.y) > 1e-5 ? (groundY - camera.position.y) / direction.y : Number.NaN;
+      const centerGroundHit = Number.isFinite(t) && t > 0
+        ? {
+            x: camera.position.x + direction.x * t,
+            y: groundY,
+            z: camera.position.z + direction.z * t,
+            t,
+          }
+        : null;
+
+      const world = new THREE.Vector3();
+      const layers: SceneLayerDebug[] = [];
+      this.runtime.scene.traverse((object) => {
+        if (!object.visible || (!(object instanceof THREE.Mesh) && !(object instanceof THREE.InstancedMesh))) return;
+        const name = object.name.toLowerCase();
+        if (!name.includes("ground") && !name.includes("terrain") && !name.includes("field") && !name.includes("lake") && !name.includes("river") && !name.includes("landscape")) return;
+        object.getWorldPosition(world);
+        const material = Array.isArray(object.material) ? object.material[0] : object.material;
+        const color = material && "color" in material && material.color instanceof THREE.Color ? material.color.getHex() : null;
+        layers.push({
+          name: object.name || "(unnamed)",
+          type: object.type,
+          geometry: object.geometry?.type ?? null,
+          material: material?.type ?? null,
+          color,
+          worldY: Number(world.y.toFixed(3)),
+          transparent: material ? material.transparent : null,
+          opacity: material ? material.opacity : null,
+          depthWrite: material ? material.depthWrite : null,
+          fog: material && "fog" in material ? Boolean((material as THREE.Material & { fog?: boolean }).fog) : null,
+          renderOrder: object.renderOrder,
+        });
+      });
+      return {
+        camera: {
+          x: Number(camera.position.x.toFixed(3)),
+          y: Number(camera.position.y.toFixed(3)),
+          z: Number(camera.position.z.toFixed(3)),
+          dx: Number(direction.x.toFixed(4)),
+          dy: Number(direction.y.toFixed(4)),
+          dz: Number(direction.z.toFixed(4)),
+        },
+        centerGroundHit,
+        layers,
+      };
+    };
   }
 }
