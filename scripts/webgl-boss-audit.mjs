@@ -41,31 +41,41 @@ if (!phaseHudVisible) throw new Error("V34 boss phase HUD is not visible");
 await page.screenshot({ path: `${outputDir}/07-boss-phase1.png`, fullPage: true });
 await canvas.screenshot({ path: `${outputDir}/07-boss-phase1-canvas.png` });
 
-// Let the encounter play long enough to cover orbit -> attack run -> break/core-open.
+// SwiftShader can execute fewer fixed simulation steps than wall-clock time.
+// Observe the actual director state instead of assuming 8.5 wall-clock seconds
+// always advances the 60 Hz combat clock through the complete phase-1 cycle.
 const samples = [];
-for (let index = 0; index < 85; index += 1) {
+const modes = new Set();
+let coreOpenObserved = false;
+for (let index = 0; index < 180; index += 1) {
   await page.waitForTimeout(100);
   const sample = await page.evaluate(() => typeof window.__skyDancerGetBossQualityV34 === "function" ? window.__skyDancerGetBossQualityV34() : null);
-  if (sample?.active) samples.push(sample);
+  if (sample?.active) {
+    samples.push(sample);
+    modes.add(sample.mode);
+    coreOpenObserved ||= Boolean(sample.coreOpen);
+  }
+  if (modes.has("orbit") && modes.has("strike") && modes.has("break") && coreOpenObserved && samples.length >= 30) break;
 }
-const modes = new Set(samples.map((sample) => sample.mode));
-if (!modes.has("orbit") || !modes.has("strike") || !modes.has("break")) {
-  throw new Error(`Boss did not execute a full attack cadence: ${JSON.stringify([...modes])}`);
-}
-if (!samples.some((sample) => sample.coreOpen)) throw new Error("Boss recovery never exposed the V34 core");
 const finalBoss = samples.at(-1) ?? boss;
 await page.screenshot({ path: `${outputDir}/08-boss-cadence.png`, fullPage: true });
+await canvas.screenshot({ path: `${outputDir}/08-boss-cadence-canvas.png` });
 
 const diagnostics = {
   initialBoss: boss,
   finalBoss,
   observedModes: [...modes],
-  coreOpenObserved: samples.some((sample) => sample.coreOpen),
+  coreOpenObserved,
   phaseHudVisible,
   sampleCount: samples.length,
   consoleErrors,
   pageErrors,
 };
 await writeFile(`${outputDir}/boss-diagnostics.json`, JSON.stringify(diagnostics, null, 2));
+
+if (!modes.has("orbit") || !modes.has("strike") || !modes.has("break")) {
+  throw new Error(`Boss did not execute a full attack cadence: ${JSON.stringify(diagnostics)}`);
+}
+if (!coreOpenObserved) throw new Error(`Boss recovery never exposed the V34 core: ${JSON.stringify(diagnostics)}`);
 if (pageErrors.length) throw new Error(`Page errors during boss audit: ${pageErrors.join(" | ")}`);
 await browser.close();
