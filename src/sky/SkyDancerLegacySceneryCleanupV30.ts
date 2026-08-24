@@ -24,6 +24,7 @@ const LEGACY_PREFIXES = [
   "sky-dancer-q14-",
   "sky-dancer-q15-",
   "sky-dancer-q16-",
+  "phase46-ground-",
 ] as const;
 
 const SCENERY_WORDS = [
@@ -40,12 +41,14 @@ function isLegacySceneryRoot(object: THREE.Object3D): boolean {
 }
 
 /**
- * V12-V19 accumulated several complete low-altitude worlds. They were useful
- * while Sky Dancer was being prototyped, but at the final 300 m flight level
- * they create duplicate cities, asphalt slabs and depth conflicts. Keep combat
- * FX from those passes, but suppress only their scenery roots. Nested explicit
- * roots are handled separately so V30 can own the final opaque fields and the
- * farther, cleaner V29 reference skyline.
+ * V12-V19 plus inherited Cart presentation phases accumulated complete
+ * low-altitude worlds. At the final 300 m flight level they can sit tens of
+ * render units above the actual V30/V31 terrain and completely occlude it.
+ *
+ * V30 originally inspected only top-level scene children. V31 extends that
+ * policy through the full scene graph because several Cart layers (notably the
+ * phase46 ground sheets) are nested. Combat FX are untouched; only objects whose
+ * names explicitly match known scenery prefixes/words are suppressed.
  */
 export class SkyDancerLegacySceneryCleanupV30 {
   private readonly runtime: LegacySceneryRuntime;
@@ -63,11 +66,12 @@ export class SkyDancerLegacySceneryCleanupV30 {
       this.hiddenCount += 1;
     }
 
-    for (const object of this.runtime.scene.children) {
-      if (!object.visible || !isLegacySceneryRoot(object)) continue;
+    this.runtime.scene.traverse((object) => {
+      if (object === this.runtime.scene || !object.visible || !isLegacySceneryRoot(object)) return;
       object.visible = false;
+      object.userData.skyDancerLegacySceneryHidden = true;
       this.hiddenCount += 1;
-    }
+    });
   }
 
   getHiddenCount(): number {

@@ -1,19 +1,17 @@
-// V30 keeps the V21-V29 gameplay/FX chain but moves final world composition
-// into a dedicated presentation controller with one opaque high-altitude ground.
-// The quality chain remains inherited through:
-// SkyDancerAirCombatFxV21 -> SkyDancerAirCombatFxV22 -> SkyDancerAirCombatFxV23
-// -> SkyDancerAirCombatFxV24 -> SkyDancerAirCombatFxV25 -> SkyDancerAirCombatFxV26
-// -> SkyDancerAirCombatFxV27 -> SkyDancerAirCombatFxV28 -> SkyDancerAirCombatFxV29
-// -> SkyDancerAirCombatFxV30.
-// Historical regression markers for the same inherited chain:
+// V31 keeps the full V21-V30 gameplay/FX chain and adds mobile-safe ground
+// density plus layered cluster clouds after V30's ground-integrity pass.
+// Historical regression markers for the inherited chain:
 // SkyDancerAirCombatFxV21 remains in the inheritance chain
-// V23 remains in the inheritance chain
-// V24 remains in the inheritance chain
+// SkyDancerAirCombatFxV22 remains in the inheritance chain
+// SkyDancerAirCombatFxV23 remains in the inheritance chain
+// SkyDancerAirCombatFxV24 remains in the inheritance chain
+// SkyDancerAirCombatFxV25 remains in the inheritance chain
 // SkyDancerAirCombatFxV26 as SkyDancerAirCombatFx
 // SkyDancerAirCombatFxV27 as SkyDancerAirCombatFx
 // SkyDancerAirCombatFxV28 as SkyDancerAirCombatFx
 // SkyDancerAirCombatFxV29 as SkyDancerAirCombatFx
+// SkyDancerAirCombatFxV30 as SkyDancerAirCombatFx
 export {
-  SkyDancerAirCombatFxV30 as SkyDancerAirCombatFx,
-} from "./SkyDancerAirCombatFxV30";
+  SkyDancerAirCombatFxV31 as SkyDancerAirCombatFx,
+} from "./SkyDancerAirCombatFxV31";
 export type { SkyDancerFxRuntime } from "./SkyDancerAirCombatFxV2";
