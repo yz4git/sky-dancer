@@ -42,6 +42,13 @@ test("V31 ground density uses a deterministic 7x7 instanced neighborhood", () =>
   assert.match(source, /function pick/);
 });
 
+test("V31 ground instances use instanceColor without geometry vertex colors", () => {
+  const source = readFileSync(new URL("../src/sky/SkyDancerGroundDensityV31.ts", import.meta.url), "utf8");
+  assert.match(source, /setColorAt\(index, color\)/);
+  assert.match(source, /vertexColors: false/);
+  assert.doesNotMatch(source, /vertexColors: true/);
+});
+
 test("V31 collapses macro terrain to one opaque fixed-green foundation", () => {
   const source = readFileSync(new URL("../src/sky/SkyDancerGroundReadabilityV31.ts", import.meta.url), "utf8");
   assert.match(source, /sky-dancer-v30-ground-foundation/);
@@ -79,6 +86,8 @@ test("V31 replaces legacy clouds with deterministic unlit three-depth cumulus cl
   assert.match(source, /radiusMin: 300/);
   assert.match(source, /radiusMin: 700/);
   assert.match(source, /new THREE\.MeshBasicMaterial/);
+  assert.match(source, /vertexColors: false/);
+  assert.doesNotMatch(source, /vertexColors: true/);
   assert.match(source, /toneMapped: false/);
   assert.match(source, /evenAngle = cluster \/ config\.clusters/);
   assert.match(source, /fog: config\.fog/);
@@ -87,11 +96,11 @@ test("V31 replaces legacy clouds with deterministic unlit three-depth cumulus cl
   assert.match(source, /DodecahedronGeometry/);
 });
 
-test("V31 tilts only the final camera view downward for a ground-dominant frame", () => {
+test("V31 keeps sky and horizon while tilting the final camera toward the valley", () => {
   const source = readFileSync(new URL("../src/sky/SkyDancerAirCombatFxV31.ts", import.meta.url), "utf8");
   assert.match(source, /queueMicrotask/);
   assert.match(source, /applyCameraPresentation/);
-  assert.match(source, /camera\.rotateX\(-0\.35\)/);
+  assert.match(source, /camera\.rotateX\(-0\.18\)/);
 });
 
 test("V31 preserves green land by replacing the full-screen V30 blue grade in both runtimes", () => {
