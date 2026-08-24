@@ -22,8 +22,7 @@ const V31_OWNED_PRESENTATION_ROOTS = [
 /**
  * V31 keeps V30's ground-integrity ownership and adds product-facing world
  * density, cumulus depth and a high-altitude look-down calibration. The chase
- * camera position and FOV remain inherited; only final view pitch changes so the
- * populated valley occupies a reference-like share of the frame.
+ * camera position and FOV remain inherited; only final view pitch changes.
  */
 export class SkyDancerAirCombatFxV31 extends SkyDancerAirCombatFxV30 {
   private readonly groundDensity: SkyDancerGroundDensityV31;
@@ -47,15 +46,6 @@ export class SkyDancerAirCombatFxV31 extends SkyDancerAirCombatFxV30 {
     this.hideBossWorldGauge(snapshot);
   }
 
-  /**
-   * SkyDancerWebGLDemo constructs the FX chain before applySkyDancerTheme().
-   * That legacy theme bootstrap hides every non-vehicle top-level scene child,
-   * including the V30/V31 world roots that were just created. Restore only the
-   * modern presentation roots here, after the theme has completed and after the
-   * inherited cleanup has removed obsolete scenery. Individual child layers
-   * intentionally disabled by V31 readability (such as its old macro plane)
-   * must never be resurrected here.
-   */
   private restoreOwnedPresentationRoots(): void {
     for (const name of V31_OWNED_PRESENTATION_ROOTS) {
       const object = this.v31Runtime.scene.getObjectByName(name);
@@ -71,10 +61,10 @@ export class SkyDancerAirCombatFxV31 extends SkyDancerAirCombatFxV30 {
     const base = inherited.bind(runtime);
     runtime.applyCameraPresentation = (snapshot: CartArenaSessionSnapshot) => {
       base(snapshot);
-      // The 300 m flight level needs a distinctly downward presentation angle.
-      // Keep chase distance and FOV untouched; only move the horizon into the
-      // upper half so the populated valley occupies most of the gameplay frame.
-      runtime.camera.rotateX(-0.35);
+      // Keep a high-altitude ground-dominant view without eliminating the sky
+      // and horizon. -0.18 rad preserves roughly a 30/70 sky-to-ground balance
+      // in the 844x390 audit viewport while keeping position and FOV unchanged.
+      runtime.camera.rotateX(-0.18);
     };
     runtime.camera.userData.skyDancerV31PitchInstalled = true;
   }
