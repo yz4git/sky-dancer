@@ -42,6 +42,16 @@ test("V31 ground density uses a deterministic 7x7 instanced neighborhood", () =>
   assert.match(source, /function pick/);
 });
 
+test("V31 macro landscape is a stable opaque fixed-green safety surface", () => {
+  const source = readFileSync(new URL("../src/sky/SkyDancerGroundDensityV31.ts", import.meta.url), "utf8");
+  assert.match(source, /PlaneGeometry\(LANDSCAPE_SIZE, LANDSCAPE_SIZE, 1, 1\)/);
+  assert.match(source, /color: 0x416f3d/);
+  assert.match(source, /vertexColors: false/);
+  assert.match(source, /opacity: 1/);
+  assert.match(source, /depthWrite: true/);
+  assert.match(source, /fog: false/);
+});
+
 test("V31 keeps the opaque V30 foundation green and readable at 300m", () => {
   const source = readFileSync(new URL("../src/sky/SkyDancerGroundReadabilityV31.ts", import.meta.url), "utf8");
   assert.match(source, /sky-dancer-v30-ground-foundation/);
@@ -53,15 +63,18 @@ test("V31 keeps the opaque V30 foundation green and readable at 300m", () => {
   assert.match(source, /Fog\(0x6ba8be, 900, 1920\)/);
 });
 
-test("V31 replaces legacy clouds with visible three-depth cumulus clusters", () => {
+test("V31 replaces legacy clouds with readable three-depth cumulus clusters", () => {
   const source = readFileSync(new URL("../src/sky/SkyDancerCloudQualityV31.ts", import.meta.url), "utf8");
+  assert.match(source, /WORLD_SNAP = 210/);
   assert.match(source, /sky-dancer-v31-low-clouds/);
   assert.match(source, /sky-dancer-v31-mid-clouds/);
   assert.match(source, /sky-dancer-v31-horizon-clouds/);
   assert.match(source, /IcosahedronGeometry\(1, 1\)/);
-  assert.match(source, /clusters: 14/);
-  assert.match(source, /radiusMin: 170/);
-  assert.match(source, /radiusMin: 520/);
+  assert.match(source, /clusters: 12/);
+  assert.match(source, /radiusMin: 240/);
+  assert.match(source, /radiusMin: 620/);
+  assert.match(source, /emissive: config\.solid/);
+  assert.match(source, /emissiveIntensity: config\.solid/);
   assert.match(source, /evenAngle = cluster \/ config\.clusters/);
   assert.match(source, /fog: config\.fog/);
   assert.match(source, /depthWrite: config\.solid/);
