@@ -18,6 +18,7 @@ type CloudLayerConfig = {
   sizeMax: number;
   opacity: number;
   solid: boolean;
+  fog: boolean;
 };
 
 const WORLD_SNAP = 420;
@@ -38,8 +39,8 @@ function rand(seed: number): number {
  *
  * Old cloud passes are suppressed by both their known names and a conservative
  * name-based sweep. Replacement clusters are distributed evenly around each
- * flight chunk with slight seeded jitter, guaranteeing useful forward/side cloud
- * mass instead of occasionally rolling an empty camera hemisphere.
+ * flight chunk. Low/mid clusters stay crisp enough to read as faceted cumulus;
+ * only the horizon belt receives full atmospheric fog.
  */
 export class SkyDancerCloudQualityV31 {
   private readonly root = new THREE.Group();
@@ -52,42 +53,45 @@ export class SkyDancerCloudQualityV31 {
     const configs: CloudLayerConfig[] = [
       {
         name: "sky-dancer-v31-low-clouds",
-        clusters: 12,
+        clusters: 14,
         lobes: 10,
-        radiusMin: 250,
-        radiusMax: 500,
-        yMin: -38,
-        yMax: -23,
-        sizeMin: 4.0,
-        sizeMax: 6.8,
+        radiusMin: 170,
+        radiusMax: 360,
+        yMin: -32,
+        yMax: -16,
+        sizeMin: 4.8,
+        sizeMax: 8.2,
         opacity: 1,
         solid: true,
+        fog: false,
       },
       {
         name: "sky-dancer-v31-mid-clouds",
         clusters: 16,
         lobes: 12,
-        radiusMin: 390,
-        radiusMax: 680,
-        yMin: -20,
-        yMax: 4,
-        sizeMin: 5.2,
-        sizeMax: 9.2,
+        radiusMin: 300,
+        radiusMax: 540,
+        yMin: -15,
+        yMax: 10,
+        sizeMin: 6.0,
+        sizeMax: 10.5,
         opacity: 0.98,
         solid: true,
+        fog: false,
       },
       {
         name: "sky-dancer-v31-horizon-clouds",
-        clusters: 20,
+        clusters: 18,
         lobes: 14,
-        radiusMin: 590,
-        radiusMax: 900,
-        yMin: -8,
-        yMax: 22,
-        sizeMin: 7.0,
-        sizeMax: 12.0,
+        radiusMin: 520,
+        radiusMax: 800,
+        yMin: -4,
+        yMax: 26,
+        sizeMin: 8.5,
+        sizeMax: 14.0,
         opacity: 0.90,
         solid: false,
+        fog: true,
       },
     ];
 
@@ -152,7 +156,7 @@ export class SkyDancerCloudQualityV31 {
       opacity: config.opacity,
       depthWrite: config.solid,
       depthTest: true,
-      fog: true,
+      fog: config.fog,
     });
     const mesh = new THREE.InstancedMesh(geometry, material, count);
     mesh.name = config.name;
@@ -168,7 +172,7 @@ export class SkyDancerCloudQualityV31 {
     for (let cluster = 0; cluster < config.clusters; cluster += 1) {
       const baseSeed = seedOffset + cluster * 97;
       const evenAngle = cluster / config.clusters * Math.PI * 2;
-      const angle = evenAngle + (rand(baseSeed + 1) - 0.5) * 0.22;
+      const angle = evenAngle + (rand(baseSeed + 1) - 0.5) * 0.18;
       const radius = THREE.MathUtils.lerp(config.radiusMin, config.radiusMax, rand(baseSeed + 2));
       const centerX = Math.cos(angle) * radius;
       const centerZ = Math.sin(angle) * radius;
