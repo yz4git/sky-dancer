@@ -5,13 +5,13 @@ import { scheduleSkyDancerV35ReferenceFraming } from "./SkyDancerCameraPresentat
 
 const CITY_SNAP = 420;
 const GROUND_Y = -66.30;
-const MAX_FOCUS_BUILDINGS = 900;
-const MAX_FOCUS_STREETS = 40;
+const MAX_FOCUS_BUILDINGS = 760;
+const MAX_FOCUS_STREETS = 36;
 const MAX_FOCUS_RIVER = 24;
 const FRONT_MOUNTAIN_FAR_COUNT = 22;
 const FRONT_MOUNTAIN_NEAR_COUNT = 20;
 const FRONT_CLOUD_COUNT = 32;
-const FOCUS_CITY_LOCAL_CENTER_Z = 142;
+const FOCUS_CITY_LOCAL_CENTER_Z = 145;
 const LEGACY_DYNAMIC_LAYER_NAMES = [
   "sky-dancer-v32-polish-ridge-near",
   "sky-dancer-v32-polish-ridge-far",
@@ -34,11 +34,11 @@ function hash2(x: number, z: number, salt = 0): number {
 /**
  * Capture-driven V35 presentation owner.
  *
- * The reference image reads first as a dense city flyover, then as a low
- * angular horizon and finally as blue atmospheric depth. This owner keeps that
- * hierarchy explicit with one fixed-cost city draw, one street draw, one river
- * draw and three atmospheric draws. Gameplay coordinates and the 300 m flight
- * model remain untouched.
+ * The supplied reference reads as a city flyover rather than a city wall: the
+ * aircraft stays prominent, dense urban detail occupies the center midground,
+ * patchwork terrain remains readable on both sides, and a low faceted ridge
+ * anchors the horizon. This owner keeps that hierarchy in fixed draw calls and
+ * never changes the 300 m gameplay flight model.
  */
 export class SkyDancerV35ReferencePass {
   private readonly focusRoot = new THREE.Group();
@@ -49,7 +49,7 @@ export class SkyDancerV35ReferencePass {
   private readonly frontMountainsNear: THREE.InstancedMesh;
   private readonly frontClouds: THREE.InstancedMesh;
   private readonly instanceDummy = new THREE.Object3D();
-  private readonly cityPalette = [0x526975, 0x607780, 0x73858a, 0x4b626e, 0x89979a, 0x5a7079]
+  private readonly cityPalette = [0x718792, 0x81959d, 0x93a3a9, 0xa8b3b6, 0x637b87, 0xb8c0c1, 0x8b9da4]
     .map((value) => new THREE.Color(value));
   private readonly atmosphereColor = new THREE.Color(0x68acd2);
   private readonly legacyDynamicLayers: THREE.Object3D[];
@@ -89,6 +89,7 @@ export class SkyDancerV35ReferencePass {
       this.frontMountainsNear,
       this.frontClouds,
     );
+
     this.legacyDynamicLayers = LEGACY_DYNAMIC_LAYER_NAMES
       .map((name) => runtime.scene.getObjectByName(name))
       .filter((object): object is THREE.Object3D => object !== undefined);
@@ -140,7 +141,7 @@ export class SkyDancerV35ReferencePass {
     if (this.fields instanceof THREE.InstancedMesh && this.fields.material instanceof THREE.MeshBasicMaterial) {
       this.fields.visible = true;
       this.fields.material.transparent = true;
-      this.fields.material.opacity = 0.68;
+      this.fields.material.opacity = 0.70;
       this.fields.material.depthWrite = true;
       this.fields.material.fog = true;
       this.fields.material.needsUpdate = true;
@@ -149,7 +150,7 @@ export class SkyDancerV35ReferencePass {
     if (this.forest instanceof THREE.InstancedMesh && this.forest.material instanceof THREE.MeshLambertMaterial) {
       this.forest.visible = true;
       this.forest.material.transparent = true;
-      this.forest.material.opacity = 0.12;
+      this.forest.material.opacity = 0.07;
       this.forest.material.color.setHex(0x3f704d);
       this.forest.material.fog = true;
       this.forest.material.needsUpdate = true;
@@ -176,8 +177,8 @@ export class SkyDancerV35ReferencePass {
       const materials = Array.isArray(object.material) ? object.material : [object.material];
       for (const material of materials) {
         if (!(material instanceof THREE.MeshStandardMaterial)) continue;
-        material.roughness = Math.min(material.roughness, 0.34);
-        material.metalness = Math.max(material.metalness, 0.22);
+        material.roughness = Math.min(material.roughness, 0.32);
+        material.metalness = Math.max(material.metalness, 0.24);
         material.needsUpdate = true;
       }
     });
@@ -189,7 +190,11 @@ export class SkyDancerV35ReferencePass {
     if (tileX === this.focusTileX && tileZ === this.focusTileZ) return;
     this.focusTileX = tileX;
     this.focusTileZ = tileZ;
-    this.focusRoot.position.set(tileX * CITY_SNAP + 140, 0, tileZ * CITY_SNAP + 255);
+
+    // Pass 6 proved that the city must be visible, but its 100 m near edge made
+    // the urban mass fill almost the entire lower frame. Pass 7 pushes the near
+    // edge to roughly 170 m while preserving a dense center and skyline.
+    this.focusRoot.position.set(tileX * CITY_SNAP + 140, 0, tileZ * CITY_SNAP + 300);
     this.focusRoot.userData.skyDancerV35WorldCenterZ = this.focusRoot.position.z + FOCUS_CITY_LOCAL_CENTER_Z;
     this.rebuildFocusCity(tileX, tileZ);
   }
@@ -201,42 +206,52 @@ export class SkyDancerV35ReferencePass {
     let streetIndex = 0;
     let riverIndex = 0;
     const seed = Math.floor(hash2(tileX, tileZ, 400) * 1000);
-    const spacing = 6.8;
-    const startZ = 8;
+    const spacing = 7.4;
+    const startZ = 28;
 
-    for (let row = 0; row < 39; row += 1) {
+    for (let row = 0; row < 32; row += 1) {
       const z = startZ + row * spacing;
-      const riverX = 40 + Math.sin((z + seed) * 0.022) * 20;
-      for (let column = -22; column <= 22 && buildingIndex < MAX_FOCUS_BUILDINGS; column += 1) {
+      const riverX = 28 + Math.sin((z + seed) * 0.023) * 18;
+      for (let column = -17; column <= 17 && buildingIndex < MAX_FOCUS_BUILDINGS; column += 1) {
         const x = column * spacing;
-        const roadColumn = (column + 22) % 7 === 0;
-        const roadRow = row % 7 === 0;
-        if (roadColumn || roadRow || Math.abs(x - riverX) < 6.4) continue;
+        const roadColumn = (column + 17) % 6 === 0;
+        const roadRow = row % 6 === 0;
+        if (roadColumn || roadRow || Math.abs(x - riverX) < 6.3) continue;
 
         const noise = hash2(tileX + column, tileZ + row, 800 + seed);
-        const centerDistance = Math.hypot(x * 0.82, (z - FOCUS_CITY_LOCAL_CENTER_Z) * 0.54);
-        const core = THREE.MathUtils.clamp(1 - centerDistance / 170, 0, 1);
-        const depthGain = THREE.MathUtils.clamp((z - 10) / 115, 0.12, 1);
-        let height = 3.2 + noise * 5.6 + core * depthGain * (3.5 + noise * 12.5);
-        let width = 3.1 + hash2(column, row, 1000 + seed) * 2.2;
-        let depth = 3.1 + hash2(row, column, 1100 + seed) * 2.3;
+        const centerDistance = Math.hypot(x * 0.86, (z - FOCUS_CITY_LOCAL_CENTER_Z) * 0.55);
+        const core = THREE.MathUtils.clamp(1 - centerDistance / 146, 0, 1);
+        const depthGain = THREE.MathUtils.clamp((z - startZ) / 92, 0.08, 1);
+        const blockType = hash2(column, row, 920 + seed);
+        let height = 3.6 + noise * 6.2 + core * depthGain * (4.0 + noise * 15.5);
+        let width = 2.7 + hash2(column, row, 1000 + seed) * 2.0;
+        let depth = 2.7 + hash2(row, column, 1100 + seed) * 2.2;
 
-        const landmark = (row === 18 && column === -8)
-          || (row === 21 && column === 7)
-          || (row === 26 && column === 0)
-          || (row === 30 && column === 12);
+        if (blockType > 0.86 && row > 6) {
+          height *= 1.20;
+          width *= 0.88;
+          depth *= 0.88;
+        } else if (blockType < 0.16) {
+          height *= 0.72;
+          width *= 1.18;
+          depth *= 1.16;
+        }
+
+        const landmark = (row === 15 && column === -6)
+          || (row === 20 && column === 6)
+          || (row === 25 && column === 0);
         if (landmark) {
-          height = 38 + hash2(column, row, 1200 + seed) * 30;
-          width = 5.1;
-          depth = 5.1;
+          height = 46 + hash2(column, row, 1200 + seed) * 27;
+          width = 4.6;
+          depth = 4.6;
         }
 
         dummy.position.set(
-          x + (hash2(column, row, 1300 + seed) - 0.5) * 0.65,
+          x + (hash2(column, row, 1300 + seed) - 0.5) * 0.7,
           GROUND_Y + 0.72 + height * 0.5,
-          z + (hash2(row, column, 1400 + seed) - 0.5) * 0.65,
+          z + (hash2(row, column, 1400 + seed) - 0.5) * 0.7,
         );
-        dummy.rotation.set(0, (hash2(column, row, 1500 + seed) - 0.5) * 0.028, 0);
+        dummy.rotation.set(0, (hash2(column, row, 1500 + seed) - 0.5) * 0.035, 0);
         dummy.scale.set(width, height, depth);
         dummy.updateMatrix();
         this.focusBuildings.setMatrixAt(buildingIndex, dummy.matrix);
@@ -245,29 +260,29 @@ export class SkyDancerV35ReferencePass {
       }
     }
 
-    for (let column = -21; column <= 21 && streetIndex < MAX_FOCUS_STREETS; column += 7) {
-      dummy.position.set(column * spacing, GROUND_Y + 0.78, 140);
+    for (let column = -17; column <= 17 && streetIndex < MAX_FOCUS_STREETS; column += 6) {
+      dummy.position.set(column * spacing, GROUND_Y + 0.78, 146);
       dummy.rotation.set(0, 0, 0);
-      dummy.scale.set(0.72, 0.05, 286);
+      dummy.scale.set(0.54, 0.045, 250);
       dummy.updateMatrix();
       this.focusStreets.setMatrixAt(streetIndex++, dummy.matrix);
     }
-    for (let row = 0; row < 39 && streetIndex < MAX_FOCUS_STREETS; row += 7) {
+    for (let row = 0; row < 32 && streetIndex < MAX_FOCUS_STREETS; row += 6) {
       dummy.position.set(0, GROUND_Y + 0.79, startZ + row * spacing);
       dummy.rotation.set(0, Math.PI / 2, 0);
-      dummy.scale.set(0.68, 0.05, 304);
+      dummy.scale.set(0.52, 0.045, 262);
       dummy.updateMatrix();
       this.focusStreets.setMatrixAt(streetIndex++, dummy.matrix);
     }
 
-    const riverSegmentLength = 12.0;
+    const riverSegmentLength = 10.5;
     for (let segment = 0; segment < MAX_FOCUS_RIVER; segment += 1) {
-      const z = 4 + segment * riverSegmentLength;
-      const x = 40 + Math.sin((z + seed) * 0.022) * 20;
-      const nextX = 40 + Math.sin((z + riverSegmentLength + seed) * 0.022) * 20;
+      const z = 24 + segment * riverSegmentLength;
+      const x = 28 + Math.sin((z + seed) * 0.023) * 18;
+      const nextX = 28 + Math.sin((z + riverSegmentLength + seed) * 0.023) * 18;
       dummy.position.set((x + nextX) * 0.5, GROUND_Y + 0.80, z + riverSegmentLength * 0.5);
       dummy.rotation.set(0, Math.atan2(nextX - x, riverSegmentLength), 0);
-      dummy.scale.set(8.4 + hash2(tileX, tileZ, 1700 + segment) * 3.2, 0.06, riverSegmentLength * 1.16);
+      dummy.scale.set(7.2 + hash2(tileX, tileZ, 1700 + segment) * 2.3, 0.055, riverSegmentLength * 1.18);
       dummy.updateMatrix();
       this.focusRiver.setMatrixAt(riverIndex++, dummy.matrix);
     }
@@ -295,7 +310,13 @@ export class SkyDancerV35ReferencePass {
   private makeFocusStreets(): THREE.InstancedMesh {
     const mesh = new THREE.InstancedMesh(
       new THREE.BoxGeometry(1, 1, 1),
-      new THREE.MeshBasicMaterial({ color: 0x728084, transparent: true, opacity: 0.70, fog: true, toneMapped: false }),
+      new THREE.MeshBasicMaterial({
+        color: 0x9ca9aa,
+        transparent: true,
+        opacity: 0.56,
+        fog: true,
+        toneMapped: false,
+      }),
       MAX_FOCUS_STREETS,
     );
     mesh.name = "sky-dancer-v35-focus-streets";
@@ -306,7 +327,13 @@ export class SkyDancerV35ReferencePass {
   private makeFocusRiver(): THREE.InstancedMesh {
     const mesh = new THREE.InstancedMesh(
       new THREE.BoxGeometry(1, 1, 1),
-      new THREE.MeshBasicMaterial({ color: 0x4898b7, transparent: true, opacity: 0.88, fog: true, toneMapped: false }),
+      new THREE.MeshBasicMaterial({
+        color: 0x3d94b5,
+        transparent: true,
+        opacity: 0.94,
+        fog: true,
+        toneMapped: false,
+      }),
       MAX_FOCUS_RIVER,
     );
     mesh.name = "sky-dancer-v35-focus-river";
@@ -317,16 +344,26 @@ export class SkyDancerV35ReferencePass {
   private makeFrontMountainBelt(name: string, count: number, far: boolean): THREE.InstancedMesh {
     const mesh = new THREE.InstancedMesh(
       new THREE.ConeGeometry(1, 1, 5),
-      new THREE.MeshBasicMaterial({ color: far ? 0x718fa0 : 0x56798a, transparent: true, opacity: far ? 0.25 : 0.42, depthWrite: false, depthTest: true, fog: true, toneMapped: false }),
+      new THREE.MeshBasicMaterial({
+        color: far ? 0x718fa0 : 0x56798a,
+        transparent: true,
+        opacity: far ? 0.23 : 0.38,
+        depthWrite: false,
+        depthTest: true,
+        fog: true,
+        toneMapped: false,
+      }),
       count,
     );
     mesh.name = name;
     const dummy = new THREE.Object3D();
     for (let index = 0; index < count; index += 1) {
       const x = -540 + index * (1080 / Math.max(1, count - 1));
-      const height = far ? 34 + (index % 6) * 4.0 + Math.sin(index * 1.57) * 3 : 46 + (index % 6) * 5.0 + Math.sin(index * 1.79) * 4;
-      const width = far ? 108 + (index % 5) * 16 : 88 + (index % 5) * 15;
-      const z = far ? 520 + (index % 4) * 22 : 450 + (index % 4) * 20;
+      const height = far
+        ? 30 + (index % 6) * 3.8 + Math.sin(index * 1.57) * 2.8
+        : 41 + (index % 6) * 4.5 + Math.sin(index * 1.79) * 3.6;
+      const width = far ? 112 + (index % 5) * 16 : 92 + (index % 5) * 15;
+      const z = far ? 550 + (index % 4) * 22 : 480 + (index % 4) * 20;
       dummy.position.set(x, GROUND_Y + height * 0.47, z);
       dummy.rotation.set(0, (index % 3 - 1) * 0.10, 0);
       dummy.scale.set(width, height, width * (far ? 0.58 : 0.52));
@@ -341,7 +378,15 @@ export class SkyDancerV35ReferencePass {
   private makeFrontClouds(): THREE.InstancedMesh {
     const mesh = new THREE.InstancedMesh(
       new THREE.IcosahedronGeometry(1, 1),
-      new THREE.MeshBasicMaterial({ color: 0xf6f9fa, transparent: true, opacity: 0.14, depthWrite: false, depthTest: true, fog: true, toneMapped: false }),
+      new THREE.MeshBasicMaterial({
+        color: 0xf6f9fa,
+        transparent: true,
+        opacity: 0.18,
+        depthWrite: false,
+        depthTest: true,
+        fog: true,
+        toneMapped: false,
+      }),
       FRONT_CLOUD_COUNT,
     );
     mesh.name = "sky-dancer-v35-front-cloud-patches";
@@ -349,12 +394,12 @@ export class SkyDancerV35ReferencePass {
     for (let index = 0; index < FRONT_CLOUD_COUNT; index += 1) {
       const side = index % 2 === 0 ? -1 : 1;
       const lane = Math.floor(index / 2) % 8;
-      const z = 90 + lane * 34 + Math.sin(index * 1.31) * 12;
-      const x = side * (52 + (index % 6) * 29) + Math.cos(index * 1.87) * 12;
+      const z = 105 + lane * 34 + Math.sin(index * 1.31) * 12;
+      const x = side * (54 + (index % 6) * 29) + Math.cos(index * 1.87) * 12;
       const size = 13 + (index % 5) * 2.2;
-      dummy.position.set(x, -49 - (index % 4) * 1.4, z);
+      dummy.position.set(x, -47 - (index % 4) * 1.4, z);
       dummy.rotation.set(0.02 * (index % 3), index * 0.27, 0.015 * (index % 5));
-      dummy.scale.set(size * 1.86, size * 0.085, size * 1.12);
+      dummy.scale.set(size * 1.86, size * 0.095, size * 1.12);
       dummy.updateMatrix();
       mesh.setMatrixAt(index, dummy.matrix);
     }
