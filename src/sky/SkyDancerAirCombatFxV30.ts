@@ -2,23 +2,29 @@ import type { CartArenaSessionSnapshot } from "../cart/CartArenaSession";
 import type { SkyDancerMissileState } from "./SkyDancerFlightCombat";
 import { SkyDancerAirCombatFxV29 } from "./SkyDancerAirCombatFxV29";
 import type { SkyDancerFxRuntime } from "./SkyDancerAirCombatFxV2";
+import { SkyDancerLegacySceneryCleanupV30 } from "./SkyDancerLegacySceneryCleanupV30";
 import { SkyDancerWorldPresentationV30 } from "./SkyDancerWorldPresentationV30";
 
 /**
- * V30 is intentionally thin: all world-composition ownership lives in
- * SkyDancerWorldPresentationV30 instead of adding another pile of scenery
- * mutations to the long FX inheritance chain.
+ * V30 is intentionally thin: all final world-composition ownership lives in
+ * dedicated controllers instead of adding another pile of scenery mutations
+ * to the long FX inheritance chain.
  */
 export class SkyDancerAirCombatFxV30 extends SkyDancerAirCombatFxV29 {
+  private readonly legacyCleanup: SkyDancerLegacySceneryCleanupV30;
   private readonly worldPresentation: SkyDancerWorldPresentationV30;
 
   constructor(runtime: SkyDancerFxRuntime) {
     super(runtime);
+    this.legacyCleanup = new SkyDancerLegacySceneryCleanupV30(runtime);
     this.worldPresentation = new SkyDancerWorldPresentationV30(runtime);
   }
 
   override update(snapshot: CartArenaSessionSnapshot, missiles: SkyDancerMissileState, delta: number): void {
     super.update(snapshot, missiles, delta);
+    // super.update() may lazily create inherited scenery on the first frame;
+    // suppress those roots before the V30 world becomes the final presentation.
+    this.legacyCleanup.update();
     this.worldPresentation.update(snapshot);
   }
 }
