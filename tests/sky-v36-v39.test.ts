@@ -17,6 +17,7 @@ test("V36 replaces box city and board-flat foreground with render-only faceted g
   assert.match(source, /ARCHETYPE_COUNT = 6/);
   assert.match(source, /stackedGeometry/);
   assert.match(source, /appendPyramid/);
+  assert.match(source, /appendPyramid\(\s*positions,\s*normals,/);
   assert.match(source, /sky-dancer-v36-faceted-terrain/);
   assert.match(source, /sky-dancer-v36-city-archetype-/);
   assert.match(source, /sky-dancer-v35-focus-buildings/);
