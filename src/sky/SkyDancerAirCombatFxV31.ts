@@ -11,6 +11,15 @@ interface V31CameraRuntime extends SkyDancerFxRuntime {
   applyCameraPresentation?(snapshot: CartArenaSessionSnapshot): void;
 }
 
+const V31_OWNED_PRESENTATION_ROOTS = [
+  "sky-dancer-v30-valley-detail",
+  "sky-dancer-v30-world-presentation",
+  "sky-dancer-v30-sky",
+  "sky-dancer-v31-ground-density",
+  "sky-dancer-v31-cloud-system",
+  "sky-dancer-v31-landscape-base",
+] as const;
+
 /**
  * V31 keeps V30's ground-integrity ownership and adds product-facing world
  * density, cumulus depth and a high-altitude look-down calibration. The chase
@@ -32,10 +41,26 @@ export class SkyDancerAirCombatFxV31 extends SkyDancerAirCombatFxV30 {
 
   override update(snapshot: CartArenaSessionSnapshot, missiles: SkyDancerMissileState, delta: number): void {
     super.update(snapshot, missiles, delta);
+    this.restoreOwnedPresentationRoots();
     this.groundDensity.update(snapshot);
     this.groundReadability.update();
     this.cloudQuality.update(snapshot);
     this.hideBossWorldGauge(snapshot);
+  }
+
+  /**
+   * SkyDancerWebGLDemo constructs the FX chain before applySkyDancerTheme().
+   * That legacy theme bootstrap hides every non-vehicle top-level scene child,
+   * including the V30/V31 world roots that were just created. Restore only the
+   * modern presentation roots here, after the theme has completed and after the
+   * inherited cleanup has removed obsolete scenery. This keeps V30's opaque
+   * ground safety layer and V31 density/cloud systems actually renderable.
+   */
+  private restoreOwnedPresentationRoots(): void {
+    for (const name of V31_OWNED_PRESENTATION_ROOTS) {
+      const object = this.v31Runtime.scene.getObjectByName(name);
+      if (object) object.visible = true;
+    }
   }
 
   private installCameraPitch(): void {
