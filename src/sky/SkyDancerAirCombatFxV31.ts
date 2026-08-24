@@ -13,10 +13,9 @@ interface V31CameraRuntime extends SkyDancerFxRuntime {
 
 /**
  * V31 keeps V30's ground-integrity ownership and adds product-facing world
- * density, cumulus depth and a modest high-altitude look-down calibration.
- * The camera position/FOV remain inherited; only the final viewing pitch moves
- * down slightly so the populated valley occupies the same useful frame area as
- * the supplied arcade-flight reference.
+ * density, cumulus depth and a high-altitude look-down calibration. The chase
+ * camera position and FOV remain inherited; only final view pitch changes so the
+ * populated valley occupies a reference-like share of the frame.
  */
 export class SkyDancerAirCombatFxV31 extends SkyDancerAirCombatFxV30 {
   private readonly groundDensity: SkyDancerGroundDensityV31;
@@ -51,7 +50,7 @@ export class SkyDancerAirCombatFxV31 extends SkyDancerAirCombatFxV30 {
     const base = inherited.bind(runtime);
     runtime.applyCameraPresentation = (snapshot: CartArenaSessionSnapshot) => {
       base(snapshot);
-      runtime.camera.rotateX(-0.075);
+      runtime.camera.rotateX(-0.14);
     };
     runtime.camera.userData.skyDancerV31PitchInstalled = true;
   }
