@@ -37,6 +37,7 @@ export class SkyDancerReferenceWorldV32 {
   private readonly cloudMain: THREE.InstancedMesh;
   private readonly cloudShade: THREE.InstancedMesh;
   private readonly skyDome: THREE.Mesh;
+  private readonly referenceFog = new THREE.Fog(0x86b7cd, 760, 1760);
   private tileX = Number.NaN;
   private tileZ = Number.NaN;
 
@@ -61,12 +62,12 @@ export class SkyDancerReferenceWorldV32 {
     runtime.scene.add(this.groundRoot, this.atmosphereRoot);
     this.installHeroAircraftDetail();
     this.hideLegacyComposition();
-    runtime.scene.fog = new THREE.Fog(0x86b7cd, 760, 1760);
     runtime.camera.far = Math.max(runtime.camera.far, 1850);
     runtime.camera.updateProjectionMatrix();
   }
 
   update(snapshot: CartArenaSessionSnapshot): void {
+    this.restoreOwnPresentation();
     this.hideLegacyComposition();
     this.updateEnemyReadability(snapshot);
 
@@ -81,6 +82,17 @@ export class SkyDancerReferenceWorldV32 {
 
     this.atmosphereRoot.position.set(snapshot.x, 0, snapshot.z);
     this.skyDome.position.y = this.runtime.camera.position.y;
+  }
+
+  private restoreOwnPresentation(): void {
+    this.groundRoot.visible = true;
+    this.atmosphereRoot.visible = true;
+    this.skyDome.visible = true;
+    this.ridgeNear.visible = true;
+    this.ridgeFar.visible = true;
+    this.cloudMain.visible = true;
+    this.cloudShade.visible = true;
+    if (this.runtime.scene.fog !== this.referenceFog) this.runtime.scene.fog = this.referenceFog;
   }
 
   private hideLegacyComposition(): void {
