@@ -13,9 +13,12 @@ export interface SkyDancerV35VisualAuditSnapshot {
   focusStreetCount: number;
   focusCloudCount: number;
   focusMountainCount: number;
+  focusCityInViewCount: number;
+  focusCityNdcBounds: { minX: number; maxX: number; minY: number; maxY: number } | null;
   focusRootZ: number | null;
   focusCenterWorldZ: number | null;
   cameraZ: number;
+  focusRootEffectiveVisible: boolean;
   fieldsVisible: boolean;
   settlementsVisible: boolean;
   towersVisible: boolean;
@@ -38,6 +41,48 @@ function visible(runtime: SkyDancerFxRuntime, name: string): boolean {
   return runtime.scene.getObjectByName(name)?.visible ?? false;
 }
 
+function effectiveVisible(object: THREE.Object3D | null | undefined): boolean {
+  let current: THREE.Object3D | null = object ?? null;
+  while (current) {
+    if (!current.visible) return false;
+    current = current.parent;
+  }
+  return Boolean(object);
+}
+
+function projectedInstanceStats(runtime: SkyDancerFxRuntime, name: string): {
+  count: number;
+  bounds: { minX: number; maxX: number; minY: number; maxY: number } | null;
+} {
+  const mesh = runtime.scene.getObjectByName(name);
+  if (!(mesh instanceof THREE.InstancedMesh) || !effectiveVisible(mesh)) return { count: 0, bounds: null };
+  runtime.scene.updateMatrixWorld(true);
+  runtime.camera.updateMatrixWorld(true);
+  const instance = new THREE.Matrix4();
+  const world = new THREE.Matrix4();
+  const point = new THREE.Vector3();
+  let count = 0;
+  let minX = Number.POSITIVE_INFINITY;
+  let maxX = Number.NEGATIVE_INFINITY;
+  let minY = Number.POSITIVE_INFINITY;
+  let maxY = Number.NEGATIVE_INFINITY;
+  for (let index = 0; index < mesh.count; index += 1) {
+    mesh.getMatrixAt(index, instance);
+    world.multiplyMatrices(mesh.matrixWorld, instance);
+    point.setFromMatrixPosition(world).project(runtime.camera);
+    if (point.z < -1 || point.z > 1 || point.x < -1 || point.x > 1 || point.y < -1 || point.y > 1) continue;
+    count += 1;
+    minX = Math.min(minX, point.x);
+    maxX = Math.max(maxX, point.x);
+    minY = Math.min(minY, point.y);
+    maxY = Math.max(maxY, point.y);
+  }
+  return {
+    count,
+    bounds: count > 0 ? { minX, maxX, minY, maxY } : null,
+  };
+}
+
 export function getSkyDancerV35VisualAuditSnapshot(runtime: SkyDancerFxRuntime): SkyDancerV35VisualAuditSnapshot {
   const cityLow = instanceCount(runtime, "sky-dancer-v35-city-low");
   const cityMid = instanceCount(runtime, "sky-dancer-v35-city-mid");
@@ -51,6 +96,7 @@ export function getSkyDancerV35VisualAuditSnapshot(runtime: SkyDancerFxRuntime):
   const focusCenterWorldZ = focusRootZ !== null && localCenterZ !== null ? focusRootZ + localCenterZ : null;
   const focusMountainCount = instanceCount(runtime, "sky-dancer-v35-front-mountains-far")
     + instanceCount(runtime, "sky-dancer-v35-front-mountains-near");
+  const projectedCity = projectedInstanceStats(runtime, "sky-dancer-v35-focus-buildings");
   return {
     cityLow,
     cityMid,
@@ -63,9 +109,12 @@ export function getSkyDancerV35VisualAuditSnapshot(runtime: SkyDancerFxRuntime):
     focusStreetCount: instanceCount(runtime, "sky-dancer-v35-focus-streets"),
     focusCloudCount: instanceCount(runtime, "sky-dancer-v35-front-cloud-patches"),
     focusMountainCount,
+    focusCityInViewCount: projectedCity.count,
+    focusCityNdcBounds: projectedCity.bounds,
     focusRootZ,
     focusCenterWorldZ,
     cameraZ: runtime.camera.position.z,
+    focusRootEffectiveVisible: effectiveVisible(focusRoot),
     fieldsVisible: visible(runtime, "sky-dancer-v31-patchwork-fields"),
     settlementsVisible: visible(runtime, "sky-dancer-v31-settlement-buildings"),
     towersVisible: visible(runtime, "sky-dancer-v31-landmark-towers"),
