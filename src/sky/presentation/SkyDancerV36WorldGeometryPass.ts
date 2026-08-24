@@ -67,7 +67,10 @@ function appendPyramid(
   const triangles = [[p0, p1, top], [p1, p2, top], [p2, p3, top], [p3, p0, top]] as const;
   for (const triangle of triangles) {
     const normal = new THREE.Vector3()
-      .crossVectors(new THREE.Vector3().subVectors(triangle[1], triangle[0]), new THREE.Vector3().subVectors(triangle[2], triangle[0]))
+      .crossVectors(
+        new THREE.Vector3().subVectors(triangle[1], triangle[0]),
+        new THREE.Vector3().subVectors(triangle[2], triangle[0]),
+      )
       .normalize();
     for (const point of triangle) {
       positions.push(point.x, point.y, point.z);
@@ -79,10 +82,18 @@ function appendPyramid(
 function stackedGeometry(levels: ReadonlyArray<[number, number, number, number]>, spire = false): THREE.BufferGeometry {
   const positions: number[] = [];
   const normals: number[] = [];
-  for (const [baseY, height, width, depth] of levels) appendBox(positions, normals, 0, baseY + height * 0.5, 0, width, height, depth);
+  for (const [baseY, height, width, depth] of levels) {
+    appendBox(positions, normals, 0, baseY + height * 0.5, 0, width, height, depth);
+  }
   if (spire) {
     const last = levels[levels.length - 1];
-    appendPyramid(positions, last[0] + last[1], Math.min(last[2], last[3]) * 0.42, Math.max(0.45, last[1] * 0.28));
+    appendPyramid(
+      positions,
+      normals,
+      last[0] + last[1],
+      Math.min(last[2], last[3]) * 0.42,
+      Math.max(0.45, last[1] * 0.28),
+    );
   }
   const geometry = new THREE.BufferGeometry();
   geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
@@ -141,7 +152,7 @@ export class SkyDancerV36WorldGeometryPass {
       const mesh = new THREE.InstancedMesh(
         geometry,
         new THREE.MeshLambertMaterial({ color: 0xffffff, flatShading: true, fog: true }),
-        Math.ceil(CITY_CAPACITY / ARCHETYPE_COUNT) + 48,
+        CITY_CAPACITY,
       );
       mesh.name = `sky-dancer-v36-city-archetype-${index}`;
       mesh.frustumCulled = false;
