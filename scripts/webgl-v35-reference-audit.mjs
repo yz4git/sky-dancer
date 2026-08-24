@@ -38,9 +38,11 @@ if (visual.firstPassCityVisible || !visual.focusCityVisible) throw new Error(`Ca
 if (!visual.cameraFramingInstalled || !visual.polishFramingInstalled) throw new Error(`V35 reference camera framing was not fully installed: ${JSON.stringify(visual)}`);
 if (Number(visual.fogNear) < 600 || Number(visual.fogFar) < 1700) throw new Error(`V35 atmosphere clips metro depth: ${JSON.stringify(visual)}`);
 
+// The city is intentionally closer than pass 4: enough urban fabric must sit in
+// the lower/mid frame instead of collapsing into a narrow horizon strip.
 const focalDelta = Number(visual.focusCenterWorldZ) - Number(visual.cameraZ);
-if (!Number.isFinite(focalDelta) || focalDelta < 260 || focalDelta > 420) {
-  throw new Error(`V35 focal metro is outside the opening camera corridor: ${JSON.stringify(visual)}`);
+if (!Number.isFinite(focalDelta) || focalDelta < 150 || focalDelta > 320) {
+  throw new Error(`V35 focal metro is outside the visible midground corridor: ${JSON.stringify(visual)}`);
 }
 
 await page.screenshot({ path: `${outputDir}/09-v35-reference.png`, fullPage: true });
