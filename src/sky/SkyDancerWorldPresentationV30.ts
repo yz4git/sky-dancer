@@ -36,7 +36,9 @@ const LEGACY_LAYER_NAMES = [
   "sky-dancer-q11-landmarks",
   "sky-dancer-v22-quality-world",
   "sky-dancer-v24-horizon-silhouettes",
+  "sky-dancer-v25-valley-fields",
   "sky-dancer-v27-landmark-city-ring",
+  "sky-dancer-v28-patchwork-valley",
   "sky-dancer-v28-mountain-depth",
   "phase67-turbo-hunt-world",
 ] as const;
@@ -54,9 +56,9 @@ function colorHex(material: THREE.Material): number | null {
  *
  * Older Sky Dancer passes intentionally accumulated scenery while the project
  * was finding its art direction. At 300 m that left several independent ground
- * systems competing for the same pixels. This controller establishes one
- * opaque foundation, suppresses obsolete vehicle-era scenery and leaves the
- * V25/V28/V29 valley, lake, clouds and focused skyline as the readable layer.
+ * systems competing for the same pixels. V30 establishes one opaque foundation,
+ * suppresses obsolete/overlapping ground systems and leaves the V28 lake/clouds
+ * plus the focused V29 skyline above the V30-owned valley detail.
  */
 export class SkyDancerWorldPresentationV30 {
   private readonly runtime: V30WorldRuntime;
@@ -252,27 +254,12 @@ export class SkyDancerWorldPresentationV30 {
 
   private prepareModernLayers(): void {
     if (this.preparedModernLayers) return;
-    const patchwork = this.runtime.scene.getObjectByName("sky-dancer-v28-patchwork-valley");
-    const valley = this.runtime.scene.getObjectByName("sky-dancer-v25-valley-fields");
     const skyline = this.runtime.scene.getObjectByName("sky-dancer-v29-reference-skyline");
     const lake = this.runtime.scene.getObjectByName("sky-dancer-v28-valley-lake");
-    if (!patchwork || !skyline || !lake) return;
-
-    if (patchwork instanceof THREE.InstancedMesh && patchwork.material instanceof THREE.MeshLambertMaterial) {
-      patchwork.material.transparent = false;
-      patchwork.material.opacity = 1;
-      patchwork.material.depthWrite = true;
-      patchwork.material.needsUpdate = true;
-    }
-    if (valley instanceof THREE.InstancedMesh && valley.material instanceof THREE.MeshLambertMaterial) {
-      valley.material.transparent = false;
-      valley.material.opacity = 1;
-      valley.material.depthWrite = true;
-      valley.material.needsUpdate = true;
-    }
+    if (!skyline || !lake) return;
 
     // Put one recognizable city in the right-front middle distance instead of
-    // surrounding the player with the old 5x5 clone ring.
+    // surrounding the player with the old clone ring.
     skyline.position.set(160, 0, 210);
     skyline.scale.setScalar(0.9);
 
