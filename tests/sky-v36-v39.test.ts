@@ -55,7 +55,7 @@ test("V39 is the final HUD layer and does not fabricate score radar or inventory
   const game = read("../app/CartRogueGamePhase13.tsx");
   assert.match(game, /<SkyDancerHudV35 \/>\n        <SkyDancerHudV39 \/>/);
   assert.match(hud, /skyDancerV39HudFrame/);
-  assert.match(hud, /aria-label=\\"Missile warning\\"/);
+  assert.match(hud, /aria-label="Missile warning"/);
   assert.match(hud, /skyDancerBossV34/);
   assert.match(hud, /existing real telemetry only/i);
   assert.doesNotMatch(hud, /1,250|x2\.4|VX-23|RADAR|AMMO 24/);
