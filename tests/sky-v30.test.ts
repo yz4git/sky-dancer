@@ -13,12 +13,20 @@ test("V30 owns final world composition in a dedicated controller", () => {
   assert.match(source, /sky-dancer-v28-mountain-depth/);
 });
 
-test("V30 removes ground holes and keeps modern valley layers opaque", () => {
-  const source = readFileSync(new URL("../src/sky/SkyDancerWorldPresentationV30.ts", import.meta.url), "utf8");
-  assert.match(source, /patchwork\.material\.transparent = false/);
-  assert.match(source, /valley\.material\.transparent = false/);
-  assert.match(source, /foundationDepthWrite/);
-  assert.match(source, /__skyDancerGetWorldPresentationDebug/);
+test("V30 removes inherited field conflicts and connects dedicated opaque valley detail", () => {
+  const world = readFileSync(new URL("../src/sky/SkyDancerWorldPresentationV30.ts", import.meta.url), "utf8");
+  const ground = readFileSync(new URL("../src/sky/SkyDancerGroundDetailV30.ts", import.meta.url), "utf8");
+  const fx = readFileSync(new URL("../src/sky/SkyDancerAirCombatFxV30.ts", import.meta.url), "utf8");
+  assert.match(world, /sky-dancer-v25-valley-fields/);
+  assert.match(world, /sky-dancer-v28-patchwork-valley/);
+  assert.match(world, /foundationDepthWrite/);
+  assert.match(world, /__skyDancerGetWorldPresentationDebug/);
+  assert.match(ground, /sky-dancer-v30-patchwork-fields/);
+  assert.match(ground, /sky-dancer-v30-river/);
+  assert.match(ground, /transparent: false/);
+  assert.match(ground, /depthWrite: true/);
+  assert.match(fx, /SkyDancerGroundDetailV30/);
+  assert.match(fx, /groundDetail\.update\(snapshot\)/);
 });
 
 test("V30 suppresses accumulated low-altitude city and road worlds", () => {
@@ -44,5 +52,6 @@ test("V30 is the active Sky Dancer effects entry point", () => {
   assert.match(entry, /SkyDancerAirCombatFxV30 as SkyDancerAirCombatFx/);
   assert.match(source, /extends SkyDancerAirCombatFxV29/);
   assert.match(source, /SkyDancerLegacySceneryCleanupV30/);
+  assert.match(source, /SkyDancerGroundDetailV30/);
   assert.match(source, /SkyDancerWorldPresentationV30/);
 });
