@@ -30,36 +30,38 @@ test("V31 ground density uses a deterministic 7x7 instanced neighborhood", () =>
   assert.match(source, /function pick/);
 });
 
-test("V31 keeps district scale authored in one place and balances the legacy skyline", () => {
+test("V31 keeps the opaque V30 foundation green and readable at 300m", () => {
   const source = readFileSync(new URL("../src/sky/SkyDancerGroundReadabilityV31.ts", import.meta.url), "utf8");
-  assert.match(source, /sky-dancer-v31-patchwork-fields/);
-  assert.doesNotMatch(source, /geometry\.scale/);
+  assert.match(source, /sky-dancer-v30-ground-foundation/);
+  assert.match(source, /foundation\.material\.fog = false/);
+  assert.match(source, /foundation\.material\.transparent = false/);
+  assert.match(source, /foundation\.material\.depthWrite = true/);
   assert.match(source, /sky-dancer-v29-reference-skyline/);
-  assert.match(source, /scale\.setScalar\(0\.72\)/);
-  assert.match(source, /Fog\(0x5b9fb9, 760, 1780\)/);
+  assert.match(source, /scale\.setScalar\(0\.64\)/);
+  assert.match(source, /Fog\(0x6ba8be, 900, 1920\)/);
 });
 
-test("V31 replaces legacy clouds with evenly distributed compact cumulus clusters", () => {
+test("V31 replaces legacy clouds with visible three-depth cumulus clusters", () => {
   const source = readFileSync(new URL("../src/sky/SkyDancerCloudQualityV31.ts", import.meta.url), "utf8");
   assert.match(source, /sky-dancer-v31-low-clouds/);
   assert.match(source, /sky-dancer-v31-mid-clouds/);
   assert.match(source, /sky-dancer-v31-horizon-clouds/);
   assert.match(source, /IcosahedronGeometry\(1, 1\)/);
-  assert.match(source, /clusters: 12/);
-  assert.match(source, /radiusMin: 250/);
-  assert.match(source, /radiusMin: 590/);
+  assert.match(source, /clusters: 14/);
+  assert.match(source, /radiusMin: 170/);
+  assert.match(source, /radiusMin: 520/);
   assert.match(source, /evenAngle = cluster \/ config\.clusters/);
-  assert.match(source, /solid: true/);
+  assert.match(source, /fog: config\.fog/);
   assert.match(source, /depthWrite: config\.solid/);
   assert.match(source, /name\.includes\("cloud"\)/);
   assert.match(source, /DodecahedronGeometry/);
 });
 
-test("V31 tilts only the final camera view downward for more landscape", () => {
+test("V31 tilts only the final camera view downward for a ground-dominant frame", () => {
   const source = readFileSync(new URL("../src/sky/SkyDancerAirCombatFxV31.ts", import.meta.url), "utf8");
   assert.match(source, /queueMicrotask/);
   assert.match(source, /applyCameraPresentation/);
-  assert.match(source, /camera\.rotateX\(-0\.20\)/);
+  assert.match(source, /camera\.rotateX\(-0\.35\)/);
 });
 
 test("V31 preserves green land by replacing the full-screen V30 blue grade in both runtimes", () => {
