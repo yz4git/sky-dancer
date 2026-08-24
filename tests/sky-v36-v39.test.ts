@@ -34,6 +34,8 @@ test("V37 upgrades player enemy missile and Turbo presentation without combat ru
   assert.match(source, /sky-dancer-v37-missile-long-plume/);
   assert.match(source, /decorateEnemies/);
   assert.match(source, /snapshot\.boostActive/);
+  assert.match(source, /attachPersistentPlayerPresentation/);
+  assert.match(source, /runtime\.session\.car\.group/);
   assert.doesNotMatch(source, /damage\s*=|hp\s*=|bossHp\s*=/);
 });
 
@@ -47,6 +49,9 @@ test("V38 owns four-band sky continuous ridges and clustered below-flight clouds
   assert.match(source, /PUFFS_PER_CLUSTER = 4/);
   assert.match(source, /sky-dancer-v38-cloud-cluster-main/);
   assert.match(source, /baseY = -50/);
+  assert.match(source, /this\.farRidge\.visible = true/);
+  assert.match(source, /this\.cloudMain\.visible = true/);
+  assert.match(source, /this\.cloudShade\.visible = true/);
   assert.match(source, /fog\.near = 540/);
   assert.match(source, /fog\.far = 1840/);
 });
