@@ -54,10 +54,11 @@ function isEffectivelyVisible(object: THREE.Object3D): boolean {
 /**
  * Final high-altitude readability calibration for V31.
  *
- * Geometry size is owned by SkyDancerGroundDensityV31. This pass restores the
- * green valley itself before tuning secondary details: the opaque V30 foundation
- * stays intact, but it no longer receives long-distance blue fog that made the
- * entire lower frame look like sky in real WebGL captures.
+ * V31 deliberately renders one and only one large opaque terrain foundation.
+ * Earlier captures showed black slabs when the V30 foundation and a second V31
+ * macro plane overlapped with independent field layers. The V30 foundation is
+ * now the fixed-green, unlit safety surface; V31 fields/roads/forest/cities and
+ * the river sit above it as detail only.
  */
 export class SkyDancerGroundReadabilityV31 {
   private prepared = false;
@@ -68,6 +69,7 @@ export class SkyDancerGroundReadabilityV31 {
     if (this.prepared) return;
     const scene = this.runtime.scene;
     const foundation = scene.getObjectByName("sky-dancer-v30-ground-foundation");
+    const macroLandscape = scene.getObjectByName("sky-dancer-v31-landscape-base");
     const legacyFields = scene.getObjectByName("sky-dancer-v30-patchwork-fields");
     const fields = scene.getObjectByName("sky-dancer-v31-patchwork-fields");
     const buildings = scene.getObjectByName("sky-dancer-v31-settlement-buildings");
@@ -83,23 +85,34 @@ export class SkyDancerGroundReadabilityV31 {
       || !(towers instanceof THREE.InstancedMesh)
       || !skyline) return;
 
-    // V30's field overlay used an older instancing/color path and sits above the
-    // V31 macro landscape. The V31 7x7 fields fully replace it; leaving both
-    // visible can produce black slabs on SwiftShader/mobile GPUs.
     if (legacyFields) {
       legacyFields.visible = false;
       legacyFields.userData.skyDancerV31SupersededFieldLayer = true;
     }
 
-    if (foundation.material instanceof THREE.MeshLambertMaterial) {
-      foundation.material.fog = false;
-      foundation.material.transparent = false;
-      foundation.material.depthWrite = true;
-      foundation.material.color.setHex(0xffffff);
-      foundation.material.emissive.setHex(0x0a1e10);
-      foundation.material.emissiveIntensity = 0.12;
-      foundation.material.needsUpdate = true;
+    if (macroLandscape) {
+      macroLandscape.visible = false;
+      macroLandscape.userData.skyDancerV31SupersededMacroLandscape = true;
     }
+
+    const previousFoundationMaterial = Array.isArray(foundation.material)
+      ? null
+      : foundation.material;
+    foundation.material = new THREE.MeshBasicMaterial({
+      color: 0x416f3d,
+      vertexColors: false,
+      transparent: false,
+      opacity: 1,
+      depthWrite: true,
+      depthTest: true,
+      fog: false,
+      toneMapped: false,
+    });
+    foundation.receiveShadow = false;
+    foundation.castShadow = false;
+    foundation.renderOrder = -80;
+    foundation.userData.skyDancerV31SingleGroundFoundation = true;
+    previousFoundationMaterial?.dispose();
 
     skyline.position.set(-18, 0, 336);
     skyline.scale.setScalar(0.64);
@@ -115,7 +128,7 @@ export class SkyDancerGroundReadabilityV31 {
       const camera = this.runtime.camera;
       const direction = new THREE.Vector3();
       camera.getWorldDirection(direction);
-      const groundY = -66.33;
+      const groundY = -66.77;
       const t = Math.abs(direction.y) > 1e-5 ? (groundY - camera.position.y) / direction.y : Number.NaN;
       const centerGroundHit = Number.isFinite(t) && t > 0
         ? {
@@ -157,13 +170,15 @@ export class SkyDancerGroundReadabilityV31 {
         lowerCenter: new THREE.Vector2(0, -0.55),
         lowerLeft: new THREE.Vector2(-0.52, -0.55),
         lowerRight: new THREE.Vector2(0.52, -0.55),
+        midLeft: new THREE.Vector2(-0.46, -0.18),
+        midRight: new THREE.Vector2(0.46, -0.18),
       };
       const rays: Record<string, RayHitDebug[]> = {};
       for (const [label, ndc] of Object.entries(ndcSamples)) {
         raycaster.setFromCamera(ndc, camera);
         rays[label] = raycaster.intersectObjects(this.runtime.scene.children, true)
           .filter((hit) => hit.distance > 2 && isEffectivelyVisible(hit.object))
-          .slice(0, 16)
+          .slice(0, 20)
           .map((hit) => {
             const object = hit.object as THREE.Mesh;
             const material = Array.isArray(object.material) ? object.material[0] : object.material;
