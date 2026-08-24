@@ -43,9 +43,10 @@ export function scheduleSkyDancerV32CameraBalance(runtime: SkyDancerFxRuntime): 
 }
 
 /**
- * V35 matches the supplied reference by keeping the aircraft low in frame and
- * allowing a larger blue-sky band above the city skyline. This is presentation
- * only; gameplay altitude, collision and flight coordinates are unchanged.
+ * V35 keeps the aircraft in the lower-middle frame while preserving a broad sky
+ * band above the city. Pass 7 eases the pass-6 pitch slightly so the aircraft
+ * and skyline sit closer to the supplied reference instead of hugging the
+ * bottom edge. Gameplay altitude and collision coordinates are untouched.
  */
 export function scheduleSkyDancerV35ReferenceFraming(runtime: SkyDancerFxRuntime): void {
   scheduleInstall(() => {
@@ -56,7 +57,7 @@ export function scheduleSkyDancerV35ReferenceFraming(runtime: SkyDancerFxRuntime
     const base = inherited.bind(cameraRuntime);
     cameraRuntime.applyCameraPresentation = (snapshot: CartArenaSessionSnapshot) => {
       base(snapshot);
-      cameraRuntime.camera.rotateX(0.225);
+      cameraRuntime.camera.rotateX(0.205);
     };
     cameraRuntime.camera.userData.skyDancerV35ReferenceFraming = true;
   });
