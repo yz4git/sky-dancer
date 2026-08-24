@@ -113,9 +113,9 @@ export class SkyDancerWorldPresentationV30 {
 
     const position = geometry.getAttribute("position") as THREE.BufferAttribute;
     const colors = new Float32Array(position.count * 3);
-    const dark = new THREE.Color(0x3f7748);
-    const mid = new THREE.Color(0x5f934e);
-    const light = new THREE.Color(0x7ca158);
+    const dark = new THREE.Color(0x356b42);
+    const mid = new THREE.Color(0x528849);
+    const light = new THREE.Color(0x76a455);
     const sample = new THREE.Color();
     for (let index = 0; index < position.count; index += 1) {
       const x = position.getX(index);
@@ -162,15 +162,15 @@ export class SkyDancerWorldPresentationV30 {
         varying vec3 vDirection;
         void main() {
           float h = normalize(vDirection).y;
-          float horizonMix = smoothstep(-0.18, 0.48, h);
-          float zenithMix = smoothstep(0.32, 0.96, h);
-          vec3 horizon = vec3(0.46, 0.76, 0.91);
-          vec3 body = vec3(0.075, 0.43, 0.72);
-          vec3 zenith = vec3(0.025, 0.20, 0.47);
+          float horizonMix = smoothstep(-0.16, 0.44, h);
+          float zenithMix = smoothstep(0.30, 0.94, h);
+          vec3 horizon = vec3(0.20, 0.56, 0.80);
+          vec3 body = vec3(0.055, 0.36, 0.68);
+          vec3 zenith = vec3(0.018, 0.15, 0.40);
           vec3 sky = mix(horizon, body, horizonMix);
           sky = mix(sky, zenith, zenithMix);
-          float glow = pow(max(0.0, 1.0 - abs(h)), 10.0);
-          sky += vec3(0.07, 0.10, 0.08) * glow;
+          float glow = pow(max(0.0, 1.0 - abs(h)), 12.0);
+          sky += vec3(0.035, 0.055, 0.05) * glow;
           gl_FragColor = vec4(sky, 1.0);
         }
       `,
@@ -199,7 +199,7 @@ export class SkyDancerWorldPresentationV30 {
     const mountains = new THREE.InstancedMesh(geometry, material, count);
     mountains.name = "sky-dancer-v30-mountain-belt";
     mountains.frustumCulled = false;
-    const palette = [0x527f73, 0x5f8b78, 0x6f947d, 0x47736e].map((value) => new THREE.Color(value));
+    const palette = [0x416f69, 0x4f7d6f, 0x648d78, 0x396765].map((value) => new THREE.Color(value));
     const dummy = new THREE.Object3D();
     for (let index = 0; index < count; index += 1) {
       const angle = index / count * Math.PI * 2 + Math.sin(index * 0.83) * 0.035;
@@ -252,22 +252,40 @@ export class SkyDancerWorldPresentationV30 {
     this.hiddenLegacyLayers = Math.max(this.hiddenLegacyLayers, hidden);
   }
 
+  private tuneCloudLayer(name: string, opacity: number, scale: number, lift: number): void {
+    const object = this.runtime.scene.getObjectByName(name);
+    if (!(object instanceof THREE.InstancedMesh)) return;
+    if (object.material instanceof THREE.MeshLambertMaterial) {
+      object.material.opacity = opacity;
+      object.material.color.setHex(0xf8fcff);
+      object.material.needsUpdate = true;
+    }
+    object.scale.setScalar(scale);
+    object.position.y += lift;
+  }
+
   private prepareModernLayers(): void {
     if (this.preparedModernLayers) return;
     const skyline = this.runtime.scene.getObjectByName("sky-dancer-v29-reference-skyline");
     const lake = this.runtime.scene.getObjectByName("sky-dancer-v28-valley-lake");
     if (!skyline || !lake) return;
 
-    // Put one recognizable city in the right-front middle distance instead of
-    // surrounding the player with the old clone ring.
-    skyline.position.set(160, 0, 210);
-    skyline.scale.setScalar(0.9);
+    // World +X projects to the left in the current chase camera. Move the
+    // landmark toward lower local X so it reads in the right-front quadrant,
+    // then push it farther out to match the supplied high-altitude reference.
+    skyline.position.set(0, 0, 260);
+    skyline.scale.setScalar(0.82);
 
     if (lake instanceof THREE.Mesh) {
-      lake.position.x = 22;
-      lake.position.z = 176;
-      lake.scale.set(2.15, 1.02, 1);
+      lake.position.x = -8;
+      lake.position.z = 214;
+      lake.scale.set(1.65, 0.78, 1);
     }
+
+    // V28/V29 authored large low cloud volumes for a lower camera. At 300 m
+    // they obscure the valley. Keep a thinner horizon layer instead.
+    this.tuneCloudLayer("sky-dancer-v28-layered-cloud-banks", 0.13, 0.72, 11);
+    this.tuneCloudLayer("sky-dancer-v29-reference-cloud-bank", 0.16, 0.76, 8);
 
     const oldSky = this.runtime.scene.getObjectByName("sky-dancer-v25-reference-sky");
     if (oldSky) oldSky.visible = false;
@@ -275,12 +293,12 @@ export class SkyDancerWorldPresentationV30 {
     const renderer = this.runtime.renderer;
     if (renderer) {
       renderer.toneMapping = THREE.ACESFilmicToneMapping;
-      renderer.toneMappingExposure = 1.02;
+      renderer.toneMappingExposure = 1.08;
       renderer.outputColorSpace = THREE.SRGBColorSpace;
     }
-    this.runtime.scene.background = new THREE.Color(0x2186c5);
-    this.runtime.scene.fog = new THREE.Fog(0xb4ddec, 410, 1080);
-    this.runtime.camera.far = Math.max(this.runtime.camera.far, 1160);
+    this.runtime.scene.background = new THREE.Color(0x1676b7);
+    this.runtime.scene.fog = new THREE.Fog(0x77b9d4, 560, 1460);
+    this.runtime.camera.far = Math.max(this.runtime.camera.far, 1520);
     this.runtime.camera.updateProjectionMatrix();
 
     this.preparedModernLayers = true;
