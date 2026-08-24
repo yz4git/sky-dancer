@@ -21,7 +21,7 @@ type CloudLayerConfig = {
   fog: boolean;
 };
 
-const WORLD_SNAP = 210;
+const WORLD_SNAP = 105;
 const LEGACY_CLOUD_NAMES = [
   "sky-dancer-base-cloud-deck",
   "sky-dancer-v25-horizon-cloud-banks",
@@ -37,10 +37,10 @@ function rand(seed: number): number {
 /**
  * Texture-free V31 cumulus system.
  *
- * Old cloud passes are suppressed by both their known names and a conservative
- * name-based sweep. Replacement clusters are distributed evenly around each
- * flight chunk. Low/mid clusters keep Lambert volume but carry enough emissive
- * fill to prevent their undersides becoming black slabs in mobile WebGL.
+ * The previous Lambert cloud lobes could turn into near-black faceted slabs when
+ * viewed from below in SwiftShader/mobile WebGL. V31 uses authored per-lobe
+ * values on unlit MeshBasic materials instead: silhouette and lobe clustering
+ * provide volume while lighting can never collapse the underside to black.
  */
 export class SkyDancerCloudQualityV31 {
   private readonly root = new THREE.Group();
@@ -53,29 +53,29 @@ export class SkyDancerCloudQualityV31 {
     const configs: CloudLayerConfig[] = [
       {
         name: "sky-dancer-v31-low-clouds",
-        clusters: 12,
+        clusters: 10,
         lobes: 10,
-        radiusMin: 240,
-        radiusMax: 420,
-        yMin: -38,
+        radiusMin: 300,
+        radiusMax: 500,
+        yMin: -36,
         yMax: -20,
-        sizeMin: 4.4,
-        sizeMax: 7.3,
+        sizeMin: 4.0,
+        sizeMax: 6.8,
         opacity: 1,
         solid: true,
         fog: false,
       },
       {
         name: "sky-dancer-v31-mid-clouds",
-        clusters: 16,
+        clusters: 14,
         lobes: 12,
-        radiusMin: 380,
-        radiusMax: 610,
-        yMin: -18,
-        yMax: 14,
-        sizeMin: 5.5,
-        sizeMax: 9.0,
-        opacity: 0.98,
+        radiusMin: 440,
+        radiusMax: 680,
+        yMin: -16,
+        yMax: 15,
+        sizeMin: 5.2,
+        sizeMax: 8.8,
+        opacity: 1,
         solid: true,
         fog: false,
       },
@@ -83,13 +83,13 @@ export class SkyDancerCloudQualityV31 {
         name: "sky-dancer-v31-horizon-clouds",
         clusters: 18,
         lobes: 14,
-        radiusMin: 620,
-        radiusMax: 920,
-        yMin: -4,
-        yMax: 30,
-        sizeMin: 8.0,
-        sizeMax: 13.5,
-        opacity: 0.90,
+        radiusMin: 700,
+        radiusMax: 1000,
+        yMin: -2,
+        yMax: 34,
+        sizeMin: 8.2,
+        sizeMax: 13.8,
+        opacity: 0.88,
         solid: false,
         fog: true,
       },
@@ -102,7 +102,7 @@ export class SkyDancerCloudQualityV31 {
     });
     runtime.scene.add(this.root);
     if (runtime.camera) {
-      runtime.camera.far = Math.max(runtime.camera.far, 1520);
+      runtime.camera.far = Math.max(runtime.camera.far, 1650);
       runtime.camera.updateProjectionMatrix();
     }
     this.hideLegacyClouds();
@@ -148,17 +148,14 @@ export class SkyDancerCloudQualityV31 {
   private buildLayer(config: CloudLayerConfig, seedOffset: number): THREE.InstancedMesh {
     const count = config.clusters * config.lobes;
     const geometry = new THREE.IcosahedronGeometry(1, 1);
-    const material = new THREE.MeshLambertMaterial({
+    const material = new THREE.MeshBasicMaterial({
       color: 0xffffff,
       vertexColors: true,
-      flatShading: true,
       transparent: !config.solid,
       opacity: config.opacity,
       depthWrite: config.solid,
       depthTest: true,
       fog: config.fog,
-      emissive: config.solid ? 0x9fb8c5 : 0x789eaf,
-      emissiveIntensity: config.solid ? 0.62 : 0.38,
       toneMapped: false,
     });
     const mesh = new THREE.InstancedMesh(geometry, material, count);
@@ -166,8 +163,8 @@ export class SkyDancerCloudQualityV31 {
     mesh.frustumCulled = false;
 
     const light = new THREE.Color(0xf8fcff);
-    const mid = new THREE.Color(0xdcecf3);
-    const shade = new THREE.Color(0xa9c5d1);
+    const mid = new THREE.Color(0xd7e9f0);
+    const shade = new THREE.Color(0xa8c4d0);
     const sample = new THREE.Color();
     const dummy = new THREE.Object3D();
     let index = 0;
@@ -175,21 +172,21 @@ export class SkyDancerCloudQualityV31 {
     for (let cluster = 0; cluster < config.clusters; cluster += 1) {
       const baseSeed = seedOffset + cluster * 97;
       const evenAngle = cluster / config.clusters * Math.PI * 2;
-      const angle = evenAngle + (rand(baseSeed + 1) - 0.5) * 0.18;
+      const angle = evenAngle + (rand(baseSeed + 1) - 0.5) * 0.16;
       const radius = THREE.MathUtils.lerp(config.radiusMin, config.radiusMax, rand(baseSeed + 2));
       const centerX = Math.cos(angle) * radius;
       const centerZ = Math.sin(angle) * radius;
       const centerY = THREE.MathUtils.lerp(config.yMin, config.yMax, rand(baseSeed + 3));
-      const spread = THREE.MathUtils.lerp(7, 13, rand(baseSeed + 4));
+      const spread = THREE.MathUtils.lerp(7, 12, rand(baseSeed + 4));
 
       for (let lobe = 0; lobe < config.lobes; lobe += 1) {
         const seed = baseSeed + lobe * 17;
         const lobeAngle = rand(seed + 5) * Math.PI * 2;
-        const ring = lobe === 0 ? 0 : 1.8 + rand(seed + 6) * spread;
+        const ring = lobe === 0 ? 0 : 1.6 + rand(seed + 6) * spread;
         const size = THREE.MathUtils.lerp(config.sizeMin, config.sizeMax, rand(seed + 7));
         const verticalBias = lobe === 0
-          ? size * 0.22
-          : (rand(seed + 8) - 0.34) * size * 0.92 + (lobe % 4 === 0 ? size * 0.42 : 0);
+          ? size * 0.24
+          : (rand(seed + 8) - 0.34) * size * 0.84 + (lobe % 4 === 0 ? size * 0.40 : 0);
 
         dummy.position.set(
           centerX + Math.cos(lobeAngle) * ring,
@@ -198,16 +195,16 @@ export class SkyDancerCloudQualityV31 {
         );
         dummy.rotation.set(rand(seed + 9) * 0.32, rand(seed + 10) * Math.PI, rand(seed + 11) * 0.26);
         dummy.scale.set(
-          size * THREE.MathUtils.lerp(0.94, 1.18, rand(seed + 12)),
-          size * THREE.MathUtils.lerp(0.84, 1.20, rand(seed + 13)),
-          size * THREE.MathUtils.lerp(0.94, 1.20, rand(seed + 14)),
+          size * THREE.MathUtils.lerp(0.96, 1.18, rand(seed + 12)),
+          size * THREE.MathUtils.lerp(0.84, 1.16, rand(seed + 13)),
+          size * THREE.MathUtils.lerp(0.96, 1.18, rand(seed + 14)),
         );
         dummy.updateMatrix();
         mesh.setMatrixAt(index, dummy.matrix);
 
-        const heightTone = THREE.MathUtils.clamp(0.46 + verticalBias / Math.max(1, size) * 0.38 + rand(seed + 15) * 0.2, 0, 1);
-        sample.lerpColors(shade, mid, THREE.MathUtils.clamp(heightTone * 1.35, 0, 1));
-        sample.lerp(light, Math.max(0, heightTone - 0.50) * 1.30);
+        const heightTone = THREE.MathUtils.clamp(0.48 + verticalBias / Math.max(1, size) * 0.34 + rand(seed + 15) * 0.18, 0, 1);
+        sample.lerpColors(shade, mid, THREE.MathUtils.clamp(heightTone * 1.30, 0, 1));
+        sample.lerp(light, Math.max(0, heightTone - 0.48) * 1.22);
         mesh.setColorAt(index, sample);
         index += 1;
       }
