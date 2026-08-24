@@ -46,7 +46,10 @@ export class SkyDancerAirCombatFxV31 extends SkyDancerAirCombatFxV30 {
     const base = inherited.bind(runtime);
     runtime.applyCameraPresentation = (snapshot: CartArenaSessionSnapshot) => {
       base(snapshot);
-      runtime.camera.rotateX(-0.20);
+      // The 300 m flight level needs a distinctly downward presentation angle.
+      // Keep chase distance and FOV untouched; only move the horizon into the
+      // upper half so the populated valley occupies most of the gameplay frame.
+      runtime.camera.rotateX(-0.35);
     };
     runtime.camera.userData.skyDancerV31PitchInstalled = true;
   }
