@@ -2,6 +2,7 @@ import type { CartArenaSessionSnapshot } from "../cart/CartArenaSession";
 import type { SkyDancerMissileState } from "./SkyDancerFlightCombat";
 import { SkyDancerAirCombatFxV31 } from "./SkyDancerAirCombatFxV31";
 import type { SkyDancerFxRuntime } from "./SkyDancerAirCombatFxV2";
+import { SkyDancerReferencePolishV32 } from "./SkyDancerReferencePolishV32";
 import { SkyDancerReferenceWorldV32 } from "./SkyDancerReferenceWorldV32";
 
 interface V32CameraRuntime extends SkyDancerFxRuntime {
@@ -20,16 +21,20 @@ export class SkyDancerAirCombatFxV32 extends SkyDancerAirCombatFxV31 {
   // Do not call this `referenceWorld`: V25 already owns a THREE.Group under that
   // property name and its updateWorldAnchor() depends on `.position.set()`.
   private readonly referencePresentation: SkyDancerReferenceWorldV32;
+  private readonly referencePolish: SkyDancerReferencePolishV32;
 
   constructor(private readonly v32Runtime: SkyDancerFxRuntime) {
     super(v32Runtime);
     this.referencePresentation = new SkyDancerReferenceWorldV32(v32Runtime);
+    this.referencePolish = new SkyDancerReferencePolishV32(v32Runtime);
     if (typeof queueMicrotask === "function") queueMicrotask(() => this.installReferenceCameraComposition());
   }
 
   override update(snapshot: CartArenaSessionSnapshot, missiles: SkyDancerMissileState, delta: number): void {
     super.update(snapshot, missiles, delta);
     this.referencePresentation.update(snapshot);
+    // Run last so this is the final visible composition authority.
+    this.referencePolish.update(snapshot);
   }
 
   private installReferenceCameraComposition(): void {
