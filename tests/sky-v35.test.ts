@@ -19,9 +19,9 @@ test("V35 presentation pipeline has one final owner after V34", () => {
   assert.match(pipeline, /this\.v34\.update\(snapshot\);\n    this\.v35\.update\(snapshot\);/);
 });
 
-test("V35 single owner builds a dense central city without turning it into a foreground wall", () => {
+test("V35 single owner builds the reference-width central city and restrained horizon layers", () => {
   const source = read("../src/sky/presentation/SkyDancerV35ReferencePass.ts");
-  assert.match(source, /MAX_FOCUS_BUILDINGS = 760/);
+  assert.match(source, /MAX_FOCUS_BUILDINGS = 880/);
   assert.match(source, /MAX_FOCUS_RIVER = 24/);
   assert.match(source, /FRONT_CLOUD_COUNT = 32/);
   assert.match(source, /sky-dancer-v35-focus-buildings/);
@@ -32,10 +32,11 @@ test("V35 single owner builds a dense central city without turning it into a for
   assert.match(source, /sky-dancer-v35-front-cloud-patches/);
   assert.match(source, /tileZ \* CITY_SNAP \+ 300/);
   assert.match(source, /FOCUS_CITY_LOCAL_CENTER_Z = 145/);
-  assert.match(source, /const spacing = 7\.4/);
+  assert.match(source, /const spacing = 7\.2/);
+  assert.match(source, /const riverX = -10/);
   assert.match(source, /new THREE\.MeshLambertMaterial/);
   assert.match(source, /opacity: far \? 0\.23 : 0\.38/);
-  assert.match(source, /opacity: 0\.18/);
+  assert.match(source, /opacity: 0\.20/);
   assert.match(source, /blockType > 0\.86/);
   assert.match(source, /fog\.near = 620/);
   assert.match(source, /fog\.far = 1760/);
@@ -63,7 +64,7 @@ test("V35 removes superseded scene work and reuses rebuild scratch objects", () 
   assert.doesNotMatch(v34, /scene\.background = new THREE\.Color/);
 });
 
-test("V35 webdriver audit verifies both density and reference-like screen coverage", () => {
+test("V35 webdriver audit verifies density plus reference-like central screen coverage", () => {
   const bridge = read("../src/sky/presentation/SkyDancerV35VisualAuditBridge.ts");
   const audit = read("../scripts/webgl-v35-reference-audit.mjs");
   assert.match(bridge, /sky-dancer-v35-front-cloud-patches/);
@@ -74,10 +75,10 @@ test("V35 webdriver audit verifies both density and reference-like screen covera
   assert.match(bridge, /projectedInstanceStats/);
   assert.match(bridge, /focusCityInViewCount/);
   assert.doesNotMatch(bridge, /cityLow|firstPassCityVisible|polishFramingInstalled/);
-  assert.match(audit, /focusCityCount\) < 650/);
-  assert.match(audit, /focusCityInViewCount\) < 420/);
+  assert.match(audit, /focusCityCount\) < 800/);
+  assert.match(audit, /focusCityInViewCount\) < 650/);
   assert.match(audit, /cityVerticalSpan > 0\.90/);
-  assert.match(audit, /cityHorizontalSpan > 1\.85/);
+  assert.match(audit, /cityHorizontalSpan < 1\.15 \|\| cityHorizontalSpan > 1\.70/);
   assert.match(audit, /reference midground corridor/i);
   assert.match(audit, /focalDelta < 220 \|\| focalDelta > 360/);
   assert.match(audit, /settlementsVisible \|\| visual\.towersVisible \|\| visual\.roadsVisible/);
