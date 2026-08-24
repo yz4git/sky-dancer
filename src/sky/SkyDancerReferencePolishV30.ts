@@ -52,18 +52,22 @@ export class SkyDancerReferencePolishV30 {
     `;
     sky.material.needsUpdate = true;
 
-    // Bring the recognizable city closer and farther toward screen-right. The
-    // current chase projection maps lower world X toward the reference's right.
-    skyline.position.set(-42, 0, 190);
-    skyline.scale.setScalar(1.25);
+    // Keep the city clearly readable in the right-front quadrant without
+    // clipping it against the screen edge during the neutral chase view.
+    skyline.position.set(-24, 0, 205);
+    skyline.scale.setScalar(1.12);
 
     const lake = scene.getObjectByName("sky-dancer-v28-valley-lake");
     if (lake instanceof THREE.Mesh) {
-      lake.position.x = -22;
-      lake.position.z = 186;
-      lake.scale.set(1.95, 0.82, 1);
+      lake.position.x = -12;
+      lake.position.z = 198;
+      lake.scale.set(1.82, 0.82, 1);
     }
 
+    // The original SkyDancerWebGLDemo cloud deck predates named V28/V29 cloud
+    // layers. It is an unnamed Dodecahedron InstancedMesh and was the main cause
+    // of the giant pale polygons covering the valley in real V30 captures.
+    this.tuneBaseCloudDeck();
     this.tuneCloud("sky-dancer-v28-layered-cloud-banks", 0.07, 0.48, 7);
     this.tuneCloud("sky-dancer-v29-reference-cloud-bank", 0.09, 0.52, 6);
 
@@ -90,6 +94,23 @@ export class SkyDancerReferencePolishV30 {
     scene.fog = new THREE.Fog(0x4b9fc4, 700, 1650);
 
     this.prepared = true;
+  }
+
+  private tuneBaseCloudDeck(): void {
+    for (const object of this.runtime.scene.children) {
+      if (!(object instanceof THREE.InstancedMesh) || object.name) continue;
+      if (object.geometry.type !== "DodecahedronGeometry") continue;
+      if (!(object.material instanceof THREE.MeshLambertMaterial)) continue;
+      if (object.material.color.getHex() !== 0xf7fcff) continue;
+
+      object.name = "sky-dancer-v30-base-cloud-deck";
+      object.scale.setScalar(0.46);
+      object.position.y += 10;
+      object.material.opacity = 0.045;
+      object.material.color.setHex(0xf7fbff);
+      object.material.needsUpdate = true;
+      return;
+    }
   }
 
   private tuneCloud(name: string, opacity: number, scale: number, lift: number): void {
