@@ -76,15 +76,37 @@ const controlState = await page.evaluate(() => {
   const brakeButtons = buttons.filter((button) => button.textContent?.trim() === "BRAKE");
   const visibleBrakeButtons = brakeButtons.filter((button) => getComputedStyle(button).display !== "none");
   const shotButton = buttons.find((button) => button.getAttribute("aria-label") === "Fire missile");
+  const gasCards = Array.from(document.querySelectorAll('[data-sd-gas-card="true"]'));
+  const itemStrips = Array.from(document.querySelectorAll('[data-sd-item-strip="true"]'));
+  const huntModeCards = Array.from(document.querySelectorAll('[data-sd-hunt-mode="true"]'));
+  const turboButtons = Array.from(document.querySelectorAll('[data-sd-turbo-button="true"]'));
   return {
     shotVisible: Boolean(shotButton && getComputedStyle(shotButton).display !== "none"),
     brakeCount: brakeButtons.length,
     visibleBrakeCount: visibleBrakeButtons.length,
     directFireAvailable: typeof window.__skyDancerFireMissile === "function",
+    v30Hud: {
+      gasCardCount: gasCards.length,
+      itemStripCount: itemStrips.length,
+      itemStripHidden: itemStrips.length > 0 && itemStrips.every((element) => getComputedStyle(element).display === "none"),
+      huntModeCount: huntModeCards.length,
+      huntModeHidden: huntModeCards.length > 0 && huntModeCards.every((element) => getComputedStyle(element).display === "none"),
+      turboButtonCount: turboButtons.length,
+    },
   };
 });
 if (!controlState.shotVisible || controlState.visibleBrakeCount !== 0 || !controlState.directFireAvailable) {
   throw new Error(`Control replacement failed: ${JSON.stringify(controlState)}`);
+}
+if (
+  controlState.v30Hud.gasCardCount < 1
+  || controlState.v30Hud.itemStripCount < 1
+  || !controlState.v30Hud.itemStripHidden
+  || controlState.v30Hud.huntModeCount < 1
+  || !controlState.v30Hud.huntModeHidden
+  || controlState.v30Hud.turboButtonCount < 1
+) {
+  throw new Error(`V30 HUD consolidation did not reach the static runtime: ${JSON.stringify(controlState.v30Hud)}`);
 }
 
 const openingFlight = await page.evaluate(() => typeof window.__skyDancerGetFlightDebug === "function" ? window.__skyDancerGetFlightDebug() : null);
@@ -94,38 +116,46 @@ if (Math.abs(Number(openingFlight.altitudeMeters) - EXPECTED_ALTITUDE_METERS) > 
 await page.screenshot({ path: `${outputDir}/01-gameplay-start.png`, fullPage: true });
 await webglCanvas.screenshot({ path: `${outputDir}/01-gameplay-start-canvas.png` });
 
-// Primary regression #1: a real touch must create a missile and that missile
-// must visibly advance in world simulation, not just increment shotSerial.
+// Primary regression #1: a real touch must create a missile flight event. A
+// close target can legitimately be hit in the same simulation step, in which
+// case the missile is already retired and hitSerial is the stronger proof.
 const weaponBefore = await page.evaluate(() => typeof window.__skyDancerGetWeaponState === "function" ? window.__skyDancerGetWeaponState() : null);
 const shotBox = await shot.boundingBox();
 if (!shotBox) throw new Error("Shot button has no touchable bounds");
 await page.touchscreen.tap(shotBox.x + shotBox.width * 0.5, shotBox.y + shotBox.height * 0.5);
 const weaponImmediatelyAfter = await page.evaluate(() => typeof window.__skyDancerGetWeaponState === "function" ? window.__skyDancerGetWeaponState() : null);
-if (!weaponBefore || !weaponImmediatelyAfter || weaponImmediatelyAfter.shotSerial <= weaponBefore.shotSerial || !Array.isArray(weaponImmediatelyAfter.missiles) || weaponImmediatelyAfter.missiles.length < 1) {
-  throw new Error(`Touch Shot did not create an active missile: before=${JSON.stringify(weaponBefore)} after=${JSON.stringify(weaponImmediatelyAfter)}`);
+const shotRegistered = Boolean(weaponBefore && weaponImmediatelyAfter && weaponImmediatelyAfter.shotSerial > weaponBefore.shotSerial);
+const immediateHit = Boolean(weaponBefore && weaponImmediatelyAfter && weaponImmediatelyAfter.hitSerial > weaponBefore.hitSerial);
+const launched = Array.isArray(weaponImmediatelyAfter?.missiles) ? (weaponImmediatelyAfter.missiles[0] ?? null) : null;
+if (!shotRegistered || (!launched && !immediateHit)) {
+  throw new Error(`Touch Shot produced neither missile flight nor an immediate hit: before=${JSON.stringify(weaponBefore)} after=${JSON.stringify(weaponImmediatelyAfter)}`);
 }
-const launched = weaponImmediatelyAfter.missiles[0];
+
 await page.waitForTimeout(80);
 await page.screenshot({ path: `${outputDir}/02-player-shot.png`, fullPage: true });
 await webglCanvas.screenshot({ path: `${outputDir}/02-player-shot-canvas.png` });
 await page.waitForTimeout(40);
 const weaponAfter120 = await page.evaluate(() => typeof window.__skyDancerGetWeaponState === "function" ? window.__skyDancerGetWeaponState() : null);
 if (!weaponAfter120) throw new Error("Weapon telemetry disappeared after launch");
-const sameMissile120 = Array.isArray(weaponAfter120.missiles) ? weaponAfter120.missiles.find((missile) => missile.id === launched.id) : null;
-const missileTravel120 = sameMissile120 ? Math.hypot(sameMissile120.x - launched.x, sameMissile120.z - launched.z) : null;
-const moved120 = sameMissile120
-  ? missileTravel120 > 0.2 || sameMissile120.life < launched.life - 0.02
-  : weaponAfter120.hitSerial > weaponImmediatelyAfter.hitSerial;
-if (!moved120) throw new Error(`Player missile was created but did not advance: launch=${JSON.stringify(launched)} after=${JSON.stringify(weaponAfter120)}`);
+const sameMissile120 = launched && Array.isArray(weaponAfter120.missiles) ? weaponAfter120.missiles.find((missile) => missile.id === launched.id) : null;
+const missileTravel120 = sameMissile120 && launched ? Math.hypot(sameMissile120.x - launched.x, sameMissile120.z - launched.z) : null;
+const moved120 = launched
+  ? (sameMissile120
+    ? missileTravel120 > 0.2 || sameMissile120.life < launched.life - 0.02
+    : weaponAfter120.hitSerial > weaponImmediatelyAfter.hitSerial)
+  : immediateHit;
+if (!moved120) throw new Error(`Player missile did not advance or hit: launch=${JSON.stringify(launched)} after=${JSON.stringify(weaponAfter120)}`);
 
 await page.waitForTimeout(180);
 const weaponAfter300 = await page.evaluate(() => typeof window.__skyDancerGetWeaponState === "function" ? window.__skyDancerGetWeaponState() : null);
-const sameMissile300 = Array.isArray(weaponAfter300?.missiles) ? weaponAfter300.missiles.find((missile) => missile.id === launched.id) : null;
-const missileTravel300 = sameMissile300 ? Math.hypot(sameMissile300.x - launched.x, sameMissile300.z - launched.z) : null;
-const advancedMeaningfully = sameMissile300
-  ? missileTravel300 > 1 || sameMissile300.life < launched.life - 0.08
-  : (weaponAfter300?.hitSerial ?? 0) > weaponImmediatelyAfter.hitSerial;
-if (!advancedMeaningfully) throw new Error(`Player missile did not achieve visible flight: launch=${JSON.stringify(launched)} after300=${JSON.stringify(weaponAfter300)}`);
+const sameMissile300 = launched && Array.isArray(weaponAfter300?.missiles) ? weaponAfter300.missiles.find((missile) => missile.id === launched.id) : null;
+const missileTravel300 = sameMissile300 && launched ? Math.hypot(sameMissile300.x - launched.x, sameMissile300.z - launched.z) : null;
+const advancedMeaningfully = launched
+  ? (sameMissile300
+    ? missileTravel300 > 1 || sameMissile300.life < launched.life - 0.08
+    : (weaponAfter300?.hitSerial ?? 0) > weaponImmediatelyAfter.hitSerial)
+  : immediateHit;
+if (!advancedMeaningfully) throw new Error(`Player missile did not achieve visible flight or an immediate hit: launch=${JSON.stringify(launched)} after300=${JSON.stringify(weaponAfter300)}`);
 
 await page.keyboard.down("ArrowRight");
 await page.waitForTimeout(1_350);
@@ -194,7 +224,7 @@ if (legacyVisible.length) throw new Error(`Legacy vehicle HUD text still visible
 
 const diagnostics = {
   capturedAt: new Date().toISOString(), url: page.url(), viewport: page.viewportSize(), webgl, controlState,
-  openingFlight, weaponBefore, weaponImmediatelyAfter, weaponAfter120, weaponAfter300,
+  openingFlight, weaponBefore, weaponImmediatelyAfter, immediateHit, weaponAfter120, weaponAfter300,
   missileTravel120, missileTravel300,
   turnFlight, turboBefore, turboDuring, turboAfterRelease,
   combatWeaponBefore, combatWeaponAfter, combatFlight,
