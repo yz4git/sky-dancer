@@ -21,21 +21,25 @@ export default function SkyDancerHudV34() {
   return <>
     <style>{`
       [aria-label="Missile warning"] {
-        top: max(54px, calc(env(safe-area-inset-top) + 44px)) !important;
-        max-width: 46vw !important;
-        padding: 3px 8px !important;
-        border-radius: 4px !important;
-        font-size: clamp(9px, 1.25vw, 12px) !important;
+        left: max(18px, env(safe-area-inset-left)) !important;
+        right: auto !important;
+        top: max(150px, calc(env(safe-area-inset-top) + 140px)) !important;
+        transform: none !important;
+        width: auto !important;
+        max-width: min(34vw, 290px) !important;
+        padding: 3px 7px !important;
+        border-radius: 3px 8px 8px 3px !important;
+        font-size: clamp(9px, 1.12vw, 11px) !important;
         line-height: 1.05 !important;
-        letter-spacing: .075em !important;
-        opacity: .82 !important;
-        box-shadow: 0 0 10px rgba(255,72,60,.15) !important;
+        letter-spacing: .065em !important;
+        opacity: .78 !important;
+        box-shadow: 0 0 8px rgba(255,72,60,.12) !important;
         white-space: nowrap !important;
       }
       .skyDancerBossV34 {
         position: fixed;
         left: 50%;
-        top: max(77px, calc(env(safe-area-inset-top) + 67px));
+        top: max(54px, calc(env(safe-area-inset-top) + 44px));
         z-index: 111;
         transform: translateX(-50%);
         display: flex;
@@ -59,8 +63,12 @@ export default function SkyDancerHudV34() {
       }
       .skyDancerBossV34[data-core-open="true"] strong { color: #8af7ff; }
       @media(max-height:390px) {
-        [aria-label="Missile warning"] { top: 48px !important; }
-        .skyDancerBossV34 { top: 68px; padding: 2px 7px 3px; }
+        [aria-label="Missile warning"] {
+          left: max(12px, env(safe-area-inset-left)) !important;
+          top: 142px !important;
+          max-width: 32vw !important;
+        }
+        .skyDancerBossV34 { top: 50px; padding: 2px 7px 3px; }
       }
     `}</style>
     {boss && (
