@@ -44,11 +44,11 @@ function installPolishCameraFraming(runtime: SkyDancerFxRuntime): void {
 /**
  * Capture-driven V35 final owner.
  *
- * Pass 3 proved that instance count alone is not enough: the opening camera's
- * center ground ray lands near z=535 while the previous 500-building focus city
- * was centered near z=318, putting most of the added detail under/below the
- * player. Pass 4 moves the authored metro into the actual camera focal corridor,
- * integrates its own river, and places two angular mountain depths behind it.
+ * Pass 4 put the numerical city center on the camera ground ray, but the real
+ * capture still read as countryside because nearly all mass projected into a
+ * narrow horizon band. Pass 5 deliberately spans the city from near-midground
+ * to the focal point, keeps the closest blocks low, builds height toward the
+ * center/back, and strengthens the mountain silhouette behind the skyline.
  */
 export class SkyDancerV35ReferencePolishPass {
   private readonly focusRoot = new THREE.Group();
@@ -122,7 +122,7 @@ export class SkyDancerV35ReferencePolishPass {
     if (fields instanceof THREE.InstancedMesh && fields.material instanceof THREE.MeshBasicMaterial) {
       fields.visible = true;
       fields.material.transparent = true;
-      fields.material.opacity = 0.48;
+      fields.material.opacity = 0.64;
       fields.material.depthWrite = true;
       fields.material.fog = true;
       fields.material.needsUpdate = true;
@@ -134,8 +134,8 @@ export class SkyDancerV35ReferencePolishPass {
     if (!(forest instanceof THREE.InstancedMesh) || !(forest.material instanceof THREE.MeshLambertMaterial)) return;
     forest.visible = true;
     forest.material.transparent = true;
-    forest.material.opacity = 0.46;
-    forest.material.color.setHex(0x426f50);
+    forest.material.opacity = 0.30;
+    forest.material.color.setHex(0x4b7757);
     forest.material.fog = true;
     forest.material.needsUpdate = true;
   }
@@ -147,53 +147,55 @@ export class SkyDancerV35ReferencePolishPass {
     this.focusTileX = tileX;
     this.focusTileZ = tileZ;
 
-    // Opening camera diagnostics put the center ground ray near z≈535. Keep the
-    // repeated world tile stable, but move the dense metro so its authored core
-    // lands around world z≈500 instead of directly under the player.
-    this.focusRoot.position.set(tileX * CITY_SNAP + 140, 0, tileZ * CITY_SNAP + 340);
+    // Pass 4 centered at world z≈500 but projected too close to the horizon.
+    // Pass 5 starts the urban fabric around z≈264 and ends around z≈540 so the
+    // lower half of the view contains city scale cues while the skyline remains
+    // near the reference focal point.
+    this.focusRoot.position.set(tileX * CITY_SNAP + 140, 0, tileZ * CITY_SNAP + 240);
     this.focusRoot.userData.skyDancerV35WorldCenterZ = this.focusRoot.position.z + FOCUS_CITY_LOCAL_CENTER_Z;
     this.rebuildFocusCity(tileX, tileZ);
   }
 
   private rebuildFocusCity(tileX: number, tileZ: number): void {
     const dummy = new THREE.Object3D();
-    const palette = [0x9cadb5, 0xb4c1c5, 0xcbd2d3, 0x8fa3ad, 0xdbe0df, 0xa8b8be].map((value) => new THREE.Color(value));
+    const palette = [0x96aab3, 0xaebdc2, 0xc8d0d1, 0x879da8, 0xd8dddd, 0xa1b3ba].map((value) => new THREE.Color(value));
     let buildingIndex = 0;
     let streetIndex = 0;
     let riverIndex = 0;
     const seed = Math.floor(hash2(tileX, tileZ, 400) * 1000);
-    const spacing = 9.4;
+    const spacing = 9.2;
     const startZ = 24;
 
-    for (let row = 0; row < 30; row += 1) {
+    for (let row = 0; row < 31; row += 1) {
       const z = startZ + row * spacing;
-      const riverX = 24 + Math.sin((z + seed) * 0.024) * 18;
+      const riverX = 22 + Math.sin((z + seed) * 0.025) * 17;
       for (let column = -15; column <= 15 && buildingIndex < MAX_FOCUS_BUILDINGS; column += 1) {
         const x = column * spacing;
         const roadColumn = (column + 15) % 5 === 0;
         const roadRow = row % 5 === 0;
-        if (roadColumn || roadRow || Math.abs(x - riverX) < 7.2) continue;
+        if (roadColumn || roadRow || Math.abs(x - riverX) < 7.0) continue;
 
         const noise = hash2(tileX + column, tileZ + row, 800 + seed);
-        const centerDistance = Math.hypot(x * 0.86, (z - FOCUS_CITY_LOCAL_CENTER_Z) * 0.56);
-        const core = THREE.MathUtils.clamp(1 - centerDistance / 162, 0, 1);
-        let height = 4.5 + noise * 8.5 + core * (6.5 + noise * 19.5);
-        let width = 2.5 + hash2(column, row, 1000 + seed) * 2.2;
-        let depth = 2.5 + hash2(row, column, 1100 + seed) * 2.3;
+        const centerDistance = Math.hypot(x * 0.88, (z - FOCUS_CITY_LOCAL_CENTER_Z) * 0.52);
+        const core = THREE.MathUtils.clamp(1 - centerDistance / 158, 0, 1);
+        const depthGain = THREE.MathUtils.clamp((z - 26) / 118, 0.18, 1);
+        let height = 3.2 + noise * 5.8 + core * depthGain * (7.0 + noise * 22.0);
+        let width = 2.25 + hash2(column, row, 1000 + seed) * 1.95;
+        let depth = 2.25 + hash2(row, column, 1100 + seed) * 2.05;
 
-        const landmark = (row === 11 && column === -5) || (row === 16 && column === 5) || (row === 20 && column === 0);
+        const landmark = (row === 14 && column === -5) || (row === 19 && column === 5) || (row === 23 && column === 0);
         if (landmark) {
-          height = 50 + hash2(column, row, 1200 + seed) * 18;
-          width = 4.8;
-          depth = 4.8;
+          height = 54 + hash2(column, row, 1200 + seed) * 22;
+          width = 4.9;
+          depth = 4.9;
         }
 
         dummy.position.set(
-          x + (hash2(column, row, 1300 + seed) - 0.5) * 1.15,
+          x + (hash2(column, row, 1300 + seed) - 0.5) * 1.0,
           GROUND_Y + 0.72 + height * 0.5,
-          z + (hash2(row, column, 1400 + seed) - 0.5) * 1.15,
+          z + (hash2(row, column, 1400 + seed) - 0.5) * 1.0,
         );
-        dummy.rotation.set(0, (hash2(column, row, 1500 + seed) - 0.5) * 0.045, 0);
+        dummy.rotation.set(0, (hash2(column, row, 1500 + seed) - 0.5) * 0.04, 0);
         dummy.scale.set(width, height, depth);
         dummy.updateMatrix();
         this.focusBuildings.setMatrixAt(buildingIndex, dummy.matrix);
@@ -203,28 +205,28 @@ export class SkyDancerV35ReferencePolishPass {
     }
 
     for (let column = -15; column <= 15 && streetIndex < MAX_FOCUS_STREETS; column += 5) {
-      dummy.position.set(column * spacing, GROUND_Y + 0.78, 160);
+      dummy.position.set(column * spacing, GROUND_Y + 0.78, 162);
       dummy.rotation.set(0, 0, 0);
-      dummy.scale.set(1.15, 0.07, 292);
+      dummy.scale.set(1.08, 0.07, 300);
       dummy.updateMatrix();
       this.focusStreets.setMatrixAt(streetIndex++, dummy.matrix);
     }
-    for (let row = 0; row < 30 && streetIndex < MAX_FOCUS_STREETS; row += 5) {
+    for (let row = 0; row < 31 && streetIndex < MAX_FOCUS_STREETS; row += 5) {
       dummy.position.set(0, GROUND_Y + 0.79, startZ + row * spacing);
       dummy.rotation.set(0, Math.PI / 2, 0);
-      dummy.scale.set(1.08, 0.07, 302);
+      dummy.scale.set(1.02, 0.07, 302);
       dummy.updateMatrix();
       this.focusStreets.setMatrixAt(streetIndex++, dummy.matrix);
     }
 
-    const riverSegmentLength = 13.2;
+    const riverSegmentLength = 13.0;
     for (let segment = 0; segment < MAX_FOCUS_RIVER; segment += 1) {
-      const z = 18 + segment * riverSegmentLength;
-      const x = 24 + Math.sin((z + seed) * 0.024) * 18;
-      const nextX = 24 + Math.sin((z + riverSegmentLength + seed) * 0.024) * 18;
+      const z = 17 + segment * riverSegmentLength;
+      const x = 22 + Math.sin((z + seed) * 0.025) * 17;
+      const nextX = 22 + Math.sin((z + riverSegmentLength + seed) * 0.025) * 17;
       dummy.position.set((x + nextX) * 0.5, GROUND_Y + 0.80, z + riverSegmentLength * 0.5);
       dummy.rotation.set(0, Math.atan2(nextX - x, riverSegmentLength), 0);
-      dummy.scale.set(8.6 + hash2(tileX, tileZ, 1700 + segment) * 2.6, 0.08, riverSegmentLength * 1.10);
+      dummy.scale.set(9.8 + hash2(tileX, tileZ, 1700 + segment) * 2.8, 0.08, riverSegmentLength * 1.12);
       dummy.updateMatrix();
       this.focusRiver.setMatrixAt(riverIndex++, dummy.matrix);
     }
@@ -241,12 +243,10 @@ export class SkyDancerV35ReferencePolishPass {
   private makeFocusBuildings(): THREE.InstancedMesh {
     const mesh = new THREE.InstancedMesh(
       new THREE.BoxGeometry(1, 1, 1),
-      new THREE.MeshStandardMaterial({
+      new THREE.MeshBasicMaterial({
         color: 0xffffff,
-        roughness: 0.50,
-        metalness: 0.10,
-        flatShading: true,
         fog: true,
+        toneMapped: false,
       }),
       MAX_FOCUS_BUILDINGS,
     );
@@ -259,9 +259,9 @@ export class SkyDancerV35ReferencePolishPass {
     const mesh = new THREE.InstancedMesh(
       new THREE.BoxGeometry(1, 1, 1),
       new THREE.MeshBasicMaterial({
-        color: 0x87979b,
+        color: 0x7b8d92,
         transparent: true,
-        opacity: 0.82,
+        opacity: 0.84,
         fog: true,
         toneMapped: false,
       }),
@@ -275,13 +275,10 @@ export class SkyDancerV35ReferencePolishPass {
   private makeFocusRiver(): THREE.InstancedMesh {
     const mesh = new THREE.InstancedMesh(
       new THREE.BoxGeometry(1, 1, 1),
-      new THREE.MeshStandardMaterial({
-        color: 0x3f9fc4,
-        emissive: 0x0b4962,
-        emissiveIntensity: 0.18,
-        roughness: 0.30,
-        metalness: 0.02,
+      new THREE.MeshBasicMaterial({
+        color: 0x3e9fc5,
         fog: true,
+        toneMapped: false,
       }),
       MAX_FOCUS_RIVER,
     );
@@ -294,9 +291,9 @@ export class SkyDancerV35ReferencePolishPass {
     const mesh = new THREE.InstancedMesh(
       new THREE.ConeGeometry(1, 1, 5),
       new THREE.MeshBasicMaterial({
-        color: far ? 0x7895a4 : 0x587d90,
+        color: far ? 0x7190a1 : 0x4f7488,
         transparent: true,
-        opacity: far ? 0.46 : 0.66,
+        opacity: far ? 0.52 : 0.78,
         depthWrite: false,
         depthTest: true,
         fog: true,
@@ -309,13 +306,13 @@ export class SkyDancerV35ReferencePolishPass {
     for (let index = 0; index < count; index += 1) {
       const x = -540 + index * (1080 / Math.max(1, count - 1));
       const height = far
-        ? 55 + (index % 6) * 6.2 + Math.sin(index * 1.57) * 4
-        : 68 + (index % 6) * 7.2 + Math.sin(index * 1.79) * 5;
-      const width = far ? 92 + (index % 5) * 13 : 78 + (index % 5) * 12;
-      const z = far ? 505 + (index % 4) * 18 : 425 + (index % 4) * 16;
+        ? 86 + (index % 6) * 8.0 + Math.sin(index * 1.57) * 5
+        : 108 + (index % 6) * 9.0 + Math.sin(index * 1.79) * 7;
+      const width = far ? 102 + (index % 5) * 15 : 88 + (index % 5) * 14;
+      const z = far ? 485 + (index % 4) * 20 : 405 + (index % 4) * 18;
       dummy.position.set(x, GROUND_Y + height * 0.49, z);
       dummy.rotation.set(0, (index % 3 - 1) * 0.10, 0);
-      dummy.scale.set(width, height, width * (far ? 0.56 : 0.50));
+      dummy.scale.set(width, height, width * (far ? 0.58 : 0.52));
       dummy.updateMatrix();
       mesh.setMatrixAt(index, dummy.matrix);
     }
@@ -330,7 +327,7 @@ export class SkyDancerV35ReferencePolishPass {
       new THREE.MeshBasicMaterial({
         color: 0xf6f9fa,
         transparent: true,
-        opacity: 0.30,
+        opacity: 0.24,
         depthWrite: false,
         depthTest: true,
         fog: true,
@@ -343,12 +340,12 @@ export class SkyDancerV35ReferencePolishPass {
     for (let index = 0; index < FRONT_CLOUD_COUNT; index += 1) {
       const side = index % 2 === 0 ? -1 : 1;
       const lane = Math.floor(index / 2) % 8;
-      const z = 118 + lane * 34 + Math.sin(index * 1.31) * 13;
+      const z = 105 + lane * 32 + Math.sin(index * 1.31) * 12;
       const x = side * (48 + (index % 6) * 27) + Math.cos(index * 1.87) * 12;
-      const size = 13.5 + (index % 5) * 2.3;
-      dummy.position.set(x, -38 - (index % 4) * 1.8, z);
+      const size = 12.5 + (index % 5) * 2.1;
+      dummy.position.set(x, -42 - (index % 4) * 1.6, z);
       dummy.rotation.set(0.02 * (index % 3), index * 0.27, 0.015 * (index % 5));
-      dummy.scale.set(size * 1.74, size * 0.16, size * 1.10);
+      dummy.scale.set(size * 1.74, size * 0.14, size * 1.10);
       dummy.updateMatrix();
       mesh.setMatrixAt(index, dummy.matrix);
     }
