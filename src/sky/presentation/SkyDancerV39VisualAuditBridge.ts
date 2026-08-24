@@ -44,14 +44,15 @@ export function getSkyDancerV39VisualAuditSnapshot(runtime: SkyDancerFxRuntime):
   const nearRidge = runtime.scene.getObjectByName("sky-dancer-v38-ridge-near");
   const cloudMain = runtime.scene.getObjectByName("sky-dancer-v38-cloud-cluster-main");
   const cloudShade = runtime.scene.getObjectByName("sky-dancer-v38-cloud-cluster-shade");
+  const flightRoot = runtime.session.car.group;
   return {
     v36CityCount: cityCount,
     v36CityVisible: cityVisible,
     v35CityVisible: effectiveVisible(runtime.scene.getObjectByName("sky-dancer-v35-focus-buildings")),
     terrainVisible: effectiveVisible(runtime.scene.getObjectByName("sky-dancer-v36-faceted-terrain")),
     arterialCount: instanceCount(runtime, "sky-dancer-v36-arterial-roads"),
-    playerSurfaceKitVisible: effectiveVisible(runtime.playerVisual.getObjectByName("sky-dancer-v37-player-surface-kit")),
-    turboLinesInstalled: Boolean(runtime.playerVisual.getObjectByName("sky-dancer-v37-turbo-speed-lines")),
+    playerSurfaceKitVisible: effectiveVisible(flightRoot.getObjectByName("sky-dancer-v37-player-surface-kit")),
+    turboLinesInstalled: Boolean(flightRoot.getObjectByName("sky-dancer-v37-turbo-speed-lines")),
     v38SkyVisible: effectiveVisible(runtime.scene.getObjectByName("sky-dancer-v38-four-band-sky")),
     v38RidgesVisible: effectiveVisible(farRidge) && effectiveVisible(nearRidge),
     v38CloudCount: instanceCount(runtime, "sky-dancer-v38-cloud-cluster-main") + instanceCount(runtime, "sky-dancer-v38-cloud-cluster-shade"),
