@@ -15,6 +15,18 @@ test("V31 activates the ground density and cloud quality pass", () => {
   assert.match(source, /cloudQuality\.update\(snapshot\)/);
 });
 
+test("V31 restores modern presentation roots hidden by the legacy theme bootstrap", () => {
+  const source = readFileSync(new URL("../src/sky/SkyDancerAirCombatFxV31.ts", import.meta.url), "utf8");
+  assert.match(source, /V31_OWNED_PRESENTATION_ROOTS/);
+  assert.match(source, /sky-dancer-v30-valley-detail/);
+  assert.match(source, /sky-dancer-v30-world-presentation/);
+  assert.match(source, /sky-dancer-v30-sky/);
+  assert.match(source, /sky-dancer-v31-ground-density/);
+  assert.match(source, /sky-dancer-v31-cloud-system/);
+  assert.match(source, /restoreOwnedPresentationRoots\(\)/);
+  assert.match(source, /object\.visible = true/);
+});
+
 test("V31 ground density uses a deterministic 7x7 instanced neighborhood", () => {
   const source = readFileSync(new URL("../src/sky/SkyDancerGroundDensityV31.ts", import.meta.url), "utf8");
   assert.match(source, /TILE_RADIUS = 3/);
