@@ -46,7 +46,7 @@ test("V35 HUD follows the reference hierarchy using real existing telemetry", ()
   const hud = read("../app/SkyDancerHudV35.tsx");
   const game = read("../app/CartRogueGamePhase13.tsx");
   assert.match(game, /<SkyDancerHudV34 \/>\n        <SkyDancerHudV35 \/>/);
-  assert.match(hud, /aria-label=\\"Missile warning\\"/);
+  assert.match(hud, /aria-label="Missile warning"/);
   assert.match(hud, /left: 50% !important/);
   assert.match(hud, /bottom: max\(88px/);
   assert.match(hud, /does not yet own/);
