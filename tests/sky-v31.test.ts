@@ -3,20 +3,20 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 
 test("V31 activates the ground density and cloud quality pass", () => {
-  const entry = readFileSync(new URL("../src/sky/SkyDancerAirCombatFx.ts", import.meta.url), "utf8");
   const source = readFileSync(new URL("../src/sky/SkyDancerAirCombatFxV31.ts", import.meta.url), "utf8");
-  assert.match(entry, /SkyDancerAirCombatFxV31 as SkyDancerAirCombatFx/);
+  const pass = readFileSync(new URL("../src/sky/presentation/SkyDancerV31PresentationPass.ts", import.meta.url), "utf8");
   assert.match(source, /extends SkyDancerAirCombatFxV30/);
-  assert.match(source, /SkyDancerGroundDensityV31/);
-  assert.match(source, /SkyDancerGroundReadabilityV31/);
-  assert.match(source, /SkyDancerCloudQualityV31/);
-  assert.match(source, /groundDensity\.update\(snapshot\)/);
-  assert.match(source, /groundReadability\.update\(\)/);
-  assert.match(source, /cloudQuality\.update\(snapshot\)/);
+  assert.match(source, /SkyDancerV31PresentationPass/);
+  assert.match(pass, /SkyDancerGroundDensityV31/);
+  assert.match(pass, /SkyDancerGroundReadabilityV31/);
+  assert.match(pass, /SkyDancerCloudQualityV31/);
+  assert.match(pass, /groundDensity\.update\(snapshot\)/);
+  assert.match(pass, /groundReadability\.update\(\)/);
+  assert.match(pass, /cloudQuality\.update\(snapshot\)/);
 });
 
 test("V31 restores modern presentation roots hidden by the legacy theme bootstrap", () => {
-  const source = readFileSync(new URL("../src/sky/SkyDancerAirCombatFxV31.ts", import.meta.url), "utf8");
+  const source = readFileSync(new URL("../src/sky/presentation/SkyDancerV31PresentationPass.ts", import.meta.url), "utf8");
   assert.match(source, /V31_OWNED_PRESENTATION_ROOTS/);
   assert.match(source, /sky-dancer-v30-valley-detail/);
   assert.match(source, /sky-dancer-v30-world-presentation/);
@@ -102,8 +102,8 @@ test("V31 replaces legacy clouds with cohesive unlit three-depth cumulus cluster
 });
 
 test("V31 keeps sky and horizon while tilting the final camera toward the valley", () => {
-  const source = readFileSync(new URL("../src/sky/SkyDancerAirCombatFxV31.ts", import.meta.url), "utf8");
-  assert.match(source, /queueMicrotask/);
+  const source = readFileSync(new URL("../src/sky/presentation/SkyDancerCameraPresentation.ts", import.meta.url), "utf8");
+  assert.match(source, /scheduleSkyDancerV31CameraPitch/);
   assert.match(source, /applyCameraPresentation/);
   assert.match(source, /camera\.rotateX\(-0\.08\)/);
 });
@@ -121,11 +121,11 @@ test("V31 preserves green land by replacing the full-screen V30 blue grade in bo
 });
 
 test("V31 removes world-space boss HP obstruction and moves boss HUD off center", () => {
-  const fx = readFileSync(new URL("../src/sky/SkyDancerAirCombatFxV31.ts", import.meta.url), "utf8");
+  const fx = readFileSync(new URL("../src/sky/presentation/SkyDancerBossGaugePresentation.ts", import.meta.url), "utf8");
   const hud = readFileSync(new URL("../app/SkyDancerHudV31.tsx", import.meta.url), "utf8");
   const app = readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8");
   const pages = readFileSync(new URL("../pages-entry.tsx", import.meta.url), "utf8");
-  assert.match(fx, /hideBossWorldGauge/);
+  assert.match(fx, /hideSkyDancerBossWorldGauge/);
   assert.match(fx, /skyDancerV31BossWorldGaugeHidden/);
   assert.match(hud, /bossMeter/);
   assert.match(hud, /left: max\(14px/);
