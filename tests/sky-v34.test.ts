@@ -30,12 +30,15 @@ test("V34 boss has three HP phases and readable orbit strike break cadence", () 
   assert.equal(skyDancerBossCoreOpenV34(2, 3.2), false);
 });
 
-test("V34 boss director owns final motion, airspace routing and webdriver audit control", () => {
+test("V34 boss director owns final motion, durability, airspace routing and webdriver audit control", () => {
   const source = readFileSync(new URL("../src/sky/SkyDancerBossCombatV34.ts", import.meta.url), "utf8");
+  const guard = readFileSync(new URL("../src/sky/SkyDancerBossDurabilityGuardV34.ts", import.meta.url), "utf8");
   const entry = readFileSync(new URL("../src/sky/SkyDancerAirCombatFx.ts", import.meta.url), "utf8");
   const canvas = readFileSync(new URL("../src/sky/SkyDancerCanvasPreviewV4.ts", import.meta.url), "utf8");
-  assert.match(entry, /installSkyDancerBossCombatV34\(\)/);
-  assert.match(canvas, /installSkyDancerBossCombatV34\(\)/);
+  assert.match(entry, /installSkyDancerBossDurabilityGuardV34\(\);\n    installSkyDancerBossCombatV34\(\)/);
+  assert.match(canvas, /installSkyDancerBossDurabilityGuardV34\(\);\n    installSkyDancerBossCombatV34\(\)/);
+  assert.match(guard, /targetMaxHp = skyDancerBossDurabilityV34/);
+  assert.match(guard, /V28\/V29 each own a historical one-time 1\/10 spawn reduction/);
   assert.match(source, /routeEnemiesToCurrentAirspace/);
   assert.match(source, /enemy\.nodeId = nodeId/);
   assert.match(source, /updateBossFlight/);
@@ -50,19 +53,24 @@ test("V34 is an ordered presentation pass after the V32 reference owner", () => 
   assert.match(pipeline, /SkyDancerV34QualityPass/);
   assert.match(pipeline, /this\.v32\.update\(snapshot\);\n    this\.v34\.update\(snapshot\);/);
   assert.match(quality, /sky-dancer-v34-sky-gradient/);
+  assert.match(quality, /sky-dancer-v34-irregular-terrain-masses/);
   assert.match(quality, /sky-dancer-v31-patchwork-fields/);
-  assert.match(quality, /scale\.y \*= 1\.28/);
+  assert.match(quality, /fields\.visible = false/);
+  assert.match(quality, /scale\.y \*= 1\.36/);
+  assert.match(quality, /tuneRidgeSilhouettes/);
+  assert.match(quality, /scale\.y \*= 1\.72/);
   assert.match(quality, /sky-dancer-v32-polish-city-high/);
   assert.match(quality, /sky-dancer-v18-missile-warning/);
-  assert.match(quality, /warning\.scale\.multiplyScalar\(0\.64\)/);
+  assert.match(quality, /warning\.scale\.multiplyScalar\(0\.42\)/);
   assert.match(quality, /sky-dancer-v34-boss-core/);
 });
 
-test("V34 HUD exposes boss phase/core state and reduces warning obstruction", () => {
+test("V34 HUD exposes boss phase/core state and moves missile warning out of the objective lane", () => {
   const hud = readFileSync(new URL("../app/SkyDancerHudV34.tsx", import.meta.url), "utf8");
   const game = readFileSync(new URL("../app/CartRogueGamePhase13.tsx", import.meta.url), "utf8");
   assert.match(hud, /aria-label="Missile warning"/);
-  assert.match(hud, /max-width: 46vw/);
+  assert.match(hud, /left: max\(18px, env\(safe-area-inset-left\)\)/);
+  assert.match(hud, /max-width: min\(34vw, 290px\)/);
   assert.match(hud, /Boss phase status/);
   assert.match(hud, /CORE OPEN/);
   assert.match(game, /<SkyDancerHudV34 \/>/);
