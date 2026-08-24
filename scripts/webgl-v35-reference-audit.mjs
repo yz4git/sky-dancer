@@ -26,16 +26,18 @@ if (!bridgeAvailable) throw new Error("V35 webdriver visual audit bridge is unav
 const visual = await page.evaluate(() => window.__skyDancerGetReferenceVisualV35());
 
 if (Number(visual.focusCityCount) < 440) throw new Error(`V35 focal metro density is too low: ${JSON.stringify(visual)}`);
+if (!visual.focusRootEffectiveVisible) throw new Error(`V35 focal metro root is not effectively visible: ${JSON.stringify(visual)}`);
+if (Number(visual.focusCityInViewCount) < 36 || !visual.focusCityNdcBounds) throw new Error(`V35 focal metro is not visibly projected: ${JSON.stringify(visual)}`);
 if (Number(visual.focusStreetCount) < 12) throw new Error(`V35 focal street structure is incomplete: ${JSON.stringify(visual)}`);
 if (Number(visual.riverCount) < 20) throw new Error(`V35 focal river structure is incomplete: ${JSON.stringify(visual)}`);
 if (Number(visual.focusCloudCount) < 30) throw new Error(`V35 readable below-flight clouds are incomplete: ${JSON.stringify(visual)}`);
 if (Number(visual.focusMountainCount) < 38) throw new Error(`V35 angular horizon is incomplete: ${JSON.stringify(visual)}`);
 if (!visual.fieldsVisible) throw new Error(`Recovered patchwork density is not visible: ${JSON.stringify(visual)}`);
-if (visual.settlementsVisible || visual.towersVisible) throw new Error(`Coarse legacy settlement geometry still dominates the V35 foreground: ${JSON.stringify(visual)}`);
+if (visual.settlementsVisible || visual.towersVisible || visual.roadsVisible) throw new Error(`Coarse legacy settlement geometry still dominates the V35 foreground: ${JSON.stringify(visual)}`);
 if (visual.v34MassesVisible) throw new Error(`V34 broad terrain masses still override the reference hierarchy: ${JSON.stringify(visual)}`);
 if (visual.legacyRidgesVisible) throw new Error(`Legacy stretched ridges are still visible: ${JSON.stringify(visual)}`);
-if (visual.firstPassCityVisible || !visual.focusCityVisible) throw new Error(`Capture-driven city hierarchy is not final: ${JSON.stringify(visual)}`);
-if (!visual.cameraFramingInstalled || !visual.polishFramingInstalled) throw new Error(`V35 reference camera framing was not fully installed: ${JSON.stringify(visual)}`);
+if (!visual.focusCityVisible) throw new Error(`Capture-driven city hierarchy is not visible: ${JSON.stringify(visual)}`);
+if (!visual.cameraFramingInstalled || !visual.singleOwnerInstalled) throw new Error(`V35 single-owner presentation was not fully installed: ${JSON.stringify(visual)}`);
 if (Number(visual.fogNear) < 600 || Number(visual.fogFar) < 1700) throw new Error(`V35 atmosphere clips metro depth: ${JSON.stringify(visual)}`);
 
 // The city is intentionally closer than pass 4: enough urban fabric must sit in

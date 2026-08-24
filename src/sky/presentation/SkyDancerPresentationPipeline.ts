@@ -5,7 +5,6 @@ import { SkyDancerV31PresentationPass } from "./SkyDancerV31PresentationPass";
 import { SkyDancerV32PresentationPass } from "./SkyDancerV32PresentationPass";
 import { SkyDancerV34QualityPass } from "./SkyDancerV34QualityPass";
 import { SkyDancerV35ReferencePass } from "./SkyDancerV35ReferencePass";
-import { SkyDancerV35ReferencePolishPass } from "./SkyDancerV35ReferencePolishPass";
 import { installSkyDancerV35VisualAuditBridge } from "./SkyDancerV35VisualAuditBridge";
 
 /**
@@ -21,7 +20,6 @@ export class SkyDancerPresentationPipeline {
   private readonly v32: SkyDancerV32PresentationPass;
   private readonly v34: SkyDancerV34QualityPass;
   private readonly v35: SkyDancerV35ReferencePass;
-  private readonly v35Polish: SkyDancerV35ReferencePolishPass;
 
   constructor(runtime: SkyDancerFxRuntime) {
     this.v30 = new SkyDancerV30PresentationPass(runtime);
@@ -29,7 +27,6 @@ export class SkyDancerPresentationPipeline {
     this.v32 = new SkyDancerV32PresentationPass(runtime);
     this.v34 = new SkyDancerV34QualityPass(runtime);
     this.v35 = new SkyDancerV35ReferencePass(runtime);
-    this.v35Polish = new SkyDancerV35ReferencePolishPass(runtime);
     installSkyDancerV35VisualAuditBridge(runtime);
   }
 
@@ -39,6 +36,5 @@ export class SkyDancerPresentationPipeline {
     this.v32.update(snapshot);
     this.v34.update(snapshot);
     this.v35.update(snapshot);
-    this.v35Polish.update(snapshot);
   }
 }

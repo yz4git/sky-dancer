@@ -2,15 +2,9 @@ import * as THREE from "three";
 import type { SkyDancerFxRuntime } from "../SkyDancerAirCombatFxV2";
 
 export interface SkyDancerV35VisualAuditSnapshot {
-  cityLow: number;
-  cityMid: number;
-  cityHigh: number;
-  cityTotal: number;
-  roadCount: number;
-  riverCount: number;
-  cloudCount: number;
   focusCityCount: number;
   focusStreetCount: number;
+  riverCount: number;
   focusCloudCount: number;
   focusMountainCount: number;
   focusCityInViewCount: number;
@@ -22,12 +16,12 @@ export interface SkyDancerV35VisualAuditSnapshot {
   fieldsVisible: boolean;
   settlementsVisible: boolean;
   towersVisible: boolean;
+  roadsVisible: boolean;
   v34MassesVisible: boolean;
   legacyRidgesVisible: boolean;
-  firstPassCityVisible: boolean;
   focusCityVisible: boolean;
   cameraFramingInstalled: boolean;
-  polishFramingInstalled: boolean;
+  singleOwnerInstalled: boolean;
   fogNear: number | null;
   fogFar: number | null;
 }
@@ -84,9 +78,6 @@ function projectedInstanceStats(runtime: SkyDancerFxRuntime, name: string): {
 }
 
 export function getSkyDancerV35VisualAuditSnapshot(runtime: SkyDancerFxRuntime): SkyDancerV35VisualAuditSnapshot {
-  const cityLow = instanceCount(runtime, "sky-dancer-v35-city-low");
-  const cityMid = instanceCount(runtime, "sky-dancer-v35-city-mid");
-  const cityHigh = instanceCount(runtime, "sky-dancer-v35-city-high");
   const fog = runtime.scene.fog;
   const focusRoot = runtime.scene.getObjectByName("sky-dancer-v35-reference-focus-city");
   const focusRootZ = focusRoot?.position.z ?? null;
@@ -97,16 +88,11 @@ export function getSkyDancerV35VisualAuditSnapshot(runtime: SkyDancerFxRuntime):
   const focusMountainCount = instanceCount(runtime, "sky-dancer-v35-front-mountains-far")
     + instanceCount(runtime, "sky-dancer-v35-front-mountains-near");
   const projectedCity = projectedInstanceStats(runtime, "sky-dancer-v35-focus-buildings");
+
   return {
-    cityLow,
-    cityMid,
-    cityHigh,
-    cityTotal: cityLow + cityMid + cityHigh,
-    roadCount: instanceCount(runtime, "sky-dancer-v35-metro-road-grid"),
-    riverCount: instanceCount(runtime, "sky-dancer-v35-focus-river"),
-    cloudCount: instanceCount(runtime, "sky-dancer-v35-cloud-main"),
     focusCityCount: instanceCount(runtime, "sky-dancer-v35-focus-buildings"),
     focusStreetCount: instanceCount(runtime, "sky-dancer-v35-focus-streets"),
+    riverCount: instanceCount(runtime, "sky-dancer-v35-focus-river"),
     focusCloudCount: instanceCount(runtime, "sky-dancer-v35-front-cloud-patches"),
     focusMountainCount,
     focusCityInViewCount: projectedCity.count,
@@ -118,6 +104,7 @@ export function getSkyDancerV35VisualAuditSnapshot(runtime: SkyDancerFxRuntime):
     fieldsVisible: visible(runtime, "sky-dancer-v31-patchwork-fields"),
     settlementsVisible: visible(runtime, "sky-dancer-v31-settlement-buildings"),
     towersVisible: visible(runtime, "sky-dancer-v31-landmark-towers"),
+    roadsVisible: visible(runtime, "sky-dancer-v31-road-network"),
     v34MassesVisible: visible(runtime, "sky-dancer-v34-irregular-terrain-masses"),
     legacyRidgesVisible: [
       "sky-dancer-v32-polish-ridge-near",
@@ -125,14 +112,9 @@ export function getSkyDancerV35VisualAuditSnapshot(runtime: SkyDancerFxRuntime):
       "sky-dancer-v32-ridge-near",
       "sky-dancer-v32-ridge-far",
     ].some((name) => visible(runtime, name)),
-    firstPassCityVisible: [
-      "sky-dancer-v35-city-low",
-      "sky-dancer-v35-city-mid",
-      "sky-dancer-v35-city-high",
-    ].some((name) => visible(runtime, name)),
-    focusCityVisible: visible(runtime, "sky-dancer-v35-focus-buildings"),
+    focusCityVisible: effectiveVisible(runtime.scene.getObjectByName("sky-dancer-v35-focus-buildings")),
     cameraFramingInstalled: runtime.camera.userData.skyDancerV35ReferenceFraming === true,
-    polishFramingInstalled: runtime.camera.userData.skyDancerV35PolishFraming === true,
+    singleOwnerInstalled: runtime.scene.userData.skyDancerV35ReferenceOwner === "single-pass",
     fogNear: fog instanceof THREE.Fog ? fog.near : null,
     fogFar: fog instanceof THREE.Fog ? fog.far : null,
   };
