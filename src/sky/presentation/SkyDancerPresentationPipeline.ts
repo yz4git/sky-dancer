@@ -9,6 +9,7 @@ import { installSkyDancerV35VisualAuditBridge } from "./SkyDancerV35VisualAuditB
 import { SkyDancerV36WorldGeometryPass } from "./SkyDancerV36WorldGeometryPass";
 import { SkyDancerV37AircraftCombatPass } from "./SkyDancerV37AircraftCombatPass";
 import { SkyDancerV38AtmospherePass } from "./SkyDancerV38AtmospherePass";
+import { installSkyDancerV39VisualAuditBridge } from "./SkyDancerV39VisualAuditBridge";
 
 /** Stable modern presentation pipeline. */
 export class SkyDancerPresentationPipeline {
@@ -31,6 +32,7 @@ export class SkyDancerPresentationPipeline {
     this.v37 = new SkyDancerV37AircraftCombatPass(runtime);
     this.v38 = new SkyDancerV38AtmospherePass(runtime);
     installSkyDancerV35VisualAuditBridge(runtime);
+    installSkyDancerV39VisualAuditBridge(runtime);
   }
 
   update(snapshot: CartArenaSessionSnapshot): void {
