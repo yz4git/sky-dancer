@@ -9,6 +9,7 @@ on:
       - "src/sky/**"
       - "public/**"
       - "scripts/webgl-visual-audit.mjs"
+      - "scripts/webgl-boss-audit.mjs"
       - "scripts/webgl-turbo-isolation-audit.mjs"
       - "tests/**"
       - "package.json"
@@ -20,6 +21,7 @@ on:
       - "src/sky/**"
       - "public/**"
       - "scripts/webgl-visual-audit.mjs"
+      - "scripts/webgl-boss-audit.mjs"
       - "scripts/webgl-turbo-isolation-audit.mjs"
       - "tests/**"
       - "package.json"
@@ -71,6 +73,9 @@ jobs:
 
       - name: Capture real WebGL frames
         run: node scripts/webgl-visual-audit.mjs
+
+      - name: Playcheck V34 boss encounter
+        run: node scripts/webgl-boss-audit.mjs
 
       - name: Verify isolated Turbo world motion
         run: node scripts/webgl-turbo-isolation-audit.mjs
