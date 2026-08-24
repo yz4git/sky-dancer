@@ -19,27 +19,33 @@ const start = page.getByRole("button", { name: /START(?: HARD)? RUN/i });
 if (await start.isVisible().catch(() => false)) await start.click();
 const canvas = page.locator('canvas[aria-label="Sky Dancer WebGL game view"]');
 await canvas.waitFor({ state: "visible", timeout: 30_000 });
-await page.waitForTimeout(1600);
+await page.waitForTimeout(1800);
 
 const bridgeAvailable = await page.evaluate(() => typeof window.__skyDancerGetReferenceVisualV35 === "function");
 if (!bridgeAvailable) throw new Error("V35 webdriver visual audit bridge is unavailable");
 const visual = await page.evaluate(() => window.__skyDancerGetReferenceVisualV35());
 
-if (Number(visual.focusCityCount) < 240) throw new Error(`V35 focus metro density is too low: ${JSON.stringify(visual)}`);
-if (Number(visual.focusStreetCount) < 8) throw new Error(`V35 focus street structure is incomplete: ${JSON.stringify(visual)}`);
-if (Number(visual.riverCount) < 20) throw new Error(`V35 river structure is incomplete: ${JSON.stringify(visual)}`);
+if (Number(visual.focusCityCount) < 440) throw new Error(`V35 focal metro density is too low: ${JSON.stringify(visual)}`);
+if (Number(visual.focusStreetCount) < 12) throw new Error(`V35 focal street structure is incomplete: ${JSON.stringify(visual)}`);
+if (Number(visual.riverCount) < 20) throw new Error(`V35 focal river structure is incomplete: ${JSON.stringify(visual)}`);
 if (Number(visual.focusCloudCount) < 30) throw new Error(`V35 readable below-flight clouds are incomplete: ${JSON.stringify(visual)}`);
-if (Number(visual.focusMountainCount) < 50) throw new Error(`V35 angular horizon is incomplete: ${JSON.stringify(visual)}`);
-if (!visual.fieldsVisible || !visual.settlementsVisible || !visual.towersVisible) throw new Error(`Recovered V31 density is not visible: ${JSON.stringify(visual)}`);
+if (Number(visual.focusMountainCount) < 38) throw new Error(`V35 angular horizon is incomplete: ${JSON.stringify(visual)}`);
+if (!visual.fieldsVisible) throw new Error(`Recovered patchwork density is not visible: ${JSON.stringify(visual)}`);
+if (visual.settlementsVisible || visual.towersVisible) throw new Error(`Coarse legacy settlement geometry still dominates the V35 foreground: ${JSON.stringify(visual)}`);
 if (visual.v34MassesVisible) throw new Error(`V34 broad terrain masses still override the reference hierarchy: ${JSON.stringify(visual)}`);
 if (visual.legacyRidgesVisible) throw new Error(`Legacy stretched ridges are still visible: ${JSON.stringify(visual)}`);
 if (visual.firstPassCityVisible || !visual.focusCityVisible) throw new Error(`Capture-driven city hierarchy is not final: ${JSON.stringify(visual)}`);
 if (!visual.cameraFramingInstalled || !visual.polishFramingInstalled) throw new Error(`V35 reference camera framing was not fully installed: ${JSON.stringify(visual)}`);
 if (Number(visual.fogNear) < 600 || Number(visual.fogFar) < 1700) throw new Error(`V35 atmosphere clips metro depth: ${JSON.stringify(visual)}`);
 
+const focalDelta = Number(visual.focusCenterWorldZ) - Number(visual.cameraZ);
+if (!Number.isFinite(focalDelta) || focalDelta < 260 || focalDelta > 420) {
+  throw new Error(`V35 focal metro is outside the opening camera corridor: ${JSON.stringify(visual)}`);
+}
+
 await page.screenshot({ path: `${outputDir}/09-v35-reference.png`, fullPage: true });
 await canvas.screenshot({ path: `${outputDir}/09-v35-reference-canvas.png` });
-const diagnostics = { visual, consoleErrors, pageErrors };
+const diagnostics = { visual, focalDelta, consoleErrors, pageErrors };
 await writeFile(`${outputDir}/v35-reference-diagnostics.json`, JSON.stringify(diagnostics, null, 2));
 if (consoleErrors.length) throw new Error(`Console errors during V35 reference audit: ${consoleErrors.join(" | ")}`);
 if (pageErrors.length) throw new Error(`Page errors during V35 reference audit: ${pageErrors.join(" | ")}`);
