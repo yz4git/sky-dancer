@@ -25,16 +25,16 @@ const bridgeAvailable = await page.evaluate(() => typeof window.__skyDancerGetRe
 if (!bridgeAvailable) throw new Error("V35 webdriver visual audit bridge is unavailable");
 const visual = await page.evaluate(() => window.__skyDancerGetReferenceVisualV35());
 
-if (Number(visual.focusCityCount) < 650) throw new Error(`V35 focal metro density is too low: ${JSON.stringify(visual)}`);
+if (Number(visual.focusCityCount) < 800) throw new Error(`V35 focal metro density is too low: ${JSON.stringify(visual)}`);
 if (!visual.focusRootEffectiveVisible) throw new Error(`V35 focal metro root is not effectively visible: ${JSON.stringify(visual)}`);
-if (Number(visual.focusCityInViewCount) < 420 || !visual.focusCityNdcBounds) throw new Error(`V35 focal metro is not visibly projected: ${JSON.stringify(visual)}`);
+if (Number(visual.focusCityInViewCount) < 650 || !visual.focusCityNdcBounds) throw new Error(`V35 focal metro is not visibly projected: ${JSON.stringify(visual)}`);
 const cityBounds = visual.focusCityNdcBounds;
 const cityVerticalSpan = Number(cityBounds.maxY) - Number(cityBounds.minY);
 const cityHorizontalSpan = Number(cityBounds.maxX) - Number(cityBounds.minX);
 if (cityVerticalSpan < 0.42 || cityVerticalSpan > 0.90) {
   throw new Error(`V35 city vertical coverage diverges from the reference midground: ${JSON.stringify(visual)}`);
 }
-if (cityHorizontalSpan < 0.90 || cityHorizontalSpan > 1.85) {
+if (cityHorizontalSpan < 1.15 || cityHorizontalSpan > 1.70) {
   throw new Error(`V35 city horizontal coverage diverges from the reference central corridor: ${JSON.stringify(visual)}`);
 }
 if (Number(cityBounds.maxY) < -0.15) {
