@@ -191,30 +191,13 @@ export class SkyDancerGroundDensityV31 {
   }
 
   private makeLandscapeBase(): THREE.Mesh {
-    const geometry = new THREE.PlaneGeometry(LANDSCAPE_SIZE, LANDSCAPE_SIZE, 48, 48);
+    const geometry = new THREE.PlaneGeometry(LANDSCAPE_SIZE, LANDSCAPE_SIZE, 1, 1);
     geometry.rotateX(-Math.PI / 2);
-    const position = geometry.getAttribute("position") as THREE.BufferAttribute;
-    const colors = new Float32Array(position.count * 3);
-    const dark = new THREE.Color(0x315f36);
-    const mid = new THREE.Color(0x4c7f40);
-    const light = new THREE.Color(0x6d9950);
-    const sample = new THREE.Color();
-    for (let index = 0; index < position.count; index += 1) {
-      const x = position.getX(index);
-      const z = position.getZ(index);
-      const broad = Math.sin(x * 0.010) * 0.5 + Math.cos(z * 0.009) * 0.5;
-      const detail = Math.sin((x - z) * 0.019) * 0.5 + 0.5;
-      sample.lerpColors(dark, mid, THREE.MathUtils.clamp(0.48 + broad * 0.22, 0, 1));
-      sample.lerp(light, detail * 0.22);
-      colors[index * 3] = sample.r;
-      colors[index * 3 + 1] = sample.g;
-      colors[index * 3 + 2] = sample.b;
-    }
-    geometry.setAttribute("color", new THREE.Float32BufferAttribute(colors, 3));
     const material = new THREE.MeshBasicMaterial({
-      color: 0xffffff,
-      vertexColors: true,
+      color: 0x416f3d,
+      vertexColors: false,
       transparent: false,
+      opacity: 1,
       depthWrite: true,
       depthTest: true,
       fog: false,
