@@ -21,7 +21,7 @@ type CloudLayerConfig = {
   fog: boolean;
 };
 
-const WORLD_SNAP = 420;
+const WORLD_SNAP = 210;
 const LEGACY_CLOUD_NAMES = [
   "sky-dancer-base-cloud-deck",
   "sky-dancer-v25-horizon-cloud-banks",
@@ -39,8 +39,8 @@ function rand(seed: number): number {
  *
  * Old cloud passes are suppressed by both their known names and a conservative
  * name-based sweep. Replacement clusters are distributed evenly around each
- * flight chunk. Low/mid clusters stay crisp enough to read as faceted cumulus;
- * only the horizon belt receives full atmospheric fog.
+ * flight chunk. Low/mid clusters keep Lambert volume but carry enough emissive
+ * fill to prevent their undersides becoming black slabs in mobile WebGL.
  */
 export class SkyDancerCloudQualityV31 {
   private readonly root = new THREE.Group();
@@ -53,14 +53,14 @@ export class SkyDancerCloudQualityV31 {
     const configs: CloudLayerConfig[] = [
       {
         name: "sky-dancer-v31-low-clouds",
-        clusters: 14,
+        clusters: 12,
         lobes: 10,
-        radiusMin: 170,
-        radiusMax: 360,
-        yMin: -32,
-        yMax: -16,
-        sizeMin: 4.8,
-        sizeMax: 8.2,
+        radiusMin: 240,
+        radiusMax: 420,
+        yMin: -38,
+        yMax: -20,
+        sizeMin: 4.4,
+        sizeMax: 7.3,
         opacity: 1,
         solid: true,
         fog: false,
@@ -69,12 +69,12 @@ export class SkyDancerCloudQualityV31 {
         name: "sky-dancer-v31-mid-clouds",
         clusters: 16,
         lobes: 12,
-        radiusMin: 300,
-        radiusMax: 540,
-        yMin: -15,
-        yMax: 10,
-        sizeMin: 6.0,
-        sizeMax: 10.5,
+        radiusMin: 380,
+        radiusMax: 610,
+        yMin: -18,
+        yMax: 14,
+        sizeMin: 5.5,
+        sizeMax: 9.0,
         opacity: 0.98,
         solid: true,
         fog: false,
@@ -83,12 +83,12 @@ export class SkyDancerCloudQualityV31 {
         name: "sky-dancer-v31-horizon-clouds",
         clusters: 18,
         lobes: 14,
-        radiusMin: 520,
-        radiusMax: 800,
+        radiusMin: 620,
+        radiusMax: 920,
         yMin: -4,
-        yMax: 26,
-        sizeMin: 8.5,
-        sizeMax: 14.0,
+        yMax: 30,
+        sizeMin: 8.0,
+        sizeMax: 13.5,
         opacity: 0.90,
         solid: false,
         fog: true,
@@ -102,7 +102,7 @@ export class SkyDancerCloudQualityV31 {
     });
     runtime.scene.add(this.root);
     if (runtime.camera) {
-      runtime.camera.far = Math.max(runtime.camera.far, 1250);
+      runtime.camera.far = Math.max(runtime.camera.far, 1520);
       runtime.camera.updateProjectionMatrix();
     }
     this.hideLegacyClouds();
@@ -157,6 +157,9 @@ export class SkyDancerCloudQualityV31 {
       depthWrite: config.solid,
       depthTest: true,
       fog: config.fog,
+      emissive: config.solid ? 0x9fb8c5 : 0x789eaf,
+      emissiveIntensity: config.solid ? 0.62 : 0.38,
+      toneMapped: false,
     });
     const mesh = new THREE.InstancedMesh(geometry, material, count);
     mesh.name = config.name;
@@ -164,7 +167,7 @@ export class SkyDancerCloudQualityV31 {
 
     const light = new THREE.Color(0xf8fcff);
     const mid = new THREE.Color(0xdcecf3);
-    const shade = new THREE.Color(0x9fbfce);
+    const shade = new THREE.Color(0xa9c5d1);
     const sample = new THREE.Color();
     const dummy = new THREE.Object3D();
     let index = 0;
