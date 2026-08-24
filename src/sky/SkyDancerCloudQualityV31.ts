@@ -22,6 +22,7 @@ type CloudLayerConfig = {
 const WORLD_SNAP = 420;
 const LEGACY_CLOUD_NAMES = [
   "sky-dancer-base-cloud-deck",
+  "sky-dancer-v25-horizon-cloud-banks",
   "sky-dancer-v28-layered-cloud-banks",
   "sky-dancer-v29-reference-cloud-bank",
 ] as const;
