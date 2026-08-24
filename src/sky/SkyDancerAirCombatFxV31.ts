@@ -19,11 +19,6 @@ const V31_OWNED_PRESENTATION_ROOTS = [
   "sky-dancer-v31-cloud-system",
 ] as const;
 
-/**
- * V31 keeps V30's ground-integrity ownership and adds product-facing world
- * density, cumulus depth and a high-altitude look-down calibration. The chase
- * camera position and FOV remain inherited; only final view pitch changes.
- */
 export class SkyDancerAirCombatFxV31 extends SkyDancerAirCombatFxV30 {
   private readonly groundDensity: SkyDancerGroundDensityV31;
   private readonly groundReadability: SkyDancerGroundReadabilityV31;
@@ -61,10 +56,9 @@ export class SkyDancerAirCombatFxV31 extends SkyDancerAirCombatFxV30 {
     const base = inherited.bind(runtime);
     runtime.applyCameraPresentation = (snapshot: CartArenaSessionSnapshot) => {
       base(snapshot);
-      // Keep a high-altitude ground-dominant view without eliminating the sky
-      // and horizon. -0.18 rad preserves roughly a 30/70 sky-to-ground balance
-      // in the 844x390 audit viewport while keeping position and FOV unchanged.
-      runtime.camera.rotateX(-0.18);
+      // Preserve the 300 m look-down feel, but keep enough horizon/sky to match
+      // the supplied arcade-flight reference and keep enemies readable ahead.
+      runtime.camera.rotateX(-0.08);
     };
     runtime.camera.userData.skyDancerV31PitchInstalled = true;
   }
