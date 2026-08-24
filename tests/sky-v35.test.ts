@@ -30,12 +30,12 @@ test("V35 single owner builds a dense low-mid-rise city with restrained horizon 
   assert.match(source, /sky-dancer-v35-front-mountains-far/);
   assert.match(source, /sky-dancer-v35-front-mountains-near/);
   assert.match(source, /sky-dancer-v35-front-cloud-patches/);
-  assert.match(source, /tileZ \* CITY_SNAP \+ 215/);
+  assert.match(source, /tileZ \* CITY_SNAP \+ 255/);
   assert.match(source, /FOCUS_CITY_LOCAL_CENTER_Z = 142/);
   assert.match(source, /const spacing = 6\.8/);
   assert.match(source, /new THREE\.MeshLambertMaterial/);
-  assert.match(source, /opacity: far \? 0\.23 : 0\.36/);
-  assert.match(source, /opacity: 0\.12/);
+  assert.match(source, /opacity: far \? 0\.25 : 0\.42/);
+  assert.match(source, /opacity: 0\.14/);
   assert.match(source, /fog\.near = 620/);
   assert.match(source, /fog\.far = 1760/);
   assert.match(source, /skyDancerV35ReferenceOwner = "single-pass"/);
