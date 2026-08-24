@@ -78,16 +78,18 @@ test("V31 suppresses legacy fields and keeps horizon mountains on instanceColor"
   assert.match(source, /Fog\(0x6ba8be, 900, 1920\)/);
 });
 
-test("V31 replaces legacy clouds with deterministic unlit three-depth cumulus clusters", () => {
+test("V31 replaces legacy clouds with cohesive unlit three-depth cumulus clusters", () => {
   const source = readFileSync(new URL("../src/sky/SkyDancerCloudQualityV31.ts", import.meta.url), "utf8");
   assert.match(source, /WORLD_SNAP = 105/);
   assert.match(source, /sky-dancer-v31-low-clouds/);
   assert.match(source, /sky-dancer-v31-mid-clouds/);
   assert.match(source, /sky-dancer-v31-horizon-clouds/);
   assert.match(source, /IcosahedronGeometry\(1, 1\)/);
-  assert.match(source, /clusters: 10/);
-  assert.match(source, /radiusMin: 300/);
-  assert.match(source, /radiusMin: 700/);
+  assert.match(source, /clusters: 9/);
+  assert.match(source, /lobes: 12/);
+  assert.match(source, /radiusMin: 280/);
+  assert.match(source, /radiusMin: 660/);
+  assert.match(source, /MathUtils\.lerp\(4\.5, 8\.5/);
   assert.match(source, /new THREE\.MeshBasicMaterial/);
   assert.match(source, /vertexColors: false/);
   assert.doesNotMatch(source, /vertexColors: true/);
