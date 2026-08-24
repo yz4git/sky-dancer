@@ -208,7 +208,7 @@ export default function SkyDancerHudV30() {
 
     @media(max-height:360px) {
       [data-sd-gas-card="true"] { top: max(42px, calc(env(safe-area-inset-top) + 35px)) !important; width: 136px !important; }
-      [aria-label="Turbo Hunt status"] { inset-top: max(40px, calc(env(safe-area-inset-top) + 34px)) !important; width: min(56vw, 470px) !important; }
+      [aria-label="Turbo Hunt status"] { inset: max(40px, calc(env(safe-area-inset-top) + 34px)) auto auto 50% !important; width: min(56vw, 470px) !important; }
       [data-sd-turbo-card="true"] { width: 132px !important; }
       button[aria-label="Fire missile"] { width: 54px !important; height: 54px !important; }
       [data-sd-turbo-button="true"] { width: 66px !important; height: 66px !important; }
