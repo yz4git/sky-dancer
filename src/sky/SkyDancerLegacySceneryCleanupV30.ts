@@ -8,6 +8,7 @@ const EXPLICIT_ROOTS = new Set([
   "sky-dancer-v19-midpoint-world",
   "sky-dancer-v22-quality-world",
   "sky-dancer-v24-horizon-silhouettes",
+  "sky-dancer-v25-landmark-city",
   "sky-dancer-v27-landmark-city-ring",
   "sky-dancer-v28-mountain-depth",
   "phase67-turbo-hunt-world",
@@ -40,7 +41,9 @@ function isLegacySceneryRoot(object: THREE.Object3D): boolean {
  * V12-V19 accumulated several complete low-altitude worlds. They were useful
  * while Sky Dancer was being prototyped, but at the final 300 m flight level
  * they create duplicate cities, asphalt slabs and depth conflicts. Keep combat
- * FX from those passes, but suppress only their top-level scenery roots.
+ * FX from those passes, but suppress only their scenery roots. Nested explicit
+ * roots are handled separately so the original V25 city can be replaced by the
+ * farther, cleaner V29 reference skyline.
  */
 export class SkyDancerLegacySceneryCleanupV30 {
   private readonly runtime: LegacySceneryRuntime;
@@ -51,6 +54,13 @@ export class SkyDancerLegacySceneryCleanupV30 {
   }
 
   update(): void {
+    for (const name of EXPLICIT_ROOTS) {
+      const object = this.runtime.scene.getObjectByName(name);
+      if (!object?.visible) continue;
+      object.visible = false;
+      this.hiddenCount += 1;
+    }
+
     for (const object of this.runtime.scene.children) {
       if (!object.visible || !isLegacySceneryRoot(object)) continue;
       object.visible = false;
