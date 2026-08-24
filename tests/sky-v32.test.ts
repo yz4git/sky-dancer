@@ -9,7 +9,9 @@ test("V32 activates the reference quality pass on top of V31 without colliding w
   assert.match(entry, /SkyDancerAirCombatFxV31 as SkyDancerAirCombatFx/);
   assert.match(source, /extends SkyDancerAirCombatFxV31/);
   assert.match(source, /SkyDancerReferenceWorldV32/);
+  assert.match(source, /SkyDancerReferencePolishV32/);
   assert.match(source, /referencePresentation\.update\(snapshot\)/);
+  assert.match(source, /referencePolish\.update\(snapshot\)/);
   assert.doesNotMatch(source, /private readonly referenceWorld:/);
 });
 
@@ -41,9 +43,26 @@ test("V32 builds compact multi-lobe cumulus banks and a dedicated blue sky dome"
   assert.match(source, /restoreOwnPresentation/);
 });
 
+test("V32 final polish replaces first-pass ridges cities and clouds with distant cohesive composition", () => {
+  const source = readFileSync(new URL("../src/sky/SkyDancerReferencePolishV32.ts", import.meta.url), "utf8");
+  assert.match(source, /sky-dancer-v32-polish-ridge-near/);
+  assert.match(source, /sky-dancer-v32-polish-ridge-far/);
+  assert.match(source, /IcosahedronGeometry\(1, 1\)/);
+  assert.match(source, /sky-dancer-v32-polish-city-high/);
+  assert.match(source, /cx = 365/);
+  assert.match(source, /radius = 420/);
+  assert.match(source, /sky-dancer-v32-polish-cloud-main/);
+  assert.match(source, /clusters = 5/);
+  assert.match(source, /lobes = 18/);
+  assert.match(source, /sky-dancer-v32-ridge-near/);
+  assert.match(source, /object\.visible = false/);
+});
+
 test("V32 increases hero aircraft presence without changing gameplay collision", () => {
   const source = readFileSync(new URL("../src/sky/SkyDancerReferenceWorldV32.ts", import.meta.url), "utf8");
+  const polish = readFileSync(new URL("../src/sky/SkyDancerReferencePolishV32.ts", import.meta.url), "utf8");
   assert.match(source, /player\.scale\.multiplyScalar\(1\.32\)/);
+  assert.match(polish, /player\.scale\.multiplyScalar\(1\.28\)/);
   assert.match(source, /sky-dancer-v32-player-detail/);
   assert.match(source, /CylinderGeometry\(0\.29, 0\.34, 0\.98, 8\)/);
   assert.match(source, /TorusGeometry\(0\.24, 0\.045, 5, 10\)/);
