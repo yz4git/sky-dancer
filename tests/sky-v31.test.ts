@@ -65,11 +65,14 @@ test("V31 collapses macro terrain to one opaque fixed-green foundation", () => {
   assert.match(source, /skyDancerV31SingleGroundFoundation/);
 });
 
-test("V31 suppresses the old V30 field overlay and keeps the reference skyline readable", () => {
+test("V31 suppresses legacy fields and keeps horizon mountains on instanceColor", () => {
   const source = readFileSync(new URL("../src/sky/SkyDancerGroundReadabilityV31.ts", import.meta.url), "utf8");
   assert.match(source, /sky-dancer-v30-patchwork-fields/);
   assert.match(source, /legacyFields\.visible = false/);
   assert.match(source, /skyDancerV31SupersededFieldLayer/);
+  assert.match(source, /sky-dancer-v30-mountain-belt/);
+  assert.match(source, /skyDancerV31InstanceColorSafe/);
+  assert.match(source, /mountainBelt\.material = new THREE\.MeshBasicMaterial/);
   assert.match(source, /sky-dancer-v29-reference-skyline/);
   assert.match(source, /scale\.setScalar\(0\.64\)/);
   assert.match(source, /Fog\(0x6ba8be, 900, 1920\)/);
@@ -100,7 +103,7 @@ test("V31 keeps sky and horizon while tilting the final camera toward the valley
   const source = readFileSync(new URL("../src/sky/SkyDancerAirCombatFxV31.ts", import.meta.url), "utf8");
   assert.match(source, /queueMicrotask/);
   assert.match(source, /applyCameraPresentation/);
-  assert.match(source, /camera\.rotateX\(-0\.18\)/);
+  assert.match(source, /camera\.rotateX\(-0\.08\)/);
 });
 
 test("V31 preserves green land by replacing the full-screen V30 blue grade in both runtimes", () => {
