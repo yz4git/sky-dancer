@@ -66,8 +66,11 @@ test("V35 webdriver audit verifies the visible single-owner midground compositio
   assert.match(bridge, /sky-dancer-v35-front-mountains-near/);
   assert.match(bridge, /sky-dancer-v35-focus-river/);
   assert.match(bridge, /singleOwnerInstalled/);
+  assert.match(bridge, /projectedInstanceStats/);
+  assert.match(bridge, /focusCityInViewCount/);
   assert.doesNotMatch(bridge, /cityLow|firstPassCityVisible|polishFramingInstalled/);
   assert.match(audit, /focusCityCount\) < 440/);
+  assert.match(audit, /focusCityInViewCount\) < 36/);
   assert.match(audit, /visible midground corridor/i);
   assert.match(audit, /focalDelta < 150 \|\| focalDelta > 320/);
   assert.match(audit, /settlementsVisible \|\| visual\.towersVisible \|\| visual\.roadsVisible/);

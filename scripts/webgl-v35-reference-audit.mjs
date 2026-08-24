@@ -26,6 +26,8 @@ if (!bridgeAvailable) throw new Error("V35 webdriver visual audit bridge is unav
 const visual = await page.evaluate(() => window.__skyDancerGetReferenceVisualV35());
 
 if (Number(visual.focusCityCount) < 440) throw new Error(`V35 focal metro density is too low: ${JSON.stringify(visual)}`);
+if (!visual.focusRootEffectiveVisible) throw new Error(`V35 focal metro root is not effectively visible: ${JSON.stringify(visual)}`);
+if (Number(visual.focusCityInViewCount) < 36 || !visual.focusCityNdcBounds) throw new Error(`V35 focal metro is not visibly projected: ${JSON.stringify(visual)}`);
 if (Number(visual.focusStreetCount) < 12) throw new Error(`V35 focal street structure is incomplete: ${JSON.stringify(visual)}`);
 if (Number(visual.riverCount) < 20) throw new Error(`V35 focal river structure is incomplete: ${JSON.stringify(visual)}`);
 if (Number(visual.focusCloudCount) < 30) throw new Error(`V35 readable below-flight clouds are incomplete: ${JSON.stringify(visual)}`);
