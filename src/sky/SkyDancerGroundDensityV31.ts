@@ -21,6 +21,11 @@ function hash2(x: number, z: number, salt = 0): number {
   return (n >>> 0) / 0xffffffff;
 }
 
+function pick<T>(items: readonly T[], index: number): T {
+  const safeIndex = ((index % items.length) + items.length) % items.length;
+  return items[safeIndex];
+}
+
 function setInstance(
   mesh: THREE.InstancedMesh,
   index: number,
@@ -105,7 +110,7 @@ export class SkyDancerGroundDensityV31 {
           );
           dummy.rotation.set(0, (hash2(tileX, tileZ, 40 + axis) - 0.5) * 0.18 + (longAxis ? 0 : Math.PI / 2), 0);
           dummy.scale.set(width, 0.08, length);
-          roadIndex = setInstance(this.roads, roadIndex, dummy, roadPalette[(tileX + tileZ + axis + 99) % roadPalette.length]);
+          roadIndex = setInstance(this.roads, roadIndex, dummy, pick(roadPalette, tileX + tileZ + axis));
         }
 
         const buildingCount = 5 + Math.floor(density * 7);
@@ -122,7 +127,7 @@ export class SkyDancerGroundDensityV31 {
           );
           dummy.rotation.set(0, angle * 0.25 + (hash2(tileX, tileZ, 300 + i) - 0.5) * 0.35, 0);
           dummy.scale.set(width, height, depth);
-          buildingIndex = setInstance(this.buildings, buildingIndex, dummy, buildingPalette[(i + Math.abs(tileX) + Math.abs(tileZ)) % buildingPalette.length]);
+          buildingIndex = setInstance(this.buildings, buildingIndex, dummy, pick(buildingPalette, i + Math.abs(tileX) + Math.abs(tileZ)));
         }
 
         // Forest belts fill the negative space between settlements and make
@@ -140,7 +145,7 @@ export class SkyDancerGroundDensityV31 {
           );
           dummy.rotation.set(0, angle, 0);
           dummy.scale.set(width, height, width);
-          treeIndex = setInstance(this.trees, treeIndex, dummy, treePalette[(i + tileX * 3 + tileZ * 5 + 97) % treePalette.length]);
+          treeIndex = setInstance(this.trees, treeIndex, dummy, pick(treePalette, i + tileX * 3 + tileZ * 5));
         }
 
         if (density > 0.74 && towerIndex < MAX_TOWERS) {
@@ -148,7 +153,7 @@ export class SkyDancerGroundDensityV31 {
           dummy.position.set(settlementX - 8, GROUND_Y + 0.55 + height * 0.5, settlementZ + 7);
           dummy.rotation.set(0, hash2(tileX, tileZ, 700) * 0.4, 0);
           dummy.scale.set(4.2, height, 4.2);
-          towerIndex = setInstance(this.towers, towerIndex, dummy, towerPalette[(Math.abs(tileX) + Math.abs(tileZ)) % towerPalette.length]);
+          towerIndex = setInstance(this.towers, towerIndex, dummy, pick(towerPalette, tileX * 7 + tileZ * 11));
         }
       }
     }
