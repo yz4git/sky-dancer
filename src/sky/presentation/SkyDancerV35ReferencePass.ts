@@ -109,6 +109,7 @@ export class SkyDancerV35ReferencePass {
   }
 
   update(snapshot: CartArenaSessionSnapshot): void {
+    this.restoreOwnPresentation();
     // V32 restores these own layers in its update, so cached references are
     // suppressed after V32 without repeated scene traversal.
     for (const object of this.legacyDynamicLayers) object.visible = false;
@@ -116,6 +117,16 @@ export class SkyDancerV35ReferencePass {
     this.updateFocusCity(snapshot);
     this.tuneAtmosphere();
     this.tuneHeroAircraft();
+  }
+
+  private restoreOwnPresentation(): void {
+    this.focusRoot.visible = true;
+    this.focusBuildings.visible = true;
+    this.focusStreets.visible = true;
+    this.focusRiver.visible = true;
+    this.frontMountainsFar.visible = true;
+    this.frontMountainsNear.visible = true;
+    this.frontClouds.visible = true;
   }
 
   private hideStaticLegacyLayers(): void {

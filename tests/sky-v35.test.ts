@@ -37,6 +37,8 @@ test("V35 single owner spans dense metro river mountains and low clouds through 
   assert.match(source, /fog\.near = 620/);
   assert.match(source, /fog\.far = 1760/);
   assert.match(source, /skyDancerV35ReferenceOwner = "single-pass"/);
+  assert.match(source, /this\.restoreOwnPresentation\(\)/);
+  assert.match(source, /this\.focusRoot\.visible = true/);
 });
 
 test("V35 removes superseded scene work and reuses rebuild scratch objects", () => {
