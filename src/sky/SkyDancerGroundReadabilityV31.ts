@@ -5,10 +5,11 @@ interface GroundReadabilityRuntime {
 }
 
 /**
- * Final high-altitude readability calibration for V31 ground instances.
- * Scaling the shared geometries preserves the deterministic instance positions
- * and draw-call budget while making districts, roads and forest belts readable
- * from the 300 m chase camera.
+ * Final high-altitude readability calibration for V31.
+ *
+ * Geometry size is now owned by SkyDancerGroundDensityV31 itself. This pass only
+ * adjusts atmosphere once, avoiding the previous shared-geometry scale-up that
+ * turned one district into a dominant white block in the real WebGL captures.
  */
 export class SkyDancerGroundReadabilityV31 {
   private prepared = false;
@@ -18,50 +19,20 @@ export class SkyDancerGroundReadabilityV31 {
   update(): void {
     if (this.prepared) return;
     const scene = this.runtime.scene;
+    const fields = scene.getObjectByName("sky-dancer-v31-patchwork-fields");
     const buildings = scene.getObjectByName("sky-dancer-v31-settlement-buildings");
     const trees = scene.getObjectByName("sky-dancer-v31-forest-belts");
     const roads = scene.getObjectByName("sky-dancer-v31-road-network");
     const towers = scene.getObjectByName("sky-dancer-v31-landmark-towers");
-    if (!(buildings instanceof THREE.InstancedMesh)
+    if (!(fields instanceof THREE.InstancedMesh)
+      || !(buildings instanceof THREE.InstancedMesh)
       || !(trees instanceof THREE.InstancedMesh)
       || !(roads instanceof THREE.InstancedMesh)
       || !(towers instanceof THREE.InstancedMesh)) return;
 
-    buildings.geometry.scale(1.48, 1.95, 1.48);
-    trees.geometry.scale(1.32, 1.62, 1.32);
-    roads.geometry.scale(1.65, 1, 1);
-    towers.geometry.scale(1.34, 1.48, 1.34);
-
-    buildings.geometry.computeBoundingSphere();
-    trees.geometry.computeBoundingSphere();
-    roads.geometry.computeBoundingSphere();
-    towers.geometry.computeBoundingSphere();
-
-    if (buildings.material instanceof THREE.MeshLambertMaterial) {
-      buildings.material.color.setHex(0xffffff);
-      buildings.material.fog = false;
-      buildings.material.needsUpdate = true;
-    }
-    if (trees.material instanceof THREE.MeshLambertMaterial) {
-      trees.material.color.setHex(0xf4fff0);
-      trees.material.fog = false;
-      trees.material.needsUpdate = true;
-    }
-    if (towers.material instanceof THREE.MeshLambertMaterial) {
-      towers.material.color.setHex(0xffffff);
-      towers.material.fog = false;
-      towers.material.needsUpdate = true;
-    }
-    if (roads.material instanceof THREE.MeshBasicMaterial) {
-      roads.material.color.setHex(0xffffff);
-      roads.material.fog = false;
-      roads.material.toneMapped = false;
-      roads.material.needsUpdate = true;
-    }
-
-    // V31 instances live only in the nearby 5x5 neighborhood, so they can stay
-    // crisp while the foundation, mountains and remote skyline retain the fog.
-    scene.fog = new THREE.Fog(0x4c98ba, 780, 1810);
+    // Preserve enough atmospheric perspective for scale, but do not wash the
+    // populated valley back into a cyan board at the 300 m flight level.
+    scene.fog = new THREE.Fog(0x5da4be, 690, 1760);
     this.prepared = true;
   }
 }
