@@ -12,6 +12,7 @@
 // SkyDancerAirCombatFxV26 as SkyDancerAirCombatFx
 // SkyDancerAirCombatFxV27 as SkyDancerAirCombatFx
 // SkyDancerAirCombatFxV28 as SkyDancerAirCombatFx
+// SkyDancerAirCombatFxV29 as SkyDancerAirCombatFx
 export {
   SkyDancerAirCombatFxV30 as SkyDancerAirCombatFx,
 } from "./SkyDancerAirCombatFxV30";
