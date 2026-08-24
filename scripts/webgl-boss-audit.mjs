@@ -41,13 +41,14 @@ if (!phaseHudVisible) throw new Error("V34 boss phase HUD is not visible");
 await page.screenshot({ path: `${outputDir}/07-boss-phase1.png`, fullPage: true });
 await canvas.screenshot({ path: `${outputDir}/07-boss-phase1-canvas.png` });
 
-// SwiftShader can execute fewer fixed simulation steps than wall-clock time.
-// Observe the actual director state instead of assuming 8.5 wall-clock seconds
-// always advances the 60 Hz combat clock through the complete phase-1 cycle.
+// SwiftShader can execute far fewer fixed simulation steps than wall-clock time
+// once the complete V36-V39 presentation is enabled. Observe the actual director
+// state and allow up to 32 wall-clock seconds; the acceptance criteria remain the
+// same full orbit -> strike -> break cadence with a genuinely open core.
 const samples = [];
 const modes = new Set();
 let coreOpenObserved = false;
-for (let index = 0; index < 180; index += 1) {
+for (let index = 0; index < 320; index += 1) {
   await page.waitForTimeout(100);
   const sample = await page.evaluate(() => typeof window.__skyDancerGetBossQualityV34 === "function" ? window.__skyDancerGetBossQualityV34() : null);
   if (sample?.active) {
