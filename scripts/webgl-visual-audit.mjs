@@ -105,6 +105,7 @@ if (Math.abs(Number(openingFlight.altitudeMeters) - EXPECTED_ALTITUDE_METERS) > 
 await page.screenshot({ path: `${outputDir}/01-gameplay-start.png`, fullPage: true });
 await webglCanvas.screenshot({ path: `${outputDir}/01-gameplay-start-canvas.png` });
 
+// Primary regression #1: real touch firing must create flight or an immediate hit.
 const weaponBefore = await page.evaluate(() => typeof window.__skyDancerGetWeaponState === "function" ? window.__skyDancerGetWeaponState() : null);
 const shotBox = await shot.boundingBox();
 if (!shotBox) throw new Error("Shot button has no touchable bounds");
@@ -147,6 +148,7 @@ await webglCanvas.screenshot({ path: `${outputDir}/03-banked-turn-canvas.png` })
 await page.keyboard.up("ArrowRight");
 await page.waitForTimeout(320);
 
+// Primary regression #2: Turbo hold is neutral; release owns the acceleration.
 const turboBefore = await page.evaluate(() => typeof window.__skyDancerGetFlightDebug === "function" ? window.__skyDancerGetFlightDebug() : null);
 await page.keyboard.down("Space");
 await page.waitForTimeout(850);
@@ -171,6 +173,7 @@ if (duringForward > 3 && releasedForward < duringForward + 1.2) {
 await page.screenshot({ path: `${outputDir}/05-turbo-release.png`, fullPage: true });
 await webglCanvas.screenshot({ path: `${outputDir}/05-turbo-release-canvas.png` });
 
+// Secondary opening spacing remains below the primary Shot/Turbo regressions.
 if (openingFlight.minEnemyDistance != null && Number(openingFlight.minEnemyDistance) < 13.5) {
   throw new Error(`Opening fighter spawned too close: ${JSON.stringify(openingFlight)}`);
 }
