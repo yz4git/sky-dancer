@@ -65,9 +65,16 @@ export class SkyDancerV38AtmospherePass {
 
   update(snapshot: CartArenaSessionSnapshot): void {
     this.suppressLegacyAtmosphere();
+    // V30/V32 legacy cleanup/restoration runs before this pass and can touch any
+    // object whose semantic name resembles cloud/ridge presentation. V38 is the
+    // final atmosphere owner, so restore both roots and owned children here.
     this.sky.visible = true;
     this.ridgeRoot.visible = true;
+    this.farRidge.visible = true;
+    this.nearRidge.visible = true;
     this.cloudRoot.visible = true;
+    this.cloudMain.visible = true;
+    this.cloudShade.visible = true;
     this.sky.position.set(snapshot.x, 0, snapshot.z);
 
     const tileX = Math.floor(snapshot.x / SNAP);
