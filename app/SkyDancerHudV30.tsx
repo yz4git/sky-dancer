@@ -22,8 +22,8 @@ export default function SkyDancerHudV30() {
       animationFrame = 0;
 
       for (const button of document.querySelectorAll<HTMLButtonElement>("button")) {
-        const text = textOf(button);
-        if (/^TURBO\b/i.test(text) && /HOLD/i.test(text)) button.dataset.sdTurboButton = "true";
+        const strong = button.querySelector("strong");
+        if (strong?.textContent?.trim().toUpperCase() === "TURBO") button.dataset.sdTurboButton = "true";
       }
 
       for (const element of document.querySelectorAll<HTMLElement>("div")) {
