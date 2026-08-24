@@ -148,18 +148,34 @@ function publish(session: BossSessionView, state: BossCombatState): void {
   }
 }
 
+/** Webdriver-only: activate the actual dormant stage boss instead of fabricating a test double. */
 function forceBossForAudit(session: BossSessionView): void {
   if (!auditForceBoss) return;
-  const boss = session.enemies.find((enemy) => enemy.kind === "boss" && enemy.alive);
-  if (boss) {
-    auditForceBoss = false;
-    return;
-  }
   for (const enemy of session.enemies) {
     if (enemy.kind === "boss" || !enemy.alive) continue;
     enemy.hp = 0;
     enemy.alive = false;
   }
+
+  const boss = session.enemies.find((enemy) => enemy.kind === "boss") ?? null;
+  if (!boss) return;
+  const stage = getSkyDancerStageCycleSnapshot(session as unknown as CartArenaSession)?.stage ?? 1;
+  const maxHp = skyDancerBossDurabilityV34(stage);
+  const arrivalDistance = 46 + Math.min(14, stage * 2);
+  boss.nodeId = session.location.node.id;
+  boss.x = session.car.position.x + Math.sin(session.car.heading) * arrivalDistance;
+  boss.z = session.car.position.z + Math.cos(session.car.heading) * arrivalDistance;
+  boss.heading = session.car.heading + Math.PI;
+  boss.maxHp = maxHp;
+  boss.hp = maxHp;
+  boss.alive = true;
+  boss.aiClock = 0;
+  boss.armorSegments = 3;
+  boss.maxArmorSegments = 3;
+  boss.weakPointExposed = false;
+  boss.chargeCooldown = 1.4;
+  boss.chargeTime = 0;
+  auditForceBoss = false;
 }
 
 function updateBossFlight(
