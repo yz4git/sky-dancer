@@ -49,7 +49,7 @@ export class SkyDancerV35ReferencePass {
   private readonly frontMountainsNear: THREE.InstancedMesh;
   private readonly frontClouds: THREE.InstancedMesh;
   private readonly instanceDummy = new THREE.Object3D();
-  private readonly cityPalette = [0x758a94, 0x8799a0, 0x9eaaad, 0x6b818d, 0xb1b9b9, 0x80949c]
+  private readonly cityPalette = [0x526975, 0x607780, 0x73858a, 0x4b626e, 0x89979a, 0x5a7079]
     .map((value) => new THREE.Color(value));
   private readonly atmosphereColor = new THREE.Color(0x68acd2);
   private readonly legacyDynamicLayers: THREE.Object3D[];
@@ -149,7 +149,7 @@ export class SkyDancerV35ReferencePass {
     if (this.forest instanceof THREE.InstancedMesh && this.forest.material instanceof THREE.MeshLambertMaterial) {
       this.forest.visible = true;
       this.forest.material.transparent = true;
-      this.forest.material.opacity = 0.14;
+      this.forest.material.opacity = 0.12;
       this.forest.material.color.setHex(0x3f704d);
       this.forest.material.fog = true;
       this.forest.material.needsUpdate = true;
@@ -189,7 +189,7 @@ export class SkyDancerV35ReferencePass {
     if (tileX === this.focusTileX && tileZ === this.focusTileZ) return;
     this.focusTileX = tileX;
     this.focusTileZ = tileZ;
-    this.focusRoot.position.set(tileX * CITY_SNAP + 140, 0, tileZ * CITY_SNAP + 215);
+    this.focusRoot.position.set(tileX * CITY_SNAP + 140, 0, tileZ * CITY_SNAP + 255);
     this.focusRoot.userData.skyDancerV35WorldCenterZ = this.focusRoot.position.z + FOCUS_CITY_LOCAL_CENTER_Z;
     this.rebuildFocusCity(tileX, tileZ);
   }
@@ -317,7 +317,7 @@ export class SkyDancerV35ReferencePass {
   private makeFrontMountainBelt(name: string, count: number, far: boolean): THREE.InstancedMesh {
     const mesh = new THREE.InstancedMesh(
       new THREE.ConeGeometry(1, 1, 5),
-      new THREE.MeshBasicMaterial({ color: far ? 0x718fa0 : 0x56798a, transparent: true, opacity: far ? 0.23 : 0.36, depthWrite: false, depthTest: true, fog: true, toneMapped: false }),
+      new THREE.MeshBasicMaterial({ color: far ? 0x718fa0 : 0x56798a, transparent: true, opacity: far ? 0.25 : 0.42, depthWrite: false, depthTest: true, fog: true, toneMapped: false }),
       count,
     );
     mesh.name = name;
@@ -341,7 +341,7 @@ export class SkyDancerV35ReferencePass {
   private makeFrontClouds(): THREE.InstancedMesh {
     const mesh = new THREE.InstancedMesh(
       new THREE.IcosahedronGeometry(1, 1),
-      new THREE.MeshBasicMaterial({ color: 0xf6f9fa, transparent: true, opacity: 0.12, depthWrite: false, depthTest: true, fog: true, toneMapped: false }),
+      new THREE.MeshBasicMaterial({ color: 0xf6f9fa, transparent: true, opacity: 0.14, depthWrite: false, depthTest: true, fog: true, toneMapped: false }),
       FRONT_CLOUD_COUNT,
     );
     mesh.name = "sky-dancer-v35-front-cloud-patches";
