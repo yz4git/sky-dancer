@@ -39,20 +39,28 @@ export class SkyDancerGroundReadabilityV31 {
 
     if (buildings.material instanceof THREE.MeshLambertMaterial) {
       buildings.material.color.setHex(0xffffff);
+      buildings.material.fog = false;
       buildings.material.needsUpdate = true;
     }
     if (trees.material instanceof THREE.MeshLambertMaterial) {
       trees.material.color.setHex(0xf4fff0);
+      trees.material.fog = false;
       trees.material.needsUpdate = true;
+    }
+    if (towers.material instanceof THREE.MeshLambertMaterial) {
+      towers.material.color.setHex(0xffffff);
+      towers.material.fog = false;
+      towers.material.needsUpdate = true;
     }
     if (roads.material instanceof THREE.MeshBasicMaterial) {
       roads.material.color.setHex(0xffffff);
+      roads.material.fog = false;
       roads.material.toneMapped = false;
       roads.material.needsUpdate = true;
     }
 
-    // Keep atmospheric perspective but delay full washout so the player sees a
-    // populated world rather than an empty cyan floor at the 300 m flight level.
+    // V31 instances live only in the nearby 5x5 neighborhood, so they can stay
+    // crisp while the foundation, mountains and remote skyline retain the fog.
     scene.fog = new THREE.Fog(0x4c98ba, 780, 1810);
     this.prepared = true;
   }
