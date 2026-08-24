@@ -17,17 +17,19 @@ interface V32CameraRuntime extends SkyDancerFxRuntime {
  * ground-heavy chase angle.
  */
 export class SkyDancerAirCombatFxV32 extends SkyDancerAirCombatFxV31 {
-  private readonly referenceWorld: SkyDancerReferenceWorldV32;
+  // Do not call this `referenceWorld`: V25 already owns a THREE.Group under that
+  // property name and its updateWorldAnchor() depends on `.position.set()`.
+  private readonly referencePresentation: SkyDancerReferenceWorldV32;
 
   constructor(private readonly v32Runtime: SkyDancerFxRuntime) {
     super(v32Runtime);
-    this.referenceWorld = new SkyDancerReferenceWorldV32(v32Runtime);
+    this.referencePresentation = new SkyDancerReferenceWorldV32(v32Runtime);
     if (typeof queueMicrotask === "function") queueMicrotask(() => this.installReferenceCameraComposition());
   }
 
   override update(snapshot: CartArenaSessionSnapshot, missiles: SkyDancerMissileState, delta: number): void {
     super.update(snapshot, missiles, delta);
-    this.referenceWorld.update(snapshot);
+    this.referencePresentation.update(snapshot);
   }
 
   private installReferenceCameraComposition(): void {
