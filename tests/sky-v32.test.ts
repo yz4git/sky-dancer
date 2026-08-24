@@ -2,14 +2,15 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
-test("V32 activates the reference quality pass on top of V31", () => {
+test("V32 activates the reference quality pass on top of V31 without colliding with V25 referenceWorld", () => {
   const entry = readFileSync(new URL("../src/sky/SkyDancerAirCombatFx.ts", import.meta.url), "utf8");
   const source = readFileSync(new URL("../src/sky/SkyDancerAirCombatFxV32.ts", import.meta.url), "utf8");
   assert.match(entry, /SkyDancerAirCombatFxV32 as SkyDancerAirCombatFx/);
   assert.match(entry, /SkyDancerAirCombatFxV31 as SkyDancerAirCombatFx/);
   assert.match(source, /extends SkyDancerAirCombatFxV31/);
   assert.match(source, /SkyDancerReferenceWorldV32/);
-  assert.match(source, /referenceWorld\.update\(snapshot\)/);
+  assert.match(source, /referencePresentation\.update\(snapshot\)/);
+  assert.doesNotMatch(source, /private readonly referenceWorld:/);
 });
 
 test("V32 replaces close pyramids and scattered city boxes with layered reference composition", () => {
@@ -35,6 +36,7 @@ test("V32 builds coherent hero cloud banks and a dedicated blue sky dome", () =>
   assert.match(source, /vec3 zenith/);
   assert.match(source, /sky-dancer-v24-sky-dome/);
   assert.match(source, /sky-dancer-v30-sky/);
+  assert.match(source, /restoreOwnPresentation/);
 });
 
 test("V32 increases hero aircraft presence without changing gameplay collision", () => {
