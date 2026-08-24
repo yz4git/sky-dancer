@@ -19,9 +19,9 @@ test("V35 presentation pipeline has one final owner after V34", () => {
   assert.match(pipeline, /this\.v34\.update\(snapshot\);\n    this\.v35\.update\(snapshot\);/);
 });
 
-test("V35 single owner builds a dense low-mid-rise city with restrained horizon layers", () => {
+test("V35 single owner builds a dense central city without turning it into a foreground wall", () => {
   const source = read("../src/sky/presentation/SkyDancerV35ReferencePass.ts");
-  assert.match(source, /MAX_FOCUS_BUILDINGS = 900/);
+  assert.match(source, /MAX_FOCUS_BUILDINGS = 760/);
   assert.match(source, /MAX_FOCUS_RIVER = 24/);
   assert.match(source, /FRONT_CLOUD_COUNT = 32/);
   assert.match(source, /sky-dancer-v35-focus-buildings/);
@@ -30,12 +30,13 @@ test("V35 single owner builds a dense low-mid-rise city with restrained horizon 
   assert.match(source, /sky-dancer-v35-front-mountains-far/);
   assert.match(source, /sky-dancer-v35-front-mountains-near/);
   assert.match(source, /sky-dancer-v35-front-cloud-patches/);
-  assert.match(source, /tileZ \* CITY_SNAP \+ 255/);
-  assert.match(source, /FOCUS_CITY_LOCAL_CENTER_Z = 142/);
-  assert.match(source, /const spacing = 6\.8/);
+  assert.match(source, /tileZ \* CITY_SNAP \+ 300/);
+  assert.match(source, /FOCUS_CITY_LOCAL_CENTER_Z = 145/);
+  assert.match(source, /const spacing = 7\.4/);
   assert.match(source, /new THREE\.MeshLambertMaterial/);
-  assert.match(source, /opacity: far \? 0\.25 : 0\.42/);
-  assert.match(source, /opacity: 0\.14/);
+  assert.match(source, /opacity: far \? 0\.23 : 0\.38/);
+  assert.match(source, /opacity: 0\.18/);
+  assert.match(source, /blockType > 0\.86/);
   assert.match(source, /fog\.near = 620/);
   assert.match(source, /fog\.far = 1760/);
   assert.match(source, /skyDancerV35ReferenceOwner = "single-pass"/);
@@ -62,7 +63,7 @@ test("V35 removes superseded scene work and reuses rebuild scratch objects", () 
   assert.doesNotMatch(v34, /scene\.background = new THREE\.Color/);
 });
 
-test("V35 webdriver audit verifies the visible single-owner midground composition", () => {
+test("V35 webdriver audit verifies both density and reference-like screen coverage", () => {
   const bridge = read("../src/sky/presentation/SkyDancerV35VisualAuditBridge.ts");
   const audit = read("../scripts/webgl-v35-reference-audit.mjs");
   assert.match(bridge, /sky-dancer-v35-front-cloud-patches/);
@@ -73,10 +74,12 @@ test("V35 webdriver audit verifies the visible single-owner midground compositio
   assert.match(bridge, /projectedInstanceStats/);
   assert.match(bridge, /focusCityInViewCount/);
   assert.doesNotMatch(bridge, /cityLow|firstPassCityVisible|polishFramingInstalled/);
-  assert.match(audit, /focusCityCount\) < 820/);
-  assert.match(audit, /focusCityInViewCount\) < 500/);
-  assert.match(audit, /visible midground corridor/i);
-  assert.match(audit, /focalDelta < 140 \|\| focalDelta > 300/);
+  assert.match(audit, /focusCityCount\) < 650/);
+  assert.match(audit, /focusCityInViewCount\) < 420/);
+  assert.match(audit, /cityVerticalSpan > 0\.90/);
+  assert.match(audit, /cityHorizontalSpan > 1\.85/);
+  assert.match(audit, /reference midground corridor/i);
+  assert.match(audit, /focalDelta < 220 \|\| focalDelta > 360/);
   assert.match(audit, /settlementsVisible \|\| visual\.towersVisible \|\| visual\.roadsVisible/);
   assert.match(audit, /singleOwnerInstalled/);
 });
@@ -85,7 +88,7 @@ test("V35 uses one reference camera decorator without changing the 300m gameplay
   const camera = read("../src/sky/presentation/SkyDancerCameraPresentation.ts");
   const pass = read("../src/sky/presentation/SkyDancerV35ReferencePass.ts");
   assert.match(camera, /scheduleSkyDancerV35ReferenceFraming/);
-  assert.match(camera, /cameraRuntime\.camera\.rotateX\(0\.225\)/);
+  assert.match(camera, /cameraRuntime\.camera\.rotateX\(0\.205\)/);
   assert.doesNotMatch(pass, /SKY_DANCER_V29_ALTITUDE_METERS\s*=/);
   assert.doesNotMatch(pass, /applyCameraPresentation/);
 });
