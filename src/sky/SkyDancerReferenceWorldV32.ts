@@ -4,6 +4,9 @@ import type { SkyDancerFxRuntime } from "./SkyDancerAirCombatFxV2";
 
 const WORLD_SNAP = 420;
 const GROUND_Y = -66.77;
+const MAX_CITY_LOW = 144;
+const MAX_CITY_MID = 96;
+const MAX_CITY_HIGH = 36;
 
 function hash2(x: number, z: number, salt = 0): number {
   let n = Math.imul(x + 0x7f4a7c15 + salt * 977, 0x1b873593) ^ Math.imul(z - salt * 631, 0x85ebca6b);
@@ -41,23 +44,24 @@ export class SkyDancerReferenceWorldV32 {
     this.groundRoot.name = "sky-dancer-v32-reference-ground";
     this.atmosphereRoot.name = "sky-dancer-v32-reference-atmosphere";
 
-    this.rollingHillsA = this.makeRollingHills("sky-dancer-v32-rolling-hills-a", 0x4e7c45, 42);
-    this.rollingHillsB = this.makeRollingHills("sky-dancer-v32-rolling-hills-b", 0x668f50, 34);
-    this.cityLow = this.makeCityMesh("sky-dancer-v32-city-low", 0x8ea3aa, 132);
-    this.cityMid = this.makeCityMesh("sky-dancer-v32-city-mid", 0xa4b4ba, 72);
-    this.cityHigh = this.makeCityMesh("sky-dancer-v32-city-high", 0xb9c5c9, 30);
+    this.rollingHillsA = this.makeRollingHills("sky-dancer-v32-rolling-hills-a", 0x4e7c45, 40);
+    this.rollingHillsB = this.makeRollingHills("sky-dancer-v32-rolling-hills-b", 0x668f50, 40);
+    this.cityLow = this.makeCityMesh("sky-dancer-v32-city-low", 0x8ea3aa, MAX_CITY_LOW);
+    this.cityMid = this.makeCityMesh("sky-dancer-v32-city-mid", 0xa4b4ba, MAX_CITY_MID);
+    this.cityHigh = this.makeCityMesh("sky-dancer-v32-city-high", 0xb9c5c9, MAX_CITY_HIGH);
     this.groundRoot.add(this.rollingHillsA, this.rollingHillsB, this.cityLow, this.cityMid, this.cityHigh);
 
     this.ridgeNear = this.makeRidge("sky-dancer-v32-ridge-near", 0x547b72, 28, 0.94);
     this.ridgeFar = this.makeRidge("sky-dancer-v32-ridge-far", 0x73949a, 34, 0.78);
     this.cloudMain = this.makeCloudMesh("sky-dancer-v32-hero-clouds", 0xe9f4f8, 84, 0.95, false);
-    this.cloudShade = this.makeCloudMesh("sky-dancer-v32-hero-cloud-shade", 0xb8d2dd, 84, 0.78, true);
+    this.cloudShade = this.makeCloudMesh("sky-dancer-v32-hero-cloud-shade", 0xb8d2dd, 84, 0.72, true);
     this.skyDome = this.makeSkyDome();
-    this.atmosphereRoot.add(this.ridgeFar, this.ridgeNear, this.cloudShade, this.cloudMain, this.skyDome);
+    this.atmosphereRoot.add(this.skyDome, this.ridgeFar, this.ridgeNear, this.cloudShade, this.cloudMain);
 
     runtime.scene.add(this.groundRoot, this.atmosphereRoot);
     this.installHeroAircraftDetail();
     this.hideLegacyComposition();
+    runtime.scene.fog = new THREE.Fog(0x86b7cd, 760, 1760);
     runtime.camera.far = Math.max(runtime.camera.far, 1850);
     runtime.camera.updateProjectionMatrix();
   }
@@ -75,8 +79,6 @@ export class SkyDancerReferenceWorldV32 {
       this.rebuildGround(nextTileX, nextTileZ);
     }
 
-    // Atmospheric layers behave like distant scenery: they follow translation,
-    // not heading, so turning still produces natural parallax.
     this.atmosphereRoot.position.set(snapshot.x, 0, snapshot.z);
     this.skyDome.position.y = this.runtime.camera.position.y;
   }
@@ -90,6 +92,8 @@ export class SkyDancerReferenceWorldV32 {
       "sky-dancer-v31-low-clouds",
       "sky-dancer-v31-mid-clouds",
       "sky-dancer-v24-far-cloud-layer",
+      "sky-dancer-v24-sky-dome",
+      "sky-dancer-v30-sky",
     ];
     for (const name of hideNames) {
       const object = this.runtime.scene.getObjectByName(name);
@@ -115,8 +119,6 @@ export class SkyDancerReferenceWorldV32 {
     let mid = 0;
     let high = 0;
 
-    // Broad, low faceted hills break the rectangular field mosaic without
-    // becoming close pyramids that block the combat horizon.
     for (let index = 0; index < 76; index += 1) {
       const angle = hash2(tileX, tileZ, 10 + index) * Math.PI * 2;
       const radius = 82 + hash2(tileX, tileZ, 110 + index) * 430;
@@ -126,13 +128,10 @@ export class SkyDancerReferenceWorldV32 {
       dummy.rotation.set(0, angle + hash2(tileX, tileZ, 410 + index), 0);
       dummy.scale.set(width, height, width * (0.72 + hash2(tileX, tileZ, 510 + index) * 0.5));
       dummy.updateMatrix();
-      const target = index % 2 === 0 ? this.rollingHillsA : this.rollingHillsB;
-      const targetIndex = index % 2 === 0 ? hillA++ : hillB++;
-      target.setMatrixAt(targetIndex, dummy.matrix);
+      if (index % 2 === 0) this.rollingHillsA.setMatrixAt(hillA++, dummy.matrix);
+      else this.rollingHillsB.setMatrixAt(hillB++, dummy.matrix);
     }
 
-    // Six coherent districts per tile neighborhood. Most terrain remains open;
-    // one hero district gets a recognisable high-rise core similar to reference.
     const districtCount = 6;
     for (let district = 0; district < districtCount; district += 1) {
       const angle = district / districtCount * Math.PI * 2 + hash2(tileX, tileZ, 700 + district) * 0.35;
@@ -156,9 +155,9 @@ export class SkyDancerReferenceWorldV32 {
         dummy.scale.set(footprint, height, footprint * (0.82 + hash2(tileX, tileZ, 2100 + i) * 0.38));
         dummy.updateMatrix();
 
-        if (height > 26 && high < this.cityHigh.count) this.cityHigh.setMatrixAt(high++, dummy.matrix);
-        else if (height > 13 && mid < this.cityMid.count) this.cityMid.setMatrixAt(mid++, dummy.matrix);
-        else if (low < this.cityLow.count) this.cityLow.setMatrixAt(low++, dummy.matrix);
+        if (height > 26 && high < MAX_CITY_HIGH) this.cityHigh.setMatrixAt(high++, dummy.matrix);
+        else if (height > 13 && mid < MAX_CITY_MID) this.cityMid.setMatrixAt(mid++, dummy.matrix);
+        else if (low < MAX_CITY_LOW) this.cityLow.setMatrixAt(low++, dummy.matrix);
       }
     }
 
@@ -234,7 +233,7 @@ export class SkyDancerReferenceWorldV32 {
       const cz = Math.sin(angle) * radius;
       const cy = 9 + (c % 3) * 8;
       for (let l = 0; l < lobes; l += 1) {
-        const seed = c * 97 + l * 31 + (shade ? 1400 : 0);
+        const seed = c * 97 + l * 31;
         const a = hash2(c, l, seed) * Math.PI * 2;
         const ring = l === 0 ? 0 : 3 + hash2(l, c, seed + 1) * 18;
         const size = 8 + hash2(c, l, seed + 2) * 9;
