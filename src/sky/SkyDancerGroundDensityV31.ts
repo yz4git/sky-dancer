@@ -43,11 +43,11 @@ function setInstance(
 /**
  * High-altitude V31 world density.
  *
- * Seven-by-seven deterministic chunks cover the full useful 300 m chase view.
- * A dedicated opaque, unlit green macro-landscape sits above V30's safety
- * foundation so real gameplay always reads as land rather than a cyan sky-like
- * plane. Large patchwork fields, roads, forest belts and compact settlements are
- * instanced above it with a fixed mobile-safe draw-call budget.
+ * Seven-by-seven deterministic chunks cover the useful 300 m chase view while
+ * keeping draw calls fixed. Per-instance color is carried exclusively through
+ * InstancedMesh.instanceColor; material vertexColors stays disabled because the
+ * primitive geometries do not contain a vertex color attribute. This avoids the
+ * zero-color multiplication path seen as black slabs on SwiftShader/mobile WebGL.
  */
 export class SkyDancerGroundDensityV31 {
   private readonly root = new THREE.Group();
@@ -193,17 +193,19 @@ export class SkyDancerGroundDensityV31 {
   private makeLandscapeBase(): THREE.Mesh {
     const geometry = new THREE.PlaneGeometry(LANDSCAPE_SIZE, LANDSCAPE_SIZE, 1, 1);
     geometry.rotateX(-Math.PI / 2);
-    const material = new THREE.MeshBasicMaterial({
-      color: 0x416f3d,
-      vertexColors: false,
-      transparent: false,
-      opacity: 1,
-      depthWrite: true,
-      depthTest: true,
-      fog: false,
-      toneMapped: false,
-    });
-    const mesh = new THREE.Mesh(geometry, material);
+    const mesh = new THREE.Mesh(
+      geometry,
+      new THREE.MeshBasicMaterial({
+        color: 0x416f3d,
+        vertexColors: false,
+        transparent: false,
+        opacity: 1,
+        depthWrite: true,
+        depthTest: true,
+        fog: false,
+        toneMapped: false,
+      }),
+    );
     mesh.name = "sky-dancer-v31-landscape-base";
     mesh.position.y = GROUND_Y + 0.12;
     mesh.frustumCulled = false;
@@ -214,7 +216,7 @@ export class SkyDancerGroundDensityV31 {
   private makeFields(): THREE.InstancedMesh {
     const mesh = new THREE.InstancedMesh(
       new THREE.BoxGeometry(1, 1, 1),
-      new THREE.MeshBasicMaterial({ color: 0xffffff, vertexColors: true, transparent: false, depthWrite: true, depthTest: true, toneMapped: false, fog: false }),
+      new THREE.MeshBasicMaterial({ color: 0xffffff, vertexColors: false, transparent: false, depthWrite: true, depthTest: true, toneMapped: false, fog: false }),
       MAX_FIELDS,
     );
     mesh.name = "sky-dancer-v31-patchwork-fields";
@@ -225,7 +227,7 @@ export class SkyDancerGroundDensityV31 {
   private makeBuildings(): THREE.InstancedMesh {
     const mesh = new THREE.InstancedMesh(
       new THREE.BoxGeometry(1, 1, 1),
-      new THREE.MeshLambertMaterial({ color: 0xffffff, vertexColors: true, flatShading: true, transparent: false, depthWrite: true, fog: false }),
+      new THREE.MeshLambertMaterial({ color: 0xffffff, vertexColors: false, flatShading: true, transparent: false, depthWrite: true, fog: false }),
       MAX_BUILDINGS,
     );
     mesh.name = "sky-dancer-v31-settlement-buildings";
@@ -236,7 +238,7 @@ export class SkyDancerGroundDensityV31 {
   private makeTrees(): THREE.InstancedMesh {
     const mesh = new THREE.InstancedMesh(
       new THREE.ConeGeometry(1, 1, 5),
-      new THREE.MeshLambertMaterial({ color: 0xffffff, vertexColors: true, flatShading: true, transparent: false, depthWrite: true, fog: false }),
+      new THREE.MeshLambertMaterial({ color: 0xffffff, vertexColors: false, flatShading: true, transparent: false, depthWrite: true, fog: false }),
       MAX_TREES,
     );
     mesh.name = "sky-dancer-v31-forest-belts";
@@ -247,7 +249,7 @@ export class SkyDancerGroundDensityV31 {
   private makeRoads(): THREE.InstancedMesh {
     const mesh = new THREE.InstancedMesh(
       new THREE.BoxGeometry(1, 1, 1),
-      new THREE.MeshBasicMaterial({ color: 0xffffff, vertexColors: true, transparent: false, depthWrite: true, depthTest: true, toneMapped: false, fog: false }),
+      new THREE.MeshBasicMaterial({ color: 0xffffff, vertexColors: false, transparent: false, depthWrite: true, depthTest: true, toneMapped: false, fog: false }),
       MAX_ROADS,
     );
     mesh.name = "sky-dancer-v31-road-network";
@@ -258,7 +260,7 @@ export class SkyDancerGroundDensityV31 {
   private makeTowers(): THREE.InstancedMesh {
     const mesh = new THREE.InstancedMesh(
       new THREE.BoxGeometry(1, 1, 1),
-      new THREE.MeshLambertMaterial({ color: 0xffffff, vertexColors: true, flatShading: true, transparent: false, depthWrite: true, fog: false }),
+      new THREE.MeshLambertMaterial({ color: 0xffffff, vertexColors: false, flatShading: true, transparent: false, depthWrite: true, fog: false }),
       MAX_TOWERS,
     );
     mesh.name = "sky-dancer-v31-landmark-towers";
