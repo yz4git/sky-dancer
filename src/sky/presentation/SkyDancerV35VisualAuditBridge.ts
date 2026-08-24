@@ -9,12 +9,19 @@ export interface SkyDancerV35VisualAuditSnapshot {
   roadCount: number;
   riverCount: number;
   cloudCount: number;
+  focusCityCount: number;
+  focusStreetCount: number;
+  focusCloudCount: number;
+  focusMountainCount: number;
   fieldsVisible: boolean;
   settlementsVisible: boolean;
   towersVisible: boolean;
   v34MassesVisible: boolean;
   legacyRidgesVisible: boolean;
+  firstPassCityVisible: boolean;
+  focusCityVisible: boolean;
   cameraFramingInstalled: boolean;
+  polishFramingInstalled: boolean;
   fogNear: number | null;
   fogFar: number | null;
 }
@@ -33,6 +40,8 @@ export function getSkyDancerV35VisualAuditSnapshot(runtime: SkyDancerFxRuntime):
   const cityMid = instanceCount(runtime, "sky-dancer-v35-city-mid");
   const cityHigh = instanceCount(runtime, "sky-dancer-v35-city-high");
   const fog = runtime.scene.fog;
+  const focusMountainCount = instanceCount(runtime, "sky-dancer-v35-focus-mountains-far")
+    + instanceCount(runtime, "sky-dancer-v35-focus-mountains-near");
   return {
     cityLow,
     cityMid,
@@ -41,6 +50,10 @@ export function getSkyDancerV35VisualAuditSnapshot(runtime: SkyDancerFxRuntime):
     roadCount: instanceCount(runtime, "sky-dancer-v35-metro-road-grid"),
     riverCount: instanceCount(runtime, "sky-dancer-v35-metro-river"),
     cloudCount: instanceCount(runtime, "sky-dancer-v35-cloud-main"),
+    focusCityCount: instanceCount(runtime, "sky-dancer-v35-focus-buildings"),
+    focusStreetCount: instanceCount(runtime, "sky-dancer-v35-focus-streets"),
+    focusCloudCount: instanceCount(runtime, "sky-dancer-v35-focus-clouds"),
+    focusMountainCount,
     fieldsVisible: visible(runtime, "sky-dancer-v31-patchwork-fields"),
     settlementsVisible: visible(runtime, "sky-dancer-v31-settlement-buildings"),
     towersVisible: visible(runtime, "sky-dancer-v31-landmark-towers"),
@@ -51,7 +64,14 @@ export function getSkyDancerV35VisualAuditSnapshot(runtime: SkyDancerFxRuntime):
       "sky-dancer-v32-ridge-near",
       "sky-dancer-v32-ridge-far",
     ].some((name) => visible(runtime, name)),
+    firstPassCityVisible: [
+      "sky-dancer-v35-city-low",
+      "sky-dancer-v35-city-mid",
+      "sky-dancer-v35-city-high",
+    ].some((name) => visible(runtime, name)),
+    focusCityVisible: visible(runtime, "sky-dancer-v35-focus-buildings"),
     cameraFramingInstalled: runtime.camera.userData.skyDancerV35ReferenceFraming === true,
+    polishFramingInstalled: runtime.camera.userData.skyDancerV35PolishFraming === true,
     fogNear: fog instanceof THREE.Fog ? fog.near : null,
     fogFar: fog instanceof THREE.Fog ? fog.far : null,
   };
