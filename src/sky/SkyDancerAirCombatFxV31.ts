@@ -17,7 +17,6 @@ const V31_OWNED_PRESENTATION_ROOTS = [
   "sky-dancer-v30-sky",
   "sky-dancer-v31-ground-density",
   "sky-dancer-v31-cloud-system",
-  "sky-dancer-v31-landscape-base",
 ] as const;
 
 /**
@@ -53,8 +52,9 @@ export class SkyDancerAirCombatFxV31 extends SkyDancerAirCombatFxV30 {
    * That legacy theme bootstrap hides every non-vehicle top-level scene child,
    * including the V30/V31 world roots that were just created. Restore only the
    * modern presentation roots here, after the theme has completed and after the
-   * inherited cleanup has removed obsolete scenery. This keeps V30's opaque
-   * ground safety layer and V31 density/cloud systems actually renderable.
+   * inherited cleanup has removed obsolete scenery. Individual child layers
+   * intentionally disabled by V31 readability (such as its old macro plane)
+   * must never be resurrected here.
    */
   private restoreOwnedPresentationRoots(): void {
     for (const name of V31_OWNED_PRESENTATION_ROOTS) {
