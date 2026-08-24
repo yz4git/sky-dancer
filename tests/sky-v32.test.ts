@@ -49,9 +49,9 @@ test("V32 final polish replaces first-pass ridges cities and clouds with distant
   assert.match(source, /sky-dancer-v32-polish-ridge-far/);
   assert.match(source, /IcosahedronGeometry\(1, 1\)/);
   assert.match(source, /sky-dancer-v32-polish-city-high/);
-  assert.match(source, /\{ x: -315, z: 485, count: 48, hero: true \}/);
+  assert.match(source, /\{ x: -175, z: 345, count: 58, hero: true \}/);
   assert.match(source, /sky-dancer-v32-polish-cloud-main/);
-  assert.match(source, /angle: -0\.72, radius: 430/);
+  assert.match(source, /angle: -0\.58, radius: 455/);
   assert.match(source, /sky-dancer-v25-horizon-cloud-banks/);
   assert.match(source, /sky-dancer-v29-reference-cloud-bank/);
   assert.match(source, /object\.visible = false/);
@@ -62,7 +62,7 @@ test("V32 increases hero aircraft presence without changing gameplay collision",
   const source = readFileSync(new URL("../src/sky/SkyDancerReferenceWorldV32.ts", import.meta.url), "utf8");
   const polish = readFileSync(new URL("../src/sky/SkyDancerReferencePolishV32.ts", import.meta.url), "utf8");
   assert.match(source, /player\.scale\.multiplyScalar\(1\.32\)/);
-  assert.match(polish, /player\.scale\.multiplyScalar\(1\.38\)/);
+  assert.match(polish, /player\.scale\.multiplyScalar\(2\.10\)/);
   assert.match(source, /sky-dancer-v32-player-detail/);
   assert.match(source, /CylinderGeometry\(0\.29, 0\.34, 0\.98, 8\)/);
   assert.match(source, /TorusGeometry\(0\.24, 0\.045, 5, 10\)/);
