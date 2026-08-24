@@ -4,6 +4,9 @@ import type { SkyDancerFxRuntime } from "./SkyDancerAirCombatFxV2";
 
 const WORLD_SNAP = 420;
 const GROUND_Y = -66.77;
+const MAX_CITY_LOW = 190;
+const MAX_CITY_MID = 130;
+const MAX_CITY_HIGH = 58;
 
 function hash2(x: number, z: number, salt = 0): number {
   let n = Math.imul(x + 0x51ed270b + salt * 911, 0x1b873593) ^ Math.imul(z - salt * 593, 0x85ebca6b);
@@ -39,9 +42,9 @@ export class SkyDancerReferencePolishV32 {
     this.groundRoot.name = "sky-dancer-v32-polish-ground";
     this.atmosphereRoot.name = "sky-dancer-v32-polish-atmosphere";
 
-    this.cityLow = this.makeCity("sky-dancer-v32-polish-city-low", 0x718794, 190);
-    this.cityMid = this.makeCity("sky-dancer-v32-polish-city-mid", 0x8fa2aa, 130);
-    this.cityHigh = this.makeCity("sky-dancer-v32-polish-city-high", 0xaebdc2, 58);
+    this.cityLow = this.makeCity("sky-dancer-v32-polish-city-low", 0x718794, MAX_CITY_LOW);
+    this.cityMid = this.makeCity("sky-dancer-v32-polish-city-mid", 0x8fa2aa, MAX_CITY_MID);
+    this.cityHigh = this.makeCity("sky-dancer-v32-polish-city-high", 0xaebdc2, MAX_CITY_HIGH);
     this.groundRoot.add(this.cityLow, this.cityMid, this.cityHigh);
 
     this.ridgeNear = this.makeRidge("sky-dancer-v32-polish-ridge-near", 0x3f6470, 28, false);
@@ -59,6 +62,11 @@ export class SkyDancerReferencePolishV32 {
     this.groundRoot.visible = true;
     this.atmosphereRoot.visible = true;
     this.hideSupersededV32();
+
+    // The base WebGL constructor prewarms the FX inheritance chain before every
+    // subclass has a live gameplay snapshot. V32 is presentation-only, so an
+    // incomplete prewarm frame should simply leave the static roots visible.
+    if (!snapshot || !Number.isFinite(snapshot.x) || !Number.isFinite(snapshot.z)) return;
 
     const nextTileX = Math.floor(snapshot.x / WORLD_SNAP);
     const nextTileZ = Math.floor(snapshot.z / WORLD_SNAP);
@@ -132,9 +140,9 @@ export class SkyDancerReferencePolishV32 {
         dummy.scale.set(width, height, width * (0.84 + hash2(tileX, tileZ, 1300 + i) * 0.28));
         dummy.updateMatrix();
 
-        if (height > 28 && high < this.cityHigh.count) this.cityHigh.setMatrixAt(high++, dummy.matrix);
-        else if (height > 14 && mid < this.cityMid.count) this.cityMid.setMatrixAt(mid++, dummy.matrix);
-        else if (low < this.cityLow.count) this.cityLow.setMatrixAt(low++, dummy.matrix);
+        if (height > 28 && high < MAX_CITY_HIGH) this.cityHigh.setMatrixAt(high++, dummy.matrix);
+        else if (height > 14 && mid < MAX_CITY_MID) this.cityMid.setMatrixAt(mid++, dummy.matrix);
+        else if (low < MAX_CITY_LOW) this.cityLow.setMatrixAt(low++, dummy.matrix);
       }
     }
 
