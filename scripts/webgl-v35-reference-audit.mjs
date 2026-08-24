@@ -25,9 +25,14 @@ const bridgeAvailable = await page.evaluate(() => typeof window.__skyDancerGetRe
 if (!bridgeAvailable) throw new Error("V35 webdriver visual audit bridge is unavailable");
 const visual = await page.evaluate(() => window.__skyDancerGetReferenceVisualV35());
 
-if (Number(visual.focusCityCount) < 440) throw new Error(`V35 focal metro density is too low: ${JSON.stringify(visual)}`);
+if (Number(visual.focusCityCount) < 820) throw new Error(`V35 focal metro density is too low: ${JSON.stringify(visual)}`);
 if (!visual.focusRootEffectiveVisible) throw new Error(`V35 focal metro root is not effectively visible: ${JSON.stringify(visual)}`);
-if (Number(visual.focusCityInViewCount) < 36 || !visual.focusCityNdcBounds) throw new Error(`V35 focal metro is not visibly projected: ${JSON.stringify(visual)}`);
+if (Number(visual.focusCityInViewCount) < 500 || !visual.focusCityNdcBounds) throw new Error(`V35 focal metro is not visibly projected: ${JSON.stringify(visual)}`);
+const cityBounds = visual.focusCityNdcBounds;
+const cityVerticalSpan = Number(cityBounds.maxY) - Number(cityBounds.minY);
+if (Number(cityBounds.minY) > -0.55 || Number(cityBounds.maxY) < -0.15 || cityVerticalSpan < 0.45) {
+  throw new Error(`V35 city does not occupy enough of the lower/mid frame: ${JSON.stringify(visual)}`);
+}
 if (Number(visual.focusStreetCount) < 12) throw new Error(`V35 focal street structure is incomplete: ${JSON.stringify(visual)}`);
 if (Number(visual.riverCount) < 20) throw new Error(`V35 focal river structure is incomplete: ${JSON.stringify(visual)}`);
 if (Number(visual.focusCloudCount) < 30) throw new Error(`V35 readable below-flight clouds are incomplete: ${JSON.stringify(visual)}`);
@@ -40,16 +45,14 @@ if (!visual.focusCityVisible) throw new Error(`Capture-driven city hierarchy is 
 if (!visual.cameraFramingInstalled || !visual.singleOwnerInstalled) throw new Error(`V35 single-owner presentation was not fully installed: ${JSON.stringify(visual)}`);
 if (Number(visual.fogNear) < 600 || Number(visual.fogFar) < 1700) throw new Error(`V35 atmosphere clips metro depth: ${JSON.stringify(visual)}`);
 
-// The city is intentionally closer than pass 4: enough urban fabric must sit in
-// the lower/mid frame instead of collapsing into a narrow horizon strip.
 const focalDelta = Number(visual.focusCenterWorldZ) - Number(visual.cameraZ);
-if (!Number.isFinite(focalDelta) || focalDelta < 150 || focalDelta > 320) {
+if (!Number.isFinite(focalDelta) || focalDelta < 140 || focalDelta > 300) {
   throw new Error(`V35 focal metro is outside the visible midground corridor: ${JSON.stringify(visual)}`);
 }
 
 await page.screenshot({ path: `${outputDir}/09-v35-reference.png`, fullPage: true });
 await canvas.screenshot({ path: `${outputDir}/09-v35-reference-canvas.png` });
-const diagnostics = { visual, focalDelta, consoleErrors, pageErrors };
+const diagnostics = { visual, focalDelta, cityVerticalSpan, consoleErrors, pageErrors };
 await writeFile(`${outputDir}/v35-reference-diagnostics.json`, JSON.stringify(diagnostics, null, 2));
 if (consoleErrors.length) throw new Error(`Console errors during V35 reference audit: ${consoleErrors.join(" | ")}`);
 if (pageErrors.length) throw new Error(`Page errors during V35 reference audit: ${pageErrors.join(" | ")}`);
