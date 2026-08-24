@@ -2,17 +2,16 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
-test("V32 activates the reference quality pass on top of V31 without colliding with V25 referenceWorld", () => {
-  const entry = readFileSync(new URL("../src/sky/SkyDancerAirCombatFx.ts", import.meta.url), "utf8");
+test("V32 remains a compatibility checkpoint over an extracted reference presentation pass", () => {
   const source = readFileSync(new URL("../src/sky/SkyDancerAirCombatFxV32.ts", import.meta.url), "utf8");
-  assert.match(entry, /SkyDancerAirCombatFxV32 as SkyDancerAirCombatFx/);
-  assert.match(entry, /SkyDancerAirCombatFxV31 as SkyDancerAirCombatFx/);
+  const pass = readFileSync(new URL("../src/sky/presentation/SkyDancerV32PresentationPass.ts", import.meta.url), "utf8");
   assert.match(source, /extends SkyDancerAirCombatFxV31/);
-  assert.match(source, /SkyDancerReferenceWorldV32/);
-  assert.match(source, /SkyDancerReferencePolishV32/);
-  assert.match(source, /referencePresentation\.update\(snapshot\)/);
-  assert.match(source, /referencePolish\.update\(snapshot\)/);
-  assert.doesNotMatch(source, /private readonly referenceWorld:/);
+  assert.match(source, /SkyDancerV32PresentationPass/);
+  assert.match(pass, /SkyDancerReferenceWorldV32/);
+  assert.match(pass, /SkyDancerReferencePolishV32/);
+  assert.match(pass, /referencePresentation\.update\(snapshot\)/);
+  assert.match(pass, /referencePolish\.update\(snapshot\)/);
+  assert.doesNotMatch(pass, /private readonly referenceWorld:/);
 });
 
 test("V32 first pass removes close blob hills and composes shallow ridges plus clustered cities", () => {
@@ -70,8 +69,8 @@ test("V32 increases hero aircraft presence without changing gameplay collision",
 });
 
 test("V32 restores reference-like horizon balance after the V31 look-down pass", () => {
-  const source = readFileSync(new URL("../src/sky/SkyDancerAirCombatFxV32.ts", import.meta.url), "utf8");
-  assert.match(source, /installReferenceCameraComposition/);
+  const source = readFileSync(new URL("../src/sky/presentation/SkyDancerCameraPresentation.ts", import.meta.url), "utf8");
+  assert.match(source, /scheduleSkyDancerV32CameraBalance/);
   assert.match(source, /camera\.rotateX\(0\.095\)/);
   assert.match(source, /skyDancerV32ReferenceCamera/);
 });

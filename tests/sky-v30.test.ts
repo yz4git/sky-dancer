@@ -16,7 +16,7 @@ test("V30 owns final world composition in a dedicated controller", () => {
 test("V30 removes inherited field conflicts and connects dedicated opaque valley detail", () => {
   const world = readFileSync(new URL("../src/sky/SkyDancerWorldPresentationV30.ts", import.meta.url), "utf8");
   const ground = readFileSync(new URL("../src/sky/SkyDancerGroundDetailV30.ts", import.meta.url), "utf8");
-  const fx = readFileSync(new URL("../src/sky/SkyDancerAirCombatFxV30.ts", import.meta.url), "utf8");
+  const pass = readFileSync(new URL("../src/sky/presentation/SkyDancerV30PresentationPass.ts", import.meta.url), "utf8");
   assert.match(world, /sky-dancer-v25-valley-fields/);
   assert.match(world, /sky-dancer-v28-patchwork-valley/);
   assert.match(world, /foundationDepthWrite/);
@@ -26,8 +26,8 @@ test("V30 removes inherited field conflicts and connects dedicated opaque valley
   assert.match(ground, /transparent: false/);
   assert.match(ground, /depthWrite: true/);
   assert.match(ground, /fog: false/);
-  assert.match(fx, /SkyDancerGroundDetailV30/);
-  assert.match(fx, /groundDetail\.update\(snapshot\)/);
+  assert.match(pass, /SkyDancerGroundDetailV30/);
+  assert.match(pass, /groundDetail\.update\(snapshot\)/);
 });
 
 test("V30 suppresses accumulated low-altitude city and road worlds", () => {
@@ -73,12 +73,9 @@ test("V30 consolidates inherited Cart HUD into the flight reference hierarchy in
   assert.match(pagesEntry, /<SkyDancerHudV30 \/>/);
 });
 
-test("V30 is the active Sky Dancer effects entry point", () => {
-  const entry = readFileSync(new URL("../src/sky/SkyDancerAirCombatFx.ts", import.meta.url), "utf8");
+test("V30 remains a compatibility wrapper over the extracted presentation pass", () => {
   const source = readFileSync(new URL("../src/sky/SkyDancerAirCombatFxV30.ts", import.meta.url), "utf8");
-  assert.match(entry, /SkyDancerAirCombatFxV30 as SkyDancerAirCombatFx/);
   assert.match(source, /extends SkyDancerAirCombatFxV29/);
-  assert.match(source, /SkyDancerLegacySceneryCleanupV30/);
-  assert.match(source, /SkyDancerGroundDetailV30/);
-  assert.match(source, /SkyDancerWorldPresentationV30/);
+  assert.match(source, /SkyDancerV30PresentationPass/);
+  assert.match(source, /presentationPass\.update\(snapshot\)/);
 });
