@@ -12,10 +12,11 @@ test("V35 locks the supplied reference image as the graphics quality contract", 
   assert.match(contract, /If V35 visual capture is visibly worse than V32\/V33/);
 });
 
-test("V35 presentation is the final owner after V34 without reviving version inheritance", () => {
+test("V35 presentation remains composed after V34 and ends in the capture-driven polish owner", () => {
   const pipeline = read("../src/sky/presentation/SkyDancerPresentationPipeline.ts");
   assert.match(pipeline, /SkyDancerV35ReferencePass/);
-  assert.match(pipeline, /this\.v34\.update\(snapshot\);\n    this\.v35\.update\(snapshot\);/);
+  assert.match(pipeline, /SkyDancerV35ReferencePolishPass/);
+  assert.match(pipeline, /this\.v34\.update\(snapshot\);\n    this\.v35\.update\(snapshot\);\n    this\.v35Polish\.update\(snapshot\);/);
 });
 
 test("V35 recovers city detail lost by V34 and replaces degraded horizon layers", () => {
@@ -25,13 +26,24 @@ test("V35 recovers city detail lost by V34 and replaces degraded horizon layers"
   assert.match(source, /sky-dancer-v31-landmark-towers/);
   assert.match(source, /sky-dancer-v34-irregular-terrain-masses/);
   assert.match(source, /sky-dancer-v35-reference-metro/);
-  assert.match(source, /sky-dancer-v35-metro-road-grid/);
   assert.match(source, /sky-dancer-v35-metro-river/);
   assert.match(source, /sky-dancer-v35-angular-mountains/);
   assert.match(source, /sky-dancer-v35-below-flight-clouds/);
-  assert.match(source, /new THREE\.ConeGeometry\(1, 1, 6\)/);
   assert.match(source, /fog\.near = 620/);
   assert.match(source, /fog\.far = 1760/);
+});
+
+test("V35 second pass concentrates the metro and makes angular mountains and low clouds readable", () => {
+  const polish = read("../src/sky/presentation/SkyDancerV35ReferencePolishPass.ts");
+  assert.match(polish, /MAX_FOCUS_BUILDINGS = 360/);
+  assert.match(polish, /sky-dancer-v35-focus-buildings/);
+  assert.match(polish, /sky-dancer-v35-focus-streets/);
+  assert.match(polish, /sky-dancer-v35-focus-mountains-far/);
+  assert.match(polish, /sky-dancer-v35-focus-mountains-near/);
+  assert.match(polish, /sky-dancer-v35-focus-clouds/);
+  assert.match(polish, /new THREE\.ConeGeometry\(1, 1, 5\)/);
+  assert.match(polish, /dummy\.position\.set\(x, -13/);
+  assert.match(polish, /cameraRuntime\.camera\.rotateX\(0\.045\)/);
 });
 
 test("V35 reference framing lowers the horizon without changing the 300m gameplay model", () => {
