@@ -152,8 +152,8 @@ export class SkyDancerGroundReadabilityV31 {
       for (const [label, ndc] of Object.entries(ndcSamples)) {
         raycaster.setFromCamera(ndc, camera);
         rays[label] = raycaster.intersectObjects(this.runtime.scene.children, true)
-          .filter((hit) => isEffectivelyVisible(hit.object))
-          .slice(0, 12)
+          .filter((hit) => hit.distance > 2 && isEffectivelyVisible(hit.object))
+          .slice(0, 16)
           .map((hit) => {
             const object = hit.object as THREE.Mesh;
             const material = Array.isArray(object.material) ? object.material[0] : object.material;
