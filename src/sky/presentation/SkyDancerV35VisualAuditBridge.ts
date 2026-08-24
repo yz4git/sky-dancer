@@ -13,6 +13,9 @@ export interface SkyDancerV35VisualAuditSnapshot {
   focusStreetCount: number;
   focusCloudCount: number;
   focusMountainCount: number;
+  focusRootZ: number | null;
+  focusCenterWorldZ: number | null;
+  cameraZ: number;
   fieldsVisible: boolean;
   settlementsVisible: boolean;
   towersVisible: boolean;
@@ -40,20 +43,29 @@ export function getSkyDancerV35VisualAuditSnapshot(runtime: SkyDancerFxRuntime):
   const cityMid = instanceCount(runtime, "sky-dancer-v35-city-mid");
   const cityHigh = instanceCount(runtime, "sky-dancer-v35-city-high");
   const fog = runtime.scene.fog;
-  const focusMountainCount = instanceCount(runtime, "sky-dancer-v35-focus-mountains-far")
-    + instanceCount(runtime, "sky-dancer-v35-focus-mountains-near");
+  const focusRoot = runtime.scene.getObjectByName("sky-dancer-v35-reference-focus-city");
+  const focusRootZ = focusRoot?.position.z ?? null;
+  const localCenterZ = typeof focusRoot?.userData.skyDancerV35LocalCenterZ === "number"
+    ? focusRoot.userData.skyDancerV35LocalCenterZ
+    : null;
+  const focusCenterWorldZ = focusRootZ !== null && localCenterZ !== null ? focusRootZ + localCenterZ : null;
+  const focusMountainCount = instanceCount(runtime, "sky-dancer-v35-front-mountains-far")
+    + instanceCount(runtime, "sky-dancer-v35-front-mountains-near");
   return {
     cityLow,
     cityMid,
     cityHigh,
     cityTotal: cityLow + cityMid + cityHigh,
     roadCount: instanceCount(runtime, "sky-dancer-v35-metro-road-grid"),
-    riverCount: instanceCount(runtime, "sky-dancer-v35-metro-river"),
+    riverCount: instanceCount(runtime, "sky-dancer-v35-focus-river"),
     cloudCount: instanceCount(runtime, "sky-dancer-v35-cloud-main"),
     focusCityCount: instanceCount(runtime, "sky-dancer-v35-focus-buildings"),
     focusStreetCount: instanceCount(runtime, "sky-dancer-v35-focus-streets"),
-    focusCloudCount: instanceCount(runtime, "sky-dancer-v35-focus-clouds"),
+    focusCloudCount: instanceCount(runtime, "sky-dancer-v35-front-cloud-patches"),
     focusMountainCount,
+    focusRootZ,
+    focusCenterWorldZ,
+    cameraZ: runtime.camera.position.z,
     fieldsVisible: visible(runtime, "sky-dancer-v31-patchwork-fields"),
     settlementsVisible: visible(runtime, "sky-dancer-v31-settlement-buildings"),
     towersVisible: visible(runtime, "sky-dancer-v31-landmark-towers"),
