@@ -1,5 +1,5 @@
-// V31 keeps the full V21-V30 gameplay/FX chain and adds mobile-safe ground
-// density plus layered cluster clouds after V30's ground-integrity pass.
+// V32 keeps the full V21-V31 gameplay/FX chain and adds reference-match
+// composition polish after V31's ground-integrity/cloud-quality pass.
 // Historical regression markers for the inherited chain:
 // SkyDancerAirCombatFxV21 remains in the inheritance chain
 // SkyDancerAirCombatFxV22 remains in the inheritance chain
@@ -11,7 +11,8 @@
 // SkyDancerAirCombatFxV28 as SkyDancerAirCombatFx
 // SkyDancerAirCombatFxV29 as SkyDancerAirCombatFx
 // SkyDancerAirCombatFxV30 as SkyDancerAirCombatFx
+// SkyDancerAirCombatFxV31 as SkyDancerAirCombatFx
 export {
-  SkyDancerAirCombatFxV31 as SkyDancerAirCombatFx,
-} from "./SkyDancerAirCombatFxV31";
+  SkyDancerAirCombatFxV32 as SkyDancerAirCombatFx,
+} from "./SkyDancerAirCombatFxV32";
 export type { SkyDancerFxRuntime } from "./SkyDancerAirCombatFxV2";

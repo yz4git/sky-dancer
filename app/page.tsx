@@ -3,6 +3,7 @@ import ServiceWorkerRegistration from "./ServiceWorkerRegistration";
 import SkyDancerColorGradeV31 from "./SkyDancerColorGradeV31";
 import SkyDancerHudV30 from "./SkyDancerHudV30";
 import SkyDancerHudV31 from "./SkyDancerHudV31";
+import SkyDancerHudV32 from "./SkyDancerHudV32";
 
 export default function Page() {
   return <>
@@ -11,5 +12,6 @@ export default function Page() {
     <SkyDancerColorGradeV31 />
     <SkyDancerHudV30 />
     <SkyDancerHudV31 />
+    <SkyDancerHudV32 />
   </>;
 }
