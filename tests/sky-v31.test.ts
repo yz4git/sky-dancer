@@ -42,39 +42,44 @@ test("V31 ground density uses a deterministic 7x7 instanced neighborhood", () =>
   assert.match(source, /function pick/);
 });
 
-test("V31 macro landscape is a stable opaque fixed-green safety surface", () => {
-  const source = readFileSync(new URL("../src/sky/SkyDancerGroundDensityV31.ts", import.meta.url), "utf8");
-  assert.match(source, /PlaneGeometry\(LANDSCAPE_SIZE, LANDSCAPE_SIZE, 1, 1\)/);
+test("V31 collapses macro terrain to one opaque fixed-green foundation", () => {
+  const source = readFileSync(new URL("../src/sky/SkyDancerGroundReadabilityV31.ts", import.meta.url), "utf8");
+  assert.match(source, /sky-dancer-v30-ground-foundation/);
+  assert.match(source, /sky-dancer-v31-landscape-base/);
+  assert.match(source, /macroLandscape\.visible = false/);
+  assert.match(source, /skyDancerV31SupersededMacroLandscape/);
+  assert.match(source, /foundation\.material = new THREE\.MeshBasicMaterial/);
   assert.match(source, /color: 0x416f3d/);
   assert.match(source, /vertexColors: false/);
   assert.match(source, /opacity: 1/);
   assert.match(source, /depthWrite: true/);
   assert.match(source, /fog: false/);
+  assert.match(source, /toneMapped: false/);
+  assert.match(source, /skyDancerV31SingleGroundFoundation/);
 });
 
-test("V31 keeps the opaque V30 foundation green and readable at 300m", () => {
+test("V31 suppresses the old V30 field overlay and keeps the reference skyline readable", () => {
   const source = readFileSync(new URL("../src/sky/SkyDancerGroundReadabilityV31.ts", import.meta.url), "utf8");
-  assert.match(source, /sky-dancer-v30-ground-foundation/);
-  assert.match(source, /foundation\.material\.fog = false/);
-  assert.match(source, /foundation\.material\.transparent = false/);
-  assert.match(source, /foundation\.material\.depthWrite = true/);
+  assert.match(source, /sky-dancer-v30-patchwork-fields/);
+  assert.match(source, /legacyFields\.visible = false/);
+  assert.match(source, /skyDancerV31SupersededFieldLayer/);
   assert.match(source, /sky-dancer-v29-reference-skyline/);
   assert.match(source, /scale\.setScalar\(0\.64\)/);
   assert.match(source, /Fog\(0x6ba8be, 900, 1920\)/);
 });
 
-test("V31 replaces legacy clouds with readable three-depth cumulus clusters", () => {
+test("V31 replaces legacy clouds with deterministic unlit three-depth cumulus clusters", () => {
   const source = readFileSync(new URL("../src/sky/SkyDancerCloudQualityV31.ts", import.meta.url), "utf8");
-  assert.match(source, /WORLD_SNAP = 210/);
+  assert.match(source, /WORLD_SNAP = 105/);
   assert.match(source, /sky-dancer-v31-low-clouds/);
   assert.match(source, /sky-dancer-v31-mid-clouds/);
   assert.match(source, /sky-dancer-v31-horizon-clouds/);
   assert.match(source, /IcosahedronGeometry\(1, 1\)/);
-  assert.match(source, /clusters: 12/);
-  assert.match(source, /radiusMin: 240/);
-  assert.match(source, /radiusMin: 620/);
-  assert.match(source, /emissive: config\.solid/);
-  assert.match(source, /emissiveIntensity: config\.solid/);
+  assert.match(source, /clusters: 10/);
+  assert.match(source, /radiusMin: 300/);
+  assert.match(source, /radiusMin: 700/);
+  assert.match(source, /new THREE\.MeshBasicMaterial/);
+  assert.match(source, /toneMapped: false/);
   assert.match(source, /evenAngle = cluster \/ config\.clusters/);
   assert.match(source, /fog: config\.fog/);
   assert.match(source, /depthWrite: config\.solid/);
