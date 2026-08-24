@@ -4,6 +4,7 @@ import { SkyDancerV30PresentationPass } from "./SkyDancerV30PresentationPass";
 import { SkyDancerV31PresentationPass } from "./SkyDancerV31PresentationPass";
 import { SkyDancerV32PresentationPass } from "./SkyDancerV32PresentationPass";
 import { SkyDancerV34QualityPass } from "./SkyDancerV34QualityPass";
+import { SkyDancerV35ReferencePass } from "./SkyDancerV35ReferencePass";
 
 /**
  * Stable modern presentation pipeline.
@@ -17,12 +18,14 @@ export class SkyDancerPresentationPipeline {
   private readonly v31: SkyDancerV31PresentationPass;
   private readonly v32: SkyDancerV32PresentationPass;
   private readonly v34: SkyDancerV34QualityPass;
+  private readonly v35: SkyDancerV35ReferencePass;
 
   constructor(runtime: SkyDancerFxRuntime) {
     this.v30 = new SkyDancerV30PresentationPass(runtime);
     this.v31 = new SkyDancerV31PresentationPass(runtime);
     this.v32 = new SkyDancerV32PresentationPass(runtime);
     this.v34 = new SkyDancerV34QualityPass(runtime);
+    this.v35 = new SkyDancerV35ReferencePass(runtime);
   }
 
   update(snapshot: CartArenaSessionSnapshot): void {
@@ -30,5 +33,6 @@ export class SkyDancerPresentationPipeline {
     this.v31.update(snapshot);
     this.v32.update(snapshot);
     this.v34.update(snapshot);
+    this.v35.update(snapshot);
   }
 }
