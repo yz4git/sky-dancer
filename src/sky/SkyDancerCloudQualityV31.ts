@@ -37,10 +37,9 @@ function rand(seed: number): number {
  * Texture-free V31 cumulus system.
  *
  * Old cloud passes are suppressed by both their known names and a conservative
- * name-based sweep. The replacement keeps cloud mass away from the chase camera:
- * sparse lower banks, middle-distance cumulus and a denser horizon belt. Each
- * lobe stays close to spherical so clusters read as clouds rather than stretched
- * translucent ellipses, while the entire system remains three instanced draws.
+ * name-based sweep. The replacement uses compact near-spherical lobes at useful
+ * middle distance, so real gameplay sees recognizable cumulus without the giant
+ * translucent ellipse artifacts from the inherited cloud banks.
  */
 export class SkyDancerCloudQualityV31 {
   private readonly root = new THREE.Group();
@@ -53,27 +52,27 @@ export class SkyDancerCloudQualityV31 {
     const configs: CloudLayerConfig[] = [
       {
         name: "sky-dancer-v31-low-clouds",
-        clusters: 8,
+        clusters: 10,
         lobes: 10,
-        radiusMin: 500,
-        radiusMax: 760,
-        yMin: -42,
-        yMax: -28,
-        sizeMin: 4.2,
-        sizeMax: 7.0,
+        radiusMin: 260,
+        radiusMax: 520,
+        yMin: -38,
+        yMax: -24,
+        sizeMin: 3.6,
+        sizeMax: 6.2,
         opacity: 1,
         solid: true,
       },
       {
         name: "sky-dancer-v31-mid-clouds",
-        clusters: 12,
+        clusters: 14,
         lobes: 12,
-        radiusMin: 650,
-        radiusMax: 920,
-        yMin: -24,
-        yMax: -4,
-        sizeMin: 5.6,
-        sizeMax: 9.5,
+        radiusMin: 420,
+        radiusMax: 700,
+        yMin: -20,
+        yMax: 2,
+        sizeMin: 4.8,
+        sizeMax: 8.2,
         opacity: 0.98,
         solid: true,
       },
@@ -81,12 +80,12 @@ export class SkyDancerCloudQualityV31 {
         name: "sky-dancer-v31-horizon-clouds",
         clusters: 18,
         lobes: 14,
-        radiusMin: 820,
-        radiusMax: 1180,
-        yMin: -10,
-        yMax: 24,
-        sizeMin: 7.5,
-        sizeMax: 13.0,
+        radiusMin: 620,
+        radiusMax: 920,
+        yMin: -8,
+        yMax: 20,
+        sizeMin: 6.2,
+        sizeMax: 10.8,
         opacity: 0.90,
         solid: false,
       },
@@ -99,7 +98,7 @@ export class SkyDancerCloudQualityV31 {
     });
     runtime.scene.add(this.root);
     if (runtime.camera) {
-      runtime.camera.far = Math.max(runtime.camera.far, 1450);
+      runtime.camera.far = Math.max(runtime.camera.far, 1250);
       runtime.camera.updateProjectionMatrix();
     }
     this.hideLegacyClouds();
@@ -174,27 +173,27 @@ export class SkyDancerCloudQualityV31 {
       const centerX = Math.cos(angle) * radius;
       const centerZ = Math.sin(angle) * radius;
       const centerY = THREE.MathUtils.lerp(config.yMin, config.yMax, rand(baseSeed + 3));
-      const spread = THREE.MathUtils.lerp(8, 15, rand(baseSeed + 4));
+      const spread = THREE.MathUtils.lerp(7, 13, rand(baseSeed + 4));
 
       for (let lobe = 0; lobe < config.lobes; lobe += 1) {
         const seed = baseSeed + lobe * 17;
         const lobeAngle = rand(seed + 5) * Math.PI * 2;
-        const ring = lobe === 0 ? 0 : 2 + rand(seed + 6) * spread;
+        const ring = lobe === 0 ? 0 : 1.8 + rand(seed + 6) * spread;
         const size = THREE.MathUtils.lerp(config.sizeMin, config.sizeMax, rand(seed + 7));
         const verticalBias = lobe === 0
           ? size * 0.22
-          : (rand(seed + 8) - 0.34) * size * 0.95 + (lobe % 4 === 0 ? size * 0.45 : 0);
+          : (rand(seed + 8) - 0.34) * size * 0.92 + (lobe % 4 === 0 ? size * 0.42 : 0);
 
         dummy.position.set(
           centerX + Math.cos(lobeAngle) * ring,
           centerY + verticalBias,
           centerZ + Math.sin(lobeAngle) * ring * 0.82,
         );
-        dummy.rotation.set(rand(seed + 9) * 0.35, rand(seed + 10) * Math.PI, rand(seed + 11) * 0.28);
+        dummy.rotation.set(rand(seed + 9) * 0.32, rand(seed + 10) * Math.PI, rand(seed + 11) * 0.26);
         dummy.scale.set(
-          size * THREE.MathUtils.lerp(0.92, 1.20, rand(seed + 12)),
-          size * THREE.MathUtils.lerp(0.82, 1.22, rand(seed + 13)),
-          size * THREE.MathUtils.lerp(0.92, 1.22, rand(seed + 14)),
+          size * THREE.MathUtils.lerp(0.94, 1.18, rand(seed + 12)),
+          size * THREE.MathUtils.lerp(0.84, 1.20, rand(seed + 13)),
+          size * THREE.MathUtils.lerp(0.94, 1.20, rand(seed + 14)),
         );
         dummy.updateMatrix();
         mesh.setMatrixAt(index, dummy.matrix);
