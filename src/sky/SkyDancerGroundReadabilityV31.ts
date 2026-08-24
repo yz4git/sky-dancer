@@ -27,6 +27,8 @@ type RayHitDebug = {
   point: { x: number; y: number; z: number };
   material: string | null;
   color: number | null;
+  instanceId: number | null;
+  instanceColor: number | null;
   transparent: boolean | null;
   opacity: number | null;
   depthWrite: boolean | null;
@@ -166,7 +168,9 @@ export class SkyDancerGroundReadabilityV31 {
 
       const raycaster = new THREE.Raycaster();
       const ndcSamples: Record<string, THREE.Vector2> = {
-        center: new THREE.Vector2(0, 0),
+        blackCenter: new THREE.Vector2(0, -0.05),
+        blackLeft: new THREE.Vector2(-0.68, -0.06),
+        blackRight: new THREE.Vector2(0.62, 0.02),
         lowerCenter: new THREE.Vector2(0, -0.55),
         lowerLeft: new THREE.Vector2(-0.52, -0.55),
         lowerRight: new THREE.Vector2(0.52, -0.55),
@@ -174,15 +178,24 @@ export class SkyDancerGroundReadabilityV31 {
         midRight: new THREE.Vector2(0.46, -0.18),
       };
       const rays: Record<string, RayHitDebug[]> = {};
+      const instanceColorSample = new THREE.Color();
       for (const [label, ndc] of Object.entries(ndcSamples)) {
         raycaster.setFromCamera(ndc, camera);
         rays[label] = raycaster.intersectObjects(this.runtime.scene.children, true)
-          .filter((hit) => hit.distance > 2 && isEffectivelyVisible(hit.object))
-          .slice(0, 20)
+          .filter((hit) => hit.distance > 20
+            && isEffectivelyVisible(hit.object)
+            && (hit.object instanceof THREE.Mesh || hit.object instanceof THREE.InstancedMesh))
+          .slice(0, 16)
           .map((hit) => {
-            const object = hit.object as THREE.Mesh;
+            const object = hit.object as THREE.Mesh | THREE.InstancedMesh;
             const material = Array.isArray(object.material) ? object.material[0] : object.material;
             const color = material && "color" in material && material.color instanceof THREE.Color ? material.color.getHex() : null;
+            const instanceId = hit.instanceId ?? null;
+            let instanceColor: number | null = null;
+            if (instanceId != null && object instanceof THREE.InstancedMesh && object.instanceColor) {
+              object.getColorAt(instanceId, instanceColorSample);
+              instanceColor = instanceColorSample.getHex();
+            }
             return {
               name: object.name || object.parent?.name || "(unnamed)",
               type: object.type,
@@ -194,6 +207,8 @@ export class SkyDancerGroundReadabilityV31 {
               },
               material: material?.type ?? null,
               color,
+              instanceId,
+              instanceColor,
               transparent: material ? material.transparent : null,
               opacity: material ? material.opacity : null,
               depthWrite: material ? material.depthWrite : null,
