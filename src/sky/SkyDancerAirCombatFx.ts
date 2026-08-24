@@ -2,8 +2,10 @@
 // density plus layered cluster clouds after V30's ground-integrity pass.
 // Historical regression markers for the inherited chain:
 // SkyDancerAirCombatFxV21 remains in the inheritance chain
-// V23 remains in the inheritance chain
-// V24 remains in the inheritance chain
+// SkyDancerAirCombatFxV22 remains in the inheritance chain
+// SkyDancerAirCombatFxV23 remains in the inheritance chain
+// SkyDancerAirCombatFxV24 remains in the inheritance chain
+// SkyDancerAirCombatFxV25 remains in the inheritance chain
 // SkyDancerAirCombatFxV26 as SkyDancerAirCombatFx
 // SkyDancerAirCombatFxV27 as SkyDancerAirCombatFx
 // SkyDancerAirCombatFxV28 as SkyDancerAirCombatFx
