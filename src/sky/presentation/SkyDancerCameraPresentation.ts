@@ -41,3 +41,23 @@ export function scheduleSkyDancerV32CameraBalance(runtime: SkyDancerFxRuntime): 
     cameraRuntime.camera.userData.skyDancerV32ReferenceCamera = true;
   });
 }
+
+/**
+ * V35 lowers the visual horizon so the frame carries more blue sky and less
+ * featureless foreground, matching the supplied reference composition without
+ * changing gameplay altitude or collision coordinates.
+ */
+export function scheduleSkyDancerV35ReferenceFraming(runtime: SkyDancerFxRuntime): void {
+  scheduleInstall(() => {
+    const cameraRuntime = runtime as CameraPresentationRuntime;
+    if (cameraRuntime.camera.userData.skyDancerV35ReferenceFraming === true) return;
+    const inherited = cameraRuntime.applyCameraPresentation;
+    if (typeof inherited !== "function") return;
+    const base = inherited.bind(cameraRuntime);
+    cameraRuntime.applyCameraPresentation = (snapshot: CartArenaSessionSnapshot) => {
+      base(snapshot);
+      cameraRuntime.camera.rotateX(0.085);
+    };
+    cameraRuntime.camera.userData.skyDancerV35ReferenceFraming = true;
+  });
+}
