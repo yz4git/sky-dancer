@@ -26,7 +26,7 @@ export function scheduleSkyDancerV31CameraPitch(runtime: SkyDancerFxRuntime): vo
   });
 }
 
-/** Preserve V32's final horizon balance as the last camera presentation decorator. */
+/** Preserve V32's final horizon balance as the last historical camera decorator. */
 export function scheduleSkyDancerV32CameraBalance(runtime: SkyDancerFxRuntime): void {
   scheduleInstall(() => {
     const cameraRuntime = runtime as CameraPresentationRuntime;
@@ -43,9 +43,10 @@ export function scheduleSkyDancerV32CameraBalance(runtime: SkyDancerFxRuntime): 
 }
 
 /**
- * V35 lowers the visual horizon so the frame carries more blue sky and less
- * featureless foreground, matching the supplied reference composition without
- * changing gameplay altitude or collision coordinates.
+ * V35 keeps the aircraft in the lower-middle frame while preserving a broad sky
+ * band above the city. Pass 7 eases the pass-6 pitch slightly so the aircraft
+ * and skyline sit closer to the supplied reference instead of hugging the
+ * bottom edge. Gameplay altitude and collision coordinates are untouched.
  */
 export function scheduleSkyDancerV35ReferenceFraming(runtime: SkyDancerFxRuntime): void {
   scheduleInstall(() => {
@@ -56,7 +57,7 @@ export function scheduleSkyDancerV35ReferenceFraming(runtime: SkyDancerFxRuntime
     const base = inherited.bind(cameraRuntime);
     cameraRuntime.applyCameraPresentation = (snapshot: CartArenaSessionSnapshot) => {
       base(snapshot);
-      cameraRuntime.camera.rotateX(0.160);
+      cameraRuntime.camera.rotateX(0.205);
     };
     cameraRuntime.camera.userData.skyDancerV35ReferenceFraming = true;
   });
