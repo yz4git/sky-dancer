@@ -40,14 +40,20 @@ export class SkyDancerGroundDetailV30 {
   private buildFields(): THREE.InstancedMesh<THREE.BoxGeometry, THREE.MeshBasicMaterial> {
     const mesh = new THREE.InstancedMesh(
       new THREE.BoxGeometry(1, 1, 1),
-      new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: false, depthWrite: true, depthTest: true }),
+      new THREE.MeshBasicMaterial({
+        color: 0xffffff,
+        transparent: false,
+        depthWrite: true,
+        depthTest: true,
+        fog: false,
+      }),
       FIELD_COUNT,
     );
     mesh.name = "sky-dancer-v30-patchwork-fields";
     mesh.frustumCulled = false;
     const palette = [
-      0x4f8848, 0x5f984f, 0x70a657, 0x82ae60, 0x668f4e,
-      0x789b55, 0x4d8057, 0x91a85f, 0x5d8e43,
+      0x397941, 0x4d8b45, 0x629d4e, 0x77aa58, 0x568b48,
+      0x6e9950, 0x3f7851, 0x879f59, 0x4d8240,
     ].map((value) => new THREE.Color(value));
     const dummy = new THREE.Object3D();
 
@@ -90,17 +96,19 @@ export class SkyDancerGroundDetailV30 {
     const root = new THREE.Group();
     root.name = "sky-dancer-v30-river";
     const water = new THREE.MeshBasicMaterial({
-      color: 0x2f8eb5,
+      color: 0x267fa8,
       transparent: false,
       depthWrite: true,
       depthTest: true,
+      fog: false,
       toneMapped: false,
     });
     const glint = new THREE.MeshBasicMaterial({
-      color: 0x75cce4,
+      color: 0x78d3ec,
       transparent: true,
-      opacity: 0.28,
+      opacity: 0.24,
       depthWrite: false,
+      fog: false,
       toneMapped: false,
     });
 
