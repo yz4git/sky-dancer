@@ -1,3 +1,4 @@
+import * as THREE from "three";
 import type { CartArenaSessionSnapshot } from "../cart/CartArenaSession";
 import type { SkyDancerMissileState } from "./SkyDancerFlightCombat";
 import { SkyDancerAirCombatFxV30 } from "./SkyDancerAirCombatFxV30";
@@ -14,16 +15,33 @@ export class SkyDancerAirCombatFxV31 extends SkyDancerAirCombatFxV30 {
   private readonly groundDensity: SkyDancerGroundDensityV31;
   private readonly cloudQuality: SkyDancerCloudQualityV31;
 
-  constructor(runtime: SkyDancerFxRuntime) {
-    super(runtime);
-    this.groundDensity = new SkyDancerGroundDensityV31(runtime);
-    this.cloudQuality = new SkyDancerCloudQualityV31(runtime);
+  constructor(private readonly v31Runtime: SkyDancerFxRuntime) {
+    super(v31Runtime);
+    this.groundDensity = new SkyDancerGroundDensityV31(v31Runtime);
+    this.cloudQuality = new SkyDancerCloudQualityV31(v31Runtime);
   }
 
   override update(snapshot: CartArenaSessionSnapshot, missiles: SkyDancerMissileState, delta: number): void {
     super.update(snapshot, missiles, delta);
     this.groundDensity.update(snapshot);
     this.cloudQuality.update(snapshot);
+    this.hideBossWorldGauge(snapshot);
+  }
+
+  private hideBossWorldGauge(snapshot: CartArenaSessionSnapshot): void {
+    for (const enemy of snapshot.enemies) {
+      if (enemy.kind !== "boss") continue;
+      const group = this.v31Runtime.enemyGroups.get(enemy.id);
+      if (!group) continue;
+      const fill = group.getObjectByName("hp-fill");
+      if (!(fill instanceof THREE.Mesh)) continue;
+      fill.visible = false;
+      for (const child of group.children) {
+        if (!(child instanceof THREE.Mesh) || child === fill) continue;
+        if (Math.abs(child.position.y - fill.position.y) < 0.08) child.visible = false;
+      }
+      group.userData.skyDancerV31BossWorldGaugeHidden = true;
+    }
   }
 }
 
