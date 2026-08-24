@@ -55,12 +55,8 @@ function isEffectivelyVisible(object: THREE.Object3D): boolean {
 
 /**
  * Final high-altitude readability calibration for V31.
- *
- * V31 deliberately renders one and only one large opaque terrain foundation.
- * Earlier captures showed black slabs when the V30 foundation and a second V31
- * macro plane overlapped with independent field layers. The V30 foundation is
- * now the fixed-green, unlit safety surface; V31 fields/roads/forest/cities and
- * the river sit above it as detail only.
+ * V31 renders one opaque terrain foundation and uses instanceColor-only detail
+ * layers so mobile/SwiftShader never multiplies them by missing vertex colors.
  */
 export class SkyDancerGroundReadabilityV31 {
   private prepared = false;
@@ -78,6 +74,7 @@ export class SkyDancerGroundReadabilityV31 {
     const trees = scene.getObjectByName("sky-dancer-v31-forest-belts");
     const roads = scene.getObjectByName("sky-dancer-v31-road-network");
     const towers = scene.getObjectByName("sky-dancer-v31-landmark-towers");
+    const mountainBelt = scene.getObjectByName("sky-dancer-v30-mountain-belt");
     const skyline = scene.getObjectByName("sky-dancer-v29-reference-skyline");
     if (!(foundation instanceof THREE.Mesh)
       || !(fields instanceof THREE.InstancedMesh)
@@ -97,9 +94,7 @@ export class SkyDancerGroundReadabilityV31 {
       macroLandscape.userData.skyDancerV31SupersededMacroLandscape = true;
     }
 
-    const previousFoundationMaterial = Array.isArray(foundation.material)
-      ? null
-      : foundation.material;
+    const previousFoundationMaterial = Array.isArray(foundation.material) ? null : foundation.material;
     foundation.material = new THREE.MeshBasicMaterial({
       color: 0x416f3d,
       vertexColors: false,
@@ -115,6 +110,23 @@ export class SkyDancerGroundReadabilityV31 {
     foundation.renderOrder = -80;
     foundation.userData.skyDancerV31SingleGroundFoundation = true;
     previousFoundationMaterial?.dispose();
+
+    // V30 mountain instances also use setColorAt(). Their primitive geometry has
+    // no vertex color attribute, so render them through instanceColor only.
+    if (mountainBelt instanceof THREE.InstancedMesh) {
+      const oldMaterial = Array.isArray(mountainBelt.material) ? null : mountainBelt.material;
+      mountainBelt.material = new THREE.MeshBasicMaterial({
+        color: 0xffffff,
+        vertexColors: false,
+        transparent: false,
+        depthWrite: true,
+        depthTest: true,
+        fog: true,
+        toneMapped: false,
+      });
+      mountainBelt.userData.skyDancerV31InstanceColorSafe = true;
+      oldMaterial?.dispose();
+    }
 
     skyline.position.set(-18, 0, 336);
     skyline.scale.setScalar(0.64);
