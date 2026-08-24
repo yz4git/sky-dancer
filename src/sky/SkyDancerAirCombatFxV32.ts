@@ -40,9 +40,10 @@ export class SkyDancerAirCombatFxV32 extends SkyDancerAirCombatFxV31 {
     const base = inherited.bind(runtime);
     runtime.applyCameraPresentation = (snapshot: CartArenaSessionSnapshot) => {
       base(snapshot);
-      // V31 contributes -0.08 rad. Add +0.055 so V32 keeps only a subtle
-      // -0.025 rad look-down: more sky/horizon and a lower, larger hero aircraft.
-      runtime.camera.rotateX(0.055);
+      // V31 contributes -0.08 rad. +0.095 leaves a slight upward net pitch,
+      // lowering the horizon in frame and matching the reference's sky/ground
+      // balance without moving the chase camera or changing its FOV.
+      runtime.camera.rotateX(0.095);
     };
     runtime.camera.userData.skyDancerV32ReferenceCamera = true;
   }
