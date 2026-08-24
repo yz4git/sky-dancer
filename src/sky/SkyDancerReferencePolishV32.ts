@@ -73,14 +73,11 @@ export class SkyDancerReferencePolishV32 {
 
   private hideSupersededPresentation(): void {
     const names = [
-      // Older mountains / horizon silhouettes.
       "sky-dancer-v24-horizon-silhouettes",
       "sky-dancer-v28-mountain-depth",
       "sky-dancer-v30-mountain-belt",
       "sky-dancer-v32-ridge-near",
       "sky-dancer-v32-ridge-far",
-      // Older clouds. Keeping several generations visible at once was what made
-      // the #350 capture look like flat white shelves across the whole horizon.
       "sky-dancer-v24-far-cloud-layer",
       "sky-dancer-v25-horizon-cloud-banks",
       "sky-dancer-v28-layered-cloud-banks",
@@ -89,7 +86,6 @@ export class SkyDancerReferencePolishV32 {
       "sky-dancer-v31-mid-clouds",
       "sky-dancer-v32-hero-clouds",
       "sky-dancer-v32-hero-cloud-shade",
-      // Older close city systems.
       "sky-dancer-v29-reference-skyline",
       "sky-dancer-v31-settlement-buildings",
       "sky-dancer-v31-landmark-towers",
@@ -101,6 +97,18 @@ export class SkyDancerReferencePolishV32 {
       const object = this.runtime.scene.getObjectByName(name);
       if (object) object.visible = false;
     }
+
+    // Several historical passes used different cloud object names and some
+    // restore their visibility during update(). Keep only the final V32 Polish
+    // cloud pair visible regardless of which inherited pass ran earlier.
+    this.runtime.scene.traverse((object) => {
+      if (!object.name || !/cloud/i.test(object.name)) return;
+      if (object === this.cloudMain || object === this.cloudShade) return;
+      if (object.name.startsWith("sky-dancer-v32-polish-cloud-")) return;
+      object.visible = false;
+    });
+    this.cloudMain.visible = true;
+    this.cloudShade.visible = true;
   }
 
   private rebuildCity(tileX: number, tileZ: number): void {
@@ -109,8 +117,6 @@ export class SkyDancerReferencePolishV32 {
     let mid = 0;
     let high = 0;
 
-    // World +X projects left in the common north-facing chase view, therefore
-    // the hero skyline uses negative X so it occupies the reference's right side.
     const districts = [
       { x: -315, z: 485, count: 48, hero: true },
       { x: 380, z: 610, count: 15, hero: false },
@@ -157,13 +163,7 @@ export class SkyDancerReferencePolishV32 {
   private makeCity(name: string, color: number, maxCount: number): THREE.InstancedMesh {
     const mesh = new THREE.InstancedMesh(
       new THREE.BoxGeometry(1, 1, 1),
-      new THREE.MeshStandardMaterial({
-        color,
-        roughness: 0.58,
-        metalness: 0.08,
-        flatShading: true,
-        fog: true,
-      }),
+      new THREE.MeshStandardMaterial({ color, roughness: 0.58, metalness: 0.08, flatShading: true, fog: true }),
       maxCount,
     );
     mesh.name = name;
@@ -174,14 +174,7 @@ export class SkyDancerReferencePolishV32 {
   private makeRidge(name: string, color: number, count: number, far: boolean): THREE.InstancedMesh {
     const mesh = new THREE.InstancedMesh(
       new THREE.IcosahedronGeometry(1, 1),
-      new THREE.MeshBasicMaterial({
-        color,
-        transparent: far,
-        opacity: far ? 0.58 : 0.88,
-        depthWrite: false,
-        fog: true,
-        toneMapped: false,
-      }),
+      new THREE.MeshBasicMaterial({ color, transparent: far, opacity: far ? 0.58 : 0.88, depthWrite: false, fog: true, toneMapped: false }),
       count,
     );
     mesh.name = name;
@@ -205,23 +198,12 @@ export class SkyDancerReferencePolishV32 {
   private makeCloudBank(name: string, color: number, maxCount: number, shade: boolean): THREE.InstancedMesh {
     const mesh = new THREE.InstancedMesh(
       new THREE.IcosahedronGeometry(1, 1),
-      new THREE.MeshBasicMaterial({
-        color,
-        transparent: true,
-        opacity: shade ? 0.16 : 0.91,
-        depthWrite: false,
-        depthTest: true,
-        fog: true,
-        toneMapped: false,
-      }),
+      new THREE.MeshBasicMaterial({ color, transparent: true, opacity: shade ? 0.16 : 0.91, depthWrite: false, depthTest: true, fog: true, toneMapped: false }),
       maxCount,
     );
     mesh.name = name;
     const dummy = new THREE.Object3D();
     let index = 0;
-
-    // Sparse horizon banks: three broad cumulus clusters plus one taller cloud
-    // on the right. Tight lobe spacing makes each cluster read as one cloud.
     const clusters = [
       { angle: -0.72, radius: 430, baseY: 34, lobes: 16, tall: true },
       { angle: 0.08, radius: 500, baseY: 30, lobes: 15, tall: false },
@@ -260,7 +242,6 @@ export class SkyDancerReferencePolishV32 {
   private enlargeHeroAircraft(): void {
     const player = this.runtime.playerVisual;
     if (player.userData.skyDancerV32PolishScale === true) return;
-    // Combined with the base V32 scale this is about 1.82x V31 visually.
     player.scale.multiplyScalar(1.38);
     player.userData.skyDancerV32PolishScale = true;
   }
