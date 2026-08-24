@@ -19,6 +19,7 @@ function flatPanel(width: number, depth: number): THREE.BoxGeometry {
  */
 export class SkyDancerV37AircraftCombatPass {
   private readonly decoratedEnemies = new Set<string>();
+  private readonly playerKit = new THREE.Group();
   private readonly speedLines = new THREE.Group();
   private readonly speedLineMaterial = new THREE.MeshBasicMaterial({
     color: 0xc9f5ff,
@@ -32,7 +33,7 @@ export class SkyDancerV37AircraftCombatPass {
   private elapsed = 0;
 
   constructor(private readonly runtime: SkyDancerFxRuntime) {
-    this.decoratePlayer();
+    this.buildPlayerKit();
     this.speedLines.name = "sky-dancer-v37-turbo-speed-lines";
     const geometry = new THREE.BoxGeometry(0.018, 0.018, 1);
     for (let index = 0; index < 14; index += 1) {
@@ -45,12 +46,14 @@ export class SkyDancerV37AircraftCombatPass {
       this.speedLines.add(line);
     }
     this.speedLines.visible = false;
-    runtime.playerVisual.add(this.speedLines);
+    this.attachPersistentPlayerPresentation();
     runtime.scene.userData.skyDancerV37AircraftCombat = true;
   }
 
   update(snapshot: CartArenaSessionSnapshot): void {
     this.elapsed += 1 / 60;
+    this.attachPersistentPlayerPresentation();
+    this.playerKit.visible = true;
     this.decorateEnemies(snapshot.enemies);
     this.updateTurboLines(snapshot);
     this.missileScanClock -= 1 / 60;
@@ -60,11 +63,15 @@ export class SkyDancerV37AircraftCombatPass {
     }
   }
 
-  private decoratePlayer(): void {
-    if (this.runtime.playerVisual.userData.skyDancerV37Decorated === true) return;
-    this.runtime.playerVisual.userData.skyDancerV37Decorated = true;
-    const kit = new THREE.Group();
-    kit.name = "sky-dancer-v37-player-surface-kit";
+  private attachPersistentPlayerPresentation(): void {
+    const flightRoot = this.runtime.session.car.group;
+    if (this.playerKit.parent !== flightRoot) flightRoot.add(this.playerKit);
+    if (this.speedLines.parent !== flightRoot) flightRoot.add(this.speedLines);
+  }
+
+  private buildPlayerKit(): void {
+    this.playerKit.name = "sky-dancer-v37-player-surface-kit";
+    this.playerKit.userData.skyDancerV37Decorated = true;
 
     const white = new THREE.MeshStandardMaterial({ color: 0xe8eef0, roughness: 0.27, metalness: 0.28, flatShading: true });
     const blue = new THREE.MeshStandardMaterial({ color: 0x1767a8, roughness: 0.25, metalness: 0.32, flatShading: true });
@@ -81,29 +88,29 @@ export class SkyDancerV37AircraftCombatPass {
     const spine = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.16, 2.35), white);
     spine.position.set(0, 0.62, 0.18);
     spine.rotation.x = -0.025;
-    kit.add(spine);
+    this.playerKit.add(spine);
 
     for (const side of [-1, 1]) {
       const wingPanel = new THREE.Mesh(flatPanel(1.55, 1.45), side < 0 ? blue : blue.clone());
       wingPanel.position.set(side * 1.28, 0.34, -0.18);
       wingPanel.rotation.y = side * -0.12;
       wingPanel.rotation.z = side * 0.06;
-      kit.add(wingPanel);
+      this.playerKit.add(wingPanel);
 
       const intake = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.30, 0.82), navy);
       intake.position.set(side * 0.55, 0.34, 0.24);
       intake.rotation.y = side * 0.055;
-      kit.add(intake);
+      this.playerKit.add(intake);
 
       const edge = new THREE.Mesh(new THREE.BoxGeometry(1.44, 0.035, 0.05), glow);
       edge.position.set(side * 1.28, 0.39, -0.84);
       edge.rotation.y = side * -0.12;
-      kit.add(edge);
+      this.playerKit.add(edge);
 
       const ring = new THREE.Mesh(new THREE.TorusGeometry(0.20, 0.035, 6, 18), glow);
       ring.rotation.x = Math.PI / 2;
       ring.position.set(side * 0.36, 0.36, -1.90);
-      kit.add(ring);
+      this.playerKit.add(ring);
     }
 
     const canopy = new THREE.Mesh(
@@ -112,9 +119,8 @@ export class SkyDancerV37AircraftCombatPass {
     );
     canopy.scale.set(0.82, 0.48, 1.72);
     canopy.position.set(0, 0.77, 0.62);
-    kit.add(canopy);
+    this.playerKit.add(canopy);
 
-    this.runtime.playerVisual.add(kit);
     this.runtime.playerVisual.traverse((object) => {
       if (!(object instanceof THREE.Mesh)) return;
       const materials = Array.isArray(object.material) ? object.material : [object.material];
