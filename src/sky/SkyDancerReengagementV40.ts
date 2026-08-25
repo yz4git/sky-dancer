@@ -288,6 +288,20 @@ export function installSkyDancerReengagementV40(): void {
         const cleanupSlotReady = !cleanup || localState.cleanupElapsed >= cleanupSlot * SKY_DANCER_V40_CLEANUP_SLOT_DELAY;
         setSkyDancerCleanupHeldV42(enemy, cleanup && !cleanupSlotReady);
 
+        // V42.3: once a CLEANUP slot is live, keep only its radial distance
+        // inside the missile envelope. This preserves the aircraft's world
+        // bearing and therefore avoids the old camera-edge stickiness while
+        // preventing inherited AI from expanding a released target beyond
+        // lock range on the very next fixed step.
+        if (cleanup && cleanupSlotReady) {
+          const leashed = skyDancerCleanupReleasePositionV42(px, pz, enemy.x, enemy.z);
+          if (Math.abs(leashed.x - enemy.x) > 0.001 || Math.abs(leashed.z - enemy.z) > 0.001) {
+            enemy.x = leashed.x;
+            enemy.z = leashed.z;
+            correctedEnemies += 1;
+          }
+        }
+
         let fromPlayerX = enemy.x - px;
         let fromPlayerZ = enemy.z - pz;
         let distance = Math.hypot(fromPlayerX, fromPlayerZ);
