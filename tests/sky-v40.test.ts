@@ -61,7 +61,7 @@ test("V40 re-engagement is installed outermost in both WebGL and Canvas runtimes
   assert.match(source, /__skyDancerGetReengagementV40/);
 });
 
-test("V40 presents one explicit STAGE WAVE CLEANUP BOSS CLEAR hierarchy", () => {
+test("V40 presents one explicit STAGE WAVE CLEANUP BOSS CLEAR hierarchy and hides every legacy boss gauge", () => {
   const hud = read("../app/SkyDancerHudV40.tsx");
   const game = read("../app/CartRogueGamePhase13.tsx");
   assert.match(game, /<SkyDancerHudV39 \/>\n        <SkyDancerHudV40 \/>/);
@@ -71,7 +71,9 @@ test("V40 presents one explicit STAGE WAVE CLEANUP BOSS CLEAR hierarchy", () => 
   assert.match(hud, /skyDancerV40StageHudActive/);
   assert.match(hud, /visibility: hidden !important/);
   assert.match(hud, /skyDancerV40BossActive \.skyDancerBossV34/);
-  assert.match(hud, /skyDancerV40BossActive .*huntStyles\.boss/);
+  assert.match(hud, /huntStyles\.boss/);
+  assert.match(hud, /phase4Styles\.bossMeter/);
+  assert.match(hud, /phase8Styles\.bossPhase/);
 });
 
 test("V40 cuts static and dynamic center rings by roughly 45 percent", () => {
