@@ -13,6 +13,7 @@ const TERRAIN_DEPTH = 1080;
 const CITY_ORIGIN_X = 140;
 const CITY_ORIGIN_Z = 300;
 const CITY_CENTER_Z = 145;
+const GLOBAL_WORLD_DEBUG_KEY = "__skyDancerGetV36WorldDebug";
 
 function hash2(x: number, z: number, salt = 0): number {
   let n = Math.imul(x + 0x6d2b79f5 + salt * 719, 0x27d4eb2d) ^ Math.imul(z - salt * 449, 0x165667b1);
@@ -125,6 +126,7 @@ export class SkyDancerV36WorldGeometryPass {
     .map((value) => new THREE.Color(value));
   private tileX = Number.NaN;
   private tileZ = Number.NaN;
+  private anchored = false;
 
   constructor(private readonly runtime: SkyDancerFxRuntime) {
     this.terrainRoot.name = "sky-dancer-v36-faceted-terrain-root";
@@ -140,6 +142,7 @@ export class SkyDancerV36WorldGeometryPass {
     this.terrainRoot.add(this.terrain);
 
     this.cityRoot.name = "sky-dancer-v36-archetype-city";
+    this.cityRoot.userData.skyDancerV42StableGroundAnchor = true;
     const geometries = [
       stackedGeometry([[0, 1, 1, 1]]),
       stackedGeometry([[0, 0.72, 1.08, 1.02], [0.72, 0.28, 0.74, 0.72]]),
@@ -171,6 +174,13 @@ export class SkyDancerV36WorldGeometryPass {
 
     runtime.scene.add(this.terrainRoot, this.cityRoot);
     runtime.scene.userData.skyDancerV36WorldGeometry = true;
+    if (typeof window !== "undefined" && navigator.webdriver) {
+      (window as unknown as Record<string, unknown>)[GLOBAL_WORLD_DEBUG_KEY] = () => ({
+        cityRootPosition: { x: this.cityRoot.position.x, z: this.cityRoot.position.z },
+        stableGroundAnchor: this.cityRoot.userData.skyDancerV42StableGroundAnchor === true,
+        anchored: this.anchored,
+      });
+    }
   }
 
   update(snapshot: CartArenaSessionSnapshot): void {
@@ -183,15 +193,18 @@ export class SkyDancerV36WorldGeometryPass {
     for (const mesh of this.archetypes) mesh.visible = true;
     this.arterialRoads.visible = true;
 
-    const tileX = Math.floor(snapshot.x / CITY_SNAP);
-    const tileZ = Math.floor(snapshot.z / CITY_SNAP);
-    if (tileX === this.tileX && tileZ === this.tileZ) return;
-    this.tileX = tileX;
-    this.tileZ = tileZ;
-    this.terrainRoot.position.set(tileX * CITY_SNAP, 0, tileZ * CITY_SNAP);
-    this.cityRoot.position.set(tileX * CITY_SNAP + CITY_ORIGIN_X, 0, tileZ * CITY_SNAP + CITY_ORIGIN_Z);
-    this.rebuildTerrain(tileX, tileZ);
-    this.rebuildCity(tileX, tileZ);
+    // V41 owns the rolling terrain. The primary skyline is scenery and must not
+    // jump to a new 420 m player-relative tile. Rebuilding it on every boundary
+    // caused whole blocks and landmarks to disappear in a single frame. Build
+    // it once at the starting world tile and keep its transforms stable.
+    if (this.anchored) return;
+    this.tileX = Math.floor(snapshot.x / CITY_SNAP);
+    this.tileZ = Math.floor(snapshot.z / CITY_SNAP);
+    this.terrainRoot.position.set(this.tileX * CITY_SNAP, 0, this.tileZ * CITY_SNAP);
+    this.cityRoot.position.set(this.tileX * CITY_SNAP + CITY_ORIGIN_X, 0, this.tileZ * CITY_SNAP + CITY_ORIGIN_Z);
+    this.rebuildTerrain(this.tileX, this.tileZ);
+    this.rebuildCity(this.tileX, this.tileZ);
+    this.anchored = true;
   }
 
   private makeTerrainGeometry(): THREE.BufferGeometry {
