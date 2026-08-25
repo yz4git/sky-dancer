@@ -6,6 +6,7 @@ const CITY_SNAP = 420;
 const GROUND_Y = -65.88;
 const BUILDING_CAPACITY = 240;
 const ROAD_CAPACITY = 24;
+const GLOBAL_CITY_DEBUG_KEY = "__skyDancerGetV40CityDebug";
 
 interface CitySector {
   x: number;
@@ -49,8 +50,9 @@ export class SkyDancerV40CityExpansionPass {
     .map((value) => new THREE.Color(value));
   private tileX = Number.NaN;
   private tileZ = Number.NaN;
+  private latestCounts = { low: 0, mid: 0, high: 0, roads: 0 };
 
-  constructor(private readonly runtime: SkyDancerFxRuntime) {
+  constructor(runtime: SkyDancerFxRuntime) {
     this.root.name = "sky-dancer-v40-multi-direction-city";
 
     const material = () => new THREE.MeshLambertMaterial({
@@ -83,6 +85,15 @@ export class SkyDancerV40CityExpansionPass {
     this.root.add(this.low, this.mid, this.high, this.roads);
     runtime.scene.add(this.root);
     runtime.scene.userData.skyDancerV40MultiDirectionCity = true;
+
+    if (typeof window !== "undefined" && navigator.webdriver) {
+      (window as unknown as Record<string, unknown>)[GLOBAL_CITY_DEBUG_KEY] = () => ({
+        sectorCount: SECTORS.length,
+        sectors: SECTORS.map(({ x, z, rotation }) => ({ x, z, rotation })),
+        counts: { ...this.latestCounts },
+        totalBuildings: this.latestCounts.low + this.latestCounts.mid + this.latestCounts.high,
+      });
+    }
   }
 
   update(snapshot: CartArenaSessionSnapshot): void {
@@ -168,5 +179,6 @@ export class SkyDancerV40CityExpansionPass {
     }
     this.roads.count = counts.roads;
     this.roads.instanceMatrix.needsUpdate = true;
+    this.latestCounts = { ...counts };
   }
 }
