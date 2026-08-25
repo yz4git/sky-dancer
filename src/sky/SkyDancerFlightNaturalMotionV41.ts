@@ -43,9 +43,9 @@ const GLOBAL_DEBUG_KEY = "__skyDancerGetNaturalMotionV41";
 const stateBySession = new WeakMap<object, NaturalMotionState>();
 const latestBySession = new WeakMap<object, SkyDancerNaturalMotionSnapshotV41>();
 
-export const SKY_DANCER_V41_MIN_PASS_DISTANCE = 14;
-export const SKY_DANCER_V41_BREAKAWAY_DISTANCE = 24;
-export const SKY_DANCER_V41_APPROACH_BUFFER = 38;
+export const SKY_DANCER_V41_MIN_PASS_DISTANCE = 16;
+export const SKY_DANCER_V41_BREAKAWAY_DISTANCE = 30;
+export const SKY_DANCER_V41_APPROACH_BUFFER = 55;
 export const SKY_DANCER_V41_MAX_CRUISE_SPEED = 24;
 export const SKY_DANCER_V41_MAX_CLEANUP_SPEED = 26;
 export const SKY_DANCER_V41_MAX_TURN_RATE = 1.12;
@@ -171,10 +171,10 @@ export function installSkyDancerFlightNaturalMotionV41(): void {
         maxSpeed = SKY_DANCER_V41_MAX_CLEANUP_SPEED;
         emergencyBreakaways += 1;
       } else if (distanceBefore < SKY_DANCER_V41_APPROACH_BUFFER) {
-        // Begin the pass early. This prevents the old 5-7 m nose-to-player orbit
-        // while preserving a readable crossing target.
+        // Start the crossing turn while there is still enough radius for a
+        // turbo-speed head-on closure to become a smooth fly-by.
         desiredHeading = normalizeAngle(outwardHeading + side * 1.02);
-        turnRate = 1.32;
+        turnRate = SKY_DANCER_V41_EMERGENCY_TURN_RATE;
         minSpeed = 14;
       }
 
