@@ -33,6 +33,7 @@ export interface SkyDancerReengagementSnapshotV40 {
   cleanupElapsed: number;
   lastCleanupDuration: number;
   cleanupScheduledEnemies: number;
+  cleanupHoldingEnemies: number;
 }
 
 const PATCHED_KEY = "__skyDancerReengagementV40Installed__";
@@ -49,6 +50,8 @@ export const SKY_DANCER_V40_CLEANUP_TRIGGER = 49;
 export const SKY_DANCER_V40_CLEANUP_TARGET = 39;
 export const SKY_DANCER_V40_CLEANUP_ANGLE_TRIGGER = 0.62;
 export const SKY_DANCER_V40_CLEANUP_SLOT_DELAY = 4.25;
+export const SKY_DANCER_V40_CLEANUP_HOLD_ANGLE = 1.12;
+export const SKY_DANCER_V40_CLEANUP_HOLD_DISTANCE = 44;
 
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
@@ -98,11 +101,7 @@ export function skyDancerReengagementClosingSpeedV40(distance: number, cleanup: 
     : clamp(25 + excess * 0.72, 25, 44);
 }
 
-/**
- * Returns a world-space intercept slot in the player's forward lock cone.
- * Multiple fighters are distributed laterally so the correction never stacks
- * the whole wave on one point.
- */
+/** Returns a world-space intercept slot in the player's forward lock cone. */
 export function skyDancerReengagementInterceptV40(
   px: number,
   pz: number,
@@ -121,6 +120,26 @@ export function skyDancerReengagementInterceptV40(
   return {
     x: px + sin * forward + cos * lateral,
     z: pz + cos * forward - sin * lateral,
+  };
+}
+
+/**
+ * Keeps a not-yet-released cleanup survivor visible on the player's flank but
+ * outside the ±0.78 rad missile lock cone. This makes frozen cleanup slots real
+ * pacing gates rather than merely preferred re-engagement times.
+ */
+export function skyDancerCleanupHoldingPositionV40(
+  px: number,
+  pz: number,
+  playerHeading: number,
+  slot: number,
+): { x: number; z: number } {
+  const side = slot % 2 === 0 ? 1 : -1;
+  const angle = playerHeading + side * (SKY_DANCER_V40_CLEANUP_HOLD_ANGLE + (slot % 3) * 0.08);
+  const distance = SKY_DANCER_V40_CLEANUP_HOLD_DISTANCE + (slot % 2) * 2;
+  return {
+    x: px + Math.sin(angle) * distance,
+    z: pz + Math.cos(angle) * distance,
   };
 }
 
@@ -158,12 +177,17 @@ export function installSkyDancerReengagementV40(): void {
       localState.lastCleanupDuration = 0;
       localState.cleanupSlots.clear();
       const initialSurvivors = liveNonBossEnemies(this, nodeId);
-      initialSurvivors.forEach((enemy, index) => localState.cleanupSlots.set(enemy.id, index));
+      initialSurvivors.forEach((enemy, index) => {
+        localState.cleanupSlots.set(enemy.id, index);
+        if (index <= 0) return;
+        const hold = skyDancerCleanupHoldingPositionV40(px, pz, playerHeading, index);
+        enemy.x = cartTurboHuntNearestCoordinate(hold.x, px, CART_TURBO_HUNT_WORLD_WIDTH);
+        enemy.z = cartTurboHuntNearestCoordinate(hold.z, pz, CART_TURBO_HUNT_WORLD_DEPTH);
+        enemy.heading = normalizeAngle(playerHeading + Math.PI);
+      });
     } else if (cleanup) {
       localState.cleanupElapsed += delta;
     } else if (localState.previousCleanup) {
-      // Retain the actual fixed-step duration after BOSS starts so the browser
-      // audit measures gameplay time rather than slow SwiftShader wall time.
       localState.lastCleanupDuration = localState.cleanupElapsed;
       localState.cleanupElapsed = 0;
     }
@@ -176,33 +200,56 @@ export function installSkyDancerReengagementV40(): void {
     let maxEnemyDistance = 0;
     let maxLockAngle = 0;
     let lockConeCandidates = 0;
+    let cleanupHoldingEnemies = 0;
 
     if (phase !== "boss" && phase !== "stage-clear") {
       const live = liveNonBossEnemies(this, nodeId);
       for (let order = 0; order < live.length; order += 1) {
         const enemy = live[order];
-        // Normalize the fighter to the nearest toroidal copy before measuring
-        // or correcting it, matching missile world-wrap semantics.
         enemy.x = cartTurboHuntNearestCoordinate(enemy.x, px, CART_TURBO_HUNT_WORLD_WIDTH);
         enemy.z = cartTurboHuntNearestCoordinate(enemy.z, pz, CART_TURBO_HUNT_WORLD_DEPTH);
 
-        const fromPlayerX = enemy.x - px;
-        const fromPlayerZ = enemy.z - pz;
-        const distance = Math.hypot(fromPlayerX, fromPlayerZ);
-        const targetHeadingFromPlayer = Math.atan2(fromPlayerX, fromPlayerZ);
-        const lockAngle = Math.abs(normalizeAngle(targetHeadingFromPlayer - playerHeading));
+        const cleanupSlot = localState.cleanupSlots.get(enemy.id) ?? order;
+        const cleanupSlotReady = !cleanup || localState.cleanupElapsed >= cleanupSlot * SKY_DANCER_V40_CLEANUP_SLOT_DELAY;
+
+        let fromPlayerX = enemy.x - px;
+        let fromPlayerZ = enemy.z - pz;
+        let distance = Math.hypot(fromPlayerX, fromPlayerZ);
+        let targetHeadingFromPlayer = Math.atan2(fromPlayerX, fromPlayerZ);
+        let lockAngle = Math.abs(normalizeAngle(targetHeadingFromPlayer - playerHeading));
+
+        if (cleanup && !cleanupSlotReady) {
+          cleanupHoldingEnemies += 1;
+          const hold = skyDancerCleanupHoldingPositionV40(px, pz, playerHeading, cleanupSlot);
+          const correctionX = hold.x - enemy.x;
+          const correctionZ = hold.z - enemy.z;
+          const correctionDistance = Math.hypot(correctionX, correctionZ);
+          if (correctionDistance > 0.001) {
+            const correction = Math.min(correctionDistance, 72 * delta);
+            enemy.x += correctionX / correctionDistance * correction;
+            enemy.z += correctionZ / correctionDistance * correction;
+            correctedEnemies += 1;
+          }
+          const desiredHeading = Math.atan2(px - enemy.x, pz - enemy.z);
+          enemy.heading = rotateToward(enemy.heading, desiredHeading, 3.2 * delta);
+
+          fromPlayerX = enemy.x - px;
+          fromPlayerZ = enemy.z - pz;
+          distance = Math.hypot(fromPlayerX, fromPlayerZ);
+          targetHeadingFromPlayer = Math.atan2(fromPlayerX, fromPlayerZ);
+          lockAngle = Math.abs(normalizeAngle(targetHeadingFromPlayer - playerHeading));
+          maxEnemyDistance = Math.max(maxEnemyDistance, distance);
+          maxLockAngle = Math.max(maxLockAngle, lockAngle);
+          if (distance <= SKY_DANCER_V40_LOCK_RANGE && lockAngle <= SKY_DANCER_V40_LOCK_HALF_ANGLE) lockConeCandidates += 1;
+          continue;
+        }
+
         maxEnemyDistance = Math.max(maxEnemyDistance, distance);
         maxLockAngle = Math.max(maxLockAngle, lockAngle);
         if (distance <= SKY_DANCER_V40_LOCK_RANGE && lockAngle <= SKY_DANCER_V40_LOCK_HALF_ANGLE) lockConeCandidates += 1;
 
-        // Cleanup slots are frozen when cleanup begins. Defeating an earlier
-        // fighter therefore cannot pull all later slots forward. With 5-6
-        // survivors, 4.25s spacing exposes the last target at 17-21.25s and
-        // leaves a few seconds for the missile kill, targeting ~20-30s total.
-        const cleanupSlot = localState.cleanupSlots.get(enemy.id) ?? order;
-        const cleanupSlotReady = !cleanup || localState.cleanupElapsed >= cleanupSlot * SKY_DANCER_V40_CLEANUP_SLOT_DELAY;
         const needsDistanceCorrection = distance > trigger;
-        const needsAngleCorrection = lockAngle > angleTrigger && cleanupSlotReady;
+        const needsAngleCorrection = lockAngle > angleTrigger;
         if (!needsDistanceCorrection && !needsAngleCorrection) continue;
 
         let destinationX: number;
@@ -242,6 +289,7 @@ export function installSkyDancerReengagementV40(): void {
       cleanupElapsed: localState.cleanupElapsed,
       lastCleanupDuration: localState.lastCleanupDuration,
       cleanupScheduledEnemies: localState.cleanupSlots.size,
+      cleanupHoldingEnemies,
     };
     latestBySession.set(this as unknown as object, snapshot);
     if (typeof window !== "undefined" && navigator.webdriver) {
