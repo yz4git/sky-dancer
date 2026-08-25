@@ -64,8 +64,10 @@ export const SKY_DANCER_V41_MAX_ACCELERATION = 18;
 export const SKY_DANCER_V41_EMERGENCY_ACCELERATION = 28;
 export const SKY_DANCER_V41_MAX_TURN_RATE = 1.12;
 export const SKY_DANCER_V41_EMERGENCY_TURN_RATE = 1.65;
-const OVERTAKE_RISK_DISTANCE = 58;
-const OVERTAKE_RISK_ANGLE = 0.72;
+export const SKY_DANCER_V41_PREDICTIVE_DISTANCE = 72;
+export const SKY_DANCER_V41_PREDICTIVE_MISS_DISTANCE = 24;
+export const SKY_DANCER_V41_PREDICTIVE_LOOKAHEAD = 4;
+const PREDICTIVE_MIN_CLOSING_RATE = 0.5;
 const CLEANUP_SLOT_SPACING = 4.8;
 const CLEANUP_HOLD_DISTANCE = 49;
 
@@ -122,9 +124,10 @@ function stateFor(session: object): NaturalMotionState {
  *
  * Older directors are still allowed to choose *where* an enemy wants to go,
  * but their post-step displacement is converted back into aircraft motion:
- * bounded turn rate, acceleration-limited forward speed, no sideways teleport
- * correction, and a predictive breakaway before a boosted player can overtake
- * a fighter and enter its camera bubble.
+ * bounded turn rate, acceleration-limited forward speed and no sideways
+ * teleport correction. Relative velocity is also projected several seconds
+ * ahead so a fighter starts a fly-by before its flight path intersects the
+ * player's camera bubble instead of reacting only after it is already close.
  */
 export function installSkyDancerFlightNaturalMotionV41(): void {
   const prototype = CartArenaSession.prototype as unknown as NaturalMotionSession & Record<string, unknown>;
@@ -188,10 +191,11 @@ export function installSkyDancerFlightNaturalMotionV41(): void {
     const px = this.car.position.x;
     const pz = this.car.position.z;
     const playerHeading = this.car.heading;
-    const playerSpeed = Math.hypot(
-      Number.isFinite(this.car.forwardVelocity) ? this.car.forwardVelocity : 0,
-      Number.isFinite(this.car.lateralVelocity ?? 0) ? (this.car.lateralVelocity ?? 0) : 0,
-    );
+    const forwardVelocity = Number.isFinite(this.car.forwardVelocity) ? this.car.forwardVelocity : 0;
+    const lateralVelocity = Number.isFinite(this.car.lateralVelocity ?? 0) ? (this.car.lateralVelocity ?? 0) : 0;
+    const playerSpeed = Math.hypot(forwardVelocity, lateralVelocity);
+    const playerVelocityX = Math.sin(playerHeading) * forwardVelocity + Math.cos(playerHeading) * lateralVelocity;
+    const playerVelocityZ = Math.cos(playerHeading) * forwardVelocity - Math.sin(playerHeading) * lateralVelocity;
     let minEnemyDistance = Number.POSITIVE_INFINITY;
     let maxStepSpeed = 0;
     let maxTurnRate = 0;
@@ -215,12 +219,27 @@ export function installSkyDancerFlightNaturalMotionV41(): void {
       const fromPlayerZ = cartTurboHuntWrappedDelta(before.z, pz, CART_TURBO_HUNT_WORLD_DEPTH);
       const distanceBefore = Math.max(0.001, Math.hypot(fromPlayerX, fromPlayerZ));
       const outwardHeading = Math.atan2(fromPlayerX, fromPlayerZ);
-      const playerBearing = Math.abs(normalizeAngle(outwardHeading - playerHeading));
       const side = stableSide(enemy.id);
-      const overtakeRisk = !cleanupPhase
-        && distanceBefore < OVERTAKE_RISK_DISTANCE
-        && playerBearing < OVERTAKE_RISK_ANGLE
-        && playerSpeed > SKY_DANCER_V41_MAX_CLEANUP_SPEED;
+
+      const enemyVelocityX = Math.sin(before.heading) * before.speed;
+      const enemyVelocityZ = Math.cos(before.heading) * before.speed;
+      const relativeVelocityX = enemyVelocityX - playerVelocityX;
+      const relativeVelocityZ = enemyVelocityZ - playerVelocityZ;
+      const relativeSpeedSquared = relativeVelocityX * relativeVelocityX + relativeVelocityZ * relativeVelocityZ;
+      const radialDot = fromPlayerX * relativeVelocityX + fromPlayerZ * relativeVelocityZ;
+      const closingRate = -radialDot / distanceBefore;
+      const closestTime = relativeSpeedSquared > 0.001
+        ? clamp(-radialDot / relativeSpeedSquared, 0, SKY_DANCER_V41_PREDICTIVE_LOOKAHEAD)
+        : 0;
+      const closestX = fromPlayerX + relativeVelocityX * closestTime;
+      const closestZ = fromPlayerZ + relativeVelocityZ * closestTime;
+      const predictedMissDistance = Math.hypot(closestX, closestZ);
+      const predictiveRisk = !cleanupPhase
+        && distanceBefore < SKY_DANCER_V41_PREDICTIVE_DISTANCE
+        && closingRate > PREDICTIVE_MIN_CLOSING_RATE
+        && closestTime > 0.05
+        && predictedMissDistance < SKY_DANCER_V41_PREDICTIVE_MISS_DISTANCE;
+
       let turnRate = SKY_DANCER_V41_MAX_TURN_RATE;
       let minSpeed = 9.5;
       let maxSpeed = proposedSpeed > SKY_DANCER_V41_MAX_CRUISE_SPEED
@@ -228,13 +247,14 @@ export function installSkyDancerFlightNaturalMotionV41(): void {
         : SKY_DANCER_V41_MAX_CRUISE_SPEED;
       let acceleration = SKY_DANCER_V41_MAX_ACCELERATION;
 
-      if (distanceBefore < SKY_DANCER_V41_BREAKAWAY_DISTANCE || overtakeRisk) {
+      if (distanceBefore < SKY_DANCER_V41_BREAKAWAY_DISTANCE || predictiveRisk) {
         const escapeFloor = clamp(
           playerSpeed + SKY_DANCER_V41_ESCAPE_SPEED_MARGIN,
           22,
           SKY_DANCER_V41_MAX_ESCAPE_SPEED - 1,
         );
-        desiredHeading = normalizeAngle(outwardHeading + side * (distanceBefore < SKY_DANCER_V41_BREAKAWAY_DISTANCE ? 0.24 : 0.16));
+        const avoidanceBias = distanceBefore < SKY_DANCER_V41_BREAKAWAY_DISTANCE ? 0.20 : 0.12;
+        desiredHeading = normalizeAngle(outwardHeading + side * avoidanceBias);
         turnRate = SKY_DANCER_V41_EMERGENCY_TURN_RATE;
         minSpeed = Math.max(18, escapeFloor);
         maxSpeed = SKY_DANCER_V41_MAX_ESCAPE_SPEED;
