@@ -11,6 +11,7 @@ import {
   installSkyDancerPlayerWeapons,
   requestSkyDancerPlayerMissile,
 } from "./SkyDancerPlayerWeapons";
+import { installSkyDancerReengagementV40 } from "./SkyDancerReengagementV40";
 import { bindSkyDancerWeaponSession } from "./SkyDancerWeaponBridge";
 import { installSkyDancerInfiniteWorld } from "./SkyDancerInfiniteWorld";
 
@@ -36,6 +37,7 @@ export class SkyDancerCanvasPreviewV4 extends SkyDancerCanvasPreviewV3 {
     installSkyDancerInfiniteWorld();
     installSkyDancerBossDurabilityGuardV34();
     installSkyDancerBossCombatV34();
+    installSkyDancerReengagementV40();
     this.runtimeV4 = this as unknown as CanvasRuntimeView;
     bindSkyDancerWeaponSession(this.runtimeV4.session);
     if (typeof window !== "undefined") {

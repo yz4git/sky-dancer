@@ -36,13 +36,19 @@ if (Number(boss.maxHp) < 192) throw new Error(`Boss durability floor did not app
 if (Number(boss.distance) < 10 || Number(boss.distance) > 80) throw new Error(`Boss arrival distance is unreadable: ${JSON.stringify(boss)}`);
 
 await page.waitForTimeout(650);
-const phaseHudVisible = await page.getByLabel("Boss phase status").isVisible().catch(() => false);
-if (!phaseHudVisible) throw new Error("V34 boss phase HUD is not visible");
+const unifiedHud = page.getByLabel("Sky Dancer stage status");
+const unifiedHudVisible = await unifiedHud.isVisible().catch(() => false);
+const unifiedHudText = unifiedHudVisible ? (await unifiedHud.innerText()).replace(/\s+/g, " ").trim() : "";
+const legacyPhaseHudVisible = await page.getByLabel("Boss phase status").isVisible().catch(() => false);
+if (!unifiedHudVisible || !/BOSS/i.test(unifiedHudText)) {
+  throw new Error(`V40 unified boss HUD is not authoritative: ${JSON.stringify({ unifiedHudVisible, unifiedHudText })}`);
+}
+if (legacyPhaseHudVisible) throw new Error("Legacy V34 boss phase HUD remained visible under V40");
 await page.screenshot({ path: `${outputDir}/07-boss-phase1.png`, fullPage: true });
 await canvas.screenshot({ path: `${outputDir}/07-boss-phase1-canvas.png` });
 
 // SwiftShader can execute far fewer fixed simulation steps than wall-clock time
-// once the complete V36-V39 presentation is enabled. Observe the actual director
+// once the complete V36-V40 presentation is enabled. Observe the actual director
 // state and allow up to 32 wall-clock seconds; the acceptance criteria remain the
 // same full orbit -> strike -> break cadence with a genuinely open core.
 const samples = [];
@@ -67,7 +73,9 @@ const diagnostics = {
   finalBoss,
   observedModes: [...modes],
   coreOpenObserved,
-  phaseHudVisible,
+  unifiedHudVisible,
+  unifiedHudText,
+  legacyPhaseHudVisible,
   sampleCount: samples.length,
   consoleErrors,
   pageErrors,
