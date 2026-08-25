@@ -6,6 +6,7 @@ import { SkyDancerCanvasPreviewV3 } from "./SkyDancerCanvasPreviewV3";
 import { installSkyDancerCombatDoctrine } from "./SkyDancerCombatDoctrine";
 import { installSkyDancerEnemyPopulation } from "./SkyDancerEnemyPopulation";
 import { installSkyDancerFlightDynamics } from "./SkyDancerFlightDynamics";
+import { installSkyDancerFlightNaturalMotionV41 } from "./SkyDancerFlightNaturalMotionV41";
 import {
   getSkyDancerPlayerWeaponState,
   installSkyDancerPlayerWeapons,
@@ -38,6 +39,7 @@ export class SkyDancerCanvasPreviewV4 extends SkyDancerCanvasPreviewV3 {
     installSkyDancerBossDurabilityGuardV34();
     installSkyDancerBossCombatV34();
     installSkyDancerReengagementV40();
+    installSkyDancerFlightNaturalMotionV41();
     this.runtimeV4 = this as unknown as CanvasRuntimeView;
     bindSkyDancerWeaponSession(this.runtimeV4.session);
     if (typeof window !== "undefined") {
