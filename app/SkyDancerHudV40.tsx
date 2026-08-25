@@ -10,6 +10,8 @@ import {
   getLatestSkyDancerStageCycleSnapshot,
   type SkyDancerStageCycleSnapshot,
 } from "../src/sky/SkyDancerStageCycle";
+import phase4Styles from "./CartRoguePhase4.module.css";
+import phase8Styles from "./CartRoguePhase8.module.css";
 import huntStyles from "./CartTurboHuntHudOverlay.module.css";
 
 export default function SkyDancerHudV40() {
@@ -84,10 +86,10 @@ export default function SkyDancerHudV40() {
       .skyDancerV40StageHudActive .${huntStyles.orderCard} {
         visibility: hidden !important;
       }
-      .skyDancerV40BossActive .skyDancerBossV34 {
-        display: none !important;
-      }
-      .skyDancerV40BossActive .${huntStyles.boss} {
+      .skyDancerV40BossActive .skyDancerBossV34,
+      .skyDancerV40BossActive .${huntStyles.boss},
+      .skyDancerV40BossActive .${phase4Styles.bossMeter},
+      .skyDancerV40BossActive .${phase8Styles.bossPhase} {
         display: none !important;
       }
 
