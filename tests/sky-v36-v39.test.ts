@@ -34,8 +34,9 @@ test("V37 upgrades player enemy missile and Turbo presentation without combat ru
   assert.match(source, /sky-dancer-v37-missile-long-plume/);
   assert.match(source, /decorateEnemies/);
   assert.match(source, /snapshot\.boostActive/);
-  assert.match(source, /attachPersistentPlayerPresentation/);
-  assert.match(source, /runtime\.session\.car\.group/);
+  assert.match(source, /attachBankedPlayerPresentation/);
+  assert.match(source, /runtime\.playerVisual/);
+  assert.doesNotMatch(source, /const flightRoot = this\.runtime\.session\.car\.group/);
   assert.doesNotMatch(source, /damage\s*=|hp\s*=|bossHp\s*=/);
 });
 

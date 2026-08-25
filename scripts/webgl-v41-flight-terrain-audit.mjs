@@ -36,12 +36,22 @@ let minReliefSpan = Number.POSITIVE_INFINITY;
 let maxReliefSpan = 0;
 let minVisibleTiles = Number.POSITIVE_INFINITY;
 let legacyTerrainEverVisible = false;
+let aircraftAttachmentFailures = 0;
+let cityAnchorMoved = false;
+let initialV36City = null;
+let initialV40City = null;
 const terrainCenters = new Set();
 const samples = [];
 const began = Date.now();
 let capturedTravel = false;
+let capturedBank = false;
+let bankLeftDown = false;
 let turboReleaseCount = 0;
 let nextTurboAt = 8;
+
+const moved = (initial, current) => initial && current
+  ? Math.hypot(Number(current.x) - Number(initial.x), Number(current.z) - Number(initial.z)) > 0.01
+  : false;
 
 while (Date.now() - began < RUN_MS) {
   await page.waitForTimeout(SAMPLE_MS);
@@ -49,8 +59,26 @@ while (Date.now() - began < RUN_MS) {
     motion: typeof window.__skyDancerGetNaturalMotionV41 === "function" ? window.__skyDancerGetNaturalMotionV41() : null,
     terrain: typeof window.__skyDancerGetTerrainContinuityV41 === "function" ? window.__skyDancerGetTerrainContinuityV41() : null,
     flight: typeof window.__skyDancerGetFlightDebug === "function" ? window.__skyDancerGetFlightDebug() : null,
+    attachment: typeof window.__skyDancerGetV42AircraftAttachment === "function" ? window.__skyDancerGetV42AircraftAttachment() : null,
+    v36World: typeof window.__skyDancerGetV36WorldDebug === "function" ? window.__skyDancerGetV36WorldDebug() : null,
+    v40City: typeof window.__skyDancerGetV40CityDebug === "function" ? window.__skyDancerGetV40CityDebug() : null,
   }));
   const elapsed = (Date.now() - began) / 1000;
+
+  if (elapsed >= 16 && elapsed < 20 && !bankLeftDown) {
+    await page.keyboard.down("ArrowLeft");
+    bankLeftDown = true;
+  }
+  if (elapsed >= 20 && bankLeftDown) {
+    await page.keyboard.up("ArrowLeft");
+    bankLeftDown = false;
+  }
+  if (!capturedBank && elapsed >= 18.2) {
+    capturedBank = true;
+    await page.screenshot({ path: `${outputDir}/40b-v42-banked-airframe.png`, fullPage: true });
+    await canvas.screenshot({ path: `${outputDir}/40b-v42-banked-airframe-canvas.png` });
+  }
+
   if (elapsed >= nextTurboAt && turboReleaseCount < 5) {
     await page.keyboard.down("Space");
     await page.waitForTimeout(650);
@@ -69,6 +97,19 @@ while (Date.now() - began < RUN_MS) {
   minVisibleTiles = Math.min(minVisibleTiles, Number(sample.terrain.visibleTiles || 0));
   legacyTerrainEverVisible ||= sample.terrain.legacyTerrainHidden !== true;
   terrainCenters.add(`${sample.terrain.centerTileX}:${sample.terrain.centerTileZ}`);
+
+  if (sample.attachment && (sample.attachment.playerKitParentIsPlayerVisual !== true || sample.attachment.speedLinesParentIsPlayerVisual !== true)) {
+    aircraftAttachmentFailures += 1;
+  }
+  if (sample.v36World?.cityRootPosition) {
+    initialV36City ??= { ...sample.v36World.cityRootPosition };
+    cityAnchorMoved ||= moved(initialV36City, sample.v36World.cityRootPosition);
+  }
+  if (sample.v40City?.rootPosition) {
+    initialV40City ??= { ...sample.v40City.rootPosition };
+    cityAnchorMoved ||= moved(initialV40City, sample.v40City.rootPosition);
+  }
+
   if (samples.length < 160 && (samples.length === 0 || elapsed - samples[samples.length - 1].elapsed > 0.28)) {
     samples.push({ elapsed: Number(elapsed.toFixed(2)), ...sample });
   }
@@ -78,6 +119,7 @@ while (Date.now() - began < RUN_MS) {
     await canvas.screenshot({ path: `${outputDir}/41-v41-terrain-transition-canvas.png` });
   }
 }
+if (bankLeftDown) await page.keyboard.up("ArrowLeft");
 
 await page.screenshot({ path: `${outputDir}/42-v41-natural-final.png`, fullPage: true });
 await canvas.screenshot({ path: `${outputDir}/42-v41-natural-final-canvas.png` });
@@ -94,6 +136,10 @@ const diagnostics = {
   terrainCenterCount: terrainCenters.size,
   terrainCenters: [...terrainCenters],
   legacyTerrainEverVisible,
+  aircraftAttachmentFailures,
+  cityAnchorMoved,
+  initialV36City,
+  initialV40City,
   consoleErrors,
   pageErrors,
   samples,
@@ -101,7 +147,7 @@ const diagnostics = {
 await writeFile(`${outputDir}/v41-flight-terrain-diagnostics.json`, JSON.stringify(diagnostics, null, 2));
 await browser.close();
 
-if (pageErrors.length) throw new Error(`Page errors during V41 playcheck: ${pageErrors.join(" | ")}`);
+if (pageErrors.length) throw new Error(`Page errors during V41/V42 playcheck: ${pageErrors.join(" | ")}`);
 if (minEnemyDistance < 11.5) throw new Error(`V41 enemy pass came too close to the player: ${JSON.stringify(diagnostics)}`);
 if (maxStepSpeed > 40.2) throw new Error(`V41 enemy escape speed exceeded aircraft cap: ${JSON.stringify(diagnostics)}`);
 if (maxTurnRate > 1.67) throw new Error(`V41 enemy turn rate exceeded aircraft cap: ${JSON.stringify(diagnostics)}`);
@@ -110,3 +156,6 @@ if (minVisibleTiles < 25) throw new Error(`V41 terrain ring lost visible tiles: 
 if (minReliefSpan < 4.0) throw new Error(`V41 terrain relief collapsed: ${JSON.stringify(diagnostics)}`);
 if (terrainCenters.size < 2) throw new Error(`V41 playcheck did not cross a terrain tile boundary: ${JSON.stringify(diagnostics)}`);
 if (legacyTerrainEverVisible) throw new Error(`V36 snapping terrain reappeared during V41 playcheck: ${JSON.stringify(diagnostics)}`);
+if (aircraftAttachmentFailures > 0) throw new Error(`V42 player surface kit detached from banked player visual: ${JSON.stringify(diagnostics)}`);
+if (!initialV36City || !initialV40City) throw new Error(`V42 ground-scenery debug was unavailable: ${JSON.stringify(diagnostics)}`);
+if (cityAnchorMoved) throw new Error(`V42 city scenery jumped during a terrain tile transition: ${JSON.stringify(diagnostics)}`);

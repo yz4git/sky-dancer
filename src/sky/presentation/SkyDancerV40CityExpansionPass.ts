@@ -61,10 +61,12 @@ export class SkyDancerV40CityExpansionPass {
     .map((value) => new THREE.Color(value));
   private tileX = Number.NaN;
   private tileZ = Number.NaN;
+  private anchored = false;
   private latestCounts = { low: 0, mid: 0, high: 0, roads: 0 };
 
   constructor(private readonly runtime: SkyDancerFxRuntime) {
     this.root.name = "sky-dancer-v40-multi-direction-city";
+    this.root.userData.skyDancerV42StableGroundAnchor = true;
 
     const material = () => new THREE.MeshLambertMaterial({
       color: 0xffffff,
@@ -115,6 +117,8 @@ export class SkyDancerV40CityExpansionPass {
           sectors: SECTORS.map(({ x, z, rotation }) => ({ x, z, rotation })),
           counts: { ...this.latestCounts },
           totalBuildings: this.latestCounts.low + this.latestCounts.mid + this.latestCounts.high,
+          rootPosition: { x: this.root.position.x, z: this.root.position.z },
+          stableGroundAnchor: this.root.userData.skyDancerV42StableGroundAnchor === true,
           burstLinearScale: SKY_DANCER_V40_BURST_LINEAR_SCALE,
           v21ImpactLinearScale: SKY_DANCER_V40_V21_IMPACT_LINEAR_SCALE,
           v21ImpactMaxScale,
@@ -132,19 +136,20 @@ export class SkyDancerV40CityExpansionPass {
   update(snapshot: CartArenaSessionSnapshot): void {
     this.root.visible = true;
     this.reduceInheritedCombatBursts();
-    const tileX = Math.floor(snapshot.x / CITY_SNAP);
-    const tileZ = Math.floor(snapshot.z / CITY_SNAP);
-    if (tileX === this.tileX && tileZ === this.tileZ) return;
-    this.tileX = tileX;
-    this.tileZ = tileZ;
-    this.root.position.set(tileX * CITY_SNAP, 0, tileZ * CITY_SNAP);
-    this.rebuild(tileX, tileZ);
+    // V42: decorative city geometry is world scenery, not a player-relative
+    // chase object. Rebuilding and shifting the entire root every 420 m made
+    // buildings abruptly disappear at tile boundaries even after V41 made the
+    // ground itself continuous. Anchor the initial deterministic district in
+    // world space and let normal camera/fog motion move it out of view.
+    if (this.anchored) return;
+    this.tileX = Math.floor(snapshot.x / CITY_SNAP);
+    this.tileZ = Math.floor(snapshot.z / CITY_SNAP);
+    this.root.position.set(this.tileX * CITY_SNAP, 0, this.tileZ * CITY_SNAP);
+    this.rebuild(this.tileX, this.tileZ);
+    this.anchored = true;
   }
 
   private reduceInheritedCombatBursts(): void {
-    // Inherited FX rewrite their own absolute scales before this final pass.
-    // Applying the V40 factors here is therefore deterministic and does not
-    // accumulate across frames.
     for (const object of this.runtime.scene.children) {
       if (object.name === "sky-dancer-air-burst-v2") {
         object.scale.setScalar(SKY_DANCER_V40_AIR_BURST_SCALE);

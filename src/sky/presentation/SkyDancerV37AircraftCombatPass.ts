@@ -46,13 +46,18 @@ export class SkyDancerV37AircraftCombatPass {
       this.speedLines.add(line);
     }
     this.speedLines.visible = false;
-    this.attachPersistentPlayerPresentation();
+    this.attachBankedPlayerPresentation();
     runtime.scene.userData.skyDancerV37AircraftCombat = true;
   }
 
   update(snapshot: CartArenaSessionSnapshot): void {
     this.elapsed += 1 / 60;
-    this.attachPersistentPlayerPresentation();
+    // SkyDancerWebGLDemo clears/rebuilds playerVisual after the presentation
+    // pipeline is constructed. Reattach on every update so the kit survives
+    // that rebuild while remaining under the same banked visual root as the
+    // fuselage and tail assembly. Attaching to session.car.group made these
+    // surfaces appear detached whenever playerVisual rolled.
+    this.attachBankedPlayerPresentation();
     this.playerKit.visible = true;
     this.decorateEnemies(snapshot.enemies);
     this.updateTurboLines(snapshot);
@@ -61,12 +66,19 @@ export class SkyDancerV37AircraftCombatPass {
       this.missileScanClock = 0.45;
       this.decorateMissiles();
     }
+    if (typeof window !== "undefined" && navigator.webdriver) {
+      (window as unknown as Record<string, unknown>).__skyDancerGetV42AircraftAttachment = () => ({
+        playerKitParentIsPlayerVisual: this.playerKit.parent === this.runtime.playerVisual,
+        speedLinesParentIsPlayerVisual: this.speedLines.parent === this.runtime.playerVisual,
+        playerKitParentName: this.playerKit.parent?.name ?? "",
+      });
+    }
   }
 
-  private attachPersistentPlayerPresentation(): void {
-    const flightRoot = this.runtime.session.car.group;
-    if (this.playerKit.parent !== flightRoot) flightRoot.add(this.playerKit);
-    if (this.speedLines.parent !== flightRoot) flightRoot.add(this.speedLines);
+  private attachBankedPlayerPresentation(): void {
+    const bankedVisualRoot = this.runtime.playerVisual;
+    if (this.playerKit.parent !== bankedVisualRoot) bankedVisualRoot.add(this.playerKit);
+    if (this.speedLines.parent !== bankedVisualRoot) bankedVisualRoot.add(this.speedLines);
   }
 
   private buildPlayerKit(): void {
