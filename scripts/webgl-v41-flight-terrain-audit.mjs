@@ -4,7 +4,7 @@ import { chromium } from "playwright";
 const baseUrl = process.env.SKY_DANCER_AUDIT_URL || "http://127.0.0.1:4173";
 const outputDir = process.env.SKY_DANCER_AUDIT_DIR || "artifacts/webgl-audit";
 const SAMPLE_MS = 140;
-const RUN_MS = 45_000;
+const RUN_MS = 150_000;
 
 await mkdir(outputDir, { recursive: true });
 const browser = await chromium.launch({
@@ -40,6 +40,8 @@ const terrainCenters = new Set();
 const samples = [];
 const began = Date.now();
 let capturedTravel = false;
+let turboReleaseCount = 0;
+let nextTurboAt = 8;
 
 while (Date.now() - began < RUN_MS) {
   await page.waitForTimeout(SAMPLE_MS);
@@ -49,6 +51,13 @@ while (Date.now() - began < RUN_MS) {
     flight: typeof window.__skyDancerGetFlightDebug === "function" ? window.__skyDancerGetFlightDebug() : null,
   }));
   const elapsed = (Date.now() - began) / 1000;
+  if (elapsed >= nextTurboAt && turboReleaseCount < 5) {
+    await page.keyboard.down("Space");
+    await page.waitForTimeout(650);
+    await page.keyboard.up("Space");
+    turboReleaseCount += 1;
+    nextTurboAt += 28;
+  }
   if (!sample.motion || !sample.terrain) continue;
   if (elapsed > 2) minEnemyDistance = Math.min(minEnemyDistance, Number(sample.motion.minEnemyDistance || Number.POSITIVE_INFINITY));
   maxStepSpeed = Math.max(maxStepSpeed, Number(sample.motion.maxStepSpeed || 0));
@@ -78,6 +87,7 @@ const diagnostics = {
   maxTurnRate,
   maxConstrainedEnemies,
   emergencyBreakawayFrames,
+  turboReleaseCount,
   minReliefSpan: Number.isFinite(minReliefSpan) ? minReliefSpan : null,
   maxReliefSpan,
   minVisibleTiles: Number.isFinite(minVisibleTiles) ? minVisibleTiles : null,
