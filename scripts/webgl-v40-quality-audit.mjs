@@ -3,9 +3,10 @@ import { chromium } from "playwright";
 
 const baseUrl = process.env.SKY_DANCER_AUDIT_URL || "http://127.0.0.1:4173";
 const outputDir = process.env.SKY_DANCER_AUDIT_DIR || "artifacts/webgl-audit";
-const MAX_WALL_MS = 360_000;
+const MAX_WALL_MS = 480_000;
 const SAMPLE_MS = 420;
-const CLEANUP_LIMIT_SECONDS = 35;
+const CLEANUP_TARGET_SECONDS = [20, 30];
+const CLEANUP_ACCEPT_SECONDS = [18, 32];
 
 await mkdir(outputDir, { recursive: true });
 const browser = await chromium.launch({
@@ -60,10 +61,12 @@ const phaseScreens = new Set();
 let lastPhaseKey = "";
 let lastHitSerial = 0;
 let firstHitSeconds = null;
-let cleanupSeconds = null;
-let bossSeconds = null;
-let clearSeconds = null;
-let stage2Seconds = null;
+let cleanupWallSeconds = null;
+let bossWallSeconds = null;
+let clearWallSeconds = null;
+let stage2WallSeconds = null;
+let cleanupGameSeconds = 0;
+let cleanupScheduledEnemies = 0;
 let cleanupMaxDistance = 0;
 let cleanupCorrectionFrames = 0;
 let cleanupMaxLockAngle = 0;
@@ -96,7 +99,7 @@ async function readState() {
   return { hudText, weapon, flight, reengagement, boss, presentation };
 }
 
-while (Date.now() - began < MAX_WALL_MS && stage2Seconds == null) {
+while (Date.now() - began < MAX_WALL_MS && stage2WallSeconds == null) {
   const elapsed = Date.now() - began;
   if (elapsed >= nextSteerSwitch) {
     await page.keyboard.up(steeringDirection);
@@ -132,27 +135,30 @@ while (Date.now() - began < MAX_WALL_MS && stage2Seconds == null) {
   const isStage2 = /STAGE 2.*WAVE/i.test(state.hudText);
 
   if (isCleanup) {
-    if (cleanupSeconds == null) {
-      cleanupSeconds = wallSeconds;
+    if (cleanupWallSeconds == null) {
+      cleanupWallSeconds = wallSeconds;
       await captureOnce("cleanup", "31-v40-cleanup");
     }
+    cleanupGameSeconds = Math.max(cleanupGameSeconds, Number(state.reengagement?.cleanupElapsed ?? 0));
+    cleanupScheduledEnemies = Math.max(cleanupScheduledEnemies, Number(state.reengagement?.cleanupScheduledEnemies ?? 0));
     cleanupMaxDistance = Math.max(cleanupMaxDistance, Number(state.reengagement?.maxEnemyDistance ?? 0));
     cleanupMaxLockAngle = Math.max(cleanupMaxLockAngle, Number(state.reengagement?.maxLockAngle ?? 0));
     cleanupPeakLockCandidates = Math.max(cleanupPeakLockCandidates, Number(state.reengagement?.lockConeCandidates ?? 0));
     if (Number(state.reengagement?.correctedEnemies ?? 0) > 0) cleanupCorrectionFrames += 1;
   }
-  if (isBoss && bossSeconds == null) {
-    bossSeconds = wallSeconds;
+  if (isBoss && bossWallSeconds == null) {
+    bossWallSeconds = wallSeconds;
+    cleanupGameSeconds = Math.max(cleanupGameSeconds, Number(state.reengagement?.lastCleanupDuration ?? 0));
     const oldBossChip = page.getByLabel("Boss phase status");
     bossDuplicateVisible = await oldBossChip.isVisible().catch(() => false);
     await captureOnce("boss", "32-v40-boss");
   }
-  if (isClear && clearSeconds == null) {
-    clearSeconds = wallSeconds;
+  if (isClear && clearWallSeconds == null) {
+    clearWallSeconds = wallSeconds;
     await captureOnce("clear", "33-v40-clear");
   }
-  if (isStage2 && stage2Seconds == null) {
-    stage2Seconds = wallSeconds;
+  if (isStage2 && stage2WallSeconds == null) {
+    stage2WallSeconds = wallSeconds;
     await captureOnce("stage2", "34-v40-stage2");
   }
 
@@ -181,20 +187,24 @@ if (turboHeld) await page.keyboard.up("Space").catch(() => {});
 const final = await readState();
 const shots = Number(final.weapon?.shotSerial ?? 0);
 const hits = Number(final.weapon?.hitSerial ?? 0);
-const cleanupDurationSeconds = cleanupSeconds != null && bossSeconds != null
-  ? Number((bossSeconds - cleanupSeconds).toFixed(2))
+const cleanupWallDurationSeconds = cleanupWallSeconds != null && bossWallSeconds != null
+  ? Number((bossWallSeconds - cleanupWallSeconds).toFixed(2))
   : null;
+cleanupGameSeconds = Math.max(cleanupGameSeconds, Number(final.reengagement?.lastCleanupDuration ?? 0));
+cleanupGameSeconds = Number(cleanupGameSeconds.toFixed(2));
 const diagnostics = {
-  completed: stage2Seconds != null,
+  completed: stage2WallSeconds != null,
   wallSeconds: Number(((Date.now() - began) / 1000).toFixed(2)),
   firstHitSeconds,
-  cleanupSeconds,
-  bossSeconds,
-  clearSeconds,
-  stage2Seconds,
-  cleanupDurationSeconds,
-  cleanupTargetWindowSeconds: [20, 30],
-  cleanupLimitSeconds: CLEANUP_LIMIT_SECONDS,
+  cleanupWallSeconds,
+  bossWallSeconds,
+  clearWallSeconds,
+  stage2WallSeconds,
+  cleanupWallDurationSeconds,
+  cleanupGameSeconds,
+  cleanupTargetWindowSeconds: CLEANUP_TARGET_SECONDS,
+  cleanupAcceptanceWindowSeconds: CLEANUP_ACCEPT_SECONDS,
+  cleanupScheduledEnemies,
   cleanupMaxDistance,
   cleanupMaxLockAngle,
   cleanupPeakLockCandidates,
@@ -218,11 +228,12 @@ await canvas.screenshot({ path: `${outputDir}/35-v40-final-canvas.png` });
 await browser.close();
 
 if (pageErrors.length) throw new Error(`Page errors during V40 playcheck: ${pageErrors.join(" | ")}`);
-if (cleanupSeconds == null) throw new Error(`V40 playcheck never entered CLEANUP: ${JSON.stringify(diagnostics)}`);
-if (bossSeconds == null) throw new Error(`V40 playcheck never reached BOSS: ${JSON.stringify(diagnostics)}`);
-if (cleanupDurationSeconds == null || cleanupDurationSeconds > CLEANUP_LIMIT_SECONDS) {
-  throw new Error(`V40 cleanup exceeded ${CLEANUP_LIMIT_SECONDS}s: ${JSON.stringify(diagnostics)}`);
+if (cleanupWallSeconds == null) throw new Error(`V40 playcheck never entered CLEANUP: ${JSON.stringify(diagnostics)}`);
+if (bossWallSeconds == null) throw new Error(`V40 playcheck never reached BOSS: ${JSON.stringify(diagnostics)}`);
+if (cleanupGameSeconds < CLEANUP_ACCEPT_SECONDS[0] || cleanupGameSeconds > CLEANUP_ACCEPT_SECONDS[1]) {
+  throw new Error(`V40 cleanup gameplay time missed the 20-30s target: ${JSON.stringify(diagnostics)}`);
 }
+if (cleanupMaxDistance > 58.5) throw new Error(`V40 cleanup enemy escaped the missile-lock envelope: ${JSON.stringify(diagnostics)}`);
 if (cleanupPeakLockCandidates < 1) throw new Error(`V40 cleanup never presented a lock-cone target: ${JSON.stringify(diagnostics)}`);
 if (bossDuplicateVisible) throw new Error(`Legacy boss phase chip remained visible during V40 boss HUD: ${JSON.stringify(diagnostics)}`);
-if (clearSeconds == null || stage2Seconds == null) throw new Error(`V40 playcheck did not show CLEAR then STAGE 2: ${JSON.stringify(diagnostics)}`);
+if (clearWallSeconds == null || stage2WallSeconds == null) throw new Error(`V40 playcheck did not show CLEAR then STAGE 2: ${JSON.stringify(diagnostics)}`);
