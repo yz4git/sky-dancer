@@ -15,6 +15,7 @@ on:
       - "scripts/webgl-v39-reference-audit.mjs"
       - "scripts/webgl-v40-quality-audit.mjs"
       - "scripts/webgl-v41-flight-terrain-audit.mjs"
+      - "scripts/webgl-v43-vertical-audit.mjs"
       - "tests/**"
       - "package.json"
       - ".github/workflows/webgl-audit.yml"
@@ -31,6 +32,7 @@ on:
       - "scripts/webgl-v39-reference-audit.mjs"
       - "scripts/webgl-v40-quality-audit.mjs"
       - "scripts/webgl-v41-flight-terrain-audit.mjs"
+      - "scripts/webgl-v43-vertical-audit.mjs"
       - "tests/**"
       - "package.json"
       - ".github/workflows/webgl-audit.yml"
@@ -87,6 +89,9 @@ jobs:
 
       - name: Playcheck V41 aircraft motion and terrain continuity
         run: node scripts/webgl-v41-flight-terrain-audit.mjs
+
+      - name: Playcheck V43 vertical aircraft and missile combat
+        run: node scripts/webgl-v43-vertical-audit.mjs
 
       - name: Playcheck V34 boss encounter
         run: node scripts/webgl-boss-audit.mjs
