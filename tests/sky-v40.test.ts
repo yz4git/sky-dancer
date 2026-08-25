@@ -13,6 +13,11 @@ import {
   SKY_DANCER_V40_REENGAGE_TRIGGER,
   skyDancerReengagementClosingSpeedV40,
 } from "../src/sky/SkyDancerReengagementV40";
+import {
+  SKY_DANCER_V40_AIR_BURST_SCALE,
+  SKY_DANCER_V40_BURST_LINEAR_SCALE,
+  SKY_DANCER_V40_PLAYER_HIT_BURST_SCALE,
+} from "../src/sky/presentation/SkyDancerV40CityExpansionPass";
 
 const read = (relative: string) => readFileSync(new URL(relative, import.meta.url), "utf8");
 
@@ -64,12 +69,22 @@ test("V40 presents one explicit STAGE WAVE CLEANUP BOSS CLEAR hierarchy", () => 
   assert.match(hud, /skyDancerV40BossActive .*huntStyles\.boss/);
 });
 
-test("V40 cuts the central gunsight by roughly 45 percent", () => {
+test("V40 cuts static and dynamic center rings by roughly 45 percent", () => {
   const oldHud = read("../app/SkyDancerHudQualityPass.tsx");
   const hud = read("../app/SkyDancerHudV40.tsx");
+  const v6 = read("../src/sky/SkyDancerAirCombatFxV6.ts");
+  const v40 = read("../src/sky/presentation/SkyDancerV40CityExpansionPass.ts");
   assert.match(oldHud, /\.skyDancerGunsight \{[\s\S]*?width: 72px;[\s\S]*?height: 72px;/);
   assert.match(hud, /\.skyDancerGunsight \{[\s\S]*?width: 40px !important;[\s\S]*?height: 40px !important;/);
   assert.ok(40 / 72 >= 0.5 && 40 / 72 <= 0.6);
+  assert.equal(SKY_DANCER_V40_BURST_LINEAR_SCALE, 0.55);
+  assert.ok(SKY_DANCER_V40_AIR_BURST_SCALE > 0.30 && SKY_DANCER_V40_AIR_BURST_SCALE < 0.33);
+  assert.ok(SKY_DANCER_V40_PLAYER_HIT_BURST_SCALE > 0.40 && SKY_DANCER_V40_PLAYER_HIT_BURST_SCALE < 0.42);
+  assert.match(v6, /sky-dancer-air-burst-v2/);
+  assert.match(v6, /0\.58/);
+  assert.match(v40, /reduceInheritedCombatBursts/);
+  assert.match(v40, /sky-dancer-air-burst-v2/);
+  assert.match(v40, /sky-dancer-player-hit-burst-v2/);
 });
 
 test("V40 fills three additional skyline directions after the V36 primary city", () => {
