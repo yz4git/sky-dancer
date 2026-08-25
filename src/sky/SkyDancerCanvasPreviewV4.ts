@@ -1,5 +1,6 @@
 import type { CartArenaSession } from "../cart/CartArenaSession";
 import type { CartRogueSnapshotHandler } from "../cart/CartRogueDemo";
+import type { SkyDancerMissileState } from "./SkyDancerFlightCombat";
 import { installSkyDancerBossCombatV34 } from "./SkyDancerBossCombatV34";
 import { installSkyDancerBossDurabilityGuardV34 } from "./SkyDancerBossDurabilityGuardV34";
 import { SkyDancerCanvasPreviewV3 } from "./SkyDancerCanvasPreviewV3";
@@ -11,6 +12,7 @@ import {
   installSkyDancerPlayerWeapons,
   requestSkyDancerPlayerMissile,
 } from "./SkyDancerPlayerWeapons";
+import { installSkyDancerReengagementV40 } from "./SkyDancerReengagementV40";
 import { bindSkyDancerWeaponSession } from "./SkyDancerWeaponBridge";
 import { installSkyDancerInfiniteWorld } from "./SkyDancerInfiniteWorld";
 
@@ -36,6 +38,7 @@ export class SkyDancerCanvasPreviewV4 extends SkyDancerCanvasPreviewV3 {
     installSkyDancerInfiniteWorld();
     installSkyDancerBossDurabilityGuardV34();
     installSkyDancerBossCombatV34();
+    installSkyDancerReengagementV40();
     this.runtimeV4 = this as unknown as CanvasRuntimeView;
     bindSkyDancerWeaponSession(this.runtimeV4.session);
     if (typeof window !== "undefined") {
