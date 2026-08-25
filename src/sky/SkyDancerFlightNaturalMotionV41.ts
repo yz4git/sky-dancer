@@ -7,6 +7,7 @@ import {
   cartTurboHuntWrappedDelta,
 } from "../cart/CartTurboHuntTrack";
 import type { RallyInputState } from "../rally/RallyTypes";
+import { getSkyDancerReengagementSnapshotV40 } from "./SkyDancerReengagementV40";
 
 interface NaturalMotionSession {
   enemies: CartEnemyState[];
@@ -23,6 +24,9 @@ interface EnemyBeforeFrame {
 
 interface NaturalMotionState {
   before: Map<string, EnemyBeforeFrame>;
+  cleanupSlots: Map<string, number>;
+  cleanupActive: boolean;
+  cleanupElapsed: number;
   minEnemyDistance: number;
   maxStepSpeed: number;
   maxTurnRate: number;
@@ -50,6 +54,8 @@ export const SKY_DANCER_V41_MAX_CRUISE_SPEED = 24;
 export const SKY_DANCER_V41_MAX_CLEANUP_SPEED = 26;
 export const SKY_DANCER_V41_MAX_TURN_RATE = 1.12;
 export const SKY_DANCER_V41_EMERGENCY_TURN_RATE = 1.65;
+const CLEANUP_SLOT_SPACING = 4.8;
+const CLEANUP_HOLD_DISTANCE = 49;
 
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
@@ -81,6 +87,9 @@ function stateFor(session: object): NaturalMotionState {
   if (existing) return existing;
   const created: NaturalMotionState = {
     before: new Map(),
+    cleanupSlots: new Map(),
+    cleanupActive: false,
+    cleanupElapsed: 0,
     minEnemyDistance: Number.POSITIVE_INFINITY,
     maxStepSpeed: 0,
     maxTurnRate: 0,
@@ -114,7 +123,15 @@ export function installSkyDancerFlightNaturalMotionV41(): void {
     const state = stateFor(key);
     const delta = clamp(fixedDelta ?? 1 / 60, 0.001, 0.05);
     const nodeIdBefore = this.location.node.id;
+    const pxBefore = this.car.position.x;
+    const pzBefore = this.car.position.z;
+    const playerHeadingBefore = this.car.heading;
 
+    // Capture the real visible positions first. During CLEANUP, unreleased
+    // slots are then represented to combat logic as being behind the player,
+    // inside the 58 m envelope but outside the forward lock cone. V41 restores
+    // their real positions after the inner step, so this pacing aid can never
+    // produce a visible teleport or sideways correction.
     for (const enemy of this.enemies) {
       if (!enemy.alive || enemy.kind === "boss" || enemy.nodeId !== nodeIdBefore) continue;
       const before = state.before.get(enemy.id);
@@ -125,9 +142,33 @@ export function installSkyDancerFlightNaturalMotionV41(): void {
       } else {
         state.before.set(enemy.id, { x: enemy.x, z: enemy.z, heading: enemy.heading });
       }
+      const readyAt = state.cleanupSlots.get(enemy.id);
+      if (state.cleanupActive && readyAt !== undefined && state.cleanupElapsed + 0.001 < readyAt) {
+        const side = stableSide(enemy.id);
+        enemy.x = pxBefore - Math.sin(playerHeadingBefore) * CLEANUP_HOLD_DISTANCE + Math.cos(playerHeadingBefore) * side * 7;
+        enemy.z = pzBefore - Math.cos(playerHeadingBefore) * CLEANUP_HOLD_DISTANCE - Math.sin(playerHeadingBefore) * side * 7;
+      }
     }
 
     previous.call(this, input, fixedDelta);
+
+    const director = getSkyDancerReengagementSnapshotV40(this as unknown as CartArenaSession);
+    if (director?.phase === "cleanup") {
+      if (!state.cleanupActive) {
+        state.cleanupSlots.clear();
+        const ids = this.enemies
+          .filter((enemy) => enemy.alive && enemy.kind !== "boss" && enemy.nodeId === this.location.node.id)
+          .map((enemy) => enemy.id)
+          .sort();
+        ids.forEach((id, index) => state.cleanupSlots.set(id, index * CLEANUP_SLOT_SPACING));
+      }
+      state.cleanupActive = true;
+      state.cleanupElapsed = Math.max(0, director.cleanupElapsed);
+    } else {
+      state.cleanupActive = false;
+      state.cleanupElapsed = 0;
+      state.cleanupSlots.clear();
+    }
 
     const nodeId = this.location.node.id;
     const px = this.car.position.x;
@@ -163,16 +204,12 @@ export function installSkyDancerFlightNaturalMotionV41(): void {
         : SKY_DANCER_V41_MAX_CRUISE_SPEED;
 
       if (distanceBefore < SKY_DANCER_V41_BREAKAWAY_DISTANCE) {
-        // Point mostly away, with a small lateral component so the escape reads
-        // as a banking fly-by instead of a radial retreat.
         desiredHeading = normalizeAngle(outwardHeading + side * 0.34);
         turnRate = SKY_DANCER_V41_EMERGENCY_TURN_RATE;
         minSpeed = 18;
         maxSpeed = SKY_DANCER_V41_MAX_CLEANUP_SPEED;
         emergencyBreakaways += 1;
       } else if (distanceBefore < SKY_DANCER_V41_APPROACH_BUFFER) {
-        // Start the crossing turn while there is still enough radius for a
-        // turbo-speed head-on closure to become a smooth fly-by.
         desiredHeading = normalizeAngle(outwardHeading + side * 1.02);
         turnRate = SKY_DANCER_V41_EMERGENCY_TURN_RATE;
         minSpeed = 14;
@@ -182,9 +219,6 @@ export function installSkyDancerFlightNaturalMotionV41(): void {
       const headingDelta = Math.abs(normalizeAngle(nextHeading - before.heading));
       const observedTurnRate = headingDelta / delta;
       let speed = clamp(Number.isFinite(proposedSpeed) ? proposedSpeed : minSpeed, minSpeed, maxSpeed);
-
-      // When already inside the desired pass radius, never let a low proposed
-      // displacement make the aircraft hover in front of the player.
       if (distanceBefore < SKY_DANCER_V41_MIN_PASS_DISTANCE) speed = Math.max(speed, 20);
 
       enemy.heading = nextHeading;
