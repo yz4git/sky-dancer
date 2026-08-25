@@ -4,10 +4,12 @@ import test from "node:test";
 import {
   SKY_DANCER_V41_APPROACH_BUFFER,
   SKY_DANCER_V41_BREAKAWAY_DISTANCE,
+  SKY_DANCER_V41_CLEANUP_CATCHUP_MARGIN,
   SKY_DANCER_V41_EMERGENCY_ACCELERATION,
   SKY_DANCER_V41_EMERGENCY_TURN_RATE,
   SKY_DANCER_V41_ESCAPE_SPEED_MARGIN,
   SKY_DANCER_V41_MAX_ACCELERATION,
+  SKY_DANCER_V41_MAX_CLEANUP_INTERCEPT_SPEED,
   SKY_DANCER_V41_MAX_CLEANUP_SPEED,
   SKY_DANCER_V41_MAX_CRUISE_SPEED,
   SKY_DANCER_V41_MAX_ESCAPE_SPEED,
@@ -29,6 +31,9 @@ test("V41 aircraft motion uses predictive separation and bounded kinematics", ()
   assert.ok(SKY_DANCER_V41_PREDICTIVE_LOOKAHEAD >= 3);
   assert.ok(SKY_DANCER_V41_MAX_CRUISE_SPEED <= 24);
   assert.ok(SKY_DANCER_V41_MAX_CLEANUP_SPEED <= 26);
+  assert.ok(SKY_DANCER_V41_MAX_CLEANUP_INTERCEPT_SPEED > SKY_DANCER_V41_MAX_CLEANUP_SPEED);
+  assert.ok(SKY_DANCER_V41_MAX_CLEANUP_INTERCEPT_SPEED <= 36);
+  assert.ok(SKY_DANCER_V41_CLEANUP_CATCHUP_MARGIN >= 4 && SKY_DANCER_V41_CLEANUP_CATCHUP_MARGIN <= 6);
   assert.ok(SKY_DANCER_V41_MAX_ESCAPE_SPEED >= 36 && SKY_DANCER_V41_MAX_ESCAPE_SPEED <= 40);
   assert.ok(SKY_DANCER_V41_ESCAPE_SPEED_MARGIN >= 5 && SKY_DANCER_V41_ESCAPE_SPEED_MARGIN <= 8);
   assert.ok(SKY_DANCER_V41_MAX_ACCELERATION <= 18);
@@ -55,6 +60,18 @@ test("V41 leaves unreleased V40 cleanup holding slots under V40 ownership", () =
   assert.match(source, /if \(cleanupHeld\) \{/);
   assert.match(source, /before\.x = enemy\.x/);
   assert.match(source, /before\.speed = Math\.min\(before\.speed, SKY_DANCER_V41_MAX_CLEANUP_SPEED\)/);
+});
+
+test("V41 guides released cleanup survivors into the V40 lock slot without teleporting", () => {
+  const source = read("../src/sky/SkyDancerFlightNaturalMotionV41.ts");
+  assert.match(source, /skyDancerReengagementInterceptV40/);
+  assert.match(source, /const cleanupNeedsIntercept = cleanupPhase/);
+  assert.match(source, /distanceBefore > SKY_DANCER_V40_CLEANUP_TRIGGER/);
+  assert.match(source, /lockAngle > SKY_DANCER_V40_CLEANUP_ANGLE_TRIGGER/);
+  assert.match(source, /playerSpeed \+ SKY_DANCER_V41_CLEANUP_CATCHUP_MARGIN/);
+  assert.match(source, /maxSpeed = SKY_DANCER_V41_MAX_CLEANUP_INTERCEPT_SPEED/);
+  assert.match(source, /acceleration = SKY_DANCER_V41_EMERGENCY_ACCELERATION/);
+  assert.match(source, /const nextHeading = rotateToward/);
 });
 
 test("V41 is installed outside V40 in WebGL and Canvas runtimes", () => {
