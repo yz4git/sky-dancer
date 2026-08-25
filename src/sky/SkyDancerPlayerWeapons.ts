@@ -5,6 +5,7 @@ import {
   CART_TURBO_HUNT_WORLD_WIDTH,
   cartTurboHuntNearestCoordinate,
 } from "../cart/CartTurboHuntTrack";
+import { isSkyDancerCombatTargetableV42 } from "./SkyDancerCombatEligibilityV42";
 
 export interface SkyDancerPlayerMissileSnapshot {
   id: number;
@@ -110,7 +111,9 @@ function stateFor(session: WeaponSessionView): WeaponState {
 
 function currentEnemies(session: WeaponSessionView): CartEnemyState[] {
   const nodeId = session.location.node.id;
-  return session.enemies.filter((enemy) => enemy.alive && enemy.nodeId === nodeId);
+  return session.enemies.filter(
+    (enemy) => enemy.alive && enemy.nodeId === nodeId && isSkyDancerCombatTargetableV42(enemy),
+  );
 }
 
 function missileDamage(enemy: CartEnemyState | null): number {
@@ -213,6 +216,9 @@ function chooseTargetFromMissile(missile: PlayerMissileInternal, enemies: readon
 }
 
 function updateMissiles(session: WeaponSessionView, state: WeaponState, delta: number): void {
+  // Held CLEANUP aircraft are deliberately omitted here as well as from the
+  // initial lock query. Existing missiles therefore cannot accidentally hit a
+  // formation aircraft after the phase transition and collapse the slot timer.
   const enemies = currentEnemies(session);
   for (const missile of state.missiles) {
     if (!missile.active) continue;
