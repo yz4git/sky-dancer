@@ -31,6 +31,13 @@ test("V42 cleanup holding aircraft do not rotate with live player yaw", () => {
   assert.ok(SKY_DANCER_V40_LOCK_HALF_ANGLE < 1.0);
 });
 
+test("V42 normal wave flight never uses angle-only screen-edge correction", () => {
+  const source = read("../src/sky/SkyDancerReengagementV40.ts");
+  assert.match(source, /const needsDistanceCorrection = distance > trigger/);
+  assert.match(source, /const needsAngleCorrection = cleanup\s*\? lockAngle > angleTrigger\s*:\s*needsDistanceCorrection && lockAngle > angleTrigger/);
+  assert.match(source, /Inside the range envelope, V41 owns natural turn\/acceleration/);
+});
+
 test("V42 ground scenery stays world anchored instead of snapping every 420m", () => {
   const v36 = read("../src/sky/presentation/SkyDancerV36WorldGeometryPass.ts");
   const v40 = read("../src/sky/presentation/SkyDancerV40CityExpansionPass.ts");
