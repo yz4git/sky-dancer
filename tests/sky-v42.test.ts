@@ -41,7 +41,7 @@ test("V42 cleanup holding aircraft do not rotate with live player yaw", () => {
   assert.ok(SKY_DANCER_V40_LOCK_HALF_ANGLE < 1.0);
 });
 
-test("V42 cleanup releases the nearest survivor first and pulls only an out-of-range lead inward", () => {
+test("V42 cleanup releases the nearest survivor first and keeps live slots inside the radial lock envelope", () => {
   const survivors = [
     { id: "enemy-far", x: 63, z: 0 },
     { id: "enemy-near", x: 46, z: 0 },
@@ -59,6 +59,9 @@ test("V42 cleanup releases the nearest survivor first and pulls only an out-of-r
   const source = read("../src/sky/SkyDancerReengagementV40.ts");
   assert.match(source, /const initialSurvivors = skyDancerCleanupSlotOrderV42\(liveNonBossEnemies\(this, nodeId\), px, pz\)/);
   assert.match(source, /const release = skyDancerCleanupReleasePositionV42\(px, pz, enemy\.x, enemy\.z\)/);
+  assert.match(source, /if \(cleanup && cleanupSlotReady\)/);
+  assert.match(source, /const leashed = skyDancerCleanupReleasePositionV42\(px, pz, enemy\.x, enemy\.z\)/);
+  assert.match(source, /preserves the aircraft's world/);
 });
 
 test("V42 unreleased cleanup slots are visible formation aircraft but not missile targets", () => {
