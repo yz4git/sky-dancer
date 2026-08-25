@@ -12,13 +12,6 @@ import {
 } from "../src/sky/SkyDancerStageCycle";
 import huntStyles from "./CartTurboHuntHudOverlay.module.css";
 
-function phaseLabel(stage: SkyDancerStageCycleSnapshot): string {
-  if (stage.phase === "cleanup") return "CLEANUP";
-  if (stage.phase === "boss") return "BOSS";
-  if (stage.phase === "stage-clear") return "CLEAR";
-  return "WAVE";
-}
-
 export default function SkyDancerHudV40() {
   const [stage, setStage] = useState<SkyDancerStageCycleSnapshot | null>(() => getLatestSkyDancerStageCycleSnapshot());
   const [boss, setBoss] = useState<SkyDancerBossQualitySnapshotV34 | null>(null);
@@ -88,8 +81,6 @@ export default function SkyDancerHudV40() {
 
   return <>
     <style>{`
-      /* V40 owns the center objective slot. The inherited contract card remains
-         mounted for telemetry compatibility but no longer competes visually. */
       .skyDancerV40StageHudActive .${huntStyles.orderCard} {
         visibility: hidden !important;
       }
@@ -100,8 +91,6 @@ export default function SkyDancerHudV40() {
         display: none !important;
       }
 
-      /* The old center gunsight dominated the combat picture. V40 keeps the
-         same aiming cue at roughly 55% linear size (about 45% smaller). */
       .skyDancerGunsight {
         width: 40px !important;
         height: 40px !important;
