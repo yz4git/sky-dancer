@@ -86,8 +86,8 @@ function reengagementStateFor(session: object): ReengagementState {
     cleanupElapsed: 0,
     lastCleanupDuration: 0,
     previousCleanup: false,
-    cleanupSlots: new Map(),
-    cleanupHoldOffsets: new Map(),
+    cleanupSlots: new Map<string, number>(),
+    cleanupHoldOffsets: new Map<string, CleanupHoldOffset>(),
   };
   stateBySession.set(session, created);
   return created;
