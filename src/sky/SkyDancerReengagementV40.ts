@@ -161,6 +161,28 @@ function liveNonBossEnemies(session: ReengagementSession, nodeId: string): CartE
     .sort((a, b) => a.id.localeCompare(b.id));
 }
 
+/**
+ * V42.1 makes the first CLEANUP release the survivor that is already nearest
+ * to the player. The other survivors can enter their holding slots while the
+ * released aircraft keeps flying naturally, avoiding a visible teleport and
+ * preventing an arbitrary ID-sorted aircraft from starting outside lock range.
+ */
+export function skyDancerCleanupSlotOrderV42(
+  enemies: readonly CartEnemyState[],
+  px: number,
+  pz: number,
+): CartEnemyState[] {
+  const distanceToPlayer = (enemy: CartEnemyState): number => {
+    const ex = cartTurboHuntNearestCoordinate(enemy.x, px, CART_TURBO_HUNT_WORLD_WIDTH);
+    const ez = cartTurboHuntNearestCoordinate(enemy.z, pz, CART_TURBO_HUNT_WORLD_DEPTH);
+    return Math.hypot(ex - px, ez - pz);
+  };
+  return [...enemies].sort((a, b) => {
+    const distanceDelta = distanceToPlayer(a) - distanceToPlayer(b);
+    return Math.abs(distanceDelta) > 0.0001 ? distanceDelta : a.id.localeCompare(b.id);
+  });
+}
+
 export function installSkyDancerReengagementV40(): void {
   const prototype = CartArenaSession.prototype as unknown as ReengagementSession & Record<string, unknown>;
   if (prototype[PATCHED_KEY]) return;
@@ -189,7 +211,7 @@ export function installSkyDancerReengagementV40(): void {
       localState.lastCleanupDuration = 0;
       localState.cleanupSlots.clear();
       localState.cleanupHoldOffsets.clear();
-      const initialSurvivors = liveNonBossEnemies(this, nodeId);
+      const initialSurvivors = skyDancerCleanupSlotOrderV42(liveNonBossEnemies(this, nodeId), px, pz);
       initialSurvivors.forEach((enemy, index) => {
         localState.cleanupSlots.set(enemy.id, index);
         const hold = skyDancerCleanupHoldingPositionV40(px, pz, playerHeading, index);
