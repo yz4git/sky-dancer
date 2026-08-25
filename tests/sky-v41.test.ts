@@ -13,14 +13,20 @@ import {
   SKY_DANCER_V41_MAX_ESCAPE_SPEED,
   SKY_DANCER_V41_MAX_TURN_RATE,
   SKY_DANCER_V41_MIN_PASS_DISTANCE,
+  SKY_DANCER_V41_PREDICTIVE_DISTANCE,
+  SKY_DANCER_V41_PREDICTIVE_LOOKAHEAD,
+  SKY_DANCER_V41_PREDICTIVE_MISS_DISTANCE,
 } from "../src/sky/SkyDancerFlightNaturalMotionV41";
 
 const read = (relative: string) => readFileSync(new URL(relative, import.meta.url), "utf8");
 
-test("V41 aircraft motion uses an early pass buffer and bounded kinematics", () => {
+test("V41 aircraft motion uses predictive separation and bounded kinematics", () => {
   assert.ok(SKY_DANCER_V41_MIN_PASS_DISTANCE >= 14);
   assert.ok(SKY_DANCER_V41_BREAKAWAY_DISTANCE > SKY_DANCER_V41_MIN_PASS_DISTANCE);
   assert.ok(SKY_DANCER_V41_APPROACH_BUFFER > SKY_DANCER_V41_BREAKAWAY_DISTANCE);
+  assert.ok(SKY_DANCER_V41_PREDICTIVE_DISTANCE >= SKY_DANCER_V41_APPROACH_BUFFER);
+  assert.ok(SKY_DANCER_V41_PREDICTIVE_MISS_DISTANCE >= SKY_DANCER_V41_MIN_PASS_DISTANCE);
+  assert.ok(SKY_DANCER_V41_PREDICTIVE_LOOKAHEAD >= 3);
   assert.ok(SKY_DANCER_V41_MAX_CRUISE_SPEED <= 24);
   assert.ok(SKY_DANCER_V41_MAX_CLEANUP_SPEED <= 26);
   assert.ok(SKY_DANCER_V41_MAX_ESCAPE_SPEED >= 36 && SKY_DANCER_V41_MAX_ESCAPE_SPEED <= 40);
@@ -32,6 +38,8 @@ test("V41 aircraft motion uses an early pass buffer and bounded kinematics", () 
   const source = read("../src/sky/SkyDancerFlightNaturalMotionV41.ts");
   assert.match(source, /previous\.call\(this, input, fixedDelta\)/);
   assert.match(source, /cartTurboHuntWrappedDelta\(enemy\.x, before\.x/);
+  assert.match(source, /predictedMissDistance/);
+  assert.match(source, /closingRate > PREDICTIVE_MIN_CLOSING_RATE/);
   assert.match(source, /moveToward\(before\.speed, targetSpeed, acceleration \* delta\)/);
   assert.match(source, /playerSpeed \+ SKY_DANCER_V41_ESCAPE_SPEED_MARGIN/);
   assert.match(source, /enemy\.x = before\.x \+ Math\.sin\(nextHeading\) \* speed \* delta/);
