@@ -127,11 +127,6 @@ export function installSkyDancerFlightNaturalMotionV41(): void {
     const pzBefore = this.car.position.z;
     const playerHeadingBefore = this.car.heading;
 
-    // Capture the real visible positions first. During CLEANUP, unreleased
-    // slots are then represented to combat logic as being behind the player,
-    // inside the 58 m envelope but outside the forward lock cone. V41 restores
-    // their real positions after the inner step, so this pacing aid can never
-    // produce a visible teleport or sideways correction.
     for (const enemy of this.enemies) {
       if (!enemy.alive || enemy.kind === "boss" || enemy.nodeId !== nodeIdBefore) continue;
       const before = state.before.get(enemy.id);
@@ -153,7 +148,8 @@ export function installSkyDancerFlightNaturalMotionV41(): void {
     previous.call(this, input, fixedDelta);
 
     const director = getSkyDancerReengagementSnapshotV40(this as unknown as CartArenaSession);
-    if (director?.phase === "cleanup") {
+    const cleanupPhase = director?.phase === "cleanup";
+    if (cleanupPhase) {
       if (!state.cleanupActive) {
         state.cleanupSlots.clear();
         const ids = this.enemies
@@ -163,7 +159,7 @@ export function installSkyDancerFlightNaturalMotionV41(): void {
         ids.forEach((id, index) => state.cleanupSlots.set(id, index * CLEANUP_SLOT_SPACING));
       }
       state.cleanupActive = true;
-      state.cleanupElapsed = Math.max(0, director.cleanupElapsed);
+      state.cleanupElapsed = Math.max(0, director?.cleanupElapsed ?? 0);
     } else {
       state.cleanupActive = false;
       state.cleanupElapsed = 0;
@@ -209,10 +205,17 @@ export function installSkyDancerFlightNaturalMotionV41(): void {
         minSpeed = 18;
         maxSpeed = SKY_DANCER_V41_MAX_CLEANUP_SPEED;
         emergencyBreakaways += 1;
-      } else if (distanceBefore < SKY_DANCER_V41_APPROACH_BUFFER) {
+      } else if (!cleanupPhase && distanceBefore < SKY_DANCER_V41_APPROACH_BUFFER) {
         desiredHeading = normalizeAngle(outwardHeading + side * 1.02);
         turnRate = SKY_DANCER_V41_EMERGENCY_TURN_RATE;
         minSpeed = 14;
+      } else if (cleanupPhase) {
+        // Cleanup slots deliberately cross the player's forward lock cone at a
+        // safe 31–45 m stand-off. Preserve the V40 intercept heading here,
+        // while the 30 m breakaway above still prevents camera-hugging passes.
+        turnRate = SKY_DANCER_V41_EMERGENCY_TURN_RATE;
+        minSpeed = 12;
+        maxSpeed = SKY_DANCER_V41_MAX_CLEANUP_SPEED;
       }
 
       const nextHeading = rotateToward(before.heading, desiredHeading, turnRate * delta);
