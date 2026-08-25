@@ -7,6 +7,7 @@ import {
   SKY_DANCER_V40_LOCK_HALF_ANGLE,
   SKY_DANCER_V40_LOCK_RANGE,
   SKY_DANCER_V42_CLEANUP_HOLD_FOLLOW_SPEED,
+  skyDancerCleanupSlotOrderV42,
 } from "../src/sky/SkyDancerReengagementV40";
 
 const read = (relative: string) => readFileSync(new URL(relative, import.meta.url), "utf8");
@@ -32,6 +33,19 @@ test("V42 cleanup holding aircraft do not rotate with live player yaw", () => {
   assert.match(source, /const tangentHeading = normalizeAngle\(radial \+ side \* Math\.PI \* 0\.5\)/);
   assert.match(source, /SKY_DANCER_V42_CLEANUP_HOLD_FOLLOW_SPEED \* delta/);
   assert.ok(SKY_DANCER_V40_LOCK_HALF_ANGLE < 1.0);
+});
+
+test("V42 cleanup releases the nearest survivor first without teleporting it", () => {
+  const survivors = [
+    { id: "enemy-far", x: 63, z: 0 },
+    { id: "enemy-near", x: 46, z: 0 },
+    { id: "enemy-mid", x: 54, z: 0 },
+  ] as unknown as Parameters<typeof skyDancerCleanupSlotOrderV42>[0];
+  const ordered = skyDancerCleanupSlotOrderV42(survivors, 0, 0);
+  assert.deepEqual(ordered.map((enemy) => enemy.id), ["enemy-near", "enemy-mid", "enemy-far"]);
+  const source = read("../src/sky/SkyDancerReengagementV40.ts");
+  assert.match(source, /const initialSurvivors = skyDancerCleanupSlotOrderV42\(liveNonBossEnemies\(this, nodeId\), px, pz\)/);
+  assert.match(source, /if \(index <= 0\) return;/);
 });
 
 test("V42 cleanup cadence cannot collapse below the target window and keeps radial headroom", () => {
