@@ -83,8 +83,8 @@ function reengagementStateFor(session: object): ReengagementState {
     cleanupElapsed: 0,
     lastCleanupDuration: 0,
     previousCleanup: false,
-    cleanupSlots: new Map<string, number>(),
-    cleanupHoldOffsets: new Map<string, CleanupHoldOffset>(),
+    cleanupSlots: new Map(),
+    cleanupHoldOffsets: new Map(),
   };
   stateBySession.set(session, created);
   return created;
@@ -271,7 +271,14 @@ export function installSkyDancerReengagementV40(): void {
         if (distance <= SKY_DANCER_V40_LOCK_RANGE && lockAngle <= SKY_DANCER_V40_LOCK_HALF_ANGLE) lockConeCandidates += 1;
 
         const needsDistanceCorrection = distance > trigger;
-        const needsAngleCorrection = lockAngle > angleTrigger;
+        // V42: during normal WAVE flight, an angle-only correction made enemies
+        // chase the player's live yaw and sit at the edge of the camera. Keep
+        // angular re-engagement for CLEANUP pacing, but in normal combat only
+        // use the player-relative intercept when the aircraft is also too far
+        // away. Inside the range envelope, V41 owns natural turn/acceleration.
+        const needsAngleCorrection = cleanup
+          ? lockAngle > angleTrigger
+          : needsDistanceCorrection && lockAngle > angleTrigger;
         if (!needsDistanceCorrection && !needsAngleCorrection) continue;
 
         let destinationX: number;
