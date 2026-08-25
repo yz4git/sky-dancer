@@ -4,9 +4,13 @@ import test from "node:test";
 import {
   SKY_DANCER_V41_APPROACH_BUFFER,
   SKY_DANCER_V41_BREAKAWAY_DISTANCE,
+  SKY_DANCER_V41_EMERGENCY_ACCELERATION,
   SKY_DANCER_V41_EMERGENCY_TURN_RATE,
+  SKY_DANCER_V41_ESCAPE_SPEED_MARGIN,
+  SKY_DANCER_V41_MAX_ACCELERATION,
   SKY_DANCER_V41_MAX_CLEANUP_SPEED,
   SKY_DANCER_V41_MAX_CRUISE_SPEED,
+  SKY_DANCER_V41_MAX_ESCAPE_SPEED,
   SKY_DANCER_V41_MAX_TURN_RATE,
   SKY_DANCER_V41_MIN_PASS_DISTANCE,
 } from "../src/sky/SkyDancerFlightNaturalMotionV41";
@@ -19,11 +23,17 @@ test("V41 aircraft motion uses an early pass buffer and bounded kinematics", () 
   assert.ok(SKY_DANCER_V41_APPROACH_BUFFER > SKY_DANCER_V41_BREAKAWAY_DISTANCE);
   assert.ok(SKY_DANCER_V41_MAX_CRUISE_SPEED <= 24);
   assert.ok(SKY_DANCER_V41_MAX_CLEANUP_SPEED <= 26);
+  assert.ok(SKY_DANCER_V41_MAX_ESCAPE_SPEED >= 36 && SKY_DANCER_V41_MAX_ESCAPE_SPEED <= 40);
+  assert.ok(SKY_DANCER_V41_ESCAPE_SPEED_MARGIN >= 5 && SKY_DANCER_V41_ESCAPE_SPEED_MARGIN <= 8);
+  assert.ok(SKY_DANCER_V41_MAX_ACCELERATION <= 18);
+  assert.ok(SKY_DANCER_V41_EMERGENCY_ACCELERATION <= 28);
   assert.ok(SKY_DANCER_V41_MAX_TURN_RATE <= 1.12);
   assert.ok(SKY_DANCER_V41_EMERGENCY_TURN_RATE <= 1.65);
   const source = read("../src/sky/SkyDancerFlightNaturalMotionV41.ts");
   assert.match(source, /previous\.call\(this, input, fixedDelta\)/);
   assert.match(source, /cartTurboHuntWrappedDelta\(enemy\.x, before\.x/);
+  assert.match(source, /moveToward\(before\.speed, targetSpeed, acceleration \* delta\)/);
+  assert.match(source, /playerSpeed \+ SKY_DANCER_V41_ESCAPE_SPEED_MARGIN/);
   assert.match(source, /enemy\.x = before\.x \+ Math\.sin\(nextHeading\) \* speed \* delta/);
   assert.match(source, /enemy\.z = before\.z \+ Math\.cos\(nextHeading\) \* speed \* delta/);
   assert.doesNotMatch(source, /72 \* delta/);
