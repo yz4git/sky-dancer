@@ -3,6 +3,7 @@ import type { CartEnemyState } from "../cart/CartCombat";
 import type { RallyInputState } from "../rally/RallyTypes";
 import { setSkyDancerCleanupHeldV42 } from "./SkyDancerCombatEligibilityV42";
 import { getSkyDancerStageCycleSnapshot } from "./SkyDancerStageCycle";
+import { requestSkyDancerVerticalManeuverV44 } from "./SkyDancerVerticalFlightV43";
 
 export const SKY_DANCER_V44_CLEANUP_ORBIT_MIN_DISTANCE = 74;
 export const SKY_DANCER_V44_CLEANUP_ORBIT_MAX_DISTANCE = 84;
@@ -100,13 +101,25 @@ function buildSlots(session: AttackRunSession, state: DirectorState): void {
     const angle = session.car.heading + side * (1.18 + (slot % 3) * 0.24) + ((hash % 31) - 15) * 0.006;
     const radius = SKY_DANCER_V44_CLEANUP_ORBIT_MIN_DISTANCE
       + (hash % Math.max(1, SKY_DANCER_V44_CLEANUP_ORBIT_MAX_DISTANCE - SKY_DANCER_V44_CLEANUP_ORBIT_MIN_DISTANCE + 1));
+    // V40's compatibility layer stages waiting aircraft close to the player.
+    // V44 is outermost and replaces that hidden gate before the frame renders:
+    // waiting slots begin on a real out-of-range orbit immediately, while slot
+    // zero preserves the naturally closest survivor as the first live fight.
+    const x = slot === 0 ? enemy.x : px + Math.sin(angle) * radius;
+    const z = slot === 0 ? enemy.z : pz + Math.cos(angle) * radius;
+    if (slot > 0) {
+      enemy.x = x;
+      enemy.z = z;
+      enemy.heading = angle + (slot % 2 === 0 ? Math.PI * 0.5 : -Math.PI * 0.5);
+      setSkyDancerCleanupHeldV42(enemy, false);
+    }
     state.slots.set(enemy.id, {
       id: enemy.id,
       slot,
       angle,
       radius,
-      x: enemy.x,
-      z: enemy.z,
+      x,
+      z,
       released: slot === 0,
       completed: slot === 0,
     });
@@ -147,6 +160,7 @@ function applyOrbit(
   enemy.z = next.z;
   const tangent = slot.angle + (slot.slot % 2 === 0 ? Math.PI * 0.5 : -Math.PI * 0.5);
   enemy.heading += Math.atan2(Math.sin(tangent - enemy.heading), Math.cos(tangent - enemy.heading)) * Math.min(1, 1.3 * delta);
+  requestSkyDancerVerticalManeuverV44(enemy, (slot.slot % 2 === 0 ? 1 : -1) * (6.4 + (slot.slot % 3)), 0.38);
   // V44 removes the invisible combat gate. These aircraft are targetable by
   // rule, but their physical 74-84 m orbit keeps them outside the 58 m seeker.
   setSkyDancerCleanupHeldV42(enemy, false);
@@ -183,6 +197,10 @@ function applyAttackRun(
   enemy.z = slot.z;
   const attackHeading = Math.atan2(px - slot.x, pz - slot.z);
   enemy.heading += Math.atan2(Math.sin(attackHeading - enemy.heading), Math.cos(attackHeading - enemy.heading)) * Math.min(1, 2.1 * delta);
+  // The run starts from a high/low lane and crosses the player's altitude plane
+  // as it enters seeker range, making the approach visually legible in 3D.
+  const side = slot.slot % 2 === 0 ? 1 : -1;
+  requestSkyDancerVerticalManeuverV44(enemy, distance > 62 ? side * 8.4 : -side * 8.4, 0.36);
   setSkyDancerCleanupHeldV42(enemy, false);
 }
 
