@@ -9,7 +9,10 @@ import {
 import type { RallyInputState } from "../rally/RallyTypes";
 import {
   getSkyDancerReengagementSnapshotV40,
+  skyDancerReengagementInterceptV40,
+  SKY_DANCER_V40_CLEANUP_ANGLE_TRIGGER,
   SKY_DANCER_V40_CLEANUP_SLOT_DELAY,
+  SKY_DANCER_V40_CLEANUP_TRIGGER,
 } from "./SkyDancerReengagementV40";
 
 interface NaturalMotionSession {
@@ -61,6 +64,8 @@ export const SKY_DANCER_V41_BREAKAWAY_DISTANCE = 30;
 export const SKY_DANCER_V41_APPROACH_BUFFER = 55;
 export const SKY_DANCER_V41_MAX_CRUISE_SPEED = 24;
 export const SKY_DANCER_V41_MAX_CLEANUP_SPEED = 26;
+export const SKY_DANCER_V41_MAX_CLEANUP_INTERCEPT_SPEED = 36;
+export const SKY_DANCER_V41_CLEANUP_CATCHUP_MARGIN = 4.5;
 export const SKY_DANCER_V41_MAX_ESCAPE_SPEED = 40;
 export const SKY_DANCER_V41_ESCAPE_SPEED_MARGIN = 6.5;
 export const SKY_DANCER_V41_MAX_ACCELERATION = 18;
@@ -231,6 +236,7 @@ export function installSkyDancerFlightNaturalMotionV41(): void {
       const fromPlayerZ = cartTurboHuntWrappedDelta(before.z, pz, CART_TURBO_HUNT_WORLD_DEPTH);
       const distanceBefore = Math.max(0.001, Math.hypot(fromPlayerX, fromPlayerZ));
       const outwardHeading = Math.atan2(fromPlayerX, fromPlayerZ);
+      const lockAngle = Math.abs(normalizeAngle(outwardHeading - playerHeading));
       const side = stableSide(enemy.id);
 
       const enemyVelocityX = Math.sin(before.heading) * before.speed;
@@ -252,6 +258,12 @@ export function installSkyDancerFlightNaturalMotionV41(): void {
         && closestTime > 0.05
         && predictedMissDistance < SKY_DANCER_V41_PREDICTIVE_MISS_DISTANCE;
 
+      const cleanupOrder = cleanupReadyAt !== undefined
+        ? Math.max(0, Math.round(cleanupReadyAt / SKY_DANCER_V40_CLEANUP_SLOT_DELAY))
+        : 0;
+      const cleanupNeedsIntercept = cleanupPhase
+        && (distanceBefore > SKY_DANCER_V40_CLEANUP_TRIGGER || lockAngle > SKY_DANCER_V40_CLEANUP_ANGLE_TRIGGER);
+
       let turnRate = SKY_DANCER_V41_MAX_TURN_RATE;
       let minSpeed = 9.5;
       let maxSpeed = proposedSpeed > SKY_DANCER_V41_MAX_CRUISE_SPEED
@@ -259,7 +271,38 @@ export function installSkyDancerFlightNaturalMotionV41(): void {
         : SKY_DANCER_V41_MAX_CRUISE_SPEED;
       let acceleration = SKY_DANCER_V41_MAX_ACCELERATION;
 
-      if (distanceBefore < SKY_DANCER_V41_BREAKAWAY_DISTANCE || predictiveRisk) {
+      if (cleanupPhase && distanceBefore >= SKY_DANCER_V41_MIN_PASS_DISTANCE) {
+        // Once V40 releases a cleanup survivor, guide it toward the same
+        // forward lock-cone slot V40 intended, but get there only through
+        // aircraft heading + acceleration. A temporary catch-up allowance is
+        // required because the player's Turbo cruise can exceed the normal
+        // 26 m/s cleanup cap; otherwise the last survivor can orbit forever.
+        turnRate = SKY_DANCER_V41_EMERGENCY_TURN_RATE;
+        if (cleanupNeedsIntercept) {
+          const intercept = skyDancerReengagementInterceptV40(
+            px,
+            pz,
+            playerHeading,
+            enemy,
+            true,
+            cleanupOrder,
+          );
+          const interceptDx = cartTurboHuntWrappedDelta(intercept.x, before.x, CART_TURBO_HUNT_WORLD_WIDTH);
+          const interceptDz = cartTurboHuntWrappedDelta(intercept.z, before.z, CART_TURBO_HUNT_WORLD_DEPTH);
+          desiredHeading = Math.atan2(interceptDx, interceptDz);
+          const catchupSpeed = clamp(
+            playerSpeed + SKY_DANCER_V41_CLEANUP_CATCHUP_MARGIN,
+            SKY_DANCER_V41_MAX_CLEANUP_SPEED,
+            SKY_DANCER_V41_MAX_CLEANUP_INTERCEPT_SPEED,
+          );
+          minSpeed = catchupSpeed;
+          maxSpeed = SKY_DANCER_V41_MAX_CLEANUP_INTERCEPT_SPEED;
+          acceleration = SKY_DANCER_V41_EMERGENCY_ACCELERATION;
+        } else {
+          minSpeed = 12;
+          maxSpeed = SKY_DANCER_V41_MAX_CLEANUP_SPEED;
+        }
+      } else if (distanceBefore < SKY_DANCER_V41_BREAKAWAY_DISTANCE || predictiveRisk) {
         const escapeFloor = clamp(
           playerSpeed + SKY_DANCER_V41_ESCAPE_SPEED_MARGIN,
           22,
@@ -276,13 +319,6 @@ export function installSkyDancerFlightNaturalMotionV41(): void {
         desiredHeading = normalizeAngle(outwardHeading + side * 1.02);
         turnRate = SKY_DANCER_V41_EMERGENCY_TURN_RATE;
         minSpeed = 14;
-      } else if (cleanupPhase) {
-        // Released cleanup slots deliberately cross the player's forward lock
-        // cone at a safe stand-off. Preserve the V40 intercept heading while
-        // retaining the V41 turn/speed envelope after release.
-        turnRate = SKY_DANCER_V41_EMERGENCY_TURN_RATE;
-        minSpeed = 12;
-        maxSpeed = SKY_DANCER_V41_MAX_CLEANUP_SPEED;
       }
 
       const nextHeading = rotateToward(before.heading, desiredHeading, turnRate * delta);
