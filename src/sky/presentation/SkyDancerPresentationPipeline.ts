@@ -13,6 +13,7 @@ import { SkyDancerV38AtmospherePass } from "./SkyDancerV38AtmospherePass";
 import { installSkyDancerV39VisualAuditBridge } from "./SkyDancerV39VisualAuditBridge";
 import { SkyDancerV40CityExpansionPass } from "./SkyDancerV40CityExpansionPass";
 import { SkyDancerV42ContinuityPass } from "./SkyDancerV42ContinuityPass";
+import { SkyDancerV43VerticalCombatPass } from "./SkyDancerV43VerticalCombatPass";
 
 /** Stable modern presentation pipeline. */
 export class SkyDancerPresentationPipeline {
@@ -27,6 +28,7 @@ export class SkyDancerPresentationPipeline {
   private readonly v40: SkyDancerV40CityExpansionPass;
   private readonly v41Terrain: SkyDancerTerrainContinuityV41;
   private readonly v42: SkyDancerV42ContinuityPass;
+  private readonly v43: SkyDancerV43VerticalCombatPass;
 
   constructor(runtime: SkyDancerFxRuntime) {
     this.v30 = new SkyDancerV30PresentationPass(runtime);
@@ -40,6 +42,7 @@ export class SkyDancerPresentationPipeline {
     this.v40 = new SkyDancerV40CityExpansionPass(runtime);
     this.v41Terrain = new SkyDancerTerrainContinuityV41(runtime);
     this.v42 = new SkyDancerV42ContinuityPass(runtime);
+    this.v43 = new SkyDancerV43VerticalCombatPass(runtime);
     installSkyDancerV35VisualAuditBridge(runtime);
     installSkyDancerV39VisualAuditBridge(runtime);
   }
@@ -56,5 +59,6 @@ export class SkyDancerPresentationPipeline {
     this.v40.update(snapshot);
     this.v41Terrain.update(snapshot);
     this.v42.update(snapshot);
+    this.v43.update(snapshot);
   }
 }
