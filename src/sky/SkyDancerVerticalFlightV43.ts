@@ -1,4 +1,6 @@
+import { CartArenaSession } from "../cart/CartArenaSession";
 import type { CartEnemyState } from "../cart/CartCombat";
+import type { RallyInputState } from "../rally/RallyTypes";
 
 export const SKY_DANCER_ENEMY_ALTITUDE_LIMIT_METERS = 10;
 export const SKY_DANCER_VERTICAL_COLLISION_CLEARANCE_METERS = 3.2;
@@ -32,7 +34,22 @@ export interface SkyDancerVerticalFlightContextV43 {
   delta: number;
 }
 
+interface LegacyContactSessionV43 {
+  enemies: CartEnemyState[];
+  location: { node: { id: string } };
+  car: { position: { x: number; z: number } };
+  step(input: RallyInputState, fixedDelta?: number): void;
+}
+
+interface MaskedLegacyEnemyV43 {
+  enemy: CartEnemyState;
+  x: number;
+  z: number;
+  heading: number;
+}
+
 const stateByEnemy = new WeakMap<CartEnemyState, VerticalState>();
+const LEGACY_CONTACT_FILTER_KEY = "__skyDancerV43Legacy2DContactFilterInstalled__";
 
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
@@ -215,6 +232,51 @@ export function getSkyDancerEnemyAltitudeMetersV43(enemy: CartEnemyState): numbe
   return stateFor(enemy).altitudeOffsetMeters;
 }
 
+/**
+ * The inherited Cart simulation is still 2D. Once an aircraft has enough
+ * altitude clearance to pass over/under the player, its old planar contact and
+ * Turbo-RAM bubble must stop applying. Sky Dancer's own flight/missile layers
+ * continue to use the real x/z position immediately after this legacy step.
+ */
+export function shouldSuppressSkyDancerLegacy2DContactV43(enemy: CartEnemyState): boolean {
+  return Math.abs(getSkyDancerEnemyAltitudeMetersV43(enemy)) >= SKY_DANCER_VERTICAL_COLLISION_CLEARANCE_METERS;
+}
+
+function installSkyDancerLegacy2DContactFilterV43(): void {
+  const prototype = CartArenaSession.prototype as unknown as LegacyContactSessionV43 & Record<string, unknown>;
+  if (prototype[LEGACY_CONTACT_FILTER_KEY]) return;
+  prototype[LEGACY_CONTACT_FILTER_KEY] = true;
+  const legacyStep = prototype.step;
+
+  prototype.step = function skyDancerV43LegacyContactFilteredStep(input: RallyInputState, fixedDelta?: number): void {
+    const session = this as unknown as LegacyContactSessionV43;
+    const masked: MaskedLegacyEnemyV43[] = [];
+    let slot = 0;
+
+    for (const enemy of session.enemies) {
+      if (!enemy.alive || enemy.nodeId !== session.location.node.id) continue;
+      if (!shouldSuppressSkyDancerLegacy2DContactV43(enemy)) continue;
+      masked.push({ enemy, x: enemy.x, z: enemy.z, heading: enemy.heading });
+      // Move only for the inherited 2D contact pass. Distinct remote slots avoid
+      // accidental enemy overlap while keeping alive/node/progression state intact.
+      const displacement = 5000 + slot * 173;
+      enemy.x = session.car.position.x + displacement;
+      enemy.z = session.car.position.z - displacement * 0.83;
+      slot += 1;
+    }
+
+    try {
+      legacyStep.call(this, input, fixedDelta);
+    } finally {
+      for (const saved of masked) {
+        saved.enemy.x = saved.x;
+        saved.enemy.z = saved.z;
+        saved.enemy.heading = saved.heading;
+      }
+    }
+  };
+}
+
 export function skyDancerDistance3DV43(
   ax: number,
   ay: number,
@@ -225,3 +287,8 @@ export function skyDancerDistance3DV43(
 ): number {
   return Math.hypot(ax - bx, ay - by, az - bz);
 }
+
+// FlightCombat installs later at runtime and captures this filtered legacy step.
+// Keeping the filter here means V43 can add real altitude contact semantics
+// without modifying the shared Cart simulation used by other game modes.
+installSkyDancerLegacy2DContactFilterV43();
