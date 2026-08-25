@@ -41,6 +41,8 @@ test("V42 normal wave flight never uses angle-only screen-edge correction", () =
 test("V42 ground scenery stays world anchored instead of snapping every 420m", () => {
   const v36 = read("../src/sky/presentation/SkyDancerV36WorldGeometryPass.ts");
   const v40 = read("../src/sky/presentation/SkyDancerV40CityExpansionPass.ts");
+  const v42 = read("../src/sky/presentation/SkyDancerV42ContinuityPass.ts");
+  const pipeline = read("../src/sky/presentation/SkyDancerPresentationPipeline.ts");
   for (const source of [v36, v40]) {
     assert.match(source, /skyDancerV42StableGroundAnchor/);
     assert.match(source, /if \(this\.anchored\) return/);
@@ -49,4 +51,12 @@ test("V42 ground scenery stays world anchored instead of snapping every 420m", (
   assert.match(v40, /rootPosition:/);
   assert.doesNotMatch(v36, /if \(tileX === this\.tileX && tileZ === this\.tileZ\) return/);
   assert.doesNotMatch(v40, /if \(tileX === this\.tileX && tileZ === this\.tileZ\) return/);
+  assert.match(v42, /sky-dancer-v42-stable-river-root/);
+  assert.match(v42, /sky-dancer-v35-focus-streets/);
+  assert.match(v42, /sky-dancer-v35-focus-river/);
+  assert.match(v42, /sky-dancer-v31-forest-belts/);
+  assert.match(v42, /ridgeRoot\.position\.set\(snapshot\.x, 0, snapshot\.z\)/);
+  assert.match(v42, /__skyDancerGetV42Continuity/);
+  assert.match(pipeline, /SkyDancerV42ContinuityPass/);
+  assert.match(pipeline, /this\.v41Terrain\.update\(snapshot\);\n    this\.v42\.update\(snapshot\);/);
 });
