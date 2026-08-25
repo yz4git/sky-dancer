@@ -14,6 +14,7 @@ on:
       - "scripts/webgl-v35-reference-audit.mjs"
       - "scripts/webgl-v39-reference-audit.mjs"
       - "scripts/webgl-v40-quality-audit.mjs"
+      - "scripts/webgl-v41-flight-terrain-audit.mjs"
       - "tests/**"
       - "package.json"
       - ".github/workflows/webgl-audit.yml"
@@ -29,6 +30,7 @@ on:
       - "scripts/webgl-v35-reference-audit.mjs"
       - "scripts/webgl-v39-reference-audit.mjs"
       - "scripts/webgl-v40-quality-audit.mjs"
+      - "scripts/webgl-v41-flight-terrain-audit.mjs"
       - "tests/**"
       - "package.json"
       - ".github/workflows/webgl-audit.yml"
@@ -82,6 +84,9 @@ jobs:
 
       - name: Validate V36-V39 reference fidelity
         run: node scripts/webgl-v39-reference-audit.mjs
+
+      - name: Playcheck V41 aircraft motion and terrain continuity
+        run: node scripts/webgl-v41-flight-terrain-audit.mjs
 
       - name: Playcheck V34 boss encounter
         run: node scripts/webgl-boss-audit.mjs
