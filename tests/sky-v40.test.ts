@@ -30,16 +30,21 @@ test("V40 re-engagement envelope stays inside the 58m missile lock range", () =>
   assert.ok(SKY_DANCER_V40_CLEANUP_TARGET < SKY_DANCER_V40_CLEANUP_TRIGGER);
   assert.ok(SKY_DANCER_V40_REENGAGE_ANGLE_TRIGGER < SKY_DANCER_V40_LOCK_HALF_ANGLE);
   assert.ok(SKY_DANCER_V40_CLEANUP_ANGLE_TRIGGER < SKY_DANCER_V40_REENGAGE_ANGLE_TRIGGER);
-  assert.ok(SKY_DANCER_V40_CLEANUP_SLOT_DELAY >= 0.75 && SKY_DANCER_V40_CLEANUP_SLOT_DELAY <= 1.1);
+  assert.ok(SKY_DANCER_V40_CLEANUP_SLOT_DELAY >= 4 && SKY_DANCER_V40_CLEANUP_SLOT_DELAY <= 4.5);
   assert.ok(skyDancerReengagementClosingSpeedV40(80, true) > 31.5);
   assert.ok(skyDancerReengagementClosingSpeedV40(100, true) <= 60);
 });
 
-test("V40 re-engagement corrects both range and lock-cone geometry", () => {
+test("V40 re-engagement corrects both range and lock-cone geometry with frozen cleanup slots", () => {
   const source = read("../src/sky/SkyDancerReengagementV40.ts");
   assert.match(source, /skyDancerReengagementInterceptV40/);
   assert.match(source, /lockAngle > angleTrigger/);
-  assert.match(source, /cleanupElapsed >= order \* SKY_DANCER_V40_CLEANUP_SLOT_DELAY/);
+  assert.match(source, /cleanupSlots: new Map/);
+  assert.match(source, /initialSurvivors\.forEach/);
+  assert.match(source, /cleanupSlots\.get\(enemy\.id\)/);
+  assert.match(source, /cleanupElapsed >= cleanupSlot \* SKY_DANCER_V40_CLEANUP_SLOT_DELAY/);
+  assert.match(source, /lastCleanupDuration/);
+  assert.match(source, /cleanupScheduledEnemies/);
   assert.match(source, /lockConeCandidates/);
   assert.match(source, /cartTurboHuntNearestCoordinate/);
   assert.match(source, /playerHeading/);
