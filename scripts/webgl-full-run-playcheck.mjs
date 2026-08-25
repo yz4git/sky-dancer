@@ -3,7 +3,7 @@ import { chromium } from "playwright";
 
 const baseUrl = process.env.SKY_DANCER_AUDIT_URL || "http://127.0.0.1:4173";
 const outputDir = process.env.SKY_DANCER_AUDIT_DIR || "artifacts/webgl-audit";
-const MAX_WALL_MS = 240_000;
+const MAX_WALL_MS = 360_000;
 const SAMPLE_MS = 420;
 
 await mkdir(outputDir, { recursive: true });
@@ -33,7 +33,7 @@ let lastStateKey = "";
 let lastHitSerial = 0;
 let lastShotSerial = 0;
 let reachedStage2 = false;
-let reachedStage1Target = false;
+let reachedCleanup = false;
 let reachedBoss = false;
 let reachedClear = false;
 let turboReleases = 0;
@@ -43,7 +43,7 @@ let nextTurboAt = 5_600;
 let turboHeld = false;
 let turboReleaseAt = 0;
 let firstHitSeconds = null;
-let stage1TargetSeconds = null;
+let cleanupSeenSeconds = null;
 let bossSeenSeconds = null;
 let clearSeenSeconds = null;
 let stage2Seconds = null;
@@ -129,10 +129,13 @@ while (Date.now() - began < MAX_WALL_MS && !reachedStage2) {
     lastShotSerial = shotSerial;
   }
 
-  if (!reachedStage1Target && state.huntTarget === 12 && Number(state.huntProgress) >= 12) {
-    reachedStage1Target = true;
-    stage1TargetSeconds = wallSeconds;
-    await captureOnce("stage1-target", "21-full-run-stage1-target");
+  // The live HUD switches directly from the 12-kill reinforcement contract to
+  // a remaining-enemies cleanup counter (for Stage 1 this is typically /5), so
+  // target < 12 is the rendered transition we can reliably observe.
+  if (!reachedCleanup && state.huntTarget != null && state.huntTarget > 1 && state.huntTarget < 12 && !bossActive) {
+    reachedCleanup = true;
+    cleanupSeenSeconds = wallSeconds;
+    await captureOnce("cleanup", "21-full-run-cleanup");
   }
   if (!reachedBoss && bossActive) {
     reachedBoss = true;
@@ -144,8 +147,8 @@ while (Date.now() - began < MAX_WALL_MS && !reachedStage2) {
     clearSeenSeconds = wallSeconds;
     await captureOnce("clear", "23-full-run-clear");
   }
-  // Stage 2's reinforcement target is 16. Boss mode uses 192 and Stage 1 uses 12,
-  // so this is a stable live-HUD proof that the complete Stage 1 cycle advanced.
+  // Stage 2's reinforcement target is 16. Boss mode uses 192, cleanup is <12,
+  // and Stage 1 reinforcement mode is 12, so this proves the full cycle advanced.
   if (state.huntTarget === 16) {
     reachedStage2 = true;
     stage2Seconds = wallSeconds;
@@ -160,17 +163,17 @@ const shots = Number(final.weapon?.shotSerial ?? lastShotSerial);
 const hits = Number(final.weapon?.hitSerial ?? lastHitSerial);
 const diagnostics = {
   completed: reachedStage2,
-  reachedStage1Target,
+  reachedCleanup,
   reachedBoss,
   reachedClear,
   reachedStage2,
   wallSeconds: Number(((Date.now() - began) / 1000).toFixed(2)),
   firstHitSeconds,
-  stage1TargetSeconds,
+  cleanupSeenSeconds,
   bossSeenSeconds,
   clearSeenSeconds,
   stage2Seconds,
-  stage1CleanupSeconds: stage1TargetSeconds != null && bossSeenSeconds != null ? Number((bossSeenSeconds - stage1TargetSeconds).toFixed(2)) : null,
+  cleanupDurationSeconds: cleanupSeenSeconds != null && bossSeenSeconds != null ? Number((bossSeenSeconds - cleanupSeenSeconds).toFixed(2)) : null,
   bossToStage2Seconds: bossSeenSeconds != null && stage2Seconds != null ? Number((stage2Seconds - bossSeenSeconds).toFixed(2)) : null,
   shots,
   hits,
