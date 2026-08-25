@@ -43,18 +43,18 @@ export default function SkyDancerHudV40() {
   }, [bossActive]);
 
   const content = useMemo(() => {
-    if (!stage) return { title: "STAGE 1", phase: "WAVE", detail: "ENGAGE", progress: 0 };
-    if (stage.phase === "boss") {
-      const maxHp = Math.max(1, boss?.maxHp ?? stage.bossMaxHp);
-      const hp = Math.max(0, boss?.hp ?? stage.bossHp);
+    if (bossActive) {
+      const maxHp = Math.max(1, boss?.maxHp ?? stage?.bossMaxHp ?? 1);
+      const hp = Math.max(0, boss?.hp ?? stage?.bossHp ?? maxHp);
       const mode = boss?.mode === "break" ? "CORE OPEN" : boss?.mode === "strike" ? "ATTACK RUN" : "INTERCEPT";
       return {
-        title: `STAGE ${stage.stage}`,
+        title: `STAGE ${stage?.stage ?? 1}`,
         phase: "BOSS",
         detail: `P${boss?.phase ?? 1} · ${mode} · ${Math.round(hp)} / ${Math.round(maxHp)}`,
         progress: Math.max(0, Math.min(1, hp / maxHp)),
       };
     }
+    if (!stage) return { title: "STAGE 1", phase: "WAVE", detail: "ENGAGE", progress: 0 };
     if (stage.phase === "cleanup") {
       return {
         title: `STAGE ${stage.stage}`,
@@ -77,7 +77,7 @@ export default function SkyDancerHudV40() {
       detail: `${Math.min(stage.stageKills, stage.reinforcementTarget)} / ${stage.reinforcementTarget}`,
       progress: Math.min(1, stage.stageKills / Math.max(1, stage.reinforcementTarget)),
     };
-  }, [stage, boss]);
+  }, [stage, boss, bossActive]);
 
   return <>
     <style>{`
