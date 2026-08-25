@@ -47,6 +47,16 @@ test("V41 aircraft motion uses predictive separation and bounded kinematics", ()
   assert.doesNotMatch(source, /72 \* delta/);
 });
 
+test("V41 leaves unreleased V40 cleanup holding slots under V40 ownership", () => {
+  const source = read("../src/sky/SkyDancerFlightNaturalMotionV41.ts");
+  assert.match(source, /SKY_DANCER_V40_CLEANUP_SLOT_DELAY/);
+  assert.match(source, /state\.cleanupSlots\.set\(id, index \* SKY_DANCER_V40_CLEANUP_SLOT_DELAY\)/);
+  assert.match(source, /const cleanupHeld = cleanupPhase/);
+  assert.match(source, /if \(cleanupHeld\) \{/);
+  assert.match(source, /before\.x = enemy\.x/);
+  assert.match(source, /before\.speed = Math\.min\(before\.speed, SKY_DANCER_V41_MAX_CLEANUP_SPEED\)/);
+});
+
 test("V41 is installed outside V40 in WebGL and Canvas runtimes", () => {
   const webgl = read("../src/sky/SkyDancerAirCombatFx.ts");
   const canvas = read("../src/sky/SkyDancerCanvasPreviewV4.ts");
