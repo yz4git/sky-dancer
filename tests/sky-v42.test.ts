@@ -2,11 +2,17 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import {
+  isSkyDancerCombatTargetableV42,
+  setSkyDancerCleanupHeldV42,
+} from "../src/sky/SkyDancerCombatEligibilityV42";
+import {
   SKY_DANCER_V40_CLEANUP_HOLD_DISTANCE,
   SKY_DANCER_V40_CLEANUP_SLOT_DELAY,
   SKY_DANCER_V40_LOCK_HALF_ANGLE,
   SKY_DANCER_V40_LOCK_RANGE,
   SKY_DANCER_V42_CLEANUP_HOLD_FOLLOW_SPEED,
+  SKY_DANCER_V42_CLEANUP_RELEASE_MAX_DISTANCE,
+  skyDancerCleanupReleasePositionV42,
   skyDancerCleanupSlotOrderV42,
 } from "../src/sky/SkyDancerReengagementV40";
 
@@ -35,7 +41,7 @@ test("V42 cleanup holding aircraft do not rotate with live player yaw", () => {
   assert.ok(SKY_DANCER_V40_LOCK_HALF_ANGLE < 1.0);
 });
 
-test("V42 cleanup releases the nearest survivor first without teleporting it", () => {
+test("V42 cleanup releases the nearest survivor first and pulls only an out-of-range lead inward", () => {
   const survivors = [
     { id: "enemy-far", x: 63, z: 0 },
     { id: "enemy-near", x: 46, z: 0 },
@@ -43,9 +49,32 @@ test("V42 cleanup releases the nearest survivor first without teleporting it", (
   ] as unknown as Parameters<typeof skyDancerCleanupSlotOrderV42>[0];
   const ordered = skyDancerCleanupSlotOrderV42(survivors, 0, 0);
   assert.deepEqual(ordered.map((enemy) => enemy.id), ["enemy-near", "enemy-mid", "enemy-far"]);
+
+  const alreadyReachable = skyDancerCleanupReleasePositionV42(0, 0, 46, 0);
+  assert.deepEqual(alreadyReachable, { x: 46, z: 0 });
+  const pulled = skyDancerCleanupReleasePositionV42(0, 0, 64, 0);
+  assert.ok(Math.hypot(pulled.x, pulled.z) <= SKY_DANCER_V42_CLEANUP_RELEASE_MAX_DISTANCE + 0.001);
+  assert.ok(SKY_DANCER_V42_CLEANUP_RELEASE_MAX_DISTANCE < SKY_DANCER_V40_LOCK_RANGE);
+
   const source = read("../src/sky/SkyDancerReengagementV40.ts");
   assert.match(source, /const initialSurvivors = skyDancerCleanupSlotOrderV42\(liveNonBossEnemies\(this, nodeId\), px, pz\)/);
-  assert.match(source, /if \(index <= 0\) return;/);
+  assert.match(source, /const release = skyDancerCleanupReleasePositionV42\(px, pz, enemy\.x, enemy\.z\)/);
+});
+
+test("V42 unreleased cleanup slots are visible formation aircraft but not missile targets", () => {
+  const enemy = { id: "held-cleanup-aircraft" } as unknown as Parameters<typeof setSkyDancerCleanupHeldV42>[0];
+  assert.equal(isSkyDancerCombatTargetableV42(enemy), true);
+  setSkyDancerCleanupHeldV42(enemy, true);
+  assert.equal(isSkyDancerCombatTargetableV42(enemy), false);
+  setSkyDancerCleanupHeldV42(enemy, false);
+  assert.equal(isSkyDancerCombatTargetableV42(enemy), true);
+
+  const reengagement = read("../src/sky/SkyDancerReengagementV40.ts");
+  const weapons = read("../src/sky/SkyDancerPlayerWeapons.ts");
+  assert.match(reengagement, /setSkyDancerCleanupHeldV42\(enemy, index > 0\)/);
+  assert.match(reengagement, /setSkyDancerCleanupHeldV42\(enemy, cleanup && !cleanupSlotReady\)/);
+  assert.match(weapons, /enemy\.alive && enemy\.nodeId === nodeId && isSkyDancerCombatTargetableV42\(enemy\)/);
+  assert.match(weapons, /Held CLEANUP aircraft are deliberately omitted/);
 });
 
 test("V42 cleanup cadence cannot collapse below the target window and keeps radial headroom", () => {
