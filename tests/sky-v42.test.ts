@@ -64,7 +64,7 @@ test("V42 cleanup releases the nearest survivor first and keeps live slots insid
   assert.match(source, /preserves the aircraft's world/);
 });
 
-test("V42 unreleased cleanup slots are visible formation aircraft but not missile targets", () => {
+test("V42 unreleased cleanup slots are visible formation aircraft but not missile targets or lock-envelope samples", () => {
   const enemy = { id: "held-cleanup-aircraft" } as unknown as Parameters<typeof setSkyDancerCleanupHeldV42>[0];
   assert.equal(isSkyDancerCombatTargetableV42(enemy), true);
   setSkyDancerCleanupHeldV42(enemy, true);
@@ -76,6 +76,11 @@ test("V42 unreleased cleanup slots are visible formation aircraft but not missil
   const weapons = read("../src/sky/SkyDancerPlayerWeapons.ts");
   assert.match(reengagement, /setSkyDancerCleanupHeldV42\(enemy, index > 0\)/);
   assert.match(reengagement, /setSkyDancerCleanupHeldV42\(enemy, cleanup && !cleanupSlotReady\)/);
+  assert.match(reengagement, /exclude them from lock-envelope diagnostics/);
+  const heldBlock = reengagement.match(/if \(cleanup && !cleanupSlotReady\) \{([\s\S]*?)continue;\n        \}/)?.[1];
+  assert.ok(heldBlock);
+  assert.doesNotMatch(heldBlock, /maxEnemyDistance/);
+  assert.doesNotMatch(heldBlock, /maxLockAngle/);
   assert.match(weapons, /enemy\.alive && enemy\.nodeId === nodeId && isSkyDancerCombatTargetableV42\(enemy\)/);
   assert.match(weapons, /Held CLEANUP aircraft are deliberately omitted/);
 });
