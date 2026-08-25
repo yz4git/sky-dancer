@@ -1,7 +1,11 @@
 import { CartArenaSession } from "../cart/CartArenaSession";
 import type { CartEnemyState } from "../cart/CartCombat";
 import type { RallyInputState } from "../rally/RallyTypes";
-import { setSkyDancerCleanupHeldV42 } from "./SkyDancerCombatEligibilityV42";
+import {
+  setSkyDancerCleanupHeldV42,
+  setSkyDancerCombatOutOfSeekerRangeV44,
+} from "./SkyDancerCombatEligibilityV42";
+import { SKY_DANCER_PLAYER_MISSILE_LOCK_DISTANCE } from "./SkyDancerPlayerWeapons";
 import { getSkyDancerStageCycleSnapshot } from "./SkyDancerStageCycle";
 import { requestSkyDancerVerticalManeuverV44 } from "./SkyDancerVerticalFlightV43";
 
@@ -86,6 +90,18 @@ function liveCleanupEnemies(session: AttackRunSession): CartEnemyState[] {
   return session.enemies.filter((enemy) => enemy.alive && enemy.kind !== "boss" && enemy.nodeId === nodeId);
 }
 
+function setPhysicalSeekerEligibility(
+  session: AttackRunSession,
+  enemy: CartEnemyState,
+  distanceOverride?: number,
+): void {
+  const distance = distanceOverride ?? Math.hypot(
+    enemy.x - session.car.position.x,
+    enemy.z - session.car.position.z,
+  );
+  setSkyDancerCombatOutOfSeekerRangeV44(enemy, distance > SKY_DANCER_PLAYER_MISSILE_LOCK_DISTANCE);
+}
+
 function buildSlots(session: AttackRunSession, state: DirectorState): void {
   state.slots.clear();
   state.releasedRuns = 0;
@@ -102,7 +118,7 @@ function buildSlots(session: AttackRunSession, state: DirectorState): void {
     const radius = SKY_DANCER_V44_CLEANUP_ORBIT_MIN_DISTANCE
       + (hash % Math.max(1, SKY_DANCER_V44_CLEANUP_ORBIT_MAX_DISTANCE - SKY_DANCER_V44_CLEANUP_ORBIT_MIN_DISTANCE + 1));
     // V40's compatibility layer stages waiting aircraft close to the player.
-    // V44 is outermost and replaces that hidden gate before the frame renders:
+    // V44 is outermost and replaces that hidden timed gate before rendering:
     // waiting slots begin on a real out-of-range orbit immediately, while slot
     // zero preserves the naturally closest survivor as the first live fight.
     const x = slot === 0 ? enemy.x : px + Math.sin(angle) * radius;
@@ -112,6 +128,10 @@ function buildSlots(session: AttackRunSession, state: DirectorState): void {
       enemy.z = z;
       enemy.heading = angle + (slot % 2 === 0 ? Math.PI * 0.5 : -Math.PI * 0.5);
       setSkyDancerCleanupHeldV42(enemy, false);
+      setPhysicalSeekerEligibility(session, enemy, radius);
+    } else {
+      setSkyDancerCleanupHeldV42(enemy, false);
+      setPhysicalSeekerEligibility(session, enemy);
     }
     state.slots.set(enemy.id, {
       id: enemy.id,
@@ -161,9 +181,11 @@ function applyOrbit(
   const tangent = slot.angle + (slot.slot % 2 === 0 ? Math.PI * 0.5 : -Math.PI * 0.5);
   enemy.heading += Math.atan2(Math.sin(tangent - enemy.heading), Math.cos(tangent - enemy.heading)) * Math.min(1, 1.3 * delta);
   requestSkyDancerVerticalManeuverV44(enemy, (slot.slot % 2 === 0 ? 1 : -1) * (6.4 + (slot.slot % 3)), 0.38);
-  // V44 removes the invisible combat gate. These aircraft are targetable by
-  // rule, but their physical 74-84 m orbit keeps them outside the 58 m seeker.
+  // Waiting aircraft are not protected by a timer. Their actual player range
+  // is sampled every fixed step; the missile collision list opens on the same
+  // step that the aircraft physically crosses the 58 m seeker boundary.
   setSkyDancerCleanupHeldV42(enemy, false);
+  setPhysicalSeekerEligibility(session, enemy);
 }
 
 function applyAttackRun(
@@ -186,6 +208,7 @@ function applyAttackRun(
     slot.completed = true;
     state.completedRuns += 1;
     setSkyDancerCleanupHeldV42(enemy, false);
+    setSkyDancerCombatOutOfSeekerRangeV44(enemy, false);
     return;
   }
 
@@ -202,6 +225,7 @@ function applyAttackRun(
   const side = slot.slot % 2 === 0 ? 1 : -1;
   requestSkyDancerVerticalManeuverV44(enemy, distance > 62 ? side * 8.4 : -side * 8.4, 0.36);
   setSkyDancerCleanupHeldV42(enemy, false);
+  setPhysicalSeekerEligibility(session, enemy, targetDistance);
 }
 
 export function installSkyDancerAttackRunsV44(): void {
@@ -224,7 +248,10 @@ export function installSkyDancerAttackRunsV44(): void {
     } else if (cleanup) {
       state.elapsed += delta;
     } else if (state.previousCleanup) {
-      for (const enemy of session.enemies) setSkyDancerCleanupHeldV42(enemy, false);
+      for (const enemy of session.enemies) {
+        setSkyDancerCleanupHeldV42(enemy, false);
+        setSkyDancerCombatOutOfSeekerRangeV44(enemy, false);
+      }
       state.slots.clear();
       state.elapsed = 0;
     }
@@ -240,6 +267,7 @@ export function installSkyDancerAttackRunsV44(): void {
         const slot = state.slots.get(enemy.id);
         if (!slot || slot.completed || slot.slot === 0) {
           setSkyDancerCleanupHeldV42(enemy, false);
+          setPhysicalSeekerEligibility(session, enemy);
           continue;
         }
         const releaseTime = slot.slot * SKY_DANCER_V44_ATTACK_RUN_RELEASE_INTERVAL;
