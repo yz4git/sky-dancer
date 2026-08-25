@@ -12,7 +12,12 @@ import { getSkyDancerReengagementSnapshotV40 } from "./SkyDancerReengagementV40"
 interface NaturalMotionSession {
   enemies: CartEnemyState[];
   location: { node: { id: string } };
-  car: { position: { x: number; z: number }; heading: number };
+  car: {
+    position: { x: number; z: number };
+    heading: number;
+    forwardVelocity: number;
+    lateralVelocity?: number;
+  };
   step(input: RallyInputState, fixedDelta?: number): void;
 }
 
@@ -20,6 +25,7 @@ interface EnemyBeforeFrame {
   x: number;
   z: number;
   heading: number;
+  speed: number;
 }
 
 interface NaturalMotionState {
@@ -52,8 +58,14 @@ export const SKY_DANCER_V41_BREAKAWAY_DISTANCE = 30;
 export const SKY_DANCER_V41_APPROACH_BUFFER = 55;
 export const SKY_DANCER_V41_MAX_CRUISE_SPEED = 24;
 export const SKY_DANCER_V41_MAX_CLEANUP_SPEED = 26;
+export const SKY_DANCER_V41_MAX_ESCAPE_SPEED = 40;
+export const SKY_DANCER_V41_ESCAPE_SPEED_MARGIN = 6.5;
+export const SKY_DANCER_V41_MAX_ACCELERATION = 18;
+export const SKY_DANCER_V41_EMERGENCY_ACCELERATION = 28;
 export const SKY_DANCER_V41_MAX_TURN_RATE = 1.12;
 export const SKY_DANCER_V41_EMERGENCY_TURN_RATE = 1.65;
+const OVERTAKE_RISK_DISTANCE = 58;
+const OVERTAKE_RISK_ANGLE = 0.72;
 const CLEANUP_SLOT_SPACING = 4.8;
 const CLEANUP_HOLD_DISTANCE = 49;
 
@@ -71,6 +83,11 @@ function normalizeAngle(value: number): number {
 function rotateToward(current: number, target: number, maxTurn: number): number {
   const delta = normalizeAngle(target - current);
   return normalizeAngle(current + clamp(delta, -maxTurn, maxTurn));
+}
+
+function moveToward(current: number, target: number, maxDelta: number): number {
+  if (target > current) return Math.min(target, current + maxDelta);
+  return Math.max(target, current - maxDelta);
 }
 
 function stableSide(id: string): number {
@@ -105,8 +122,9 @@ function stateFor(session: object): NaturalMotionState {
  *
  * Older directors are still allowed to choose *where* an enemy wants to go,
  * but their post-step displacement is converted back into aircraft motion:
- * bounded turn rate, bounded forward speed, no sideways teleport correction,
- * and an early breakaway before the fighter reaches the player's camera.
+ * bounded turn rate, acceleration-limited forward speed, no sideways teleport
+ * correction, and a predictive breakaway before a boosted player can overtake
+ * a fighter and enter its camera bubble.
  */
 export function installSkyDancerFlightNaturalMotionV41(): void {
   const prototype = CartArenaSession.prototype as unknown as NaturalMotionSession & Record<string, unknown>;
@@ -135,7 +153,7 @@ export function installSkyDancerFlightNaturalMotionV41(): void {
         before.z = enemy.z;
         before.heading = enemy.heading;
       } else {
-        state.before.set(enemy.id, { x: enemy.x, z: enemy.z, heading: enemy.heading });
+        state.before.set(enemy.id, { x: enemy.x, z: enemy.z, heading: enemy.heading, speed: 16 });
       }
       const readyAt = state.cleanupSlots.get(enemy.id);
       if (state.cleanupActive && readyAt !== undefined && state.cleanupElapsed + 0.001 < readyAt) {
@@ -169,6 +187,11 @@ export function installSkyDancerFlightNaturalMotionV41(): void {
     const nodeId = this.location.node.id;
     const px = this.car.position.x;
     const pz = this.car.position.z;
+    const playerHeading = this.car.heading;
+    const playerSpeed = Math.hypot(
+      Number.isFinite(this.car.forwardVelocity) ? this.car.forwardVelocity : 0,
+      Number.isFinite(this.car.lateralVelocity ?? 0) ? (this.car.lateralVelocity ?? 0) : 0,
+    );
     let minEnemyDistance = Number.POSITIVE_INFINITY;
     let maxStepSpeed = 0;
     let maxTurnRate = 0;
@@ -192,18 +215,30 @@ export function installSkyDancerFlightNaturalMotionV41(): void {
       const fromPlayerZ = cartTurboHuntWrappedDelta(before.z, pz, CART_TURBO_HUNT_WORLD_DEPTH);
       const distanceBefore = Math.max(0.001, Math.hypot(fromPlayerX, fromPlayerZ));
       const outwardHeading = Math.atan2(fromPlayerX, fromPlayerZ);
+      const playerBearing = Math.abs(normalizeAngle(outwardHeading - playerHeading));
       const side = stableSide(enemy.id);
+      const overtakeRisk = !cleanupPhase
+        && distanceBefore < OVERTAKE_RISK_DISTANCE
+        && playerBearing < OVERTAKE_RISK_ANGLE
+        && playerSpeed > SKY_DANCER_V41_MAX_CLEANUP_SPEED;
       let turnRate = SKY_DANCER_V41_MAX_TURN_RATE;
       let minSpeed = 9.5;
       let maxSpeed = proposedSpeed > SKY_DANCER_V41_MAX_CRUISE_SPEED
         ? SKY_DANCER_V41_MAX_CLEANUP_SPEED
         : SKY_DANCER_V41_MAX_CRUISE_SPEED;
+      let acceleration = SKY_DANCER_V41_MAX_ACCELERATION;
 
-      if (distanceBefore < SKY_DANCER_V41_BREAKAWAY_DISTANCE) {
-        desiredHeading = normalizeAngle(outwardHeading + side * 0.34);
+      if (distanceBefore < SKY_DANCER_V41_BREAKAWAY_DISTANCE || overtakeRisk) {
+        const escapeFloor = clamp(
+          playerSpeed + SKY_DANCER_V41_ESCAPE_SPEED_MARGIN,
+          22,
+          SKY_DANCER_V41_MAX_ESCAPE_SPEED - 1,
+        );
+        desiredHeading = normalizeAngle(outwardHeading + side * (distanceBefore < SKY_DANCER_V41_BREAKAWAY_DISTANCE ? 0.24 : 0.16));
         turnRate = SKY_DANCER_V41_EMERGENCY_TURN_RATE;
-        minSpeed = 18;
-        maxSpeed = SKY_DANCER_V41_MAX_CLEANUP_SPEED;
+        minSpeed = Math.max(18, escapeFloor);
+        maxSpeed = SKY_DANCER_V41_MAX_ESCAPE_SPEED;
+        acceleration = SKY_DANCER_V41_EMERGENCY_ACCELERATION;
         emergencyBreakaways += 1;
       } else if (!cleanupPhase && distanceBefore < SKY_DANCER_V41_APPROACH_BUFFER) {
         desiredHeading = normalizeAngle(outwardHeading + side * 1.02);
@@ -221,8 +256,17 @@ export function installSkyDancerFlightNaturalMotionV41(): void {
       const nextHeading = rotateToward(before.heading, desiredHeading, turnRate * delta);
       const headingDelta = Math.abs(normalizeAngle(nextHeading - before.heading));
       const observedTurnRate = headingDelta / delta;
-      let speed = clamp(Number.isFinite(proposedSpeed) ? proposedSpeed : minSpeed, minSpeed, maxSpeed);
-      if (distanceBefore < SKY_DANCER_V41_MIN_PASS_DISTANCE) speed = Math.max(speed, 20);
+      const targetSpeed = clamp(Number.isFinite(proposedSpeed) ? proposedSpeed : minSpeed, minSpeed, maxSpeed);
+      let speed = moveToward(before.speed, targetSpeed, acceleration * delta);
+      if (distanceBefore < SKY_DANCER_V41_MIN_PASS_DISTANCE) {
+        const emergencyFloor = clamp(
+          playerSpeed + SKY_DANCER_V41_ESCAPE_SPEED_MARGIN,
+          22,
+          SKY_DANCER_V41_MAX_ESCAPE_SPEED,
+        );
+        speed = moveToward(speed, emergencyFloor, SKY_DANCER_V41_EMERGENCY_ACCELERATION * delta);
+      }
+      before.speed = speed;
 
       enemy.heading = nextHeading;
       enemy.x = before.x + Math.sin(nextHeading) * speed * delta;
