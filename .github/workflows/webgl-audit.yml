@@ -13,6 +13,7 @@ on:
       - "scripts/webgl-turbo-isolation-audit.mjs"
       - "scripts/webgl-v35-reference-audit.mjs"
       - "scripts/webgl-v39-reference-audit.mjs"
+      - "scripts/webgl-v40-quality-audit.mjs"
       - "tests/**"
       - "package.json"
       - ".github/workflows/webgl-audit.yml"
@@ -27,6 +28,7 @@ on:
       - "scripts/webgl-turbo-isolation-audit.mjs"
       - "scripts/webgl-v35-reference-audit.mjs"
       - "scripts/webgl-v39-reference-audit.mjs"
+      - "scripts/webgl-v40-quality-audit.mjs"
       - "tests/**"
       - "package.json"
       - ".github/workflows/webgl-audit.yml"
@@ -86,6 +88,9 @@ jobs:
 
       - name: Verify isolated Turbo world motion
         run: node scripts/webgl-turbo-isolation-audit.mjs
+
+      - name: Playcheck V40 full stage cycle
+        run: node scripts/webgl-v40-quality-audit.mjs
 
       - name: Upload WebGL visual audit
         if: always()
