@@ -12,6 +12,7 @@ const PLAYER_HIT_BURST_V6_SCALE = 0.74;
 export const SKY_DANCER_V40_BURST_LINEAR_SCALE = 0.55;
 export const SKY_DANCER_V40_AIR_BURST_SCALE = AIR_BURST_V6_SCALE * SKY_DANCER_V40_BURST_LINEAR_SCALE;
 export const SKY_DANCER_V40_PLAYER_HIT_BURST_SCALE = PLAYER_HIT_BURST_V6_SCALE * SKY_DANCER_V40_BURST_LINEAR_SCALE;
+export const SKY_DANCER_V40_V21_IMPACT_LINEAR_SCALE = 0.38;
 
 interface CitySector {
   x: number;
@@ -42,9 +43,9 @@ function hash2(x: number, z: number, salt = 0): number {
  * composition. This pass leaves it untouched and fills the other three broad
  * directions with cheaper instanced districts, so long turns no longer reveal
  * one city island surrounded by empty green terrain. It also runs after the
- * inherited V6 combat FX and cuts its large center-crossing air-burst group by
- * another 45% in linear size. Both changes are render-only: collision, damage,
- * flight height and combat timing are untouched.
+ * inherited combat FX and cuts both the V2 air-burst family and V21 missile-hit
+ * rings before they can dominate the center of the chase view. All changes are
+ * render-only: collision, damage, flight height and combat timing are untouched.
  */
 export class SkyDancerV40CityExpansionPass {
   private readonly root = new THREE.Group();
@@ -93,17 +94,27 @@ export class SkyDancerV40CityExpansionPass {
     runtime.scene.add(this.root);
     runtime.scene.userData.skyDancerV40MultiDirectionCity = true;
     runtime.scene.userData.skyDancerV40BurstLinearScale = SKY_DANCER_V40_BURST_LINEAR_SCALE;
+    runtime.scene.userData.skyDancerV40V21ImpactLinearScale = SKY_DANCER_V40_V21_IMPACT_LINEAR_SCALE;
 
     if (typeof window !== "undefined" && navigator.webdriver) {
-      (window as unknown as Record<string, unknown>)[GLOBAL_CITY_DEBUG_KEY] = () => ({
-        sectorCount: SECTORS.length,
-        sectors: SECTORS.map(({ x, z, rotation }) => ({ x, z, rotation })),
-        counts: { ...this.latestCounts },
-        totalBuildings: this.latestCounts.low + this.latestCounts.mid + this.latestCounts.high,
-        burstLinearScale: SKY_DANCER_V40_BURST_LINEAR_SCALE,
-        airBurstScale: this.runtime.scene.getObjectByName("sky-dancer-air-burst-v2")?.scale.x ?? null,
-        playerHitBurstScale: this.runtime.scene.getObjectByName("sky-dancer-player-hit-burst-v2")?.scale.x ?? null,
-      });
+      (window as unknown as Record<string, unknown>)[GLOBAL_CITY_DEBUG_KEY] = () => {
+        let v21ImpactMaxScale: number | null = null;
+        for (const object of this.runtime.scene.children) {
+          if (object.name !== "sky-dancer-v21-player-missile-impact" || !object.visible) continue;
+          v21ImpactMaxScale = Math.max(v21ImpactMaxScale ?? 0, object.scale.x);
+        }
+        return {
+          sectorCount: SECTORS.length,
+          sectors: SECTORS.map(({ x, z, rotation }) => ({ x, z, rotation })),
+          counts: { ...this.latestCounts },
+          totalBuildings: this.latestCounts.low + this.latestCounts.mid + this.latestCounts.high,
+          burstLinearScale: SKY_DANCER_V40_BURST_LINEAR_SCALE,
+          v21ImpactLinearScale: SKY_DANCER_V40_V21_IMPACT_LINEAR_SCALE,
+          v21ImpactMaxScale,
+          airBurstScale: this.runtime.scene.getObjectByName("sky-dancer-air-burst-v2")?.scale.x ?? null,
+          playerHitBurstScale: this.runtime.scene.getObjectByName("sky-dancer-player-hit-burst-v2")?.scale.x ?? null,
+        };
+      };
     }
   }
 
@@ -128,6 +139,11 @@ export class SkyDancerV40CityExpansionPass {
         object.scale.setScalar(SKY_DANCER_V40_AIR_BURST_SCALE);
       } else if (object.name === "sky-dancer-player-hit-burst-v2") {
         object.scale.setScalar(SKY_DANCER_V40_PLAYER_HIT_BURST_SCALE);
+      } else if (object.name === "sky-dancer-v21-player-missile-impact" && object.visible) {
+        // V21 rewrites its active burst scale from the current life ratio before
+        // this pass runs, so multiplying once here cannot accumulate frame to
+        // frame. Hidden pooled bursts are left untouched and reset on reuse.
+        object.scale.multiplyScalar(SKY_DANCER_V40_V21_IMPACT_LINEAR_SCALE);
       }
     }
   }
