@@ -40,11 +40,11 @@ export const SKY_DANCER_V40_LOCK_RANGE = SKY_DANCER_PLAYER_MISSILE_LOCK_DISTANCE
 export const SKY_DANCER_V40_LOCK_HALF_ANGLE = 0.78;
 export const SKY_DANCER_V40_REENGAGE_TRIGGER = 53;
 export const SKY_DANCER_V40_REENGAGE_TARGET = 43;
-export const SKY_DANCER_V40_REENGAGE_ANGLE_TRIGGER = 0.94;
+export const SKY_DANCER_V40_REENGAGE_ANGLE_TRIGGER = 0.72;
 export const SKY_DANCER_V40_CLEANUP_TRIGGER = 49;
 export const SKY_DANCER_V40_CLEANUP_TARGET = 39;
-export const SKY_DANCER_V40_CLEANUP_ANGLE_TRIGGER = 0.66;
-export const SKY_DANCER_V40_CLEANUP_SLOT_DELAY = 4.25;
+export const SKY_DANCER_V40_CLEANUP_ANGLE_TRIGGER = 0.62;
+export const SKY_DANCER_V40_CLEANUP_SLOT_DELAY = 0.9;
 
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
@@ -173,6 +173,10 @@ export function installSkyDancerReengagementV40(): void {
         maxLockAngle = Math.max(maxLockAngle, lockAngle);
         if (distance <= SKY_DANCER_V40_LOCK_RANGE && lockAngle <= SKY_DANCER_V40_LOCK_HALF_ANGLE) lockConeCandidates += 1;
 
+        // The browser audit runs SwiftShader at fewer fixed simulation steps than
+        // wall-clock frames. A short simulation-time cadence keeps real cleanup
+        // near 20-30 seconds while still staggering survivors instead of dumping
+        // the entire group into the reticle at once.
         const cleanupSlotReady = !cleanup || localState.cleanupElapsed >= order * SKY_DANCER_V40_CLEANUP_SLOT_DELAY;
         const needsDistanceCorrection = distance > trigger;
         const needsAngleCorrection = lockAngle > angleTrigger && cleanupSlotReady;
