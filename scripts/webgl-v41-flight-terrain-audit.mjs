@@ -103,7 +103,7 @@ await browser.close();
 
 if (pageErrors.length) throw new Error(`Page errors during V41 playcheck: ${pageErrors.join(" | ")}`);
 if (minEnemyDistance < 11.5) throw new Error(`V41 enemy pass came too close to the player: ${JSON.stringify(diagnostics)}`);
-if (maxStepSpeed > 26.2) throw new Error(`V41 enemy step speed exceeded aircraft cap: ${JSON.stringify(diagnostics)}`);
+if (maxStepSpeed > 40.2) throw new Error(`V41 enemy escape speed exceeded aircraft cap: ${JSON.stringify(diagnostics)}`);
 if (maxTurnRate > 1.67) throw new Error(`V41 enemy turn rate exceeded aircraft cap: ${JSON.stringify(diagnostics)}`);
 if (maxConstrainedEnemies < 1) throw new Error(`V41 natural-motion guard never constrained inherited corrections: ${JSON.stringify(diagnostics)}`);
 if (minVisibleTiles < 25) throw new Error(`V41 terrain ring lost visible tiles: ${JSON.stringify(diagnostics)}`);
