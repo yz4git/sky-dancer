@@ -18,7 +18,9 @@ interface ReengagementSession {
 
 interface ReengagementState {
   cleanupElapsed: number;
+  lastCleanupDuration: number;
   previousCleanup: boolean;
+  cleanupSlots: Map<string, number>;
 }
 
 export interface SkyDancerReengagementSnapshotV40 {
@@ -29,6 +31,8 @@ export interface SkyDancerReengagementSnapshotV40 {
   lockConeCandidates: number;
   cleanupActive: boolean;
   cleanupElapsed: number;
+  lastCleanupDuration: number;
+  cleanupScheduledEnemies: number;
 }
 
 const PATCHED_KEY = "__skyDancerReengagementV40Installed__";
@@ -44,7 +48,7 @@ export const SKY_DANCER_V40_REENGAGE_ANGLE_TRIGGER = 0.72;
 export const SKY_DANCER_V40_CLEANUP_TRIGGER = 49;
 export const SKY_DANCER_V40_CLEANUP_TARGET = 39;
 export const SKY_DANCER_V40_CLEANUP_ANGLE_TRIGGER = 0.62;
-export const SKY_DANCER_V40_CLEANUP_SLOT_DELAY = 0.9;
+export const SKY_DANCER_V40_CLEANUP_SLOT_DELAY = 4.25;
 
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
@@ -65,7 +69,12 @@ function rotateToward(current: number, target: number, maxTurn: number): number 
 function reengagementStateFor(session: object): ReengagementState {
   const existing = stateBySession.get(session);
   if (existing) return existing;
-  const created: ReengagementState = { cleanupElapsed: 0, previousCleanup: false };
+  const created: ReengagementState = {
+    cleanupElapsed: 0,
+    lastCleanupDuration: 0,
+    previousCleanup: false,
+    cleanupSlots: new Map<string, number>(),
+  };
   stateBySession.set(session, created);
   return created;
 }
@@ -115,6 +124,12 @@ export function skyDancerReengagementInterceptV40(
   };
 }
 
+function liveNonBossEnemies(session: ReengagementSession, nodeId: string): CartEnemyState[] {
+  return session.enemies
+    .filter((enemy) => enemy.alive && enemy.kind !== "boss" && enemy.nodeId === nodeId)
+    .sort((a, b) => a.id.localeCompare(b.id));
+}
+
 export function installSkyDancerReengagementV40(): void {
   const prototype = CartArenaSession.prototype as unknown as ReengagementSession & Record<string, unknown>;
   if (prototype[PATCHED_KEY]) return;
@@ -133,17 +148,27 @@ export function installSkyDancerReengagementV40(): void {
     const cleanup = phase === "cleanup";
     const delta = clamp(fixedDelta ?? 1 / 60, 0.001, 0.05);
     const localState = reengagementStateFor(this as unknown as object);
-    if (cleanup) {
-      localState.cleanupElapsed = localState.previousCleanup ? localState.cleanupElapsed + delta : 0;
-    } else {
-      localState.cleanupElapsed = 0;
-    }
-    localState.previousCleanup = cleanup;
-
     const px = this.car.position.x;
     const pz = this.car.position.z;
     const playerHeading = this.car.heading;
     const nodeId = this.location.node.id;
+
+    if (cleanup && !localState.previousCleanup) {
+      localState.cleanupElapsed = 0;
+      localState.lastCleanupDuration = 0;
+      localState.cleanupSlots.clear();
+      const initialSurvivors = liveNonBossEnemies(this, nodeId);
+      initialSurvivors.forEach((enemy, index) => localState.cleanupSlots.set(enemy.id, index));
+    } else if (cleanup) {
+      localState.cleanupElapsed += delta;
+    } else if (localState.previousCleanup) {
+      // Retain the actual fixed-step duration after BOSS starts so the browser
+      // audit measures gameplay time rather than slow SwiftShader wall time.
+      localState.lastCleanupDuration = localState.cleanupElapsed;
+      localState.cleanupElapsed = 0;
+    }
+    localState.previousCleanup = cleanup;
+
     const trigger = cleanup ? SKY_DANCER_V40_CLEANUP_TRIGGER : SKY_DANCER_V40_REENGAGE_TRIGGER;
     const target = cleanup ? SKY_DANCER_V40_CLEANUP_TARGET : SKY_DANCER_V40_REENGAGE_TARGET;
     const angleTrigger = cleanup ? SKY_DANCER_V40_CLEANUP_ANGLE_TRIGGER : SKY_DANCER_V40_REENGAGE_ANGLE_TRIGGER;
@@ -153,10 +178,7 @@ export function installSkyDancerReengagementV40(): void {
     let lockConeCandidates = 0;
 
     if (phase !== "boss" && phase !== "stage-clear") {
-      const live = this.enemies
-        .filter((enemy) => enemy.alive && enemy.kind !== "boss" && enemy.nodeId === nodeId)
-        .sort((a, b) => a.id.localeCompare(b.id));
-
+      const live = liveNonBossEnemies(this, nodeId);
       for (let order = 0; order < live.length; order += 1) {
         const enemy = live[order];
         // Normalize the fighter to the nearest toroidal copy before measuring
@@ -173,11 +195,12 @@ export function installSkyDancerReengagementV40(): void {
         maxLockAngle = Math.max(maxLockAngle, lockAngle);
         if (distance <= SKY_DANCER_V40_LOCK_RANGE && lockAngle <= SKY_DANCER_V40_LOCK_HALF_ANGLE) lockConeCandidates += 1;
 
-        // The browser audit runs SwiftShader at fewer fixed simulation steps than
-        // wall-clock frames. A short simulation-time cadence keeps real cleanup
-        // near 20-30 seconds while still staggering survivors instead of dumping
-        // the entire group into the reticle at once.
-        const cleanupSlotReady = !cleanup || localState.cleanupElapsed >= order * SKY_DANCER_V40_CLEANUP_SLOT_DELAY;
+        // Cleanup slots are frozen when cleanup begins. Defeating an earlier
+        // fighter therefore cannot pull all later slots forward. With 5-6
+        // survivors, 4.25s spacing exposes the last target at 17-21.25s and
+        // leaves a few seconds for the missile kill, targeting ~20-30s total.
+        const cleanupSlot = localState.cleanupSlots.get(enemy.id) ?? order;
+        const cleanupSlotReady = !cleanup || localState.cleanupElapsed >= cleanupSlot * SKY_DANCER_V40_CLEANUP_SLOT_DELAY;
         const needsDistanceCorrection = distance > trigger;
         const needsAngleCorrection = lockAngle > angleTrigger && cleanupSlotReady;
         if (!needsDistanceCorrection && !needsAngleCorrection) continue;
@@ -185,7 +208,7 @@ export function installSkyDancerReengagementV40(): void {
         let destinationX: number;
         let destinationZ: number;
         if (needsAngleCorrection) {
-          const intercept = skyDancerReengagementInterceptV40(px, pz, playerHeading, enemy, cleanup, order);
+          const intercept = skyDancerReengagementInterceptV40(px, pz, playerHeading, enemy, cleanup, cleanupSlot);
           destinationX = intercept.x;
           destinationZ = intercept.z;
         } else {
@@ -217,6 +240,8 @@ export function installSkyDancerReengagementV40(): void {
       lockConeCandidates,
       cleanupActive: cleanup,
       cleanupElapsed: localState.cleanupElapsed,
+      lastCleanupDuration: localState.lastCleanupDuration,
+      cleanupScheduledEnemies: localState.cleanupSlots.size,
     };
     latestBySession.set(this as unknown as object, snapshot);
     if (typeof window !== "undefined" && navigator.webdriver) {
