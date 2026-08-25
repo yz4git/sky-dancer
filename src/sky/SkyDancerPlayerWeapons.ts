@@ -6,12 +6,18 @@ import {
   cartTurboHuntNearestCoordinate,
 } from "../cart/CartTurboHuntTrack";
 import { isSkyDancerCombatTargetableV42 } from "./SkyDancerCombatEligibilityV42";
+import {
+  getSkyDancerEnemyAltitudeMetersV43,
+  skyDancerDistance3DV43,
+} from "./SkyDancerVerticalFlightV43";
 
 export interface SkyDancerPlayerMissileSnapshot {
   id: number;
   x: number;
   z: number;
+  altitudeOffsetMeters: number;
   heading: number;
+  pitch: number;
   speed: number;
   life: number;
   maxLife: number;
@@ -31,6 +37,10 @@ export interface SkyDancerPlayerWeaponState {
 
 interface PlayerMissileInternal extends SkyDancerPlayerMissileSnapshot {
   turnRate: number;
+  pitchRate: number;
+  maxSpeed: number;
+  acceleration: number;
+  ageSeconds: number;
   damage: number;
   active: boolean;
 }
@@ -67,9 +77,16 @@ const stateBySession = new WeakMap<object, WeaponState>();
 export const SKY_DANCER_PLAYER_MISSILE_COOLDOWN = 0.34;
 export const SKY_DANCER_PLAYER_MISSILE_MAX_ACTIVE = 5;
 export const SKY_DANCER_PLAYER_MISSILE_LOCK_DISTANCE = 58;
+export const SKY_DANCER_PLAYER_MISSILE_MAX_PITCH_V43 = 0.68;
 
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
+}
+
+function moveToward(current: number, target: number, maxDelta: number): number {
+  if (current < target) return Math.min(target, current + maxDelta);
+  if (current > target) return Math.max(target, current - maxDelta);
+  return current;
 }
 
 function normalizeAngle(value: number): number {
@@ -133,12 +150,16 @@ function chooseTarget(session: WeaponSessionView): CartEnemyState | null {
   for (const enemy of currentEnemies(session)) {
     const dx = enemy.x - px;
     const dz = enemy.z - pz;
-    const distance = Math.hypot(dx, dz);
+    const altitude = getSkyDancerEnemyAltitudeMetersV43(enemy);
+    const distance = skyDancerDistance3DV43(px, 0, pz, enemy.x, altitude, enemy.z);
     if (distance > SKY_DANCER_PLAYER_MISSILE_LOCK_DISTANCE) continue;
+    // V43 keeps lock acquisition simple on touch controls: the horizontal cone
+    // is unchanged while the seeker handles altitude after launch.
     const targetHeading = Math.atan2(dx, dz);
     const angle = Math.abs(normalizeAngle(targetHeading - heading));
     if (angle > 0.78) continue;
-    const score = distance + angle * 18 - (enemy.kind === "boss" ? 3.5 : 0);
+    const verticalPenalty = Math.abs(altitude) * 0.12;
+    const score = distance + angle * 18 + verticalPenalty - (enemy.kind === "boss" ? 3.5 : 0);
     if (score < bestScore) {
       bestScore = score;
       best = enemy;
@@ -155,45 +176,65 @@ function launchRequestedShot(session: WeaponSessionView, state: WeaponState): bo
   const target = chooseTarget(session);
   const heading = session.car.heading;
   const muzzle = 2.6;
-  const speed = 31.5 + Math.min(5.5, Math.abs(session.car.forwardVelocity) * 0.18);
+  const launchSpeed = 24 + Math.min(4.5, Math.abs(session.car.forwardVelocity) * 0.14);
+  const targetAltitude = target ? getSkyDancerEnemyAltitudeMetersV43(target) : 0;
+  const horizontalDistance = target
+    ? Math.hypot(target.x - session.car.position.x, target.z - session.car.position.z)
+    : Number.POSITIVE_INFINITY;
+  const initialPitch = target
+    ? clamp(Math.atan2(targetAltitude, Math.max(8, horizontalDistance)) * 0.28, -0.18, 0.18)
+    : 0;
   const missile: PlayerMissileInternal = {
     id: state.nextMissileId++,
     x: session.car.position.x + Math.sin(heading) * muzzle,
     z: session.car.position.z + Math.cos(heading) * muzzle,
+    altitudeOffsetMeters: 0,
     heading,
-    speed,
-    life: 4.2,
-    maxLife: 4.2,
+    pitch: initialPitch,
+    speed: launchSpeed,
+    life: 4.6,
+    maxLife: 4.6,
     targetEnemyId: target?.id ?? null,
-    distanceToTarget: target ? Math.hypot(target.x - session.car.position.x, target.z - session.car.position.z) : Number.POSITIVE_INFINITY,
-    turnRate: target ? 2.35 : 0,
+    distanceToTarget: target
+      ? skyDancerDistance3DV43(session.car.position.x, 0, session.car.position.z, target.x, targetAltitude, target.z)
+      : Number.POSITIVE_INFINITY,
+    turnRate: target ? 2.25 : 0,
+    pitchRate: target ? 1.72 : 0,
+    maxSpeed: 42.5,
+    acceleration: 27,
+    ageSeconds: 0,
     damage: missileDamage(target),
     active: true,
   };
   state.missiles.push(missile);
   state.shotSerial += 1;
   state.lastClockMs = weaponNowMs();
-  session.lastReward = target ? "FOX TWO · LOCK" : "FOX TWO";
+  session.lastReward = target ? "FOX TWO · 3D LOCK" : "FOX TWO";
   session.rewardTimer = Math.max(session.rewardTimer, 0.7);
   return true;
 }
 
-function pointSegmentDistanceSquared(
+export function pointSegmentDistanceSquared3DV43(
   px: number,
+  py: number,
   pz: number,
   ax: number,
+  ay: number,
   az: number,
   bx: number,
+  by: number,
   bz: number,
 ): number {
   const abx = bx - ax;
+  const aby = by - ay;
   const abz = bz - az;
-  const lengthSq = abx * abx + abz * abz;
-  if (lengthSq < 0.000001) return (px - ax) ** 2 + (pz - az) ** 2;
-  const t = clamp(((px - ax) * abx + (pz - az) * abz) / lengthSq, 0, 1);
+  const lengthSq = abx * abx + aby * aby + abz * abz;
+  if (lengthSq < 0.000001) return (px - ax) ** 2 + (py - ay) ** 2 + (pz - az) ** 2;
+  const t = clamp(((px - ax) * abx + (py - ay) * aby + (pz - az) * abz) / lengthSq, 0, 1);
   const x = ax + abx * t;
+  const y = ay + aby * t;
   const z = az + abz * t;
-  return (px - x) ** 2 + (pz - z) ** 2;
+  return (px - x) ** 2 + (py - y) ** 2 + (pz - z) ** 2;
 }
 
 function chooseTargetFromMissile(missile: PlayerMissileInternal, enemies: readonly CartEnemyState[]): CartEnemyState | null {
@@ -202,10 +243,18 @@ function chooseTargetFromMissile(missile: PlayerMissileInternal, enemies: readon
   for (const enemy of enemies) {
     const dx = enemy.x - missile.x;
     const dz = enemy.z - missile.z;
-    const distance = Math.hypot(dx, dz);
-    if (distance > 42) continue;
+    const altitude = getSkyDancerEnemyAltitudeMetersV43(enemy);
+    const distance = skyDancerDistance3DV43(
+      missile.x,
+      missile.altitudeOffsetMeters,
+      missile.z,
+      enemy.x,
+      altitude,
+      enemy.z,
+    );
+    if (distance > 46) continue;
     const angle = Math.abs(normalizeAngle(Math.atan2(dx, dz) - missile.heading));
-    if (angle > 0.9) continue;
+    if (angle > 0.98) continue;
     const score = distance + angle * 11;
     if (score < bestScore) {
       best = enemy;
@@ -223,6 +272,7 @@ function updateMissiles(session: WeaponSessionView, state: WeaponState, delta: n
   for (const missile of state.missiles) {
     if (!missile.active) continue;
     missile.life -= delta;
+    missile.ageSeconds += delta;
     if (missile.life <= 0) {
       missile.active = false;
       continue;
@@ -233,6 +283,7 @@ function updateMissiles(session: WeaponSessionView, state: WeaponState, delta: n
       target = chooseTargetFromMissile(missile, enemies);
       missile.targetEnemyId = target?.id ?? null;
       missile.turnRate = target ? 2.15 : 0;
+      missile.pitchRate = target ? 1.65 : 0;
       if (target) missile.damage = missileDamage(target);
     }
 
@@ -241,8 +292,24 @@ function updateMissiles(session: WeaponSessionView, state: WeaponState, delta: n
       missile.z = cartTurboHuntNearestCoordinate(missile.z, target.z, CART_TURBO_HUNT_WORLD_DEPTH);
       const dx = target.x - missile.x;
       const dz = target.z - missile.z;
-      missile.distanceToTarget = Math.hypot(dx, dz);
-      missile.heading = rotateToward(missile.heading, Math.atan2(dx, dz), missile.turnRate * delta);
+      const targetAltitude = getSkyDancerEnemyAltitudeMetersV43(target);
+      const horizontalDistance = Math.hypot(dx, dz);
+      missile.distanceToTarget = skyDancerDistance3DV43(
+        missile.x,
+        missile.altitudeOffsetMeters,
+        missile.z,
+        target.x,
+        targetAltitude,
+        target.z,
+      );
+      const desiredPitch = clamp(
+        Math.atan2(targetAltitude - missile.altitudeOffsetMeters, Math.max(0.001, horizontalDistance)),
+        -SKY_DANCER_PLAYER_MISSILE_MAX_PITCH_V43,
+        SKY_DANCER_PLAYER_MISSILE_MAX_PITCH_V43,
+      );
+      const authority = clamp(missile.ageSeconds / 0.34, 0.36, 1);
+      missile.heading = rotateToward(missile.heading, Math.atan2(dx, dz), missile.turnRate * authority * delta);
+      missile.pitch = moveToward(missile.pitch, desiredPitch, missile.pitchRate * authority * delta);
     } else {
       missile.x = cartTurboHuntNearestCoordinate(
         missile.x,
@@ -255,18 +322,34 @@ function updateMissiles(session: WeaponSessionView, state: WeaponState, delta: n
         CART_TURBO_HUNT_WORLD_DEPTH,
       );
       missile.distanceToTarget = Number.POSITIVE_INFINITY;
+      missile.pitch = moveToward(missile.pitch, 0, 0.65 * delta);
     }
 
+    missile.speed = moveToward(missile.speed, missile.maxSpeed, missile.acceleration * delta);
     const oldX = missile.x;
+    const oldY = missile.altitudeOffsetMeters;
     const oldZ = missile.z;
-    missile.x += Math.sin(missile.heading) * missile.speed * delta;
-    missile.z += Math.cos(missile.heading) * missile.speed * delta;
+    const horizontalSpeed = Math.cos(missile.pitch) * missile.speed;
+    missile.x += Math.sin(missile.heading) * horizontalSpeed * delta;
+    missile.z += Math.cos(missile.heading) * horizontalSpeed * delta;
+    missile.altitudeOffsetMeters += Math.sin(missile.pitch) * missile.speed * delta;
 
     let hit: CartEnemyState | null = null;
     let bestDistanceSq = Number.POSITIVE_INFINITY;
     for (const enemy of enemies) {
-      const radius = enemy.radius + 0.42;
-      const distanceSq = pointSegmentDistanceSquared(enemy.x, enemy.z, oldX, oldZ, missile.x, missile.z);
+      const radius = enemy.radius + 0.52;
+      const altitude = getSkyDancerEnemyAltitudeMetersV43(enemy);
+      const distanceSq = pointSegmentDistanceSquared3DV43(
+        enemy.x,
+        altitude,
+        enemy.z,
+        oldX,
+        oldY,
+        oldZ,
+        missile.x,
+        missile.altitudeOffsetMeters,
+        missile.z,
+      );
       if (distanceSq <= radius * radius && distanceSq < bestDistanceSq) {
         hit = enemy;
         bestDistanceSq = distanceSq;
@@ -330,7 +413,9 @@ export function getSkyDancerPlayerWeaponState(session: CartArenaSession): SkyDan
       id: missile.id,
       x: missile.x,
       z: missile.z,
+      altitudeOffsetMeters: missile.altitudeOffsetMeters,
       heading: missile.heading,
+      pitch: missile.pitch,
       speed: missile.speed,
       life: missile.life,
       maxLife: missile.maxLife,
