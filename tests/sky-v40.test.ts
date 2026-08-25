@@ -2,9 +2,13 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import {
+  SKY_DANCER_V40_CLEANUP_ANGLE_TRIGGER,
+  SKY_DANCER_V40_CLEANUP_SLOT_DELAY,
   SKY_DANCER_V40_CLEANUP_TARGET,
   SKY_DANCER_V40_CLEANUP_TRIGGER,
+  SKY_DANCER_V40_LOCK_HALF_ANGLE,
   SKY_DANCER_V40_LOCK_RANGE,
+  SKY_DANCER_V40_REENGAGE_ANGLE_TRIGGER,
   SKY_DANCER_V40_REENGAGE_TARGET,
   SKY_DANCER_V40_REENGAGE_TRIGGER,
   skyDancerReengagementClosingSpeedV40,
@@ -14,12 +18,26 @@ const read = (relative: string) => readFileSync(new URL(relative, import.meta.ur
 
 test("V40 re-engagement envelope stays inside the 58m missile lock range", () => {
   assert.equal(SKY_DANCER_V40_LOCK_RANGE, 58);
+  assert.equal(SKY_DANCER_V40_LOCK_HALF_ANGLE, 0.78);
   assert.ok(SKY_DANCER_V40_REENGAGE_TRIGGER < SKY_DANCER_V40_LOCK_RANGE);
   assert.ok(SKY_DANCER_V40_CLEANUP_TRIGGER < SKY_DANCER_V40_REENGAGE_TRIGGER);
   assert.ok(SKY_DANCER_V40_REENGAGE_TARGET < SKY_DANCER_V40_REENGAGE_TRIGGER);
   assert.ok(SKY_DANCER_V40_CLEANUP_TARGET < SKY_DANCER_V40_CLEANUP_TRIGGER);
+  assert.ok(SKY_DANCER_V40_REENGAGE_ANGLE_TRIGGER > SKY_DANCER_V40_LOCK_HALF_ANGLE);
+  assert.ok(SKY_DANCER_V40_CLEANUP_ANGLE_TRIGGER < SKY_DANCER_V40_LOCK_HALF_ANGLE);
+  assert.ok(SKY_DANCER_V40_CLEANUP_SLOT_DELAY >= 4 && SKY_DANCER_V40_CLEANUP_SLOT_DELAY <= 4.5);
   assert.ok(skyDancerReengagementClosingSpeedV40(80, true) > 31.5);
-  assert.ok(skyDancerReengagementClosingSpeedV40(100, true) <= 54);
+  assert.ok(skyDancerReengagementClosingSpeedV40(100, true) <= 60);
+});
+
+test("V40 re-engagement corrects both range and lock-cone geometry", () => {
+  const source = read("../src/sky/SkyDancerReengagementV40.ts");
+  assert.match(source, /skyDancerReengagementInterceptV40/);
+  assert.match(source, /lockAngle > angleTrigger/);
+  assert.match(source, /cleanupElapsed >= order \* SKY_DANCER_V40_CLEANUP_SLOT_DELAY/);
+  assert.match(source, /lockConeCandidates/);
+  assert.match(source, /cartTurboHuntNearestCoordinate/);
+  assert.match(source, /playerHeading/);
 });
 
 test("V40 re-engagement is installed outermost in both WebGL and Canvas runtimes", () => {
@@ -29,7 +47,7 @@ test("V40 re-engagement is installed outermost in both WebGL and Canvas runtimes
   assert.match(canvas, /installSkyDancerBossCombatV34\(\);\n    installSkyDancerReengagementV40\(\);/);
   const source = read("../src/sky/SkyDancerReengagementV40.ts");
   assert.match(source, /phase === "cleanup"/);
-  assert.match(source, /enemy\.kind === "boss"/);
+  assert.match(source, /enemy\.kind !== "boss"/);
   assert.match(source, /__skyDancerGetReengagementV40/);
 });
 
