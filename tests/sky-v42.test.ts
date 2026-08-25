@@ -2,7 +2,10 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import {
+  SKY_DANCER_V40_CLEANUP_HOLD_DISTANCE,
+  SKY_DANCER_V40_CLEANUP_SLOT_DELAY,
   SKY_DANCER_V40_LOCK_HALF_ANGLE,
+  SKY_DANCER_V40_LOCK_RANGE,
   SKY_DANCER_V42_CLEANUP_HOLD_FOLLOW_SPEED,
 } from "../src/sky/SkyDancerReengagementV40";
 
@@ -20,7 +23,7 @@ test("V42 player surface kit shares the banked player visual root", () => {
 
 test("V42 cleanup holding aircraft do not rotate with live player yaw", () => {
   const source = read("../src/sky/SkyDancerReengagementV40.ts");
-  assert.ok(SKY_DANCER_V42_CLEANUP_HOLD_FOLLOW_SPEED >= 31.5);
+  assert.ok(SKY_DANCER_V42_CLEANUP_HOLD_FOLLOW_SPEED >= 36);
   assert.ok(SKY_DANCER_V42_CLEANUP_HOLD_FOLLOW_SPEED <= 40);
   assert.match(source, /cleanupHoldOffsets: new Map/);
   assert.match(source, /cleanupHoldOffsets\.set\(enemy\.id, \{ x: hold\.x - px, z: hold\.z - pz \}\)/);
@@ -29,6 +32,14 @@ test("V42 cleanup holding aircraft do not rotate with live player yaw", () => {
   assert.match(source, /const tangentHeading = normalizeAngle\(radial \+ side \* Math\.PI \* 0\.5\)/);
   assert.match(source, /SKY_DANCER_V42_CLEANUP_HOLD_FOLLOW_SPEED \* delta/);
   assert.ok(SKY_DANCER_V40_LOCK_HALF_ANGLE < 1.0);
+});
+
+test("V42 cleanup cadence cannot collapse below the target window and keeps radial headroom", () => {
+  const lastFiveSurvivorRelease = SKY_DANCER_V40_CLEANUP_SLOT_DELAY * 4;
+  assert.ok(lastFiveSurvivorRelease >= 20);
+  assert.ok(lastFiveSurvivorRelease <= 22);
+  assert.ok(SKY_DANCER_V40_CLEANUP_HOLD_DISTANCE <= 40);
+  assert.ok(SKY_DANCER_V40_LOCK_RANGE - (SKY_DANCER_V40_CLEANUP_HOLD_DISTANCE + 2) >= 16);
 });
 
 test("V42 normal wave flight never uses angle-only screen-edge correction", () => {
