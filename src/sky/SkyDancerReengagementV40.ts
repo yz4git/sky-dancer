@@ -55,10 +55,13 @@ export const SKY_DANCER_V40_REENGAGE_ANGLE_TRIGGER = 0.72;
 export const SKY_DANCER_V40_CLEANUP_TRIGGER = 49;
 export const SKY_DANCER_V40_CLEANUP_TARGET = 39;
 export const SKY_DANCER_V40_CLEANUP_ANGLE_TRIGGER = 0.62;
-export const SKY_DANCER_V40_CLEANUP_SLOT_DELAY = 4.25;
+// V42 keeps the five-survivor cleanup cadence inside the intended 20-30 s
+// window and leaves enough radial headroom for a held aircraft to follow a
+// Turbo-speed player through a turn without crossing the 58 m lock envelope.
+export const SKY_DANCER_V40_CLEANUP_SLOT_DELAY = 5.25;
 export const SKY_DANCER_V40_CLEANUP_HOLD_ANGLE = 1.12;
-export const SKY_DANCER_V40_CLEANUP_HOLD_DISTANCE = 44;
-export const SKY_DANCER_V42_CLEANUP_HOLD_FOLLOW_SPEED = 36;
+export const SKY_DANCER_V40_CLEANUP_HOLD_DISTANCE = 40;
+export const SKY_DANCER_V42_CLEANUP_HOLD_FOLLOW_SPEED = 40;
 
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
