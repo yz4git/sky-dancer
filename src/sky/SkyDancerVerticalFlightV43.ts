@@ -15,6 +15,8 @@ interface VerticalState {
   wanderClock: number;
   avoidClock: number;
   avoidTargetMeters: number;
+  tacticalClock: number;
+  tacticalPhase: number;
 }
 
 export interface SkyDancerEnemyVerticalSnapshotV43 {
@@ -23,6 +25,7 @@ export interface SkyDancerEnemyVerticalSnapshotV43 {
   pitchRadians: number;
   targetAltitudeMeters: number;
   avoiding: boolean;
+  tacticalPhase: number;
 }
 
 export interface SkyDancerVerticalFlightContextV43 {
@@ -87,21 +90,25 @@ function stateFor(enemy: CartEnemyState): VerticalState {
     wanderClock: 1.2 + (hash % 170) / 100,
     avoidClock: 0,
     avoidTargetMeters: 0,
+    tacticalClock: 0.5 + (hash % 140) / 100,
+    tacticalPhase: hash % 4,
   };
   stateByEnemy.set(enemy, created);
   return created;
 }
 
 function maxClimbSpeed(enemy: CartEnemyState): number {
-  if (enemy.kind === "boss") return 3.0;
-  if (enemy.kind === "heavy") return 3.45;
-  if (enemy.archetype === "striker") return 4.65;
+  if (enemy.kind === "boss") return 4.25;
+  if (enemy.kind === "heavy") return 3.75;
+  if (enemy.archetype === "striker") return 5.3;
+  if (enemy.archetype === "orbiter") return 4.55;
   return 4.15;
 }
 
 function verticalAcceleration(enemy: CartEnemyState): number {
-  if (enemy.kind === "boss") return 4.8;
-  if (enemy.kind === "heavy") return 5.5;
+  if (enemy.kind === "boss") return 6.4;
+  if (enemy.kind === "heavy") return 5.8;
+  if (enemy.archetype === "striker") return 8.6;
   return 7.2;
 }
 
@@ -127,6 +134,68 @@ function requestAvoidance(state: VerticalState, targetMeters: number, holdSecond
     state.avoidTargetMeters = clamped;
   }
   state.avoidClock = Math.max(state.avoidClock, holdSeconds);
+}
+
+/** V44 external hook for encounter-specific climb/dive attacks. */
+export function requestSkyDancerVerticalManeuverV44(
+  enemy: CartEnemyState,
+  targetAltitudeMeters: number,
+  holdSeconds = 0.9,
+): void {
+  requestAvoidance(stateFor(enemy), targetAltitudeMeters, holdSeconds);
+}
+
+function requestTacticalVerticalManeuverV44(
+  enemy: CartEnemyState,
+  state: VerticalState,
+  context: SkyDancerVerticalFlightContextV43,
+): void {
+  state.tacticalClock -= context.delta;
+  const distance = Math.hypot(enemy.x - context.playerX, enemy.z - context.playerZ);
+  if (state.tacticalClock > 0) return;
+  const side = stableSide(enemy.id);
+
+  if (enemy.kind === "boss") {
+    // Boss repeatedly climbs above the player, dives through the engagement
+    // plane, then exits low before recovering. It makes the V43 altitude band
+    // a readable boss mechanic instead of background wander.
+    state.tacticalPhase = (state.tacticalPhase + 1) % 4;
+    const bossTargets = [9.0, 8.2, -8.8, -6.8] as const;
+    requestAvoidance(state, bossTargets[state.tacticalPhase], state.tacticalPhase === 2 ? 1.45 : 1.05);
+    state.tacticalClock = state.tacticalPhase === 2 ? 1.5 : 1.1;
+    return;
+  }
+
+  if (enemy.archetype === "striker" && distance < 52) {
+    // A striker starts high, then crosses through/under the player's plane on
+    // the actual attack pass. This is intentionally asymmetric and quick.
+    state.tacticalPhase = (state.tacticalPhase + 1) % 3;
+    const target = state.tacticalPhase === 0 ? side * 8.8 : state.tacticalPhase === 1 ? -side * 8.6 : side * 2.4;
+    requestAvoidance(state, target, state.tacticalPhase === 1 ? 1.1 : 0.75);
+    state.tacticalClock = state.tacticalPhase === 1 ? 1.05 : 0.8;
+    return;
+  }
+
+  if (enemy.archetype === "orbiter" && distance < 64) {
+    // Alternating altitude lanes turn the existing horizontal orbit into a
+    // loose helix without requiring a new movement controller.
+    state.tacticalPhase = (state.tacticalPhase + 1) % 4;
+    const levels = [7.4, 2.0, -7.4, -2.0] as const;
+    requestAvoidance(state, levels[state.tacticalPhase] * side, 1.0);
+    state.tacticalClock = 1.0;
+    return;
+  }
+
+  if (enemy.kind === "heavy" && distance < 58) {
+    // Heavy aircraft act like high-cover missile platforms: they climb before
+    // an attack window and descend slowly afterwards.
+    state.tacticalPhase = (state.tacticalPhase + 1) % 2;
+    requestAvoidance(state, state.tacticalPhase === 0 ? 7.8 : 3.2, 1.5);
+    state.tacticalClock = 1.6;
+    return;
+  }
+
+  state.tacticalClock = 0.9 + (stableHash(`${enemy.id}:${state.tacticalPhase}`) % 90) / 100;
 }
 
 function requestPlayerAvoidance(
@@ -200,7 +269,7 @@ function integrateEnemyVertical(enemy: CartEnemyState, state: VerticalState, del
     -SKY_DANCER_VERTICAL_MAX_PITCH_RADIANS,
     SKY_DANCER_VERTICAL_MAX_PITCH_RADIANS,
   );
-  state.pitchRadians = moveToward(state.pitchRadians, desiredPitch, 0.72 * delta);
+  state.pitchRadians = moveToward(state.pitchRadians, desiredPitch, 0.92 * delta);
 }
 
 export function stepSkyDancerEnemyVerticalFlightV43(
@@ -212,6 +281,7 @@ export function stepSkyDancerEnemyVerticalFlightV43(
   for (const enemy of enemies) {
     if (!enemy.alive || enemy.nodeId !== context.nodeId) continue;
     const state = stateFor(enemy);
+    requestTacticalVerticalManeuverV44(enemy, state, context);
     requestPlayerAvoidance(enemy, state, context);
     integrateEnemyVertical(enemy, state, delta);
   }
@@ -225,6 +295,7 @@ export function getSkyDancerEnemyVerticalSnapshotV43(enemy: CartEnemyState): Sky
     pitchRadians: state.pitchRadians,
     targetAltitudeMeters: state.avoidClock > 0 ? state.avoidTargetMeters : state.targetAltitudeMeters,
     avoiding: state.avoidClock > 0,
+    tacticalPhase: state.tacticalPhase,
   };
 }
 
@@ -232,12 +303,6 @@ export function getSkyDancerEnemyAltitudeMetersV43(enemy: CartEnemyState): numbe
   return stateFor(enemy).altitudeOffsetMeters;
 }
 
-/**
- * The inherited Cart simulation is still 2D. Once an aircraft has enough
- * altitude clearance to pass over/under the player, its old planar contact and
- * Turbo-RAM bubble must stop applying. Sky Dancer's own flight/missile layers
- * continue to use the real x/z position immediately after this legacy step.
- */
 export function shouldSuppressSkyDancerLegacy2DContactV43(enemy: CartEnemyState): boolean {
   return Math.abs(getSkyDancerEnemyAltitudeMetersV43(enemy)) >= SKY_DANCER_VERTICAL_COLLISION_CLEARANCE_METERS;
 }
@@ -257,8 +322,6 @@ function installSkyDancerLegacy2DContactFilterV43(): void {
       if (!enemy.alive || enemy.nodeId !== session.location.node.id) continue;
       if (!shouldSuppressSkyDancerLegacy2DContactV43(enemy)) continue;
       masked.push({ enemy, x: enemy.x, z: enemy.z, heading: enemy.heading });
-      // Move only for the inherited 2D contact pass. Distinct remote slots avoid
-      // accidental enemy overlap while keeping alive/node/progression state intact.
       const displacement = 5000 + slot * 173;
       enemy.x = session.car.position.x + displacement;
       enemy.z = session.car.position.z - displacement * 0.83;
@@ -288,7 +351,4 @@ export function skyDancerDistance3DV43(
   return Math.hypot(ax - bx, ay - by, az - bz);
 }
 
-// FlightCombat installs later at runtime and captures this filtered legacy step.
-// Keeping the filter here means V43 can add real altitude contact semantics
-// without modifying the shared Cart simulation used by other game modes.
 installSkyDancerLegacy2DContactFilterV43();
