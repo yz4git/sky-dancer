@@ -88,17 +88,17 @@ export function installSkyDancerReengagementV40(): void {
         const dx = px - enemy.x;
         const dz = pz - enemy.z;
         const distance = Math.hypot(dx, dz);
-        maxEnemyDistance = Math.max(maxEnemyDistance, distance);
-        if (distance <= trigger || distance < 0.001) continue;
-
-        const inv = 1 / distance;
-        const closingSpeed = skyDancerReengagementClosingSpeedV40(distance, cleanup);
-        const correction = Math.min(Math.max(0, distance - target), closingSpeed * delta);
-        enemy.x += dx * inv * correction;
-        enemy.z += dz * inv * correction;
-        const desiredHeading = Math.atan2(dx, dz);
-        enemy.heading = rotateToward(enemy.heading, desiredHeading, (cleanup ? 3.2 : 2.15) * delta);
-        correctedEnemies += 1;
+        if (distance > trigger && distance >= 0.001) {
+          const inv = 1 / distance;
+          const closingSpeed = skyDancerReengagementClosingSpeedV40(distance, cleanup);
+          const correction = Math.min(Math.max(0, distance - target), closingSpeed * delta);
+          enemy.x += dx * inv * correction;
+          enemy.z += dz * inv * correction;
+          const desiredHeading = Math.atan2(dx, dz);
+          enemy.heading = rotateToward(enemy.heading, desiredHeading, (cleanup ? 3.2 : 2.15) * delta);
+          correctedEnemies += 1;
+        }
+        maxEnemyDistance = Math.max(maxEnemyDistance, Math.hypot(enemy.x - px, enemy.z - pz));
       }
     }
 
