@@ -4,6 +4,7 @@ import type { SkyDancerFxRuntime } from "./SkyDancerAirCombatFxV2";
 import { installSkyDancerBossCombatV34 } from "./SkyDancerBossCombatV34";
 import { installSkyDancerBossDurabilityGuardV34 } from "./SkyDancerBossDurabilityGuardV34";
 import type { SkyDancerMissileState } from "./SkyDancerFlightCombat";
+import { installSkyDancerReengagementV40 } from "./SkyDancerReengagementV40";
 import { SkyDancerPresentationPipeline } from "./presentation/SkyDancerPresentationPipeline";
 
 // Historical regression markers retained for source-level compatibility tests:
@@ -27,6 +28,8 @@ import { SkyDancerPresentationPipeline } from "./presentation/SkyDancerPresentat
  * is composed through the presentation pipeline. V34 installs a durability
  * compatibility guard immediately inside its boss director, then the director
  * owns final aerial boss motion and phase rules without reviving inheritance.
+ * V40 installs the non-boss re-engagement director outermost so inherited AI
+ * cannot leave cleanup survivors outside the missile lock envelope.
  */
 export class SkyDancerAirCombatFx extends SkyDancerAirCombatFxV29 {
   private readonly presentation: SkyDancerPresentationPipeline;
@@ -35,6 +38,7 @@ export class SkyDancerAirCombatFx extends SkyDancerAirCombatFxV29 {
     super(runtime);
     installSkyDancerBossDurabilityGuardV34();
     installSkyDancerBossCombatV34();
+    installSkyDancerReengagementV40();
     this.presentation = new SkyDancerPresentationPipeline(runtime);
   }
 
