@@ -7,7 +7,10 @@ import {
   cartTurboHuntWrappedDelta,
 } from "../cart/CartTurboHuntTrack";
 import type { RallyInputState } from "../rally/RallyTypes";
-import { getSkyDancerReengagementSnapshotV40 } from "./SkyDancerReengagementV40";
+import {
+  getSkyDancerReengagementSnapshotV40,
+  SKY_DANCER_V40_CLEANUP_SLOT_DELAY,
+} from "./SkyDancerReengagementV40";
 
 interface NaturalMotionSession {
   enemies: CartEnemyState[];
@@ -68,8 +71,6 @@ export const SKY_DANCER_V41_PREDICTIVE_DISTANCE = 72;
 export const SKY_DANCER_V41_PREDICTIVE_MISS_DISTANCE = 24;
 export const SKY_DANCER_V41_PREDICTIVE_LOOKAHEAD = 4;
 const PREDICTIVE_MIN_CLOSING_RATE = 0.5;
-const CLEANUP_SLOT_SPACING = 4.8;
-const CLEANUP_HOLD_DISTANCE = 49;
 
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
@@ -128,6 +129,8 @@ function stateFor(session: object): NaturalMotionState {
  * teleport correction. Relative velocity is also projected several seconds
  * ahead so a fighter starts a fly-by before its flight path intersects the
  * player's camera bubble instead of reacting only after it is already close.
+ * V40 cleanup holding slots remain owned by V40 until their release time; V41
+ * takes over only once a survivor is actually released into the engagement.
  */
 export function installSkyDancerFlightNaturalMotionV41(): void {
   const prototype = CartArenaSession.prototype as unknown as NaturalMotionSession & Record<string, unknown>;
@@ -144,9 +147,6 @@ export function installSkyDancerFlightNaturalMotionV41(): void {
     const state = stateFor(key);
     const delta = clamp(fixedDelta ?? 1 / 60, 0.001, 0.05);
     const nodeIdBefore = this.location.node.id;
-    const pxBefore = this.car.position.x;
-    const pzBefore = this.car.position.z;
-    const playerHeadingBefore = this.car.heading;
 
     for (const enemy of this.enemies) {
       if (!enemy.alive || enemy.kind === "boss" || enemy.nodeId !== nodeIdBefore) continue;
@@ -157,12 +157,6 @@ export function installSkyDancerFlightNaturalMotionV41(): void {
         before.heading = enemy.heading;
       } else {
         state.before.set(enemy.id, { x: enemy.x, z: enemy.z, heading: enemy.heading, speed: 16 });
-      }
-      const readyAt = state.cleanupSlots.get(enemy.id);
-      if (state.cleanupActive && readyAt !== undefined && state.cleanupElapsed + 0.001 < readyAt) {
-        const side = stableSide(enemy.id);
-        enemy.x = pxBefore - Math.sin(playerHeadingBefore) * CLEANUP_HOLD_DISTANCE + Math.cos(playerHeadingBefore) * side * 7;
-        enemy.z = pzBefore - Math.cos(playerHeadingBefore) * CLEANUP_HOLD_DISTANCE - Math.sin(playerHeadingBefore) * side * 7;
       }
     }
 
@@ -177,7 +171,7 @@ export function installSkyDancerFlightNaturalMotionV41(): void {
           .filter((enemy) => enemy.alive && enemy.kind !== "boss" && enemy.nodeId === this.location.node.id)
           .map((enemy) => enemy.id)
           .sort();
-        ids.forEach((id, index) => state.cleanupSlots.set(id, index * CLEANUP_SLOT_SPACING));
+        ids.forEach((id, index) => state.cleanupSlots.set(id, index * SKY_DANCER_V40_CLEANUP_SLOT_DELAY));
       }
       state.cleanupActive = true;
       state.cleanupElapsed = Math.max(0, director?.cleanupElapsed ?? 0);
@@ -206,6 +200,24 @@ export function installSkyDancerFlightNaturalMotionV41(): void {
       if (!enemy.alive || enemy.kind === "boss" || enemy.nodeId !== nodeId) continue;
       const before = state.before.get(enemy.id);
       if (!before) continue;
+
+      const cleanupReadyAt = state.cleanupSlots.get(enemy.id);
+      const cleanupHeld = cleanupPhase
+        && cleanupReadyAt !== undefined
+        && state.cleanupElapsed + 0.001 < cleanupReadyAt;
+      if (cleanupHeld) {
+        // V40 owns not-yet-released cleanup survivors and keeps them on a
+        // bounded flank orbit. Do not convert that pacing correction into V41
+        // forward motion or the held aircraft can drift outside lock range.
+        before.x = enemy.x;
+        before.z = enemy.z;
+        before.heading = enemy.heading;
+        before.speed = Math.min(before.speed, SKY_DANCER_V41_MAX_CLEANUP_SPEED);
+        const heldX = cartTurboHuntWrappedDelta(enemy.x, px, CART_TURBO_HUNT_WORLD_WIDTH);
+        const heldZ = cartTurboHuntWrappedDelta(enemy.z, pz, CART_TURBO_HUNT_WORLD_DEPTH);
+        minEnemyDistance = Math.min(minEnemyDistance, Math.hypot(heldX, heldZ));
+        continue;
+      }
 
       const proposedDx = cartTurboHuntWrappedDelta(enemy.x, before.x, CART_TURBO_HUNT_WORLD_WIDTH);
       const proposedDz = cartTurboHuntWrappedDelta(enemy.z, before.z, CART_TURBO_HUNT_WORLD_DEPTH);
@@ -265,9 +277,9 @@ export function installSkyDancerFlightNaturalMotionV41(): void {
         turnRate = SKY_DANCER_V41_EMERGENCY_TURN_RATE;
         minSpeed = 14;
       } else if (cleanupPhase) {
-        // Cleanup slots deliberately cross the player's forward lock cone at a
-        // safe 31–45 m stand-off. Preserve the V40 intercept heading here,
-        // while the 30 m breakaway above still prevents camera-hugging passes.
+        // Released cleanup slots deliberately cross the player's forward lock
+        // cone at a safe stand-off. Preserve the V40 intercept heading while
+        // retaining the V41 turn/speed envelope after release.
         turnRate = SKY_DANCER_V41_EMERGENCY_TURN_RATE;
         minSpeed = 12;
         maxSpeed = SKY_DANCER_V41_MAX_CLEANUP_SPEED;
