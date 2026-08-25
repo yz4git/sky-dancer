@@ -45,6 +45,12 @@ if (!openingPresentation.city || openingPresentation.city.sectorCount !== 3 || o
 if (!openingPresentation.gunsight || openingPresentation.gunsight.width > 42 || openingPresentation.gunsight.height > 42) {
   throw new Error(`V40 gunsight reduction did not apply: ${JSON.stringify(openingPresentation.gunsight)}`);
 }
+if (Math.abs(Number(openingPresentation.city.burstLinearScale) - 0.55) > 0.001) {
+  throw new Error(`V40 dynamic combat-ring reduction did not initialize: ${JSON.stringify(openingPresentation.city)}`);
+}
+if (openingPresentation.city.airBurstScale != null && Number(openingPresentation.city.airBurstScale) > 0.33) {
+  throw new Error(`V40 air-burst ring remained oversized: ${JSON.stringify(openingPresentation.city)}`);
+}
 
 await page.screenshot({ path: `${outputDir}/30-v40-opening.png`, fullPage: true });
 await canvas.screenshot({ path: `${outputDir}/30-v40-opening-canvas.png` });
@@ -60,6 +66,8 @@ let clearSeconds = null;
 let stage2Seconds = null;
 let cleanupMaxDistance = 0;
 let cleanupCorrectionFrames = 0;
+let cleanupMaxLockAngle = 0;
+let cleanupPeakLockCandidates = 0;
 let bossDuplicateVisible = false;
 let turboReleases = 0;
 let steeringDirection = "ArrowRight";
@@ -84,7 +92,8 @@ async function readState() {
   const flight = await page.evaluate(() => typeof window.__skyDancerGetFlightDebug === "function" ? window.__skyDancerGetFlightDebug() : null);
   const reengagement = await page.evaluate(() => typeof window.__skyDancerGetReengagementV40 === "function" ? window.__skyDancerGetReengagementV40() : null);
   const boss = await page.evaluate(() => typeof window.__skyDancerGetBossQualityV34 === "function" ? window.__skyDancerGetBossQualityV34() : null);
-  return { hudText, weapon, flight, reengagement, boss };
+  const presentation = await page.evaluate(() => typeof window.__skyDancerGetV40CityDebug === "function" ? window.__skyDancerGetV40CityDebug() : null);
+  return { hudText, weapon, flight, reengagement, boss, presentation };
 }
 
 while (Date.now() - began < MAX_WALL_MS && stage2Seconds == null) {
@@ -128,6 +137,8 @@ while (Date.now() - began < MAX_WALL_MS && stage2Seconds == null) {
       await captureOnce("cleanup", "31-v40-cleanup");
     }
     cleanupMaxDistance = Math.max(cleanupMaxDistance, Number(state.reengagement?.maxEnemyDistance ?? 0));
+    cleanupMaxLockAngle = Math.max(cleanupMaxLockAngle, Number(state.reengagement?.maxLockAngle ?? 0));
+    cleanupPeakLockCandidates = Math.max(cleanupPeakLockCandidates, Number(state.reengagement?.lockConeCandidates ?? 0));
     if (Number(state.reengagement?.correctedEnemies ?? 0) > 0) cleanupCorrectionFrames += 1;
   }
   if (isBoss && bossSeconds == null) {
@@ -158,6 +169,7 @@ while (Date.now() - began < MAX_WALL_MS && stage2Seconds == null) {
       altitudeMeters: state.flight?.altitudeMeters ?? null,
       forwardVelocity: state.flight?.forwardVelocity ?? null,
       minEnemyDistance: state.flight?.minEnemyDistance ?? null,
+      airBurstScale: state.presentation?.airBurstScale ?? null,
     });
     lastPhaseKey = phaseKey;
     lastHitSerial = hits;
@@ -184,6 +196,8 @@ const diagnostics = {
   cleanupTargetWindowSeconds: [20, 30],
   cleanupLimitSeconds: CLEANUP_LIMIT_SECONDS,
   cleanupMaxDistance,
+  cleanupMaxLockAngle,
+  cleanupPeakLockCandidates,
   cleanupCorrectionFrames,
   bossDuplicateVisible,
   shots,
@@ -191,6 +205,7 @@ const diagnostics = {
   hitRate: shots > 0 ? Number((hits / shots).toFixed(3)) : 0,
   turboReleases,
   openingPresentation,
+  finalPresentation: final.presentation,
   finalHudText: final.hudText,
   finalFlight: final.flight,
   consoleErrors,
@@ -208,5 +223,6 @@ if (bossSeconds == null) throw new Error(`V40 playcheck never reached BOSS: ${JS
 if (cleanupDurationSeconds == null || cleanupDurationSeconds > CLEANUP_LIMIT_SECONDS) {
   throw new Error(`V40 cleanup exceeded ${CLEANUP_LIMIT_SECONDS}s: ${JSON.stringify(diagnostics)}`);
 }
+if (cleanupPeakLockCandidates < 1) throw new Error(`V40 cleanup never presented a lock-cone target: ${JSON.stringify(diagnostics)}`);
 if (bossDuplicateVisible) throw new Error(`Legacy boss phase chip remained visible during V40 boss HUD: ${JSON.stringify(diagnostics)}`);
 if (clearSeconds == null || stage2Seconds == null) throw new Error(`V40 playcheck did not show CLEAR then STAGE 2: ${JSON.stringify(diagnostics)}`);
