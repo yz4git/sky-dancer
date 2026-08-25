@@ -1,6 +1,5 @@
 import type { CartArenaSession } from "../cart/CartArenaSession";
 import type { CartRogueSnapshotHandler } from "../cart/CartRogueDemo";
-import type { SkyDancerMissileState } from "./SkyDancerFlightCombat";
 import { installSkyDancerBossCombatV34 } from "./SkyDancerBossCombatV34";
 import { installSkyDancerBossDurabilityGuardV34 } from "./SkyDancerBossDurabilityGuardV34";
 import { SkyDancerCanvasPreviewV3 } from "./SkyDancerCanvasPreviewV3";
