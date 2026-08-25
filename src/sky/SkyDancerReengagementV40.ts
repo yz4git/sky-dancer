@@ -330,13 +330,9 @@ export function installSkyDancerReengagementV40(): void {
           const tangentHeading = normalizeAngle(radial + side * Math.PI * 0.5);
           enemy.heading = rotateToward(enemy.heading, tangentHeading, 1.12 * delta);
 
-          fromPlayerX = enemy.x - px;
-          fromPlayerZ = enemy.z - pz;
-          distance = Math.hypot(fromPlayerX, fromPlayerZ);
-          targetHeadingFromPlayer = Math.atan2(fromPlayerX, fromPlayerZ);
-          lockAngle = Math.abs(normalizeAngle(targetHeadingFromPlayer - playerHeading));
-          maxEnemyDistance = Math.max(maxEnemyDistance, distance);
-          maxLockAngle = Math.max(maxLockAngle, lockAngle);
+          // Held formation aircraft are deliberately not weapon targets, so
+          // exclude them from lock-envelope diagnostics. cleanupHoldingEnemies
+          // tracks their presence separately until the scheduled slot release.
           continue;
         }
 
