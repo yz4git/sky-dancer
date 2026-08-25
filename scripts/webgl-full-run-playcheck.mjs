@@ -29,11 +29,11 @@ await page.waitForTimeout(1_200);
 
 const timeline = [];
 const transitionScreens = new Set();
-let lastTextKey = "";
+let lastStateKey = "";
 let lastHitSerial = 0;
 let lastShotSerial = 0;
 let reachedStage2 = false;
-let reachedCleanup = false;
+let reachedStage1Target = false;
 let reachedBoss = false;
 let reachedClear = false;
 let turboReleases = 0;
@@ -42,17 +42,29 @@ let nextSteerSwitch = 4_800;
 let nextTurboAt = 5_600;
 let turboHeld = false;
 let turboReleaseAt = 0;
+let firstHitSeconds = null;
+let stage1TargetSeconds = null;
+let bossSeenSeconds = null;
+let clearSeenSeconds = null;
+let stage2Seconds = null;
 const began = Date.now();
 
 await page.keyboard.down(steeringDirection);
 await page.screenshot({ path: `${outputDir}/20-full-run-opening.png`, fullPage: true });
 
+function parseHuntProgress(text) {
+  const match = text.match(/CONTRACT\s*·\s*HUNT\s+(\d+)\s*\/\s*(\d+)/i)
+    ?? text.match(/HUNT\s+(\d+)\s*\/\s*(\d+)/i);
+  return match ? { progress: Number(match[1]), target: Number(match[2]) } : { progress: null, target: null };
+}
+
 async function bodyState() {
   const bodyText = await page.locator("body").innerText();
-  const objective = bodyText.split("\n").map((line) => line.trim()).find((line) => /^STAGE \d+/.test(line)) ?? "";
+  const hunt = parseHuntProgress(bodyText);
   const weapon = await page.evaluate(() => typeof window.__skyDancerGetWeaponState === "function" ? window.__skyDancerGetWeaponState() : null);
   const flight = await page.evaluate(() => typeof window.__skyDancerGetFlightDebug === "function" ? window.__skyDancerGetFlightDebug() : null);
-  return { bodyText, objective, weapon, flight };
+  const boss = await page.evaluate(() => typeof window.__skyDancerGetBossQualityV34 === "function" ? window.__skyDancerGetBossQualityV34() : null);
+  return { bodyText, huntProgress: hunt.progress, huntTarget: hunt.target, weapon, flight, boss };
 }
 
 async function captureOnce(key, filename) {
@@ -88,16 +100,23 @@ while (Date.now() - began < MAX_WALL_MS && !reachedStage2) {
   await page.waitForTimeout(SAMPLE_MS);
 
   const state = await bodyState();
-  const objective = state.objective;
-  const key = objective.replace(/\s+/g, " ");
   const weapon = state.weapon;
   const hitSerial = Number(weapon?.hitSerial ?? 0);
   const shotSerial = Number(weapon?.shotSerial ?? 0);
-  const changed = key !== lastTextKey || hitSerial !== lastHitSerial;
-  if (changed) {
+  const wallSeconds = Number(((Date.now() - began) / 1000).toFixed(2));
+  if (firstHitSeconds == null && hitSerial > 0) firstHitSeconds = wallSeconds;
+
+  const bossActive = Boolean(state.boss?.active || /BOSS P[123]/i.test(state.bodyText));
+  const stateKey = `${state.huntProgress}/${state.huntTarget}|boss=${bossActive}|hits=${hitSerial}`;
+  if (stateKey !== lastStateKey) {
     timeline.push({
-      wallSeconds: Number(((Date.now() - began) / 1000).toFixed(2)),
-      objective,
+      wallSeconds,
+      huntProgress: state.huntProgress,
+      huntTarget: state.huntTarget,
+      bossActive,
+      bossHp: state.boss?.hp ?? null,
+      bossMaxHp: state.boss?.maxHp ?? null,
+      bossMode: state.boss?.mode ?? null,
       shotSerial,
       hitSerial,
       hitDelta: hitSerial - lastHitSerial,
@@ -105,25 +124,31 @@ while (Date.now() - began < MAX_WALL_MS && !reachedStage2) {
       forwardVelocity: state.flight?.forwardVelocity ?? null,
       minEnemyDistance: state.flight?.minEnemyDistance ?? null,
     });
-    lastTextKey = key;
+    lastStateKey = stateKey;
     lastHitSerial = hitSerial;
     lastShotSerial = shotSerial;
   }
 
-  if (/WIPE OUT/i.test(state.bodyText)) {
-    reachedCleanup = true;
-    await captureOnce("cleanup", "21-full-run-cleanup");
+  if (!reachedStage1Target && state.huntTarget === 12 && Number(state.huntProgress) >= 12) {
+    reachedStage1Target = true;
+    stage1TargetSeconds = wallSeconds;
+    await captureOnce("stage1-target", "21-full-run-stage1-target");
   }
-  if (/DESTROY BOSS/i.test(state.bodyText) || /BOSS P[123]/i.test(state.bodyText)) {
+  if (!reachedBoss && bossActive) {
     reachedBoss = true;
+    bossSeenSeconds = wallSeconds;
     await captureOnce("boss", "22-full-run-boss");
   }
-  if (/STAGE 1 CLEAR/i.test(state.bodyText)) {
+  if (!reachedClear && (/STAGE\s*1\s*CLEAR/i.test(state.bodyText) || (reachedBoss && state.huntTarget === 1 && state.huntProgress === 1))) {
     reachedClear = true;
+    clearSeenSeconds = wallSeconds;
     await captureOnce("clear", "23-full-run-clear");
   }
-  if (/STAGE 2/i.test(state.bodyText)) {
+  // Stage 2's reinforcement target is 16. Boss mode uses 192 and Stage 1 uses 12,
+  // so this is a stable live-HUD proof that the complete Stage 1 cycle advanced.
+  if (state.huntTarget === 16) {
     reachedStage2 = true;
+    stage2Seconds = wallSeconds;
     await captureOnce("stage2", "24-full-run-stage2");
   }
 }
@@ -135,16 +160,24 @@ const shots = Number(final.weapon?.shotSerial ?? lastShotSerial);
 const hits = Number(final.weapon?.hitSerial ?? lastHitSerial);
 const diagnostics = {
   completed: reachedStage2,
-  reachedCleanup,
+  reachedStage1Target,
   reachedBoss,
   reachedClear,
   reachedStage2,
   wallSeconds: Number(((Date.now() - began) / 1000).toFixed(2)),
+  firstHitSeconds,
+  stage1TargetSeconds,
+  bossSeenSeconds,
+  clearSeenSeconds,
+  stage2Seconds,
+  stage1CleanupSeconds: stage1TargetSeconds != null && bossSeenSeconds != null ? Number((bossSeenSeconds - stage1TargetSeconds).toFixed(2)) : null,
+  bossToStage2Seconds: bossSeenSeconds != null && stage2Seconds != null ? Number((stage2Seconds - bossSeenSeconds).toFixed(2)) : null,
   shots,
   hits,
   hitRate: shots > 0 ? Number((hits / shots).toFixed(3)) : 0,
   turboReleases,
-  finalObjective: final.objective,
+  finalHuntProgress: final.huntProgress,
+  finalHuntTarget: final.huntTarget,
   finalFlight: final.flight,
   finalWeapon: final.weapon,
   timeline,
