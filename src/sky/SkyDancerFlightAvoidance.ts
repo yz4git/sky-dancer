@@ -10,6 +10,10 @@ import {
   skyDancerNormalizeAngle,
   skyDancerRotateToward,
 } from "./SkyDancerFlightAvoidanceMath";
+import {
+  SKY_DANCER_VERTICAL_COLLISION_CLEARANCE_METERS,
+  getSkyDancerEnemyAltitudeMetersV43,
+} from "./SkyDancerVerticalFlightV43";
 
 export {
   SKY_DANCER_ENEMY_HARD_CLEARANCE,
@@ -80,6 +84,8 @@ function applyCollisionAvoidance(session: AvoidanceSessionView, delta: number): 
     const side = stableSide(enemy.id);
     const safetyRadius = skyDancerEnemySafetyRadius(enemy.radius);
     const preferred = enemy.kind === "boss" ? 30 : enemy.kind === "heavy" ? 28 : 26;
+    const altitudeSeparation = Math.abs(getSkyDancerEnemyAltitudeMetersV43(enemy));
+    const verticallyClear = altitudeSeparation >= SKY_DANCER_VERTICAL_COLLISION_CLEARANCE_METERS;
 
     const desired = skyDancerAvoidanceHeading(
       enemy.x,
@@ -90,13 +96,18 @@ function applyCollisionAvoidance(session: AvoidanceSessionView, delta: number): 
       distance,
       side,
     );
-    const urgency = distance < 15.5
-      ? 2.45
-      : distance < preferred
-        ? 1.95
-        : distance < 34
-          ? 1.35
-          : 0.82;
+    // Once vertical separation is established, keep only normal combat spacing.
+    // The emergency horizontal dodge is no longer needed: the aircraft can pass
+    // above/below the player instead of being shoved sideways like a 2D token.
+    const urgency = verticallyClear
+      ? (distance < preferred ? 1.08 : 0.72)
+      : distance < 15.5
+        ? 2.45
+        : distance < preferred
+          ? 1.95
+          : distance < 34
+            ? 1.35
+            : 0.82;
     enemy.heading = skyDancerRotateToward(enemy.heading, desired, turnRate(enemy) * urgency * delta);
 
     const lookAhead = 0.95;
@@ -107,15 +118,15 @@ function applyCollisionAvoidance(session: AvoidanceSessionView, delta: number): 
     const predictedEnemyX = enemy.x + Math.sin(enemy.heading) * enemyTravel;
     const predictedEnemyZ = enemy.z + Math.cos(enemy.heading) * enemyTravel;
     const predictedDistance = Math.hypot(predictedEnemyX - predictedPlayerX, predictedEnemyZ - predictedPlayerZ);
-    if (predictedDistance < safetyRadius + 5.4 && distance < 36) {
+    if (!verticallyClear && predictedDistance < safetyRadius + 5.4 && distance < 36) {
       const awayHeading = skyDancerNormalizeAngle(Math.atan2(px - enemy.x, pz - enemy.z) + Math.PI + side * 0.78);
       enemy.heading = skyDancerRotateToward(enemy.heading, awayHeading, turnRate(enemy) * 2.35 * delta);
     }
 
-    // Only the actual collision bubble is position-corrected. Normal combat
-    // separation is achieved by heading + inertial forward flight, never by a
-    // radial slide that makes the aircraft look like a top-down game token.
-    if (distance < safetyRadius) {
+    // Only the actual collision bubble is position-corrected, and V43 disables
+    // that radial correction after a safe altitude difference has been created.
+    // This makes climb/dive avoidance materially useful to aircraft motion.
+    if (!verticallyClear && distance < safetyRadius) {
       if (distance < 0.001) {
         awayX = Math.cos(playerHeading) * side;
         awayZ = -Math.sin(playerHeading) * side;
