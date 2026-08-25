@@ -8,6 +8,7 @@ import {
   SKY_DANCER_VERTICAL_COLLISION_CLEARANCE_METERS,
   SKY_DANCER_VERTICAL_MAX_PITCH_RADIANS,
   getSkyDancerEnemyVerticalSnapshotV43,
+  shouldSuppressSkyDancerLegacy2DContactV43,
   skyDancerDistance3DV43,
   stepSkyDancerEnemyVerticalFlightV43,
 } from "../src/sky/SkyDancerVerticalFlightV43";
@@ -93,6 +94,28 @@ test("V43 player collision prediction triggers a climb or dive instead of only a
   const vertical = getSkyDancerEnemyVerticalSnapshotV43(fighter);
   assert.equal(sawAvoidance, true);
   assert.ok(Math.abs(vertical.altitudeOffsetMeters) >= 3.0);
+});
+
+test("V43 safe altitude clearance disables inherited 2D player contact", () => {
+  const fighter = enemy("v43-legacy-contact-filter", 0.5, 5.5, Math.PI);
+  for (let frame = 0; frame < 210; frame += 1) {
+    stepSkyDancerEnemyVerticalFlightV43([fighter], {
+      nodeId: "arena-01",
+      playerX: 0,
+      playerZ: 0,
+      playerHeading: 0,
+      playerSpeed: 12,
+      delta: 1 / 60,
+    });
+  }
+  const altitude = Math.abs(getSkyDancerEnemyVerticalSnapshotV43(fighter).altitudeOffsetMeters);
+  assert.ok(altitude >= SKY_DANCER_VERTICAL_COLLISION_CLEARANCE_METERS, `expected safe altitude clearance, got ${altitude.toFixed(2)}m`);
+  assert.equal(shouldSuppressSkyDancerLegacy2DContactV43(fighter), true);
+
+  const source = read("../src/sky/SkyDancerVerticalFlightV43.ts");
+  assert.match(source, /skyDancerV43LegacyContactFilteredStep/);
+  assert.match(source, /legacyStep\.call\(this, input, fixedDelta\)/);
+  assert.match(source, /installSkyDancerLegacy2DContactFilterV43\(\);/);
 });
 
 test("V43 3D distance and swept collision distinguish altitude-separated targets", () => {
