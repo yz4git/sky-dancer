@@ -7,6 +7,11 @@ const GROUND_Y = -65.88;
 const BUILDING_CAPACITY = 240;
 const ROAD_CAPACITY = 24;
 const GLOBAL_CITY_DEBUG_KEY = "__skyDancerGetV40CityDebug";
+const AIR_BURST_V6_SCALE = 0.58;
+const PLAYER_HIT_BURST_V6_SCALE = 0.74;
+export const SKY_DANCER_V40_BURST_LINEAR_SCALE = 0.55;
+export const SKY_DANCER_V40_AIR_BURST_SCALE = AIR_BURST_V6_SCALE * SKY_DANCER_V40_BURST_LINEAR_SCALE;
+export const SKY_DANCER_V40_PLAYER_HIT_BURST_SCALE = PLAYER_HIT_BURST_V6_SCALE * SKY_DANCER_V40_BURST_LINEAR_SCALE;
 
 interface CitySector {
   x: number;
@@ -31,13 +36,15 @@ function hash2(x: number, z: number, salt = 0): number {
 }
 
 /**
- * V40 skyline expansion.
+ * V40 skyline and final combat-declutter pass.
  *
  * V36 intentionally owns the high-detail primary city in front of the opening
  * composition. This pass leaves it untouched and fills the other three broad
  * directions with cheaper instanced districts, so long turns no longer reveal
- * one city island surrounded by empty green terrain. Render-only: no collision
- * or gameplay height is changed.
+ * one city island surrounded by empty green terrain. It also runs after the
+ * inherited V6 combat FX and cuts its large center-crossing air-burst group by
+ * another 45% in linear size. Both changes are render-only: collision, damage,
+ * flight height and combat timing are untouched.
  */
 export class SkyDancerV40CityExpansionPass {
   private readonly root = new THREE.Group();
@@ -52,7 +59,7 @@ export class SkyDancerV40CityExpansionPass {
   private tileZ = Number.NaN;
   private latestCounts = { low: 0, mid: 0, high: 0, roads: 0 };
 
-  constructor(runtime: SkyDancerFxRuntime) {
+  constructor(private readonly runtime: SkyDancerFxRuntime) {
     this.root.name = "sky-dancer-v40-multi-direction-city";
 
     const material = () => new THREE.MeshLambertMaterial({
@@ -85,6 +92,7 @@ export class SkyDancerV40CityExpansionPass {
     this.root.add(this.low, this.mid, this.high, this.roads);
     runtime.scene.add(this.root);
     runtime.scene.userData.skyDancerV40MultiDirectionCity = true;
+    runtime.scene.userData.skyDancerV40BurstLinearScale = SKY_DANCER_V40_BURST_LINEAR_SCALE;
 
     if (typeof window !== "undefined" && navigator.webdriver) {
       (window as unknown as Record<string, unknown>)[GLOBAL_CITY_DEBUG_KEY] = () => ({
@@ -92,12 +100,16 @@ export class SkyDancerV40CityExpansionPass {
         sectors: SECTORS.map(({ x, z, rotation }) => ({ x, z, rotation })),
         counts: { ...this.latestCounts },
         totalBuildings: this.latestCounts.low + this.latestCounts.mid + this.latestCounts.high,
+        burstLinearScale: SKY_DANCER_V40_BURST_LINEAR_SCALE,
+        airBurstScale: this.runtime.scene.getObjectByName("sky-dancer-air-burst-v2")?.scale.x ?? null,
+        playerHitBurstScale: this.runtime.scene.getObjectByName("sky-dancer-player-hit-burst-v2")?.scale.x ?? null,
       });
     }
   }
 
   update(snapshot: CartArenaSessionSnapshot): void {
     this.root.visible = true;
+    this.reduceInheritedCombatBursts();
     const tileX = Math.floor(snapshot.x / CITY_SNAP);
     const tileZ = Math.floor(snapshot.z / CITY_SNAP);
     if (tileX === this.tileX && tileZ === this.tileZ) return;
@@ -105,6 +117,19 @@ export class SkyDancerV40CityExpansionPass {
     this.tileZ = tileZ;
     this.root.position.set(tileX * CITY_SNAP, 0, tileZ * CITY_SNAP);
     this.rebuild(tileX, tileZ);
+  }
+
+  private reduceInheritedCombatBursts(): void {
+    // V6 resets these absolute scales every inherited update. V40 is the final
+    // presentation pass, so writing the final values here is deterministic and
+    // non-accumulating. 0.55 means 45% smaller than the pre-V40 on-screen ring.
+    for (const object of this.runtime.scene.children) {
+      if (object.name === "sky-dancer-air-burst-v2") {
+        object.scale.setScalar(SKY_DANCER_V40_AIR_BURST_SCALE);
+      } else if (object.name === "sky-dancer-player-hit-burst-v2") {
+        object.scale.setScalar(SKY_DANCER_V40_PLAYER_HIT_BURST_SCALE);
+      }
+    }
   }
 
   private rebuild(tileX: number, tileZ: number): void {
