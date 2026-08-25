@@ -8,6 +8,11 @@ import {
   SKY_DANCER_V44_CLEANUP_ORBIT_MIN_DISTANCE,
 } from "../src/sky/SkyDancerAttackRunsV44";
 import {
+  isSkyDancerCombatTargetableV42,
+  setSkyDancerCombatOutOfSeekerRangeV44,
+} from "../src/sky/SkyDancerCombatEligibilityV42";
+import { SKY_DANCER_PLAYER_MISSILE_LOCK_DISTANCE } from "../src/sky/SkyDancerPlayerWeapons";
+import {
   SKY_DANCER_ENEMY_ALTITUDE_LIMIT_METERS,
   getSkyDancerEnemyVerticalSnapshotV43,
   requestSkyDancerVerticalManeuverV44,
@@ -16,14 +21,27 @@ import {
 const read = (relative: string) => readFileSync(new URL(relative, import.meta.url), "utf8");
 
 test("V44 cleanup staging stays physically outside missile lock before attack runs", () => {
-  assert.ok(SKY_DANCER_V44_CLEANUP_ORBIT_MIN_DISTANCE > 58);
+  assert.ok(SKY_DANCER_V44_CLEANUP_ORBIT_MIN_DISTANCE > SKY_DANCER_PLAYER_MISSILE_LOCK_DISTANCE);
   assert.ok(SKY_DANCER_V44_CLEANUP_ORBIT_MAX_DISTANCE >= SKY_DANCER_V44_CLEANUP_ORBIT_MIN_DISTANCE + 8);
   assert.ok(SKY_DANCER_V44_ATTACK_RUN_RELEASE_INTERVAL >= 5);
   assert.ok(SKY_DANCER_V44_ATTACK_RUN_SPEED >= 16 && SKY_DANCER_V44_ATTACK_RUN_SPEED <= 22);
   const source = read("../src/sky/SkyDancerAttackRunsV44.ts");
   assert.match(source, /setSkyDancerCleanupHeldV42\(enemy, false\)/);
-  assert.match(source, /physical 74-84 m orbit keeps them outside the 58 m seeker/);
+  assert.match(source, /setPhysicalSeekerEligibility/);
+  assert.match(source, /SKY_DANCER_PLAYER_MISSILE_LOCK_DISTANCE/);
   assert.match(source, /applyAttackRun/);
+});
+
+test("V44 seeker eligibility follows physical range instead of a cleanup timer", () => {
+  const enemy = { id: "v44-range", alive: true } as unknown as Parameters<typeof setSkyDancerCombatOutOfSeekerRangeV44>[0];
+  setSkyDancerCombatOutOfSeekerRangeV44(enemy, true);
+  assert.equal(isSkyDancerCombatTargetableV42(enemy), false);
+  setSkyDancerCombatOutOfSeekerRangeV44(enemy, false);
+  assert.equal(isSkyDancerCombatTargetableV42(enemy), true);
+
+  const eligibility = read("../src/sky/SkyDancerCombatEligibilityV42.ts");
+  assert.match(eligibility, /exact fixed step that the aircraft crosses back inside the 58 m engagement/);
+  assert.match(eligibility, /OUT_OF_SEEKER_RANGE_KEY/);
 });
 
 test("V44 exposes deliberate vertical maneuvers without breaking the +/-10m envelope", () => {
