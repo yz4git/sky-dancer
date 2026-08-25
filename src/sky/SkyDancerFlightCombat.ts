@@ -12,6 +12,11 @@ import {
   cancelCartRaidHazards,
   getCartRaidHazardState,
 } from "../cart/CartRoguePhase88RaidHazards";
+import {
+  getSkyDancerEnemyVerticalSnapshotV43,
+  skyDancerDistance3DV43,
+  stepSkyDancerEnemyVerticalFlightV43,
+} from "./SkyDancerVerticalFlightV43";
 
 export interface SkyDancerMissileSnapshot {
   id: number;
@@ -19,7 +24,9 @@ export interface SkyDancerMissileSnapshot {
   sourceKind: CartEnemyState["kind"];
   x: number;
   z: number;
+  altitudeOffsetMeters: number;
   heading: number;
+  pitch: number;
   speed: number;
   life: number;
   maxLife: number;
@@ -37,6 +44,9 @@ export interface SkyDancerMissileState {
 
 interface MissileInternal extends SkyDancerMissileSnapshot {
   turnRate: number;
+  pitchRate: number;
+  maxSpeed: number;
+  acceleration: number;
   damage: number;
   armedSeconds: number;
   active: boolean;
@@ -91,9 +101,16 @@ let latestState: SkyDancerMissileState | null = null;
 export const SKY_DANCER_MISSILE_EVENT = "sky-dancer-missile-snapshot";
 export const SKY_DANCER_ALTITUDE_METERS = 150;
 export const SKY_DANCER_MAX_ACTIVE_MISSILES = 8;
+export const SKY_DANCER_V43_MISSILE_MAX_PITCH = 0.62;
 
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
+}
+
+function moveToward(current: number, target: number, maxDelta: number): number {
+  if (current < target) return Math.min(target, current + maxDelta);
+  if (current > target) return Math.max(target, current - maxDelta);
+  return current;
 }
 
 function normalizeAngle(value: number): number {
@@ -154,13 +171,19 @@ function publicState(session: FlightSessionView, state: FlightCombatState): SkyD
       sourceKind: missile.sourceKind,
       x: missile.x,
       z: missile.z,
+      altitudeOffsetMeters: missile.altitudeOffsetMeters,
       heading: missile.heading,
+      pitch: missile.pitch,
       speed: missile.speed,
       life: missile.life,
       maxLife: missile.maxLife,
-      distanceToPlayer: Math.hypot(
-        cartTurboHuntWrappedDelta(px, missile.x, CART_TURBO_HUNT_WORLD_WIDTH),
-        cartTurboHuntWrappedDelta(pz, missile.z, CART_TURBO_HUNT_WORLD_DEPTH),
+      distanceToPlayer: skyDancerDistance3DV43(
+        missile.x,
+        missile.altitudeOffsetMeters,
+        missile.z,
+        px,
+        0,
+        pz,
       ),
     }));
   return {
@@ -274,12 +297,22 @@ function updateAircraftEnemies(session: FlightSessionView, delta: number, state:
   }
 }
 
-function missileSpec(enemy: CartEnemyState): { speed: number; turnRate: number; damage: number; cooldown: number } {
-  if (enemy.kind === "boss") return { speed: 25, turnRate: 1.72, damage: 0.105, cooldown: 1.2 };
-  if (enemy.kind === "heavy") return { speed: 21.5, turnRate: 1.48, damage: 0.085, cooldown: 2.0 };
-  if (enemy.archetype === "bomber") return { speed: 19.5, turnRate: 1.2, damage: 0.078, cooldown: 2.15 };
-  if (enemy.archetype === "striker") return { speed: 23.5, turnRate: 1.62, damage: 0.068, cooldown: 2.35 };
-  return { speed: 22, turnRate: 1.5, damage: 0.062, cooldown: 2.7 };
+interface MissileSpecV43 {
+  launchSpeed: number;
+  maxSpeed: number;
+  acceleration: number;
+  turnRate: number;
+  pitchRate: number;
+  damage: number;
+  cooldown: number;
+}
+
+function missileSpec(enemy: CartEnemyState): MissileSpecV43 {
+  if (enemy.kind === "boss") return { launchSpeed: 19.5, maxSpeed: 29.5, acceleration: 18, turnRate: 1.72, pitchRate: 1.28, damage: 0.105, cooldown: 1.2 };
+  if (enemy.kind === "heavy") return { launchSpeed: 17.5, maxSpeed: 25.5, acceleration: 15, turnRate: 1.48, pitchRate: 1.12, damage: 0.085, cooldown: 2.0 };
+  if (enemy.archetype === "bomber") return { launchSpeed: 16.0, maxSpeed: 23.5, acceleration: 14, turnRate: 1.2, pitchRate: 0.98, damage: 0.078, cooldown: 2.15 };
+  if (enemy.archetype === "striker") return { launchSpeed: 18.5, maxSpeed: 28.0, acceleration: 17, turnRate: 1.62, pitchRate: 1.22, damage: 0.068, cooldown: 2.35 };
+  return { launchSpeed: 17.5, maxSpeed: 26.5, acceleration: 16, turnRate: 1.5, pitchRate: 1.16, damage: 0.062, cooldown: 2.7 };
 }
 
 function tryLaunchMissiles(session: FlightSessionView, state: FlightCombatState): void {
@@ -292,9 +325,11 @@ function tryLaunchMissiles(session: FlightSessionView, state: FlightCombatState)
     if (!enemy.alive || enemy.nodeId !== nodeId) continue;
     const memory = state.enemyMemory.get(enemy.id);
     if (!memory || memory.cooldown > 0) continue;
+    const vertical = getSkyDancerEnemyVerticalSnapshotV43(enemy);
     const dx = px - enemy.x;
     const dz = pz - enemy.z;
-    const distance = Math.hypot(dx, dz);
+    const horizontalDistance = Math.hypot(dx, dz);
+    const distance = skyDancerDistance3DV43(enemy.x, vertical.altitudeOffsetMeters, enemy.z, px, 0, pz);
     if (distance < 8 || distance > (enemy.kind === "boss" ? 52 : 43)) continue;
     const direct = Math.atan2(dx, dz);
     const aimError = Math.abs(normalizeAngle(direct - enemy.heading));
@@ -302,18 +337,28 @@ function tryLaunchMissiles(session: FlightSessionView, state: FlightCombatState)
 
     const spec = missileSpec(enemy);
     const muzzle = enemy.radius + 1.15;
+    const desiredPitch = clamp(
+      Math.atan2(-vertical.altitudeOffsetMeters, Math.max(0.001, horizontalDistance)),
+      -SKY_DANCER_V43_MISSILE_MAX_PITCH,
+      SKY_DANCER_V43_MISSILE_MAX_PITCH,
+    );
     const missile: MissileInternal = {
       id: state.nextMissileId++,
       sourceEnemyId: enemy.id,
       sourceKind: enemy.kind,
       x: enemy.x + Math.sin(enemy.heading) * muzzle,
       z: enemy.z + Math.cos(enemy.heading) * muzzle,
+      altitudeOffsetMeters: vertical.altitudeOffsetMeters,
       heading: enemy.heading,
-      speed: spec.speed,
+      pitch: clamp(vertical.pitchRadians * 0.7 + desiredPitch * 0.3, -0.34, 0.34),
+      speed: spec.launchSpeed,
       life: enemy.kind === "boss" ? 4.4 : 3.8,
       maxLife: enemy.kind === "boss" ? 4.4 : 3.8,
       distanceToPlayer: distance,
       turnRate: spec.turnRate,
+      pitchRate: spec.pitchRate,
+      maxSpeed: spec.maxSpeed,
+      acceleration: spec.acceleration,
       damage: spec.damage,
       armedSeconds: 0,
       active: true,
@@ -342,16 +387,31 @@ function updateMissiles(session: FlightSessionView, delta: number, state: Flight
     missile.z = cartTurboHuntNearestCoordinate(missile.z, pz, CART_TURBO_HUNT_WORLD_DEPTH);
     const dx = px - missile.x;
     const dz = pz - missile.z;
-    const distance = Math.hypot(dx, dz);
+    const horizontalDistance = Math.hypot(dx, dz);
+    const distance = skyDancerDistance3DV43(missile.x, missile.altitudeOffsetMeters, missile.z, px, 0, pz);
     missile.distanceToPlayer = distance;
-    const direct = Math.atan2(dx, dz);
-    const lifeRatio = missile.life / missile.maxLife;
-    const homingScale = lifeRatio > 0.72 ? 0.65 : 1;
-    missile.heading = rotateToward(missile.heading, direct, missile.turnRate * homingScale * delta);
-    missile.x += Math.sin(missile.heading) * missile.speed * delta;
-    missile.z += Math.cos(missile.heading) * missile.speed * delta;
 
-    if (missile.armedSeconds > 0.2 && distance < 1.55) {
+    const direct = Math.atan2(dx, dz);
+    const desiredPitch = clamp(
+      Math.atan2(-missile.altitudeOffsetMeters, Math.max(0.001, horizontalDistance)),
+      -SKY_DANCER_V43_MISSILE_MAX_PITCH,
+      SKY_DANCER_V43_MISSILE_MAX_PITCH,
+    );
+    // Real missiles do not instantly snap to the line of sight. Steering authority
+    // builds after launch while thrust accelerates the body along its current axis.
+    const authority = clamp(missile.armedSeconds / 0.42, 0.38, 1);
+    missile.heading = rotateToward(missile.heading, direct, missile.turnRate * authority * delta);
+    missile.pitch = moveToward(missile.pitch, desiredPitch, missile.pitchRate * authority * delta);
+    missile.speed = moveToward(missile.speed, missile.maxSpeed, missile.acceleration * delta);
+
+    const horizontalSpeed = Math.cos(missile.pitch) * missile.speed;
+    missile.x += Math.sin(missile.heading) * horizontalSpeed * delta;
+    missile.z += Math.cos(missile.heading) * horizontalSpeed * delta;
+    missile.altitudeOffsetMeters += Math.sin(missile.pitch) * missile.speed * delta;
+
+    const postDistance = skyDancerDistance3DV43(missile.x, missile.altitudeOffsetMeters, missile.z, px, 0, pz);
+    missile.distanceToPlayer = postDistance;
+    if (missile.armedSeconds > 0.2 && postDistance < 1.55) {
       missile.active = false;
       if (state.hitCooldown <= 0) {
         state.hitCooldown = 0.42;
@@ -414,6 +474,14 @@ export function installSkyDancerFlightCombat(): void {
     }
 
     updateAircraftEnemies(session, delta, state);
+    stepSkyDancerEnemyVerticalFlightV43(session.enemies, {
+      nodeId: session.location.node.id,
+      playerX: session.car.position.x,
+      playerZ: session.car.position.z,
+      playerHeading: session.car.heading,
+      playerSpeed: session.car.forwardVelocity,
+      delta,
+    });
     tryLaunchMissiles(session, state);
     updateMissiles(session, delta, state);
 
