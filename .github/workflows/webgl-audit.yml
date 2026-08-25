@@ -85,6 +85,9 @@ jobs:
       - name: Validate V36-V39 reference fidelity
         run: node scripts/webgl-v39-reference-audit.mjs
 
+      - name: Playcheck V41 aircraft motion and terrain continuity
+        run: node scripts/webgl-v41-flight-terrain-audit.mjs
+
       - name: Playcheck V34 boss encounter
         run: node scripts/webgl-boss-audit.mjs
 
@@ -93,9 +96,6 @@ jobs:
 
       - name: Playcheck V40 full stage cycle
         run: node scripts/webgl-v40-quality-audit.mjs
-
-      - name: Playcheck V41 aircraft motion and terrain continuity
-        run: node scripts/webgl-v41-flight-terrain-audit.mjs
 
       - name: Upload WebGL visual audit
         if: always()
