@@ -4,8 +4,11 @@ import test from "node:test";
 import {
   SKY_DANCER_V44_ATTACK_RUN_RELEASE_INTERVAL,
   SKY_DANCER_V44_ATTACK_RUN_SPEED,
+  SKY_DANCER_V44_ATTACK_RUN_TARGET_DISTANCE,
   SKY_DANCER_V44_CLEANUP_ORBIT_MAX_DISTANCE,
   SKY_DANCER_V44_CLEANUP_ORBIT_MIN_DISTANCE,
+  SKY_DANCER_V44_INTERCEPT_HEADING_RATE,
+  SKY_DANCER_V44_INTERCEPT_SIDE_OFFSET,
 } from "../src/sky/SkyDancerAttackRunsV44";
 import {
   isSkyDancerCombatTargetableV42,
@@ -24,12 +27,25 @@ test("V44 cleanup staging stays physically outside missile lock before attack ru
   assert.ok(SKY_DANCER_V44_CLEANUP_ORBIT_MIN_DISTANCE > SKY_DANCER_PLAYER_MISSILE_LOCK_DISTANCE);
   assert.ok(SKY_DANCER_V44_CLEANUP_ORBIT_MAX_DISTANCE >= SKY_DANCER_V44_CLEANUP_ORBIT_MIN_DISTANCE + 8);
   assert.ok(SKY_DANCER_V44_ATTACK_RUN_RELEASE_INTERVAL >= 5);
-  assert.ok(SKY_DANCER_V44_ATTACK_RUN_SPEED >= 16 && SKY_DANCER_V44_ATTACK_RUN_SPEED <= 22);
+  assert.ok(SKY_DANCER_V44_ATTACK_RUN_SPEED >= 32 && SKY_DANCER_V44_ATTACK_RUN_SPEED <= 50);
+  assert.ok(SKY_DANCER_V44_ATTACK_RUN_TARGET_DISTANCE < SKY_DANCER_PLAYER_MISSILE_LOCK_DISTANCE);
   const source = read("../src/sky/SkyDancerAttackRunsV44.ts");
   assert.match(source, /setSkyDancerCleanupHeldV42\(enemy, false\)/);
   assert.match(source, /setPhysicalSeekerEligibility/);
   assert.match(source, /SKY_DANCER_PLAYER_MISSILE_LOCK_DISTANCE/);
   assert.match(source, /applyAttackRun/);
+});
+
+test("V44 released cleanup aircraft remain in a finite-rate forward intercept corridor until destroyed", () => {
+  assert.ok(SKY_DANCER_V44_INTERCEPT_HEADING_RATE > 0 && SKY_DANCER_V44_INTERCEPT_HEADING_RATE < 1);
+  assert.ok(SKY_DANCER_V44_INTERCEPT_SIDE_OFFSET >= 5 && SKY_DANCER_V44_INTERCEPT_SIDE_OFFSET <= 10);
+  const source = read("../src/sky/SkyDancerAttackRunsV44.ts");
+  assert.match(source, /slot\.interceptHeading = session\.car\.heading/);
+  assert.match(source, /slot\.interceptHeading = rotateToward/);
+  assert.match(source, /SKY_DANCER_V44_INTERCEPT_HEADING_RATE \* delta/);
+  assert.match(source, /SKY_DANCER_V44_INTERCEPT_SIDE_OFFSET/);
+  assert.doesNotMatch(source, /slot\.completed \|\| slot\.slot === 0/);
+  assert.match(source, /applyAttackRun\(session, enemy, slot, delta, state\);\n          attackingEnemies \+= 1/);
 });
 
 test("V44 seeker eligibility follows physical range instead of a cleanup timer", () => {
