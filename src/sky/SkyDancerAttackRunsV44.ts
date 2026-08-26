@@ -12,8 +12,10 @@ import { requestSkyDancerVerticalManeuverV44 } from "./SkyDancerVerticalFlightV4
 export const SKY_DANCER_V44_CLEANUP_ORBIT_MIN_DISTANCE = 74;
 export const SKY_DANCER_V44_CLEANUP_ORBIT_MAX_DISTANCE = 84;
 export const SKY_DANCER_V44_ATTACK_RUN_RELEASE_INTERVAL = 5.25;
-export const SKY_DANCER_V44_ATTACK_RUN_TARGET_DISTANCE = 48;
-export const SKY_DANCER_V44_ATTACK_RUN_SPEED = 18.5;
+export const SKY_DANCER_V44_ATTACK_RUN_TARGET_DISTANCE = 38;
+export const SKY_DANCER_V44_ATTACK_RUN_SPEED = 42;
+export const SKY_DANCER_V44_INTERCEPT_HEADING_RATE = 0.75;
+export const SKY_DANCER_V44_INTERCEPT_SIDE_OFFSET = 7.5;
 export const SKY_DANCER_V44_ORBIT_FOLLOW_SPEED = 38;
 
 interface AttackRunSession {
@@ -32,6 +34,7 @@ interface SlotState {
   z: number;
   released: boolean;
   completed: boolean;
+  interceptHeading: number;
 }
 
 interface DirectorState {
@@ -60,6 +63,18 @@ const latestBySession = new WeakMap<object, SkyDancerAttackRunSnapshotV44>();
 
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
+}
+
+function normalizeAngle(value: number): number {
+  let angle = value;
+  while (angle > Math.PI) angle -= Math.PI * 2;
+  while (angle < -Math.PI) angle += Math.PI * 2;
+  return angle;
+}
+
+function rotateToward(current: number, target: number, maxTurn: number): number {
+  const delta = normalizeAngle(target - current);
+  return normalizeAngle(current + clamp(delta, -maxTurn, maxTurn));
 }
 
 function stableHash(id: string): number {
@@ -142,6 +157,7 @@ function buildSlots(session: AttackRunSession, state: DirectorState): void {
       z,
       released: slot === 0,
       completed: slot === 0,
+      interceptHeading: session.car.heading,
     });
   });
 }
@@ -179,7 +195,7 @@ function applyOrbit(
   enemy.x = next.x;
   enemy.z = next.z;
   const tangent = slot.angle + (slot.slot % 2 === 0 ? Math.PI * 0.5 : -Math.PI * 0.5);
-  enemy.heading += Math.atan2(Math.sin(tangent - enemy.heading), Math.cos(tangent - enemy.heading)) * Math.min(1, 1.3 * delta);
+  enemy.heading = rotateToward(enemy.heading, tangent, 1.3 * delta);
   requestSkyDancerVerticalManeuverV44(enemy, (slot.slot % 2 === 0 ? 1 : -1) * (6.4 + (slot.slot % 3)), 0.38);
   // Waiting aircraft are not protected by a timer. Their actual player range
   // is sampled every fixed step; the missile collision list opens on the same
@@ -197,35 +213,67 @@ function applyAttackRun(
 ): void {
   if (!slot.released) {
     slot.released = true;
+    slot.interceptHeading = session.car.heading;
     state.releasedRuns += 1;
   }
+
+  // Seed the lane from the player's heading at release, then allow only a
+  // finite world-space correction rate. The aircraft must physically fly into
+  // the new forward corridor when the player turns; it never snaps to a screen
+  // edge or rotates instantly with the camera.
+  slot.interceptHeading = rotateToward(
+    slot.interceptHeading,
+    session.car.heading,
+    SKY_DANCER_V44_INTERCEPT_HEADING_RATE * delta,
+  );
+
   const px = session.car.position.x;
   const pz = session.car.position.z;
-  const dx = slot.x - px;
-  const dz = slot.z - pz;
-  const distance = Math.hypot(dx, dz);
-  if (distance <= SKY_DANCER_V44_ATTACK_RUN_TARGET_DISTANCE) {
+  const side = slot.slot % 2 === 0 ? 1 : -1;
+  const forwardX = Math.sin(slot.interceptHeading);
+  const forwardZ = Math.cos(slot.interceptHeading);
+  const rightX = Math.sin(slot.interceptHeading + Math.PI * 0.5);
+  const rightZ = Math.cos(slot.interceptHeading + Math.PI * 0.5);
+  const targetX = px
+    + forwardX * SKY_DANCER_V44_ATTACK_RUN_TARGET_DISTANCE
+    + rightX * side * SKY_DANCER_V44_INTERCEPT_SIDE_OFFSET;
+  const targetZ = pz
+    + forwardZ * SKY_DANCER_V44_ATTACK_RUN_TARGET_DISTANCE
+    + rightZ * side * SKY_DANCER_V44_INTERCEPT_SIDE_OFFSET;
+  const next = movePointToward(
+    slot.x,
+    slot.z,
+    targetX,
+    targetZ,
+    SKY_DANCER_V44_ATTACK_RUN_SPEED * delta,
+  );
+  slot.x = next.x;
+  slot.z = next.z;
+  enemy.x = next.x;
+  enemy.z = next.z;
+
+  const motionHeading = Math.atan2(targetX - enemy.x, targetZ - enemy.z);
+  const facePlayerHeading = Math.atan2(px - enemy.x, pz - enemy.z);
+  const desiredHeading = Math.hypot(targetX - enemy.x, targetZ - enemy.z) > 3
+    ? motionHeading
+    : facePlayerHeading;
+  enemy.heading = rotateToward(enemy.heading, desiredHeading, 2.2 * delta);
+
+  const distance = Math.hypot(enemy.x - px, enemy.z - pz);
+  if (!slot.completed && distance <= SKY_DANCER_PLAYER_MISSILE_LOCK_DISTANCE) {
     slot.completed = true;
     state.completedRuns += 1;
-    setSkyDancerCleanupHeldV42(enemy, false);
-    setSkyDancerCombatOutOfSeekerRangeV44(enemy, false);
-    return;
   }
 
-  const targetDistance = Math.max(SKY_DANCER_V44_ATTACK_RUN_TARGET_DISTANCE, distance - SKY_DANCER_V44_ATTACK_RUN_SPEED * delta);
-  const inv = distance > 0.001 ? 1 / distance : 0;
-  slot.x = px + dx * inv * targetDistance;
-  slot.z = pz + dz * inv * targetDistance;
-  enemy.x = slot.x;
-  enemy.z = slot.z;
-  const attackHeading = Math.atan2(px - slot.x, pz - slot.z);
-  enemy.heading += Math.atan2(Math.sin(attackHeading - enemy.heading), Math.cos(attackHeading - enemy.heading)) * Math.min(1, 2.1 * delta);
-  // The run starts from a high/low lane and crosses the player's altitude plane
-  // as it enters seeker range, making the approach visually legible in 3D.
-  const side = slot.slot % 2 === 0 ? 1 : -1;
-  requestSkyDancerVerticalManeuverV44(enemy, distance > 62 ? side * 8.4 : -side * 8.4, 0.36);
+  // Start high/low, then cross the player's altitude plane inside the attack
+  // corridor. The vertical pass remains active until the aircraft is destroyed.
+  requestSkyDancerVerticalManeuverV44(
+    enemy,
+    distance > 62 ? side * 8.4 : distance > 44 ? -side * 8.4 : side * 2.6,
+    0.36,
+  );
   setSkyDancerCleanupHeldV42(enemy, false);
-  setPhysicalSeekerEligibility(session, enemy, targetDistance);
+  setPhysicalSeekerEligibility(session, enemy, distance);
 }
 
 export function installSkyDancerAttackRunsV44(): void {
@@ -265,7 +313,7 @@ export function installSkyDancerAttackRunsV44(): void {
     if (cleanup) {
       for (const enemy of liveCleanupEnemies(session)) {
         const slot = state.slots.get(enemy.id);
-        if (!slot || slot.completed || slot.slot === 0) {
+        if (!slot || slot.slot === 0) {
           setSkyDancerCleanupHeldV42(enemy, false);
           setPhysicalSeekerEligibility(session, enemy);
           continue;
@@ -279,7 +327,7 @@ export function installSkyDancerAttackRunsV44(): void {
           maxOrbitDistance = Math.max(maxOrbitDistance, distance);
         } else {
           applyAttackRun(session, enemy, slot, delta, state);
-          if (!slot.completed) attackingEnemies += 1;
+          attackingEnemies += 1;
         }
       }
     }
