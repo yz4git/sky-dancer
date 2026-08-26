@@ -3,7 +3,9 @@ import { chromium } from "playwright";
 
 const baseUrl = process.env.SKY_DANCER_AUDIT_URL || "http://127.0.0.1:4173";
 const outputDir = process.env.SKY_DANCER_AUDIT_DIR || "artifacts/webgl-audit";
-const RUN_MS = 115_000;
+const BASE_RUN_MS = 115_000;
+const CLEANUP_OBSERVE_MS = 50_000;
+const HARD_RUN_MS = 165_000;
 const SAMPLE_MS = 180;
 
 await mkdir(outputDir, { recursive: true });
@@ -45,9 +47,10 @@ let capturedCleanup = false;
 let steering = "ArrowRight";
 let nextSwitch = 7000;
 const began = Date.now();
+let deadlineMs = BASE_RUN_MS;
 await page.keyboard.down(steering);
 
-while (Date.now() - began < RUN_MS) {
+while (Date.now() - began < Math.min(deadlineMs, HARD_RUN_MS)) {
   const elapsed = Date.now() - began;
   if (elapsed >= nextSwitch) {
     await page.keyboard.up(steering);
@@ -80,10 +83,18 @@ while (Date.now() - began < RUN_MS) {
   if (attack?.cleanup) {
     sawCleanup = true;
     if (Number(attack.orbitingEnemies || 0) > 0) {
+      const firstOrbitObservation = !sawOrbit;
       sawOrbit = true;
       const minDistance = Number(attack.minOrbitDistance || 0);
       if (minDistance > 0) minOrbitDistance = Math.min(minOrbitDistance, minDistance);
       maxOrbitDistance = Math.max(maxOrbitDistance, Number(attack.maxOrbitDistance || 0));
+      // The director releases slots in game time (5.25 s), while the real-WebGL
+      // audit can run slower than wall time under SwiftShader. Once a physical
+      // cleanup orbit is actually observed, reserve enough wall time to see the
+      // scheduled transition rather than weakening the gameplay cadence.
+      if (firstOrbitObservation && !sawAttackRun) {
+        deadlineMs = Math.min(HARD_RUN_MS, Math.max(deadlineMs, elapsed + CLEANUP_OBSERVE_MS));
+      }
     }
     if (Number(attack.attackingEnemies || 0) > 0 || Number(attack.releasedRuns || 0) > 0) sawAttackRun = true;
     if (!capturedCleanup && sawOrbit) {
