@@ -1,6 +1,7 @@
 import type { CartArenaSessionSnapshot } from "../cart/CartArenaSession";
 import { SkyDancerAirCombatFxV29 } from "./SkyDancerAirCombatFxV29";
 import type { SkyDancerFxRuntime } from "./SkyDancerAirCombatFxV2";
+import { installSkyDancerAttackRunsV44 } from "./SkyDancerAttackRunsV44";
 import { installSkyDancerBossCombatV34 } from "./SkyDancerBossCombatV34";
 import { installSkyDancerBossDurabilityGuardV34 } from "./SkyDancerBossDurabilityGuardV34";
 import type { SkyDancerMissileState } from "./SkyDancerFlightCombat";
@@ -29,9 +30,10 @@ import { SkyDancerPresentationPipeline } from "./presentation/SkyDancerPresentat
  * is composed through the presentation pipeline. V34 installs a durability
  * compatibility guard immediately inside its boss director, then the director
  * owns final aerial boss motion and phase rules without reviving inheritance.
- * V40 chooses re-engagement targets. V41 is installed outermost and converts
- * every non-boss correction back into bounded forward aircraft motion so no
- * director can teleport, snap-turn or hover an enemy beside the player.
+ * V40 chooses re-engagement targets. V41 is installed outside it and converts
+ * every non-boss correction back into bounded forward aircraft motion. V44 is
+ * outermost so CLEANUP staging can replace invisible target gating with a real
+ * distant orbit followed by a visible attack run.
  */
 export class SkyDancerAirCombatFx extends SkyDancerAirCombatFxV29 {
   private readonly presentation: SkyDancerPresentationPipeline;
@@ -42,6 +44,7 @@ export class SkyDancerAirCombatFx extends SkyDancerAirCombatFxV29 {
     installSkyDancerBossCombatV34();
     installSkyDancerReengagementV40();
     installSkyDancerFlightNaturalMotionV41();
+    installSkyDancerAttackRunsV44();
     this.presentation = new SkyDancerPresentationPipeline(runtime);
   }
 
