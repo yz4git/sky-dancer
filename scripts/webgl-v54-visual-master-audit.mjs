@@ -65,16 +65,24 @@ for (let index = 0; index < 10; index += 1) {
 await page.keyboard.up("ArrowRight");
 
 // Turbo hold is intentionally physics-neutral in SkyDancerTurboModel. Measure
-// V52 on the real release dash rather than requiring false speed feedback while
-// the player is only charging the button.
+// V52 across a short release window because SwiftShader requestAnimationFrame
+// cadence can make any single wall-clock sample land before or after the dash.
 await page.keyboard.down("Space");
 await page.waitForTimeout(900);
 await page.keyboard.up("Space");
-await page.waitForTimeout(120);
-v52 = await readBridge("__skyDancerGetV52SpeedFx");
+let v52ReleasePeak = null;
+for (let attempt = 0; attempt < 16; attempt += 1) {
+  await page.waitForTimeout(80);
+  const candidate = await readBridge("__skyDancerGetV52SpeedFx");
+  if (candidate && (!v52ReleasePeak || Number(candidate.speedOpacity) > Number(v52ReleasePeak.speedOpacity))) {
+    v52ReleasePeak = candidate;
+  }
+  if (Number(v52ReleasePeak?.speedOpacity) > 0.08) break;
+}
+v52 = v52ReleasePeak ?? v52;
 await page.screenshot({ path: `${outputDir}/81-v54-turbo-release-speed-field.png`, fullPage: true });
 await canvas.screenshot({ path: `${outputDir}/81-v54-turbo-release-speed-field-canvas.png` });
-await page.waitForTimeout(380);
+await page.waitForTimeout(180);
 
 v50 = v50 ?? await readBridge("__skyDancerGetV50Atmosphere");
 v51 = v51 ?? await readBridge("__skyDancerGetV51Silhouette");
@@ -89,6 +97,7 @@ const diagnostics = {
   v50,
   v51,
   v52,
+  v52ReleasePeakOpacity: Number(v52ReleasePeak?.speedOpacity) || 0,
   v53,
   consoleErrors,
   pageErrors,
