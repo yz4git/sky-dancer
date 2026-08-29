@@ -18,6 +18,10 @@ import { SkyDancerV44ReadabilityPass } from "./SkyDancerV44ReadabilityPass";
 import { SkyDancerV45DecisionHierarchyPass } from "./SkyDancerV45DecisionHierarchyPass";
 import { SkyDancerV47WorldReconstructionPass } from "./SkyDancerV47WorldReconstructionPass";
 import { SkyDancerV48BossSetpiecePass } from "./SkyDancerV48BossSetpiecePass";
+import { SkyDancerV50ColorScriptAtmospherePass } from "./SkyDancerV50ColorScriptAtmospherePass";
+import { SkyDancerV51AircraftSilhouettePass } from "./SkyDancerV51AircraftSilhouettePass";
+import { SkyDancerV52CombatFxSpeedPass } from "./SkyDancerV52CombatFxSpeedPass";
+import { SkyDancerV53SetpieceEnvironmentDensityPass } from "./SkyDancerV53SetpieceEnvironmentDensityPass";
 
 /** Stable modern presentation pipeline. */
 export class SkyDancerPresentationPipeline {
@@ -37,6 +41,10 @@ export class SkyDancerPresentationPipeline {
   private readonly v45: SkyDancerV45DecisionHierarchyPass;
   private readonly v47: SkyDancerV47WorldReconstructionPass;
   private readonly v48: SkyDancerV48BossSetpiecePass;
+  private readonly v50: SkyDancerV50ColorScriptAtmospherePass;
+  private readonly v51: SkyDancerV51AircraftSilhouettePass;
+  private readonly v52: SkyDancerV52CombatFxSpeedPass;
+  private readonly v53: SkyDancerV53SetpieceEnvironmentDensityPass;
 
   constructor(runtime: SkyDancerFxRuntime) {
     this.v30 = new SkyDancerV30PresentationPass(runtime);
@@ -55,6 +63,10 @@ export class SkyDancerPresentationPipeline {
     this.v45 = new SkyDancerV45DecisionHierarchyPass(runtime);
     this.v47 = new SkyDancerV47WorldReconstructionPass(runtime);
     this.v48 = new SkyDancerV48BossSetpiecePass(runtime);
+    this.v50 = new SkyDancerV50ColorScriptAtmospherePass(runtime);
+    this.v51 = new SkyDancerV51AircraftSilhouettePass(runtime);
+    this.v52 = new SkyDancerV52CombatFxSpeedPass(runtime);
+    this.v53 = new SkyDancerV53SetpieceEnvironmentDensityPass(runtime);
     installSkyDancerV35VisualAuditBridge(runtime);
     installSkyDancerV39VisualAuditBridge(runtime);
   }
@@ -76,5 +88,9 @@ export class SkyDancerPresentationPipeline {
     this.v45.update(snapshot);
     this.v47.update(snapshot);
     this.v48.update(snapshot);
+    this.v50.update(snapshot);
+    this.v51.update(snapshot);
+    this.v52.update(snapshot);
+    this.v53.update(snapshot);
   }
 }

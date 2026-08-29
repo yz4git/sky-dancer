@@ -18,6 +18,7 @@ on:
       - "scripts/webgl-v43-vertical-audit.mjs"
       - "scripts/webgl-v44-readability-audit.mjs"
       - "scripts/webgl-v45-decision-audit.mjs"
+      - "scripts/webgl-v54-visual-master-audit.mjs"
       - "tests/**"
       - "package.json"
       - ".github/workflows/webgl-audit.yml"
@@ -37,6 +38,7 @@ on:
       - "scripts/webgl-v43-vertical-audit.mjs"
       - "scripts/webgl-v44-readability-audit.mjs"
       - "scripts/webgl-v45-decision-audit.mjs"
+      - "scripts/webgl-v54-visual-master-audit.mjs"
       - "tests/**"
       - "package.json"
       - ".github/workflows/webgl-audit.yml"
@@ -102,6 +104,9 @@ jobs:
 
       - name: Playcheck V45 combat decisions and visual hierarchy
         run: node scripts/webgl-v45-decision-audit.mjs
+
+      - name: Audit V50-V54 visual master pass
+        run: node scripts/webgl-v54-visual-master-audit.mjs
 
       - name: Playcheck V34 boss encounter
         run: node scripts/webgl-boss-audit.mjs

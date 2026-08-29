@@ -9,12 +9,7 @@ interface CampaignPacingSession {
   step(input: RallyInputState, fixedDelta?: number): void;
 }
 
-interface CampaignPacingState {
-  scaledBossStage: number;
-}
-
 const PATCHED_KEY = "__skyDancerCampaignPacingV49Installed__";
-const stateBySession = new WeakMap<object, CampaignPacingState>();
 
 export const SKY_DANCER_V49_BOSS_BASE_HP = 120;
 export const SKY_DANCER_V49_BOSS_STAGE_HP_STEP = 12;
@@ -27,19 +22,17 @@ export function skyDancerCampaignBossHpV49(stage: number): number {
   );
 }
 
-function stateFor(session: object): CampaignPacingState {
-  const existing = stateBySession.get(session);
-  if (existing) return existing;
-  const created: CampaignPacingState = { scaledBossStage: 0 };
-  stateBySession.set(session, created);
-  return created;
-}
-
 /**
  * V34 remains the boss-rule authority and keeps its standalone 192+ durability
  * contract for regression/audit encounters. V49 only trims bosses that arrive
  * through the real six-mission StageCycle, preserving all three HP phases and
  * ORBIT/STRIKE/BREAK core windows while removing the late-fight sponge tail.
+ *
+ * The inner V34 durability compatibility guard intentionally normalizes legacy
+ * boss values on every fixed step. V49 is therefore deliberately the outer,
+ * final durability owner on every real campaign-boss step as well. Re-applying
+ * the cap each frame preserves damage ratio through V34's normalization while
+ * preventing the campaign boss from drifting back to the standalone 192 HP.
  */
 export function installSkyDancerCampaignPacingV49(): void {
   installSkyDancerStageCycle();
@@ -58,8 +51,6 @@ export function installSkyDancerCampaignPacingV49(): void {
     const stage = getSkyDancerStageCycleSnapshot(concrete);
     if (!stage || stage.phase !== "boss" || !getSkyDancerMissionV49(stage.stage)) return;
 
-    const state = stateFor(this as unknown as object);
-    if (state.scaledBossStage === stage.stage) return;
     const boss = this.enemies.find((enemy) => enemy.kind === "boss" && enemy.alive) ?? null;
     if (!boss) return;
 
@@ -69,7 +60,6 @@ export function installSkyDancerCampaignPacingV49(): void {
       boss.maxHp = targetMaxHp;
       boss.hp = Math.max(1, Math.round(targetMaxHp * ratio));
     }
-    state.scaledBossStage = stage.stage;
 
     if (typeof window !== "undefined" && navigator.webdriver) {
       (window as unknown as Record<string, unknown>).__skyDancerGetV49CampaignPacing = () => ({
