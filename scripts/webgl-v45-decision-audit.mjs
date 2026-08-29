@@ -35,6 +35,8 @@ let sawReadyWindow = false;
 let sawHoldWindow = false;
 let sawNormalSpeedState = false;
 let sawTurboSpeedState = false;
+let dedicatedTurboSeen = false;
+let maxDedicatedTurboOpacity = 0;
 let maxPlayerRibbonPoints = 0;
 let speedFxCount = 0;
 let backgroundTuned = false;
@@ -85,6 +87,8 @@ while (Date.now() - began < NORMAL_RUN_MS) {
   const decision = v45.decision;
   maxPlayerRibbonPoints = Math.max(maxPlayerRibbonPoints, Number(v45.maxPlayerRibbonPoints || 0));
   speedFxCount = Math.max(speedFxCount, Number(v45.speedFxCount || 0));
+  dedicatedTurboSeen ||= v45.dedicatedTurboSeen === true;
+  maxDedicatedTurboOpacity = Math.max(maxDedicatedTurboOpacity, Number(v45.maxDedicatedTurboOpacity || 0));
   backgroundTuned ||= v45.backgroundTuned === true;
   backgroundMaterials = Math.max(backgroundMaterials, Number(v45.backgroundMaterials || 0));
   if (decision?.boostActive) sawTurboSpeedState = true;
@@ -161,6 +165,8 @@ const diagnostics = {
   normalSpeedStrength: 0.34,
   sawNormalSpeedState,
   sawTurboSpeedState,
+  dedicatedTurboSeen,
+  maxDedicatedTurboOpacity,
   backgroundTuned,
   backgroundMaterials,
   forcedBoss,
@@ -182,5 +188,6 @@ if (!sawLock || !sawNumericAltitude) throw new Error(`V45 never produced a reada
 if (maxPlayerRibbonPoints < 6) throw new Error(`V45 player missile smoke ribbon never became readable: ${JSON.stringify(diagnostics)}`);
 if (!backgroundTuned || backgroundMaterials < 1) throw new Error(`V45 background hierarchy was not applied: ${JSON.stringify(diagnostics)}`);
 if (!sawNormalSpeedState || !sawTurboSpeedState) throw new Error(`V45 did not exercise both normal/Turbo hierarchy states: ${JSON.stringify(diagnostics)}`);
+if (!dedicatedTurboSeen || maxDedicatedTurboOpacity < 0.10) throw new Error(`V45 weakened the dedicated Turbo speed lines: ${JSON.stringify(diagnostics)}`);
 if (!forcedBoss || !sawBoss || !sawBossStrike || !sawBossDirective || !sawBossStrikeCue) throw new Error(`V45 boss attack-run hierarchy was not observed: ${JSON.stringify(diagnostics)}`);
 if (Number.isFinite(bossHudOverlapPixels) && bossHudOverlapPixels > 4) throw new Error(`V45 Boss stage/HEAT HUD still overlaps: ${JSON.stringify(diagnostics)}`);
