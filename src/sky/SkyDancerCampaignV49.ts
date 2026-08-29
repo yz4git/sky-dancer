@@ -58,6 +58,11 @@ const STANDARD_BEATS: readonly SkyDancerMissionBeatV49[] = [
   },
 ];
 
+/**
+ * V49 missions are authored as compact arcade sorties rather than endurance
+ * waves. Six-to-eight credited kills are enough to expose all four decision
+ * beats before the preserved V44 cleanup run and boss setpiece.
+ */
 export const SKY_DANCER_CAMPAIGN_MISSIONS_V49: readonly SkyDancerMissionDefinitionV49[] = [
   {
     id: "skyline-intercept",
@@ -65,9 +70,9 @@ export const SKY_DANCER_CAMPAIGN_MISSIONS_V49: readonly SkyDancerMissionDefiniti
     title: "SKYLINE INTERCEPT",
     subtitle: "Learn the cross. Own the counter window.",
     worldStyle: "city",
-    killTarget: 8,
+    killTarget: 6,
     activeThreatTarget: 4,
-    parSeconds: 205,
+    parSeconds: 180,
     bossTitle: "WARDEN ACE",
     beats: STANDARD_BEATS,
   },
@@ -77,9 +82,9 @@ export const SKY_DANCER_CAMPAIGN_MISSIONS_V49: readonly SkyDancerMissionDefiniti
     title: "CLOUD KNIFE",
     subtitle: "Targets vanish in the cloud lanes. Read altitude first.",
     worldStyle: "clouds",
-    killTarget: 8,
+    killTarget: 6,
     activeThreatTarget: 4,
-    parSeconds: 210,
+    parSeconds: 185,
     bossTitle: "MIST REAVER",
     beats: [STANDARD_BEATS[1], STANDARD_BEATS[3], STANDARD_BEATS[0], STANDARD_BEATS[2]],
   },
@@ -89,9 +94,9 @@ export const SKY_DANCER_CAMPAIGN_MISSIONS_V49: readonly SkyDancerMissionDefiniti
     title: "IRON VALLEY",
     subtitle: "Use speed as a weapon between the ridgelines.",
     worldStyle: "mountains",
-    killTarget: 9,
+    killTarget: 7,
     activeThreatTarget: 4,
-    parSeconds: 220,
+    parSeconds: 195,
     bossTitle: "IRON TALON",
     beats: [STANDARD_BEATS[2], STANDARD_BEATS[0], STANDARD_BEATS[3], STANDARD_BEATS[1]],
   },
@@ -101,9 +106,9 @@ export const SKY_DANCER_CAMPAIGN_MISSIONS_V49: readonly SkyDancerMissionDefiniti
     title: "HALO FOUNDRY",
     subtitle: "Break the defense ring before it closes around you.",
     worldStyle: "facility",
-    killTarget: 9,
+    killTarget: 7,
     activeThreatTarget: 4,
-    parSeconds: 225,
+    parSeconds: 200,
     bossTitle: "FOUNDRY CORE",
     beats: [STANDARD_BEATS[1], STANDARD_BEATS[2], STANDARD_BEATS[0], STANDARD_BEATS[3]],
   },
@@ -113,9 +118,9 @@ export const SKY_DANCER_CAMPAIGN_MISSIONS_V49: readonly SkyDancerMissionDefiniti
     title: "STORM CROWN",
     subtitle: "Keep FLOW alive while visibility and altitude collapse.",
     worldStyle: "storm",
-    killTarget: 10,
+    killTarget: 8,
     activeThreatTarget: 5,
-    parSeconds: 235,
+    parSeconds: 210,
     bossTitle: "TEMPEST KING",
     beats: [STANDARD_BEATS[3], STANDARD_BEATS[0], STANDARD_BEATS[1], STANDARD_BEATS[2]],
   },
@@ -125,9 +130,9 @@ export const SKY_DANCER_CAMPAIGN_MISSIONS_V49: readonly SkyDancerMissionDefiniti
     title: "LAST LIGHT",
     subtitle: "Dance through the final airspace and open the core.",
     worldStyle: "citadel",
-    killTarget: 10,
+    killTarget: 8,
     activeThreatTarget: 5,
-    parSeconds: 245,
+    parSeconds: 220,
     bossTitle: "PRISM ARCHON",
     beats: [STANDARD_BEATS[0], STANDARD_BEATS[3], STANDARD_BEATS[2], STANDARD_BEATS[1]],
   },
