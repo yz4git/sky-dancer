@@ -248,13 +248,16 @@ export class SkyDancerV45DecisionHierarchyPass {
     root.traverse((object) => {
       const name = object.name.toLowerCase();
       if (!(name.includes("speed") || name.includes("streak") || name.includes("rush"))) return;
-      if (name.includes("missile") || name.includes("trail") || name.includes("target")) return;
+      if (name.includes("missile") || name.includes("trail") || name.includes("target") || name.includes("turbo")) return;
       if (!(object instanceof THREE.Mesh || object instanceof THREE.Line || object instanceof THREE.Points)) return;
       const materials = Array.isArray(object.material) ? object.material : [object.material];
       for (const material of materials) {
         if (!material || this.speedMaterials.has(material) || !("opacity" in material)) continue;
         const opacity = Number((material as THREE.Material & { opacity: number }).opacity);
-        if (!Number.isFinite(opacity)) continue;
+        // Dedicated Turbo effects often sit at opacity 0 while inactive and
+        // write their real strength later in the frame. Never capture zero as
+        // a base value or V45 would accidentally erase the Turbo contrast.
+        if (!Number.isFinite(opacity) || opacity <= 0.01) continue;
         this.speedMaterials.set(material, opacity);
       }
     });
