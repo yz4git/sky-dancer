@@ -16,6 +16,7 @@ import { SkyDancerPresentationPipeline } from "./presentation/SkyDancerPresentat
 // SkyDancerAirCombatFxV22 remains in the inheritance chain
 // SkyDancerAirCombatFxV23 remains in the inheritance chain
 // SkyDancerAirCombatFxV24 remains in the inheritance chain
+// SkyDancerAirCombatFxV25 remains in the inheritance chain
 // SkyDancerAirCombatFxV26 as SkyDancerAirCombatFx
 // SkyDancerAirCombatFxV27 as SkyDancerAirCombatFx
 // SkyDancerAirCombatFxV28 as SkyDancerAirCombatFx
