@@ -17,6 +17,7 @@ import SkyDancerHudV35 from "./SkyDancerHudV35";
 import SkyDancerHudV39 from "./SkyDancerHudV39";
 import SkyDancerHudV40 from "./SkyDancerHudV40";
 import SkyDancerHudV44 from "./SkyDancerHudV44";
+import SkyDancerHudV45 from "./SkyDancerHudV45";
 
 export default function CartRogueGamePhase13() {
   const [started, setStarted] = useState(false);
@@ -51,6 +52,7 @@ export default function CartRogueGamePhase13() {
         <SkyDancerHudV39 />
         <SkyDancerHudV40 />
         <SkyDancerHudV44 />
+        <SkyDancerHudV45 />
       </Fragment>
     )}
     <CartGameMenu
