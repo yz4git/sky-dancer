@@ -74,6 +74,7 @@ let cleanupMaxLockAngle = 0;
 let cleanupPeakLockCandidates = 0;
 let bossDuplicateVisible = false;
 let bossLegacyBlocksVisible = 0;
+let campaignBossPacing = null;
 let turboReleases = 0;
 let steeringDirection = "ArrowRight";
 let nextSteerSwitch = 4_800;
@@ -97,8 +98,9 @@ async function readState() {
   const flight = await page.evaluate(() => typeof window.__skyDancerGetFlightDebug === "function" ? window.__skyDancerGetFlightDebug() : null);
   const reengagement = await page.evaluate(() => typeof window.__skyDancerGetReengagementV40 === "function" ? window.__skyDancerGetReengagementV40() : null);
   const boss = await page.evaluate(() => typeof window.__skyDancerGetBossQualityV34 === "function" ? window.__skyDancerGetBossQualityV34() : null);
+  const campaignPacing = await page.evaluate(() => typeof window.__skyDancerGetV49CampaignPacing === "function" ? window.__skyDancerGetV49CampaignPacing() : null);
   const presentation = await page.evaluate(() => typeof window.__skyDancerGetV40CityDebug === "function" ? window.__skyDancerGetV40CityDebug() : null);
-  return { hudText, weapon, flight, reengagement, boss, presentation };
+  return { hudText, weapon, flight, reengagement, boss, campaignPacing, presentation };
 }
 
 async function countVisibleLegacyBossBlocks() {
@@ -168,6 +170,7 @@ while (
     cleanupPeakLockCandidates = Math.max(cleanupPeakLockCandidates, Number(state.reengagement?.lockConeCandidates ?? 0));
     if (Number(state.reengagement?.correctedEnemies ?? 0) > 0) cleanupCorrectionFrames += 1;
   }
+  if (isBoss && state.campaignPacing) campaignBossPacing = state.campaignPacing;
   if (isBoss && bossWallSeconds == null) {
     bossWallSeconds = wallSeconds;
     cleanupGameSeconds = Math.max(cleanupGameSeconds, Number(state.reengagement?.lastCleanupDuration ?? 0));
@@ -196,6 +199,7 @@ while (
       hitDelta: hits - lastHitSerial,
       reengagement: state.reengagement,
       boss: state.boss,
+      campaignPacing: state.campaignPacing,
       altitudeMeters: state.flight?.altitudeMeters ?? null,
       forwardVelocity: state.flight?.forwardVelocity ?? null,
       minEnemyDistance: state.flight?.minEnemyDistance ?? null,
@@ -235,6 +239,7 @@ const diagnostics = {
   cleanupCorrectionFrames,
   bossDuplicateVisible,
   bossLegacyBlocksVisible,
+  campaignBossPacing,
   shots,
   hits,
   hitRate: shots > 0 ? Number((hits / shots).toFixed(3)) : 0,
@@ -261,4 +266,7 @@ if (cleanupGameSeconds < CLEANUP_ACCEPT_SECONDS[0] || cleanupGameSeconds > CLEAN
 if (cleanupMaxDistance > 58.5) throw new Error(`V40 cleanup enemy escaped the missile-lock envelope: ${JSON.stringify(diagnostics)}`);
 if (cleanupPeakLockCandidates < 1) throw new Error(`V40 cleanup never presented a lock-cone target: ${JSON.stringify(diagnostics)}`);
 if (bossDuplicateVisible) throw new Error(`Legacy boss HUD remained visible during V40 boss HUD: ${JSON.stringify(diagnostics)}`);
+if (!campaignBossPacing || Number(campaignBossPacing.stage) !== 1 || Number(campaignBossPacing.targetMaxHp) !== 120 || Number(campaignBossPacing.bossMaxHp) !== 120) {
+  throw new Error(`V49 campaign boss live durability cap was not preserved at 120 HP: ${JSON.stringify(diagnostics)}`);
+}
 if (clearWallSeconds == null || stage2WallSeconds == null) throw new Error(`V40 playcheck did not show CLEAR then STAGE 2: ${JSON.stringify(diagnostics)}`);
