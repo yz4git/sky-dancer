@@ -6,13 +6,14 @@ import {
   getSkyDancerMissionBeatV49,
   gradeSkyDancerMissionV49,
 } from "../src/sky/SkyDancerCampaignV49";
+import { skyDancerCampaignBossHpV49 } from "../src/sky/SkyDancerCampaignPacingV49";
 
 const read = (relative: string) => readFileSync(new URL(relative, import.meta.url), "utf8");
 
-test("V49 campaign is a six-mission 3-5 minute structure with short kill targets", () => {
+test("V49 campaign is a six-mission 3-5 minute structure with compact kill targets", () => {
   assert.equal(SKY_DANCER_CAMPAIGN_MISSIONS_V49.length, 6);
   for (const mission of SKY_DANCER_CAMPAIGN_MISSIONS_V49) {
-    assert.ok(mission.killTarget >= 8 && mission.killTarget <= 10);
+    assert.ok(mission.killTarget >= 6 && mission.killTarget <= 8);
     assert.ok(mission.activeThreatTarget >= 4 && mission.activeThreatTarget <= 5);
     assert.ok(mission.parSeconds >= 180 && mission.parSeconds <= 300);
     assert.equal(mission.beats.length, 4);
@@ -27,14 +28,32 @@ test("V46 mission beats deliberately rotate cross, intercept, Turbo break and al
   const mission = SKY_DANCER_CAMPAIGN_MISSIONS_V49[0];
   assert.equal(getSkyDancerMissionBeatV49(mission, 0).beat.kind, "cross");
   assert.equal(getSkyDancerMissionBeatV49(mission, 2).beat.kind, "intercept");
-  assert.equal(getSkyDancerMissionBeatV49(mission, 4).beat.kind, "break");
-  assert.equal(getSkyDancerMissionBeatV49(mission, 6).beat.kind, "vertical");
+  assert.equal(getSkyDancerMissionBeatV49(mission, 3).beat.kind, "break");
+  assert.equal(getSkyDancerMissionBeatV49(mission, 5).beat.kind, "vertical");
   const source = read("../src/sky/SkyDancerCombatChoreographyV46.ts");
   assert.match(source, /SKY_DANCER_CHOREOGRAPHY_MAX_ACTIVE_THREATS_V46 = 5/);
   assert.match(source, /FORMATION BROKEN · BOSS AIRSPACE OPEN/);
   assert.match(source, /enemy\.moveSpeed = Math\.min\(enemy\.moveSpeed, 1\.45\)/);
   assert.match(source, /state\.perfectEvades \+= 1/);
   assert.match(source, /state\.flow = Math\.min\(SKY_DANCER_FLOW_MAX_V46/);
+});
+
+test("V46 preserves the five-fighter cleanup cadence while shortening only the reinforcement grind", () => {
+  const guard = read("../src/sky/SkyDancerCleanupCadenceGuardV46.ts");
+  assert.match(guard, /SKY_DANCER_V46_CLEANUP_SURVIVORS = 5/);
+  assert.match(guard, /stage\.phase !== "reinforcements"/);
+  assert.match(guard, /stage\.stageKills < mission\.killTarget/);
+});
+
+test("V49 campaign bosses keep three-phase setpieces without the endurance tail", () => {
+  assert.equal(skyDancerCampaignBossHpV49(1), 120);
+  assert.equal(skyDancerCampaignBossHpV49(3), 144);
+  assert.equal(skyDancerCampaignBossHpV49(6), 180);
+  assert.equal(skyDancerCampaignBossHpV49(20), 180);
+  const source = read("../src/sky/SkyDancerCampaignPacingV49.ts");
+  assert.match(source, /stage\.phase !== "boss"/);
+  assert.match(source, /getSkyDancerMissionV49\(stage\.stage\)/);
+  assert.match(source, /boss\.maxHp > targetMaxHp/);
 });
 
 test("V49 grade rewards time, accuracy, near-miss evades and FLOW", () => {
@@ -76,6 +95,7 @@ test("V49 HUD and presentation pipeline are mounted after V45 without adding pla
   assert.match(hud, /PERFECT EVADE/);
   assert.match(hud, /CAMPAIGN COMPLETE/);
   assert.match(facade, /installSkyDancerBossAttackRunV45\(\);\n    installSkyDancerCombatChoreographyV46\(\);/);
+  assert.match(facade, /installSkyDancerCleanupCadenceGuardV46\(\);\n    installSkyDancerCampaignPacingV49\(\);/);
   assert.match(pipeline, /this\.v45\.update\(snapshot\);\n    this\.v47\.update\(snapshot\);\n    this\.v48\.update\(snapshot\);/);
   assert.doesNotMatch(hud, /button|onClick|pointerdown/i);
 });
