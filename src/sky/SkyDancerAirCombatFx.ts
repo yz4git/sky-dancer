@@ -5,6 +5,7 @@ import { installSkyDancerAttackRunsV44 } from "./SkyDancerAttackRunsV44";
 import { installSkyDancerBossAttackRunV45 } from "./SkyDancerBossAttackRunV45";
 import { installSkyDancerBossCombatV34 } from "./SkyDancerBossCombatV34";
 import { installSkyDancerBossDurabilityGuardV34 } from "./SkyDancerBossDurabilityGuardV34";
+import { installSkyDancerCombatChoreographyV46 } from "./SkyDancerCombatChoreographyV46";
 import type { SkyDancerMissileState } from "./SkyDancerFlightCombat";
 import { installSkyDancerFlightNaturalMotionV41 } from "./SkyDancerFlightNaturalMotionV41";
 import { installSkyDancerReengagementV40 } from "./SkyDancerReengagementV40";
@@ -15,7 +16,6 @@ import { SkyDancerPresentationPipeline } from "./presentation/SkyDancerPresentat
 // SkyDancerAirCombatFxV22 remains in the inheritance chain
 // SkyDancerAirCombatFxV23 remains in the inheritance chain
 // SkyDancerAirCombatFxV24 remains in the inheritance chain
-// SkyDancerAirCombatFxV25 remains in the inheritance chain
 // SkyDancerAirCombatFxV26 as SkyDancerAirCombatFx
 // SkyDancerAirCombatFxV27 as SkyDancerAirCombatFx
 // SkyDancerAirCombatFxV28 as SkyDancerAirCombatFx
@@ -34,7 +34,8 @@ import { SkyDancerPresentationPipeline } from "./presentation/SkyDancerPresentat
  * V40 chooses re-engagement targets. V41 is installed outside it and converts
  * every non-boss correction back into bounded forward aircraft motion. V44 is
  * outermost for CLEANUP staging; V45 then synchronizes boss vertical flight to
- * the boss attack state without adding player controls.
+ * the boss attack state without adding player controls. V46 wraps the complete
+ * stage loop with short combat beats, FLOW scoring and campaign pacing.
  */
 export class SkyDancerAirCombatFx extends SkyDancerAirCombatFxV29 {
   private readonly presentation: SkyDancerPresentationPipeline;
@@ -47,6 +48,7 @@ export class SkyDancerAirCombatFx extends SkyDancerAirCombatFxV29 {
     installSkyDancerFlightNaturalMotionV41();
     installSkyDancerAttackRunsV44();
     installSkyDancerBossAttackRunV45();
+    installSkyDancerCombatChoreographyV46();
     this.presentation = new SkyDancerPresentationPipeline(runtime);
   }
 
