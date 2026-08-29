@@ -58,6 +58,8 @@ test("V49 campaign bosses keep three-phase setpieces without the endurance tail"
   assert.match(source, /stage\.phase !== "boss"/);
   assert.match(source, /getSkyDancerMissionV49\(stage\.stage\)/);
   assert.match(source, /boss\.maxHp > targetMaxHp/);
+  assert.match(source, /final durability owner on every real campaign-boss step/);
+  assert.doesNotMatch(source, /scaledBossStage/);
 });
 
 test("V49 grade rewards time, accuracy, near-miss evades and FLOW", () => {
