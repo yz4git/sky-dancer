@@ -163,6 +163,11 @@ export class SkyDancerV50ColorScriptAtmospherePass {
   }
 
   update(snapshot: CartArenaSessionSnapshot): void {
+    // Older presentation passes run earlier in the same frame and may hide
+    // objects whose semantic names contain "sky". V50 is the final atmosphere
+    // owner, so reclaim visibility here after all legacy cleanup has run.
+    this.sky.visible = true;
+
     const campaign = getLatestSkyDancerCampaignSnapshotV49();
     this.activeStyle = campaign?.worldStyle ?? "city";
     const target = PALETTES[this.activeStyle];
