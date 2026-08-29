@@ -156,6 +156,8 @@ export class SkyDancerV45DecisionHierarchyPass {
   private maxPlayerRibbonPoints = 0;
   private bossStrikeCueObserved = false;
   private speedFxCount = 0;
+  private dedicatedTurboSeen = false;
+  private maxDedicatedTurboOpacity = 0;
   private latestDecision: SkyDancerCombatDecisionSnapshotV45 | null = null;
 
   constructor(private readonly runtime: SkyDancerFxRuntime) {
@@ -242,6 +244,23 @@ export class SkyDancerV45DecisionHierarchyPass {
       (material as THREE.Material & { opacity: number }).opacity = target;
       material.needsUpdate = true;
     }
+
+    // V37 owns a dedicated Turbo-only line set whose inactive opacity is zero.
+    // V45 must not scale it from that zero; instead verify that it still reaches
+    // its own intended strength during a real Turbo presentation frame.
+    const turboLines = this.runtime.scene.getObjectByName("sky-dancer-v37-turbo-speed-lines");
+    if (snapshot.boostActive && turboLines?.visible) {
+      this.dedicatedTurboSeen = true;
+      turboLines.traverse((object) => {
+        if (!(object instanceof THREE.Mesh)) return;
+        const materials = Array.isArray(object.material) ? object.material : [object.material];
+        for (const material of materials) {
+          if (!("opacity" in material)) continue;
+          const opacity = Number((material as THREE.Material & { opacity: number }).opacity);
+          if (Number.isFinite(opacity)) this.maxDedicatedTurboOpacity = Math.max(this.maxDedicatedTurboOpacity, opacity);
+        }
+      });
+    }
   }
 
   private scanSpeedEffects(root: THREE.Object3D): void {
@@ -254,9 +273,8 @@ export class SkyDancerV45DecisionHierarchyPass {
       for (const material of materials) {
         if (!material || this.speedMaterials.has(material) || !("opacity" in material)) continue;
         const opacity = Number((material as THREE.Material & { opacity: number }).opacity);
-        // Dedicated Turbo effects often sit at opacity 0 while inactive and
-        // write their real strength later in the frame. Never capture zero as
-        // a base value or V45 would accidentally erase the Turbo contrast.
+        // Dedicated/conditional effects often sit at opacity 0 while inactive
+        // and write their real strength later. Never capture zero as a base.
         if (!Number.isFinite(opacity) || opacity <= 0.01) continue;
         this.speedMaterials.set(material, opacity);
       }
@@ -347,6 +365,8 @@ export class SkyDancerV45DecisionHierarchyPass {
       maxPlayerRibbonPoints: this.maxPlayerRibbonPoints,
       speedFxCount: this.speedFxCount,
       normalSpeedStrength: 0.34,
+      dedicatedTurboSeen: this.dedicatedTurboSeen,
+      maxDedicatedTurboOpacity: this.maxDedicatedTurboOpacity,
       bossStrikeCueObserved: this.bossStrikeCueObserved,
       backgroundTuned: this.backgroundTuned,
       backgroundMaterials: Number(this.runtime.scene.userData.skyDancerV45BackgroundMaterials ?? 0),
