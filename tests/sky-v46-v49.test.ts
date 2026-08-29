@@ -38,11 +38,15 @@ test("V46 mission beats deliberately rotate cross, intercept, Turbo break and al
   assert.match(source, /state\.flow = Math\.min\(SKY_DANCER_FLOW_MAX_V46/);
 });
 
-test("V46 preserves the five-fighter cleanup cadence while shortening only the reinforcement grind", () => {
+test("V46 bridges the compact kill target into the legacy quota without shrinking CLEANUP", () => {
   const guard = read("../src/sky/SkyDancerCleanupCadenceGuardV46.ts");
   assert.match(guard, /SKY_DANCER_V46_CLEANUP_SURVIVORS = 5/);
   assert.match(guard, /stage\.phase !== "reinforcements"/);
   assert.match(guard, /stage\.stageKills < mission\.killTarget/);
+  assert.match(guard, /-v46-cleanup-/);
+  assert.match(guard, /this\.enemies\.push\(\.\.\.cleanup\)/);
+  assert.match(guard, /bridgeMode: "fresh-cleanup-ids"/);
+  assert.doesNotMatch(guard, /enemy\.alive = true/);
 });
 
 test("V49 campaign bosses keep three-phase setpieces without the endurance tail", () => {
