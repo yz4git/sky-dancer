@@ -97,7 +97,7 @@ export default function SkyDancerHudV54() {
         position:fixed;
         z-index:154;
         left:max(12px, env(safe-area-inset-left));
-        top:max(10px, calc(env(safe-area-inset-top) + 7px));
+        top:max(82px, calc(env(safe-area-inset-top) + 72px));
         width:min(31vw,238px);
         pointer-events:none;
         color:rgba(238,250,255,.94);
@@ -235,7 +235,7 @@ export default function SkyDancerHudV54() {
         100% { opacity:0; transform:translate(-50%,-56%) scale(1.015); filter:blur(2px); }
       }
       @media(max-height:390px) {
-        .skyDancerV54Rail { top:7px; width:min(29vw,220px); }
+        .skyDancerV54Rail { top:80px; width:min(29vw,220px); }
         .skyDancerV54Directive { display:none; }
         .skyDancerV54Flow { margin-top:4px; }
         .skyDancerV54Cinematic { top:35%; }
