@@ -11,7 +11,8 @@ interface AtmospherePalette {
   fog: number;
   key: number;
   rim: number;
-  fogDensity: number;
+  fogNear: number;
+  fogFar: number;
   keyIntensity: number;
   rimIntensity: number;
 }
@@ -24,7 +25,8 @@ const PALETTES: Record<SkyDancerMissionWorldStyleV49, AtmospherePalette> = {
     fog: 0x94c6d8,
     key: 0xfff1cf,
     rim: 0x65ddff,
-    fogDensity: 0.0021,
+    fogNear: 540,
+    fogFar: 1840,
     keyIntensity: 1.35,
     rimIntensity: 0.72,
   },
@@ -35,7 +37,8 @@ const PALETTES: Record<SkyDancerMissionWorldStyleV49, AtmospherePalette> = {
     fog: 0xd7edf5,
     key: 0xfff6dc,
     rim: 0x9cecff,
-    fogDensity: 0.0027,
+    fogNear: 510,
+    fogFar: 1790,
     keyIntensity: 1.48,
     rimIntensity: 0.62,
   },
@@ -46,7 +49,8 @@ const PALETTES: Record<SkyDancerMissionWorldStyleV49, AtmospherePalette> = {
     fog: 0x846d70,
     key: 0xffc078,
     rim: 0x8ecfff,
-    fogDensity: 0.0025,
+    fogNear: 560,
+    fogFar: 1880,
     keyIntensity: 1.28,
     rimIntensity: 0.82,
   },
@@ -57,7 +61,8 @@ const PALETTES: Record<SkyDancerMissionWorldStyleV49, AtmospherePalette> = {
     fog: 0x394b54,
     key: 0xffad67,
     rim: 0x5ce6f2,
-    fogDensity: 0.0030,
+    fogNear: 520,
+    fogFar: 1810,
     keyIntensity: 1.14,
     rimIntensity: 0.92,
   },
@@ -68,7 +73,8 @@ const PALETTES: Record<SkyDancerMissionWorldStyleV49, AtmospherePalette> = {
     fog: 0x414b65,
     key: 0xb8caff,
     rim: 0x62eeff,
-    fogDensity: 0.0034,
+    fogNear: 500,
+    fogFar: 1760,
     keyIntensity: 0.88,
     rimIntensity: 1.05,
   },
@@ -79,7 +85,8 @@ const PALETTES: Record<SkyDancerMissionWorldStyleV49, AtmospherePalette> = {
     fog: 0x655e72,
     key: 0xffd598,
     rim: 0x92ddff,
-    fogDensity: 0.0024,
+    fogNear: 550,
+    fogFar: 1900,
     keyIntensity: 1.42,
     rimIntensity: 1.0,
   },
@@ -100,7 +107,8 @@ export class SkyDancerV50ColorScriptAtmospherePass {
   private readonly currentFog = new THREE.Color();
   private readonly currentKey = new THREE.Color();
   private readonly currentRim = new THREE.Color();
-  private fogDensity = 0.0022;
+  private fogNear = 540;
+  private fogFar = 1840;
   private initialized = false;
   private activeStyle: SkyDancerMissionWorldStyleV49 = "city";
 
@@ -165,7 +173,8 @@ export class SkyDancerV50ColorScriptAtmospherePass {
       this.currentFog.copy(color(target.fog));
       this.currentKey.copy(color(target.key));
       this.currentRim.copy(color(target.rim));
-      this.fogDensity = target.fogDensity;
+      this.fogNear = target.fogNear;
+      this.fogFar = target.fogFar;
       this.initialized = true;
     } else {
       const t = 0.035;
@@ -175,7 +184,8 @@ export class SkyDancerV50ColorScriptAtmospherePass {
       this.currentFog.lerp(color(target.fog), t);
       this.currentKey.lerp(color(target.key), t);
       this.currentRim.lerp(color(target.rim), t);
-      this.fogDensity = THREE.MathUtils.lerp(this.fogDensity, target.fogDensity, t);
+      this.fogNear = THREE.MathUtils.lerp(this.fogNear, target.fogNear, t);
+      this.fogFar = THREE.MathUtils.lerp(this.fogFar, target.fogFar, t);
     }
 
     const uniforms = this.sky.material.uniforms;
@@ -185,11 +195,12 @@ export class SkyDancerV50ColorScriptAtmospherePass {
     this.sky.position.copy(this.runtime.camera.position);
 
     this.runtime.scene.background = this.currentHorizon.clone();
-    if (!(this.runtime.scene.fog instanceof THREE.FogExp2)) {
-      this.runtime.scene.fog = new THREE.FogExp2(this.currentFog.getHex(), this.fogDensity);
+    if (!(this.runtime.scene.fog instanceof THREE.Fog)) {
+      this.runtime.scene.fog = new THREE.Fog(this.currentFog.getHex(), this.fogNear, this.fogFar);
     } else {
       this.runtime.scene.fog.color.copy(this.currentFog);
-      this.runtime.scene.fog.density = this.fogDensity;
+      this.runtime.scene.fog.near = this.fogNear;
+      this.runtime.scene.fog.far = this.fogFar;
     }
 
     const speed = THREE.MathUtils.clamp(Math.abs(snapshot.speed) / 36, 0, 1);
@@ -211,7 +222,8 @@ export class SkyDancerV50ColorScriptAtmospherePass {
     if (typeof window !== "undefined" && navigator.webdriver) {
       (window as unknown as Record<string, unknown>).__skyDancerGetV50Atmosphere = () => ({
         style: this.activeStyle,
-        fogDensity: this.fogDensity,
+        fogNear: this.fogNear,
+        fogFar: this.fogFar,
         keyIntensity: this.keyLight.intensity,
         rimIntensity: this.rimLight.intensity,
         hasGradientSky: this.sky.visible,
