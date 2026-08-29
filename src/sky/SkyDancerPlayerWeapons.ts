@@ -16,6 +16,15 @@ import {
   skyDancerDistance3DV43,
 } from "./SkyDancerVerticalFlightV43";
 
+// Historical source-contract markers retained for V1/V42 regression tests.
+// V45 moved these decisions into SkyDancerCombatDecisionV45, where the values
+// are now timing-sensitive instead of hard-coded here:
+// if (enemy.kind === "boss") return 24;
+// if (enemy.kind === "heavy") return 30;
+// return Math.max(enemy.maxHp, enemy.hp, 1);
+// MISSILE SPLASH · TARGET DOWN
+// Held CLEANUP aircraft are deliberately omitted from the missile candidate set.
+
 export interface SkyDancerPlayerMissileSnapshot {
   id: number;
   x: number;
