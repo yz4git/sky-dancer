@@ -6,6 +6,7 @@ import { installSkyDancerBossAttackRunV45 } from "./SkyDancerBossAttackRunV45";
 import { installSkyDancerBossCombatV34 } from "./SkyDancerBossCombatV34";
 import { installSkyDancerBossDurabilityGuardV34 } from "./SkyDancerBossDurabilityGuardV34";
 import { installSkyDancerCombatChoreographyV46 } from "./SkyDancerCombatChoreographyV46";
+import { installSkyDancerCleanupCadenceGuardV46 } from "./SkyDancerCleanupCadenceGuardV46";
 import type { SkyDancerMissileState } from "./SkyDancerFlightCombat";
 import { installSkyDancerFlightNaturalMotionV41 } from "./SkyDancerFlightNaturalMotionV41";
 import { installSkyDancerReengagementV40 } from "./SkyDancerReengagementV40";
@@ -36,7 +37,8 @@ import { SkyDancerPresentationPipeline } from "./presentation/SkyDancerPresentat
  * every non-boss correction back into bounded forward aircraft motion. V44 is
  * outermost for CLEANUP staging; V45 then synchronizes boss vertical flight to
  * the boss attack state without adding player controls. V46 wraps the complete
- * stage loop with short combat beats, FLOW scoring and campaign pacing.
+ * stage loop with short combat beats, FLOW scoring and campaign pacing, then a
+ * final cadence guard preserves V44's authored CLEANUP attack-run window.
  */
 export class SkyDancerAirCombatFx extends SkyDancerAirCombatFxV29 {
   private readonly presentation: SkyDancerPresentationPipeline;
@@ -50,6 +52,7 @@ export class SkyDancerAirCombatFx extends SkyDancerAirCombatFxV29 {
     installSkyDancerAttackRunsV44();
     installSkyDancerBossAttackRunV45();
     installSkyDancerCombatChoreographyV46();
+    installSkyDancerCleanupCadenceGuardV46();
     this.presentation = new SkyDancerPresentationPipeline(runtime);
   }
 
