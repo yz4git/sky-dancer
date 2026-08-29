@@ -245,7 +245,7 @@ export default function SkyDancerHudV54() {
     <div className="skyDancerV54Frame" aria-hidden="true" />
     <section className="skyDancerV54Rail" aria-label="V54 cinematic mission HUD">
       <div className="skyDancerV54Meta">
-        <span>M{String(campaign.mission).padStart(2, "0")} // {STYLE_LABEL[campaign.worldStyle]}</span>
+        <span>M{String(campaign.mission).padStart(2, "0")} · {STYLE_LABEL[campaign.worldStyle]}</span>
         <span>{campaign.kills}/{campaign.killTarget}</span>
       </div>
       <div className="skyDancerV54Title">{campaign.beatLabel}</div>
