@@ -18,6 +18,7 @@ import { SkyDancerV44ReadabilityPass } from "./SkyDancerV44ReadabilityPass";
 import { SkyDancerV45DecisionHierarchyPass } from "./SkyDancerV45DecisionHierarchyPass";
 import { SkyDancerV47WorldReconstructionPass } from "./SkyDancerV47WorldReconstructionPass";
 import { SkyDancerV48BossSetpiecePass } from "./SkyDancerV48BossSetpiecePass";
+import { SkyDancerV50ColorScriptAtmospherePass } from "./SkyDancerV50ColorScriptAtmospherePass";
 
 /** Stable modern presentation pipeline. */
 export class SkyDancerPresentationPipeline {
@@ -37,6 +38,7 @@ export class SkyDancerPresentationPipeline {
   private readonly v45: SkyDancerV45DecisionHierarchyPass;
   private readonly v47: SkyDancerV47WorldReconstructionPass;
   private readonly v48: SkyDancerV48BossSetpiecePass;
+  private readonly v50: SkyDancerV50ColorScriptAtmospherePass;
 
   constructor(runtime: SkyDancerFxRuntime) {
     this.v30 = new SkyDancerV30PresentationPass(runtime);
@@ -55,6 +57,7 @@ export class SkyDancerPresentationPipeline {
     this.v45 = new SkyDancerV45DecisionHierarchyPass(runtime);
     this.v47 = new SkyDancerV47WorldReconstructionPass(runtime);
     this.v48 = new SkyDancerV48BossSetpiecePass(runtime);
+    this.v50 = new SkyDancerV50ColorScriptAtmospherePass(runtime);
     installSkyDancerV35VisualAuditBridge(runtime);
     installSkyDancerV39VisualAuditBridge(runtime);
   }
@@ -76,5 +79,6 @@ export class SkyDancerPresentationPipeline {
     this.v45.update(snapshot);
     this.v47.update(snapshot);
     this.v48.update(snapshot);
+    this.v50.update(snapshot);
   }
 }
