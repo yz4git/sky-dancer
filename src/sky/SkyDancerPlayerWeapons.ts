@@ -7,6 +7,11 @@ import {
 } from "../cart/CartTurboHuntTrack";
 import { isSkyDancerCombatTargetableV42 } from "./SkyDancerCombatEligibilityV42";
 import {
+  getSkyDancerEnemyDecisionV45,
+  getSkyDancerMissileDamageV45,
+  type SkyDancerCombatDecisionClassV45,
+} from "./SkyDancerCombatDecisionV45";
+import {
   getSkyDancerEnemyAltitudeMetersV43,
   skyDancerDistance3DV43,
 } from "./SkyDancerVerticalFlightV43";
@@ -33,6 +38,17 @@ export interface SkyDancerPlayerWeaponState {
   lastHitEnemyId: string | null;
   lastHitX: number;
   lastHitZ: number;
+}
+
+export interface SkyDancerPlayerLockSnapshotV45 {
+  targetEnemyId: string | null;
+  className: SkyDancerCombatDecisionClassV45 | null;
+  label: string;
+  action: string;
+  vulnerable: boolean;
+  altitudeMeters: number;
+  distance: number;
+  angle: number;
 }
 
 interface PlayerMissileInternal extends SkyDancerPlayerMissileSnapshot {
@@ -133,12 +149,9 @@ function currentEnemies(session: WeaponSessionView): CartEnemyState[] {
   );
 }
 
-function missileDamage(enemy: CartEnemyState | null): number {
+function missileDamage(enemy: CartEnemyState | null, session: WeaponSessionView): number {
   if (!enemy) return 38;
-  if (enemy.kind === "boss") return 24;
-  if (enemy.kind === "heavy") return 30;
-  // Standard fighters are intentionally one-shot missile targets.
-  return Math.max(enemy.maxHp, enemy.hp, 1);
+  return getSkyDancerMissileDamageV45(enemy, session.car.forwardVelocity);
 }
 
 function chooseTarget(session: WeaponSessionView): CartEnemyState | null {
@@ -153,13 +166,14 @@ function chooseTarget(session: WeaponSessionView): CartEnemyState | null {
     const altitude = getSkyDancerEnemyAltitudeMetersV43(enemy);
     const distance = skyDancerDistance3DV43(px, 0, pz, enemy.x, altitude, enemy.z);
     if (distance > SKY_DANCER_PLAYER_MISSILE_LOCK_DISTANCE) continue;
-    // V43 keeps lock acquisition simple on touch controls: the horizontal cone
-    // is unchanged while the seeker handles altitude after launch.
+    // Touch controls keep one forgiving horizontal cone. V45 changes decision
+    // timing and target priority, while the missile still solves pitch itself.
     const targetHeading = Math.atan2(dx, dz);
     const angle = Math.abs(normalizeAngle(targetHeading - heading));
     if (angle > 0.78) continue;
     const verticalPenalty = Math.abs(altitude) * 0.12;
-    const score = distance + angle * 18 + verticalPenalty - (enemy.kind === "boss" ? 3.5 : 0);
+    const decision = getSkyDancerEnemyDecisionV45(enemy, session.car.forwardVelocity);
+    const score = distance + angle * 18 + verticalPenalty - decision.priority * 1.15;
     if (score < bestScore) {
       bestScore = score;
       best = enemy;
@@ -203,13 +217,14 @@ function launchRequestedShot(session: WeaponSessionView, state: WeaponState): bo
     maxSpeed: 42.5,
     acceleration: 27,
     ageSeconds: 0,
-    damage: missileDamage(target),
+    damage: missileDamage(target, session),
     active: true,
   };
   state.missiles.push(missile);
   state.shotSerial += 1;
   state.lastClockMs = weaponNowMs();
-  session.lastReward = target ? "FOX TWO · 3D LOCK" : "FOX TWO";
+  const decision = target ? getSkyDancerEnemyDecisionV45(target, session.car.forwardVelocity) : null;
+  session.lastReward = target ? `FOX TWO · ${decision?.label ?? "3D LOCK"}` : "FOX TWO";
   session.rewardTimer = Math.max(session.rewardTimer, 0.7);
   return true;
 }
@@ -265,9 +280,6 @@ function chooseTargetFromMissile(missile: PlayerMissileInternal, enemies: readon
 }
 
 function updateMissiles(session: WeaponSessionView, state: WeaponState, delta: number): void {
-  // Held CLEANUP aircraft are deliberately omitted here as well as from the
-  // initial lock query. Existing missiles therefore cannot accidentally hit a
-  // formation aircraft after the phase transition and collapse the slot timer.
   const enemies = currentEnemies(session);
   for (const missile of state.missiles) {
     if (!missile.active) continue;
@@ -284,7 +296,7 @@ function updateMissiles(session: WeaponSessionView, state: WeaponState, delta: n
       missile.targetEnemyId = target?.id ?? null;
       missile.turnRate = target ? 2.15 : 0;
       missile.pitchRate = target ? 1.65 : 0;
-      if (target) missile.damage = missileDamage(target);
+      if (target) missile.damage = missileDamage(target, session);
     }
 
     if (target) {
@@ -358,13 +370,16 @@ function updateMissiles(session: WeaponSessionView, state: WeaponState, delta: n
     if (!hit) continue;
 
     missile.active = false;
-    const damage = missileDamage(hit);
+    const damage = missileDamage(hit, session);
     hit.hp = Math.max(0, hit.hp - damage);
     const destroyed = hit.hp <= 0;
     hit.alive = !destroyed;
     if (destroyed) session.car.ramCount += 1;
     session.car.collisionImpact = Math.max(session.car.collisionImpact, destroyed ? 1 : 0.72);
-    session.lastReward = destroyed ? "MISSILE SPLASH · TARGET DOWN" : `MISSILE HIT · ${Math.ceil(hit.hp)} HP`;
+    const decision = getSkyDancerEnemyDecisionV45(hit, session.car.forwardVelocity);
+    session.lastReward = destroyed
+      ? `MISSILE SPLASH · ${decision.label} DOWN`
+      : `${decision.vulnerable ? "WINDOW HIT" : "GLANCING HIT"} · ${Math.ceil(hit.hp)} HP`;
     session.rewardTimer = Math.max(session.rewardTimer, destroyed ? 1.45 : 1.0);
     state.hitSerial += 1;
     state.lastHitEnemyId = hit.id;
@@ -402,6 +417,46 @@ export function stepSkyDancerPlayerWeapons(session: CartArenaSession, fixedDelta
   state.cooldownSeconds = Math.max(0, state.cooldownSeconds - delta);
   updateMissiles(view, state, delta);
   state.lastClockMs = weaponNowMs();
+}
+
+export function getSkyDancerPlayerLockSnapshotV45(session: CartArenaSession): SkyDancerPlayerLockSnapshotV45 {
+  const view = session as unknown as WeaponSessionView;
+  const target = chooseTarget(view);
+  if (!target) {
+    return {
+      targetEnemyId: null,
+      className: null,
+      label: "NO LOCK",
+      action: "SEARCH",
+      vulnerable: false,
+      altitudeMeters: 0,
+      distance: Number.POSITIVE_INFINITY,
+      angle: 0,
+    };
+  }
+  const dx = target.x - view.car.position.x;
+  const dz = target.z - view.car.position.z;
+  const altitudeMeters = getSkyDancerEnemyAltitudeMetersV43(target);
+  const distance = skyDancerDistance3DV43(
+    view.car.position.x,
+    0,
+    view.car.position.z,
+    target.x,
+    altitudeMeters,
+    target.z,
+  );
+  const angle = Math.abs(normalizeAngle(Math.atan2(dx, dz) - view.car.heading));
+  const decision = getSkyDancerEnemyDecisionV45(target, view.car.forwardVelocity);
+  return {
+    targetEnemyId: target.id,
+    className: decision.className,
+    label: decision.label,
+    action: decision.action,
+    vulnerable: decision.vulnerable,
+    altitudeMeters,
+    distance,
+    angle,
+  };
 }
 
 export function getSkyDancerPlayerWeaponState(session: CartArenaSession): SkyDancerPlayerWeaponState {
