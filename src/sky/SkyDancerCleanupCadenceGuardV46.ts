@@ -10,17 +10,19 @@ interface CleanupGuardSession {
 }
 
 const PATCHED_KEY = "__skyDancerCleanupCadenceGuardV46Installed__";
-export const SKY_DANCER_V46_CLEANUP_SURVIVORS = 3;
+// V40/V42 authored this phase around five staggered survivors at 5.25 s slots.
+// Keep that population while V46 shortens only the reinforcement phase before it.
+export const SKY_DANCER_V46_CLEANUP_SURVIVORS = 5;
 
 /**
  * V46 shortens only the reinforcement grind. V44's cleanup attack-run phase is
  * still an authored 20-30 second combat beat and must remain visible/readable.
  *
  * CombatChoreography can retire a whole background formation after the mission
- * kill target is met. This outer compatibility guard revives the nearest three
+ * kill target is met. This outer compatibility guard revives up to five of the
  * just-retired fighters before the next StageCycle tick counts the synthetic
- * retirements. On the following tick the legacy quota is reached while those
- * three remain alive, so V44 receives a normal finite CLEANUP formation.
+ * retirements. The legacy quota can then close while the five-aircraft V42
+ * cleanup formation remains intact for its staggered attack runs.
  */
 export function installSkyDancerCleanupCadenceGuardV46(): void {
   installSkyDancerStageCycle();
