@@ -8,6 +8,7 @@ import {
   SKY_DANCER_VERTICAL_COLLISION_CLEARANCE_METERS,
   SKY_DANCER_VERTICAL_MAX_PITCH_RADIANS,
   getSkyDancerEnemyVerticalSnapshotV43,
+  requestSkyDancerVerticalManeuverV44,
   shouldSuppressSkyDancerLegacy2DContactV43,
   skyDancerDistance3DV43,
   stepSkyDancerEnemyVerticalFlightV43,
@@ -98,6 +99,10 @@ test("V43 player collision prediction triggers a climb or dive instead of only a
 
 test("V43 safe altitude clearance disables inherited 2D player contact", () => {
   const fighter = enemy("v43-legacy-contact-filter", 0.5, 5.5, Math.PI);
+  // This regression is about the legacy-contact threshold, not the autonomous
+  // tactical phase selected by an enemy-id hash. Force a normal production
+  // vertical maneuver so the test always reaches the safe separation band.
+  requestSkyDancerVerticalManeuverV44(fighter, 8.4, 4.0);
   for (let frame = 0; frame < 210; frame += 1) {
     stepSkyDancerEnemyVerticalFlightV43([fighter], {
       nodeId: "arena-01",
