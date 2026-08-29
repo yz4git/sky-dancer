@@ -4,13 +4,15 @@ import test from "node:test";
 
 const read = (relative: string) => readFileSync(new URL(relative, import.meta.url), "utf8");
 
-test("V50 defines six mission color scripts with lightweight fog and key/rim lighting", () => {
+test("V50 defines six mission color scripts with lightweight compatible fog and key/rim lighting", () => {
   const source = read("../src/sky/presentation/SkyDancerV50ColorScriptAtmospherePass.ts");
   for (const style of ["city", "clouds", "mountains", "facility", "storm", "citadel"]) {
     assert.match(source, new RegExp(`${style}: \\{`));
   }
   assert.match(source, /sky-dancer-v50-color-script-sky/);
-  assert.match(source, /FogExp2/);
+  assert.match(source, /new THREE\.Fog\(/);
+  assert.match(source, /fogNear: 540/);
+  assert.match(source, /fogFar: 1840/);
   assert.match(source, /sky-dancer-v50-key-light/);
   assert.match(source, /sky-dancer-v50-rim-light/);
   assert.match(source, /SphereGeometry\(760, 20, 12\)/);
