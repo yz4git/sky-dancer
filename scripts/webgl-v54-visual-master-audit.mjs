@@ -64,13 +64,17 @@ for (let index = 0; index < 10; index += 1) {
 }
 await page.keyboard.up("ArrowRight");
 
+// Turbo hold is intentionally physics-neutral in SkyDancerTurboModel. Measure
+// V52 on the real release dash rather than requiring false speed feedback while
+// the player is only charging the button.
 await page.keyboard.down("Space");
 await page.waitForTimeout(900);
-v52 = await readBridge("__skyDancerGetV52SpeedFx");
-await page.screenshot({ path: `${outputDir}/81-v54-turbo-speed-field.png`, fullPage: true });
-await canvas.screenshot({ path: `${outputDir}/81-v54-turbo-speed-field-canvas.png` });
 await page.keyboard.up("Space");
-await page.waitForTimeout(500);
+await page.waitForTimeout(120);
+v52 = await readBridge("__skyDancerGetV52SpeedFx");
+await page.screenshot({ path: `${outputDir}/81-v54-turbo-release-speed-field.png`, fullPage: true });
+await canvas.screenshot({ path: `${outputDir}/81-v54-turbo-release-speed-field-canvas.png` });
+await page.waitForTimeout(380);
 
 v50 = v50 ?? await readBridge("__skyDancerGetV50Atmosphere");
 v51 = v51 ?? await readBridge("__skyDancerGetV51Silhouette");
@@ -101,5 +105,5 @@ if (!hudBounds || hudBounds.left < -1 || hudBounds.top < -1 || hudBounds.right >
 }
 if (!v50?.hasGradientSky || v50.style !== "city" || !(v50.rimIntensity > 0.5)) throw new Error(`V50 atmosphere bridge invalid: ${JSON.stringify(diagnostics)}`);
 if (!v51?.playerAttached || !(v51.playerParts >= 10) || !(v51.visualSpan >= 6.5)) throw new Error(`V51 silhouette bridge invalid: ${JSON.stringify(diagnostics)}`);
-if (!v52?.speedVisible || !(v52.speedOpacity > 0.08) || !(v52.streaks >= 24)) throw new Error(`V52 speed field did not engage under Turbo: ${JSON.stringify(diagnostics)}`);
+if (!v52?.speedVisible || !(v52.speedOpacity > 0.08) || !(v52.streaks >= 24)) throw new Error(`V52 speed field did not engage on Turbo release dash: ${JSON.stringify(diagnostics)}`);
 if (!(v53?.setpieceCount >= 20) || !(v53?.rotatingCount >= 3)) throw new Error(`V53 route setpieces missing: ${JSON.stringify(diagnostics)}`);
