@@ -99,15 +99,15 @@ test("V43 player collision prediction triggers a climb or dive instead of only a
 
 test("V43 safe altitude clearance disables inherited 2D player contact", () => {
   const fighter = enemy("v43-legacy-contact-filter", 0.5, 5.5, Math.PI);
-  // This regression is about the legacy-contact threshold, not the autonomous
-  // tactical phase selected by an enemy-id hash. Force a normal production
-  // vertical maneuver so the test always reaches the safe separation band.
+  // This regression isolates the legacy-contact threshold. Keep the simulated
+  // player far away so live player-collision avoidance cannot replace the
+  // explicit production maneuver under test with an opposite avoidance lane.
   requestSkyDancerVerticalManeuverV44(fighter, 8.4, 4.0);
   for (let frame = 0; frame < 210; frame += 1) {
     stepSkyDancerEnemyVerticalFlightV43([fighter], {
       nodeId: "arena-01",
-      playerX: 0,
-      playerZ: 0,
+      playerX: 50,
+      playerZ: 50,
       playerHeading: 0,
       playerSpeed: 12,
       delta: 1 / 60,
