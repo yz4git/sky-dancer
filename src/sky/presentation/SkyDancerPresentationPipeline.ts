@@ -15,6 +15,7 @@ import { SkyDancerV40CityExpansionPass } from "./SkyDancerV40CityExpansionPass";
 import { SkyDancerV42ContinuityPass } from "./SkyDancerV42ContinuityPass";
 import { SkyDancerV43VerticalCombatPass } from "./SkyDancerV43VerticalCombatPass";
 import { SkyDancerV44ReadabilityPass } from "./SkyDancerV44ReadabilityPass";
+import { SkyDancerV45DecisionHierarchyPass } from "./SkyDancerV45DecisionHierarchyPass";
 
 /** Stable modern presentation pipeline. */
 export class SkyDancerPresentationPipeline {
@@ -31,6 +32,7 @@ export class SkyDancerPresentationPipeline {
   private readonly v42: SkyDancerV42ContinuityPass;
   private readonly v43: SkyDancerV43VerticalCombatPass;
   private readonly v44: SkyDancerV44ReadabilityPass;
+  private readonly v45: SkyDancerV45DecisionHierarchyPass;
 
   constructor(runtime: SkyDancerFxRuntime) {
     this.v30 = new SkyDancerV30PresentationPass(runtime);
@@ -46,6 +48,7 @@ export class SkyDancerPresentationPipeline {
     this.v42 = new SkyDancerV42ContinuityPass(runtime);
     this.v43 = new SkyDancerV43VerticalCombatPass(runtime);
     this.v44 = new SkyDancerV44ReadabilityPass(runtime);
+    this.v45 = new SkyDancerV45DecisionHierarchyPass(runtime);
     installSkyDancerV35VisualAuditBridge(runtime);
     installSkyDancerV39VisualAuditBridge(runtime);
   }
@@ -64,5 +67,6 @@ export class SkyDancerPresentationPipeline {
     this.v42.update(snapshot);
     this.v43.update(snapshot);
     this.v44.update(snapshot);
+    this.v45.update(snapshot);
   }
 }
