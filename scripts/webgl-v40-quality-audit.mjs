@@ -4,6 +4,7 @@ import { chromium } from "playwright";
 const baseUrl = process.env.SKY_DANCER_AUDIT_URL || "http://127.0.0.1:4173";
 const outputDir = process.env.SKY_DANCER_AUDIT_DIR || "artifacts/webgl-audit";
 const MAX_WALL_MS = 480_000;
+const POST_CLEAR_GRACE_MS = 60_000;
 const SAMPLE_MS = 420;
 const CLEANUP_TARGET_SECONDS = [20, 30];
 const CLEANUP_ACCEPT_SECONDS = [18, 32];
@@ -114,7 +115,13 @@ async function countVisibleLegacyBossBlocks() {
   });
 }
 
-while (Date.now() - began < MAX_WALL_MS && stage2WallSeconds == null) {
+while (
+  stage2WallSeconds == null
+  && (
+    Date.now() - began < MAX_WALL_MS
+    || (clearWallSeconds != null && Date.now() - began < MAX_WALL_MS + POST_CLEAR_GRACE_MS)
+  )
+) {
   const elapsed = Date.now() - began;
   if (elapsed >= nextSteerSwitch) {
     await page.keyboard.up(steeringDirection);

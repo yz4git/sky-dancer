@@ -113,7 +113,10 @@ await page.touchscreen.tap(shotBox.x + shotBox.width * 0.5, shotBox.y + shotBox.
 const weaponImmediatelyAfter = await page.evaluate(() => typeof window.__skyDancerGetWeaponState === "function" ? window.__skyDancerGetWeaponState() : null);
 const shotRegistered = Boolean(weaponBefore && weaponImmediatelyAfter && weaponImmediatelyAfter.shotSerial > weaponBefore.shotSerial);
 const immediateHit = Boolean(weaponBefore && weaponImmediatelyAfter && weaponImmediatelyAfter.hitSerial > weaponBefore.hitSerial);
-const launched = Array.isArray(weaponImmediatelyAfter?.missiles) ? (weaponImmediatelyAfter.missiles[0] ?? null) : null;
+const missilesBefore = new Set(Array.isArray(weaponBefore?.missiles) ? weaponBefore.missiles.map((missile) => missile.id) : []);
+const missilesImmediatelyAfter = Array.isArray(weaponImmediatelyAfter?.missiles) ? weaponImmediatelyAfter.missiles : [];
+const launched = missilesImmediatelyAfter.find((missile) => !missilesBefore.has(missile.id))
+  ?? missilesImmediatelyAfter.reduce((newest, missile) => !newest || missile.id > newest.id ? missile : newest, null);
 if (!shotRegistered || (!launched && !immediateHit)) {
   throw new Error(`Touch Shot produced neither missile flight nor an immediate hit: before=${JSON.stringify(weaponBefore)} after=${JSON.stringify(weaponImmediatelyAfter)}`);
 }
