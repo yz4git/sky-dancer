@@ -39,6 +39,7 @@ interface BossCombatState {
   previousBossHp: number;
   side: number;
   broadcastClock: number;
+  auditClockScale: number;
 }
 
 const PATCHED_KEY = "__skyDancerBossCombatV34Installed__";
@@ -88,6 +89,7 @@ function stateFor(session: BossSessionView): BossCombatState {
     previousBossHp: boss?.hp ?? 0,
     side: stableSide(boss?.id ?? "sky-dancer-boss"),
     broadcastClock: 0,
+    auditClockScale: 1,
   };
   stateBySession.set(key, created);
   return created;
@@ -149,7 +151,7 @@ function publish(session: BossSessionView, state: BossCombatState): void {
 }
 
 /** Webdriver-only: activate the actual dormant stage boss instead of fabricating a test double. */
-function forceBossForAudit(session: BossSessionView): void {
+function forceBossForAudit(session: BossSessionView, state: BossCombatState): void {
   if (!auditForceBoss) return;
   for (const enemy of session.enemies) {
     if (enemy.kind === "boss" || !enemy.alive) continue;
@@ -175,6 +177,11 @@ function forceBossForAudit(session: BossSessionView): void {
   boss.weakPointExposed = false;
   boss.chargeCooldown = 1.4;
   boss.chargeTime = 0;
+  state.clock = 0;
+  // SwiftShader can advance far fewer fixed simulation steps than wall time.
+  // Only a webdriver-forced audit boss gets a temporary accelerated director
+  // clock so ORBIT -> STRIKE -> BREAK can be validated without changing live play.
+  state.auditClockScale = 6;
   auditForceBoss = false;
 }
 
@@ -275,7 +282,7 @@ export function installSkyDancerBossCombatV34(): void {
 
     previous.call(this, input, fixedDelta);
     routeEnemiesToCurrentAirspace(this);
-    forceBossForAudit(this);
+    forceBossForAudit(this, state);
 
     const boss = this.enemies.find((enemy) => enemy.kind === "boss" && enemy.alive) ?? null;
     if (boss) {
@@ -287,11 +294,13 @@ export function installSkyDancerBossCombatV34(): void {
       // Legacy boss missiles dealt 10.5% each. Preserve danger while preventing
       // a short homing sequence from deleting the player before a counter-pass.
       if (this.gas < beforeGas) this.gas = Math.max(this.gas, beforeGas - SKY_DANCER_V34_BOSS_MISSILE_DAMAGE_CAP);
-      state.clock += delta;
+      state.clock += delta * state.auditClockScale;
+      if (state.auditClockScale > 1 && state.clock >= 8) state.auditClockScale = 1;
       state.previousBossHp = boss.hp;
     } else {
       state.clock = 0;
       state.previousBossHp = 0;
+      state.auditClockScale = 1;
     }
 
     state.bossWasAlive = Boolean(boss?.alive);
