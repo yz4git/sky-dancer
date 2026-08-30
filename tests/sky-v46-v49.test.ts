@@ -10,12 +10,12 @@ import { skyDancerCampaignBossHpV49 } from "../src/sky/SkyDancerCampaignPacingV4
 
 const read = (relative: string) => readFileSync(new URL(relative, import.meta.url), "utf8");
 
-test("V49 campaign is a six-mission 3-5 minute structure with compact kill targets", () => {
+test("V55 campaign keeps six missions while tightening each sortie toward the two-minute arcade target", () => {
   assert.equal(SKY_DANCER_CAMPAIGN_MISSIONS_V49.length, 6);
   for (const mission of SKY_DANCER_CAMPAIGN_MISSIONS_V49) {
-    assert.ok(mission.killTarget >= 6 && mission.killTarget <= 8);
+    assert.ok(mission.killTarget >= 5 && mission.killTarget <= 7);
     assert.ok(mission.activeThreatTarget >= 4 && mission.activeThreatTarget <= 5);
-    assert.ok(mission.parSeconds >= 180 && mission.parSeconds <= 300);
+    assert.ok(mission.parSeconds >= 120 && mission.parSeconds <= 160);
     assert.equal(mission.beats.length, 4);
   }
   assert.deepEqual(
@@ -29,7 +29,7 @@ test("V46 mission beats deliberately rotate cross, intercept, Turbo break and al
   assert.equal(getSkyDancerMissionBeatV49(mission, 0).beat.kind, "cross");
   assert.equal(getSkyDancerMissionBeatV49(mission, 2).beat.kind, "intercept");
   assert.equal(getSkyDancerMissionBeatV49(mission, 3).beat.kind, "break");
-  assert.equal(getSkyDancerMissionBeatV49(mission, 5).beat.kind, "vertical");
+  assert.equal(getSkyDancerMissionBeatV49(mission, 4).beat.kind, "vertical");
   const source = read("../src/sky/SkyDancerCombatChoreographyV46.ts");
   assert.match(source, /SKY_DANCER_CHOREOGRAPHY_MAX_ACTIVE_THREATS_V46 = 5/);
   assert.match(source, /FORMATION BROKEN · BOSS AIRSPACE OPEN/);
@@ -38,7 +38,7 @@ test("V46 mission beats deliberately rotate cross, intercept, Turbo break and al
   assert.match(source, /state\.flow = Math\.min\(SKY_DANCER_FLOW_MAX_V46/);
 });
 
-test("V46 bridges the compact kill target into the legacy quota without shrinking CLEANUP", () => {
+test("V46 bridges the compact kill target into the legacy quota without shrinking CLEANUP population", () => {
   const guard = read("../src/sky/SkyDancerCleanupCadenceGuardV46.ts");
   assert.match(guard, /SKY_DANCER_V46_CLEANUP_SURVIVORS = 5/);
   assert.match(guard, /stage\.phase !== "reinforcements"/);
@@ -63,10 +63,24 @@ test("V49 campaign bosses keep three-phase setpieces without the endurance tail"
 });
 
 test("V49 grade rewards time, accuracy, near-miss evades and FLOW", () => {
-  assert.equal(gradeSkyDancerMissionV49({ elapsedSeconds: 170, accuracy: 0.78, perfectEvades: 4, peakFlow: 96 }, 205), "S");
-  assert.equal(gradeSkyDancerMissionV49({ elapsedSeconds: 205, accuracy: 0.60, perfectEvades: 3, peakFlow: 72 }, 205), "A");
-  assert.equal(gradeSkyDancerMissionV49({ elapsedSeconds: 230, accuracy: 0.42, perfectEvades: 2, peakFlow: 48 }, 205), "B");
-  assert.equal(gradeSkyDancerMissionV49({ elapsedSeconds: 300, accuracy: 0.24, perfectEvades: 0, peakFlow: 12 }, 205), "C");
+  assert.equal(gradeSkyDancerMissionV49({ elapsedSeconds: 105, accuracy: 0.78, perfectEvades: 4, peakFlow: 96 }, 130), "S");
+  assert.equal(gradeSkyDancerMissionV49({ elapsedSeconds: 130, accuracy: 0.60, perfectEvades: 3, peakFlow: 72 }, 130), "A");
+  assert.equal(gradeSkyDancerMissionV49({ elapsedSeconds: 145, accuracy: 0.42, perfectEvades: 2, peakFlow: 48 }, 130), "B");
+  assert.equal(gradeSkyDancerMissionV49({ elapsedSeconds: 190, accuracy: 0.24, perfectEvades: 0, peakFlow: 12 }, 130), "C");
+});
+
+test("V55 only re-centers combat after a real no-target gap and forces cleanup finishers into attack lanes", () => {
+  const source = read("../src/sky/SkyDancerArcadePacingV55.ts");
+  const facade = read("../src/sky/SkyDancerAirCombatFx.ts");
+  assert.match(source, /SKY_DANCER_V55_NO_TARGET_GRACE = 0\.72/);
+  assert.match(source, /state\.noLockElapsed >= SKY_DANCER_V55_NO_TARGET_GRACE/);
+  assert.match(source, /SKY_DANCER_V55_CLEANUP_FINISHER_START = 12/);
+  assert.match(source, /SKY_DANCER_V55_CLEANUP_LAST_TARGET_START = 18/);
+  assert.match(source, /targets\.length <= 2/);
+  assert.match(source, /targets\.length === 1/);
+  assert.match(source, /attackLane\(this, 0, 27, 0\)/);
+  assert.match(source, /isSkyDancerCombatTargetableV42/);
+  assert.match(facade, /installSkyDancerCampaignPacingV49\(\);\n    installSkyDancerArcadePacingV55\(\);/);
 });
 
 test("V47 creates six route-specific world setpieces instead of one repeated test field", () => {
