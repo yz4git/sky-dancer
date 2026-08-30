@@ -136,6 +136,7 @@ interface ArcadeProjectile extends SkyDancerArcadeProjectileSnapshot {
   life: number;
   vx: number;
   vy: number;
+  guidance: number;
   nearMissChecked: boolean;
 }
 
@@ -159,17 +160,19 @@ interface StageStats {
 }
 
 const PLAYER_MAX_HP = 100;
-const PLAYER_X_LIMIT = 1;
-const PLAYER_Y_LIMIT = 0.9;
+const PLAYER_X_LIMIT = 2.2;
+const PLAYER_Y_LIMIT = 1.75;
+const ENEMY_X_LIMIT = 2.62;
+const ENEMY_Y_LIMIT = 2.05;
 const GUN_COOLDOWN = 0.105;
 const LOCK_INTERVAL = 0.13;
 const ARCADE_SECTION_RESULT_SECONDS = 0.55;
 const PRACTICE_RESULT_SECONDS = 2.8;
-const PLAYER_MOVE_SPEED_X = 1.55;
-const PLAYER_MOVE_SPEED_Y = 1.42;
-const PLAYER_TURBO_SPEED_X = 1.9;
-const PLAYER_TURBO_SPEED_Y = 1.72;
-const PLAYER_MOVE_RESPONSE = 11.8;
+const PLAYER_MOVE_SPEED_X = 3.4;
+const PLAYER_MOVE_SPEED_Y = 2.95;
+const PLAYER_TURBO_SPEED_X = 4.45;
+const PLAYER_TURBO_SPEED_Y = 3.75;
+const PLAYER_MOVE_RESPONSE = 19.5;
 const ENEMY_FLYBY_CULL_DEPTH = -11.5;
 
 function clamp(value: number, min: number, max: number): number {
@@ -354,6 +357,8 @@ export class SkyDancerArcadeRuntime {
     this.input.fire = false;
     this.input.lock = false;
     this.input.turbo = false;
+    this.playerVX = 0;
+    this.playerVY = 0;
   }
 
   continueRun(): boolean {
@@ -435,7 +440,7 @@ export class SkyDancerArcadeRuntime {
     if (this.stageTime < start) return;
     if (this.stageTime <= end) {
       const count = this.stage.next.length;
-      const normalized = clamp((this.playerX + 1) * 0.5, 0, 0.9999);
+      const normalized = clamp((this.playerX + PLAYER_X_LIMIT) / (PLAYER_X_LIMIT * 2), 0, 0.9999);
       const index = Math.min(count - 1, Math.floor(normalized * count));
       this.branchSelection = this.stage.next[index] ?? this.stage.next[0] ?? null;
       if (this.message !== "SELECT ROUTE") {
@@ -484,15 +489,15 @@ export class SkyDancerArcadeRuntime {
   private formationPosition(formation: SkyDancerArcadeFormation, index: number, count: number): [number, number] {
     const centered = count <= 1 ? 0 : (index / (count - 1)) * 2 - 1;
     switch (formation) {
-      case "vee": return [centered * 0.88, Math.abs(centered) * 0.44 - 0.22];
-      case "cross": return [index % 2 === 0 ? centered * 0.72 : 0, index % 2 === 0 ? 0 : centered * 0.68];
+      case "vee": return [centered * 1.92, Math.abs(centered) * 0.86 - 0.42];
+      case "cross": return [index % 2 === 0 ? centered * 1.68 : 0, index % 2 === 0 ? 0 : centered * 1.42];
       case "spiral": {
         const angle = (index / Math.max(1, count)) * Math.PI * 2;
-        return [Math.cos(angle) * 0.72, Math.sin(angle) * 0.58];
+        return [Math.cos(angle) * 1.72, Math.sin(angle) * 1.38];
       }
-      case "pincer": return [index < count / 2 ? -0.82 + index * 0.12 : 0.82 - (count - index - 1) * 0.12, centered * 0.34];
-      case "wall": return [centered * 0.96, Math.sin(index * 1.7) * 0.28];
-      default: return [centered * 0.82, Math.sin(index * 0.9) * 0.2];
+      case "pincer": return [index < count / 2 ? -2.08 + index * 0.24 : 2.08 - (count - index - 1) * 0.24, centered * 0.72];
+      case "wall": return [centered * 2.18, Math.sin(index * 1.7) * 0.62];
+      default: return [centered * 1.88, Math.sin(index * 0.9) * 0.48];
     }
   }
 
@@ -513,7 +518,7 @@ export class SkyDancerArcadeRuntime {
       speed: stats.speed,
       baseX: x,
       baseY: y,
-      amplitude: 0.12 + this.random() * 0.38,
+      amplitude: 0.28 + this.random() * 0.72,
       fireCooldown: 1.1 + this.random() * 2.4,
       scoreValue: stats.score,
       alive: true,
@@ -542,7 +547,7 @@ export class SkyDancerArcadeRuntime {
       speed: 7.2,
       baseX: 0,
       baseY: 0.1,
-      amplitude: 0.72,
+      amplitude: 1.42,
       fireCooldown: 1.4,
       scoreValue: final ? 24000 : 12000,
       alive: true,
@@ -554,18 +559,19 @@ export class SkyDancerArcadeRuntime {
 
   private spawnHazardPattern(): void {
     const kind = this.stage.hazards[Math.floor(this.random() * this.stage.hazards.length)] ?? "debris";
-    const count = kind === "mine" || kind === "debris" ? 3 + Math.floor(this.random() * 3) : 2;
-    const safeLane = Math.floor(this.random() * Math.max(2, count));
+    const count = kind === "mine" || kind === "debris" ? 5 + Math.floor(this.random() * 3) : 4;
+    const safeLane = Math.floor(this.random() * count);
+    const center = clamp(this.playerX * 0.28, -0.55, 0.55);
     for (let index = 0; index < count; index += 1) {
       if ((kind === "tower" || kind === "rock" || kind === "arch") && index === safeLane) continue;
-      const x = count <= 1 ? 0 : (index / (count - 1)) * 1.8 - 0.9;
+      const x = count <= 1 ? center : center + (index / (count - 1)) * 4.2 - 2.1;
       this.hazards.push({
         id: this.nextEntityId++,
         kind,
-        x: x + (this.random() - 0.5) * 0.14,
-        y: kind === "lightning" ? (this.random() - 0.5) * 1.2 : (this.random() - 0.5) * 0.55,
+        x: clamp(x + (this.random() - 0.5) * 0.2, -ENEMY_X_LIMIT, ENEMY_X_LIMIT),
+        y: kind === "lightning" ? (this.random() - 0.5) * 2.8 : (this.random() - 0.5) * 1.8,
         depth: 90 + this.random() * 18,
-        scale: kind === "mine" || kind === "debris" ? 0.55 : 0.82,
+        scale: kind === "mine" || kind === "debris" ? 0.62 : 0.88,
         speed: 11.5 + this.stage.courseSpeed * 0.035,
         nearMissChecked: false,
       });
@@ -581,10 +587,10 @@ export class SkyDancerArcadeRuntime {
     let best = Number.POSITIVE_INFINITY;
     for (const enemy of this.enemies) {
       if (!enemy.alive || enemy.locked || enemy.depth < 4 || enemy.depth > 92) continue;
-      const dx = enemy.x - this.playerX * 0.42;
-      const dy = enemy.y - this.playerY * 0.36;
+      const dx = enemy.x - this.playerX;
+      const dy = enemy.y - this.playerY;
       const reticleDistance = Math.hypot(dx, dy);
-      const threshold = enemy.boss ? 1.36 : 0.9;
+      const threshold = enemy.boss ? 1.85 : 1.45;
       if (reticleDistance > threshold) continue;
       const score = reticleDistance * 20 + enemy.depth * 0.05;
       if (score < best) {
@@ -617,6 +623,7 @@ export class SkyDancerArcadeRuntime {
       life: 1.05,
       vx: target ? (target.x - this.playerX) * 0.48 : 0,
       vy: target ? (target.y - this.playerY) * 0.48 : 0,
+      guidance: 0,
       nearMissChecked: false,
     });
     this.shotSerial += 1;
@@ -627,10 +634,10 @@ export class SkyDancerArcadeRuntime {
     let best = Number.POSITIVE_INFINITY;
     for (const enemy of this.enemies) {
       if (!enemy.alive || enemy.depth < 2 || enemy.depth > 72) continue;
-      const dx = enemy.x - this.playerX * 0.55;
-      const dy = enemy.y - this.playerY * 0.48;
+      const dx = enemy.x - this.playerX;
+      const dy = enemy.y - this.playerY;
       const cone = Math.hypot(dx, dy);
-      if (cone > (enemy.boss ? 0.95 : 0.4)) continue;
+      if (cone > (enemy.boss ? 1.45 : 0.72)) continue;
       const score = cone * 28 + enemy.depth * 0.04;
       if (score < best) {
         best = score;
@@ -661,6 +668,7 @@ export class SkyDancerArcadeRuntime {
         life: 2.8,
         vx: 0,
         vy: 0,
+        guidance: 0,
         nearMissChecked: false,
       });
     });
@@ -677,19 +685,23 @@ export class SkyDancerArcadeRuntime {
       enemy.age += delta;
       if (enemy.boss) {
         enemy.depth = moveToward(enemy.depth, 33, delta * 18);
-        enemy.x = Math.sin(enemy.age * (this.options.difficulty === "hard" ? 0.72 : 0.58)) * enemy.amplitude;
-        enemy.y = enemy.baseY + Math.sin(enemy.age * 0.9 + 1.3) * 0.3;
+        const frequency = this.options.difficulty === "hard" ? 0.82 : 0.68;
+        enemy.x = clamp(this.playerX * 0.42 + Math.sin(enemy.age * frequency) * enemy.amplitude, -ENEMY_X_LIMIT, ENEMY_X_LIMIT);
+        enemy.y = clamp(this.playerY * 0.32 + enemy.baseY + Math.sin(enemy.age * 0.92 + 1.3) * 0.68, -ENEMY_Y_LIMIT, ENEMY_Y_LIMIT);
       } else {
         enemy.depth -= enemy.speed * delta;
-        const frequency = enemy.kind === "interceptor" ? 2.2 : enemy.kind === "ace" ? 1.6 : 0.9;
-        enemy.x = clamp(enemy.baseX + Math.sin(enemy.age * frequency + enemy.phase) * enemy.amplitude, -1.18, 1.18);
-        enemy.y = clamp(enemy.baseY + Math.cos(enemy.age * frequency * 0.72 + enemy.phase) * enemy.amplitude * 0.48, -0.95, 0.95);
+        const frequency = enemy.kind === "interceptor" ? 2.35 : enemy.kind === "ace" ? 1.75 : 1.02;
+        const pursuit = clamp((62 - enemy.depth) / 62, 0.08, enemy.kind === "ace" ? 0.62 : enemy.kind === "interceptor" ? 0.52 : 0.38);
+        const weaveX = Math.sin(enemy.age * frequency + enemy.phase) * enemy.amplitude;
+        const weaveY = Math.cos(enemy.age * frequency * 0.72 + enemy.phase) * enemy.amplitude * 0.72;
+        enemy.x = clamp(enemy.baseX + weaveX + this.playerX * pursuit, -ENEMY_X_LIMIT, ENEMY_X_LIMIT);
+        enemy.y = clamp(enemy.baseY + weaveY + this.playerY * pursuit * 0.72, -ENEMY_Y_LIMIT, ENEMY_Y_LIMIT);
       }
       enemy.fireCooldown -= delta;
-      if (enemy.fireCooldown <= 0 && enemy.depth > 12 && enemy.depth < 68) this.enemyFire(enemy);
+      if (enemy.fireCooldown <= 0 && enemy.depth > 12 && enemy.depth < 72) this.enemyFire(enemy);
       if (enemy.depth > 3.3) continue;
       const proximity = Math.hypot(enemy.x - this.playerX, enemy.y - this.playerY);
-      if (proximity < (enemy.boss ? 0.72 : 0.34)) {
+      if (proximity < (enemy.boss ? 0.76 : 0.36)) {
         if (turboActive) {
           this.turboSmashes += 1;
           this.damageEnemy(enemy, enemy.boss ? 92 : enemy.maxHp + 1, true);
@@ -701,7 +713,6 @@ export class SkyDancerArcadeRuntime {
           enemy.alive = false;
         }
       }
-      // Keep fly-bys alive until they are close to the camera and naturally leave the frame.
       if (!enemy.boss && enemy.depth < ENEMY_FLYBY_CULL_DEPTH) {
         enemy.alive = false;
         this.chain = 0;
@@ -711,9 +722,10 @@ export class SkyDancerArcadeRuntime {
 
   private enemyFire(enemy: ArcadeEnemy): void {
     const hard = this.options.difficulty === "hard";
-    const spreadCount = enemy.boss ? (hard ? 5 : 3) : enemy.kind === "missile-boat" || enemy.kind === "bomber" ? 2 : 1;
+    const spreadCount = enemy.boss ? (hard ? 6 : 4) : enemy.kind === "missile-boat" || enemy.kind === "bomber" ? 3 : enemy.kind === "ace" ? 2 : 1;
     for (let index = 0; index < spreadCount; index += 1) {
       const centered = index - (spreadCount - 1) * 0.5;
+      const guidance = enemy.boss ? 1.18 : enemy.kind === "missile-boat" ? 1.42 : enemy.kind === "bomber" ? 1.16 : enemy.kind === "ace" ? 1.05 : 0.82;
       this.projectiles.push({
         id: this.nextEntityId++,
         owner: "enemy",
@@ -721,16 +733,17 @@ export class SkyDancerArcadeRuntime {
         y: enemy.y,
         depth: enemy.depth,
         targetEnemyId: null,
-        speed: enemy.boss ? 23 : enemy.kind === "missile-boat" ? 20 : 17,
+        speed: enemy.boss ? 17.5 : enemy.kind === "missile-boat" ? 15.5 : enemy.kind === "bomber" ? 14.5 : 13.2,
         damage: enemy.boss ? (hard ? 18 : 13) : hard ? 13 : 9,
-        life: 4.8,
-        vx: (this.playerX - enemy.x) * 0.15 + centered * 0.12,
-        vy: (this.playerY - enemy.y) * 0.15 + centered * 0.06,
+        life: 5.6,
+        vx: (this.playerX - enemy.x) * 0.28 + centered * 0.2,
+        vy: (this.playerY - enemy.y) * 0.28 + centered * 0.11,
+        guidance,
         nearMissChecked: false,
       });
     }
-    const base = enemy.boss ? 1.05 : enemy.kind === "missile-boat" ? 1.7 : 2.35;
-    enemy.fireCooldown = base * (hard ? 0.78 : 1) * (0.82 + this.random() * 0.42);
+    const base = enemy.boss ? 1.22 : enemy.kind === "missile-boat" ? 1.58 : enemy.kind === "bomber" ? 1.82 : enemy.kind === "ace" ? 1.72 : 2.18;
+    enemy.fireCooldown = base * (hard ? 0.8 : 1) * (0.84 + this.random() * 0.38);
   }
 
   private updateProjectiles(delta: number): void {
@@ -756,6 +769,13 @@ export class SkyDancerArcadeRuntime {
         projectile.depth += projectile.speed * delta;
       } else {
         projectile.depth -= projectile.speed * delta;
+        if (projectile.guidance > 0 && projectile.depth > 11) {
+          const desiredVX = clamp((this.playerX - projectile.x) * 0.72, -1.95, 1.95);
+          const desiredVY = clamp((this.playerY - projectile.y) * 0.72, -1.7, 1.7);
+          projectile.vx = moveToward(projectile.vx, desiredVX, delta * 1.85);
+          projectile.vy = moveToward(projectile.vy, desiredVY, delta * 1.7);
+          projectile.guidance = Math.max(0, projectile.guidance - delta);
+        }
         projectile.x += projectile.vx * delta;
         projectile.y += projectile.vy * delta;
       }
@@ -763,10 +783,10 @@ export class SkyDancerArcadeRuntime {
       if (projectile.owner === "enemy") {
         if (projectile.depth > 2.2) continue;
         const distance = Math.hypot(projectile.x - this.playerX, projectile.y - this.playerY);
-        if (distance < 0.25) {
+        if (distance < 0.28) {
           projectile.life = 0;
           this.takeDamage(projectile.damage);
-        } else if (!projectile.nearMissChecked && distance < 0.48) {
+        } else if (!projectile.nearMissChecked && distance < 0.7) {
           projectile.nearMissChecked = true;
           this.nearMisses += 1;
           this.addScore(420, true);
@@ -919,7 +939,7 @@ export class SkyDancerArcadeRuntime {
   }
 
   private cleanupEntities(): void {
-    this.enemies = this.enemies.filter((enemy) => enemy.alive && enemy.depth > -8);
+    this.enemies = this.enemies.filter((enemy) => enemy.alive && enemy.depth > -13);
     this.projectiles = this.projectiles.filter((projectile) => projectile.life > 0 && projectile.depth > -5 && projectile.depth < 145);
     this.hazards = this.hazards.filter((hazard) => hazard.depth > -6);
   }

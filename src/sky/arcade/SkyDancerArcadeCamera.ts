@@ -1,17 +1,15 @@
-/** Shared camera framing: visible hero airframe at both stick extremes and on phones.
- * 2026-08-31 readability pass: close fly-bys are retained by runtime/WebGL near-plane tuning.
- */
+/** Wide-field chase camera: the player can traverse about two previous view-widths/heights while the camera follows without pinning the craft to screen center. */
 export function arcadeCameraPose(playerX: number, playerY: number, aspect: number, turbo: boolean) {
   const portraitPullback = Math.max(0, 1.3 - aspect) * 17;
   const phone = Math.max(0, Math.min(1, (1.3 - aspect) / .5));
   return {
-    x: playerX * (3.2 + phone * 4.6),
-    y: 5.2 + phone * 3 + playerY * 2.8,
-    z: 15.8 + portraitPullback + (turbo ? .7 : 0),
-    lookX: playerX * (2 + phone * 5.8),
-    lookY: .8 + playerY * 2.2,
+    x: playerX * (6.35 + phone * 1.35),
+    y: 5.2 + phone * 3 + playerY * 3.82,
+    z: 16.2 + portraitPullback + (turbo ? .8 : 0),
+    lookX: playerX * (5.55 + phone * 1.8),
+    lookY: .8 + playerY * 3.48,
     lookZ: -34,
-    fov: turbo ? 62 : 55,
-    roll: -playerX * .018,
+    fov: turbo ? 64 : 56,
+    roll: Math.max(-.065, Math.min(.065, -playerX * .026)),
   };
 }

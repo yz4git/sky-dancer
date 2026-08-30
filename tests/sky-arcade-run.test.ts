@@ -140,6 +140,40 @@ test("flight steering reaches evasive positions quickly", () => {
   assert.ok(snapshot.playerY > 0.55, `vertical response ${snapshot.playerY}`);
 });
 
+test("wide-field steering traverses roughly two legacy screens and reverses quickly", () => {
+  const runtime = new SkyDancerArcadeRuntime({ mode: "arcade-run", difficulty: "normal", seed: 611 });
+  runtime.setMove(1, 1);
+  for (let frame = 0; frame < 45; frame += 1) runtime.step(1 / 60);
+  let snapshot = runtime.getSnapshot();
+  assert.ok(snapshot.playerX > 1.75, `right reach ${snapshot.playerX}`);
+  assert.ok(snapshot.playerY > 1.45, `upper reach ${snapshot.playerY}`);
+  for (let frame = 0; frame < 30; frame += 1) runtime.step(1 / 60);
+  snapshot = runtime.getSnapshot();
+  assert.ok(snapshot.playerX <= 2.201 && snapshot.playerY <= 1.751);
+  runtime.setMove(-1, -1);
+  for (let frame = 0; frame < 95; frame += 1) runtime.step(1 / 60);
+  snapshot = runtime.getSnapshot();
+  assert.ok(snapshot.playerX < -1.65, `left reverse ${snapshot.playerX}`);
+  assert.ok(snapshot.playerY < -1.35, `lower reverse ${snapshot.playerY}`);
+});
+
+test("wide-field combat source keeps enemies, guided threats and missile visuals in the expanded arena", async () => {
+  const [runtimeSource, cameraSource, webglSource, presentationSource] = await Promise.all([
+    readFile(new URL("../src/sky/arcade/SkyDancerArcadeRuntime.ts", import.meta.url), "utf8"),
+    readFile(new URL("../src/sky/arcade/SkyDancerArcadeCamera.ts", import.meta.url), "utf8"),
+    readFile(new URL("../src/sky/arcade/SkyDancerArcadeWebGLDemo.ts", import.meta.url), "utf8"),
+    readFile(new URL("../src/sky/arcade/SkyDancerArcadeProductPresentation.ts", import.meta.url), "utf8"),
+  ]);
+  assert.match(runtimeSource, /PLAYER_X_LIMIT = 2\.2/);
+  assert.match(runtimeSource, /PLAYER_Y_LIMIT = 1\.75/);
+  assert.match(runtimeSource, /ENEMY_X_LIMIT = 2\.62/);
+  assert.match(runtimeSource, /guidance = enemy\.boss/);
+  assert.match(runtimeSource, /projectile\.guidance > 0/);
+  assert.match(cameraSource, /playerX \* \(6\.35/);
+  assert.match(webglSource, /ConeGeometry\(0\.24, 2\.35, 8\)/);
+  assert.match(presentationSource, /width: enemy \? \.38 : \.25/);
+});
+
 test("climax targets survive a real attack run", () => {
   const first = new SkyDancerArcadeRuntime({ mode: "arcade-run", difficulty: "normal", seed: 62 });
   for (let frame = 0; frame < 1200 && !first.getSnapshot().bossActive; frame += 1) first.step(1 / 60);
