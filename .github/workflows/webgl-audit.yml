@@ -9,6 +9,7 @@ on:
       - "src/sky/**"
       - "public/**"
       - "scripts/webgl-visual-audit.mjs"
+      - "scripts/webgl-arcade-pad-audit.mjs"
       - "scripts/webgl-boss-audit.mjs"
       - "scripts/webgl-turbo-isolation-audit.mjs"
       - "scripts/webgl-v35-reference-audit.mjs"
@@ -29,6 +30,7 @@ on:
       - "src/sky/**"
       - "public/**"
       - "scripts/webgl-visual-audit.mjs"
+      - "scripts/webgl-arcade-pad-audit.mjs"
       - "scripts/webgl-boss-audit.mjs"
       - "scripts/webgl-turbo-isolation-audit.mjs"
       - "scripts/webgl-v35-reference-audit.mjs"
@@ -89,6 +91,9 @@ jobs:
 
       - name: Capture real WebGL frames
         run: node scripts/webgl-visual-audit.mjs
+
+      - name: Playcheck arcade virtual steering pad
+        run: node scripts/webgl-arcade-pad-audit.mjs
 
       - name: Validate V36-V39 reference fidelity
         run: node scripts/webgl-v39-reference-audit.mjs

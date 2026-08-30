@@ -11,9 +11,10 @@ interface CleanupGuardSession {
 
 const PATCHED_KEY = "__skyDancerCleanupCadenceGuardV46Installed__";
 const bridgedStagesBySession = new WeakMap<object, Set<number>>();
-// V40/V42 authored this phase around five staggered survivors at 5.25 s slots.
-// Keep that population while V46 shortens only the reinforcement phase before it.
+// Keep five cleanup aircraft for the authored sweep, but make each one a quick
+// arcade target rather than a second full wave.
 export const SKY_DANCER_V46_CLEANUP_SURVIVORS = 5;
+export const SKY_DANCER_V46_CLEANUP_HP_RATIO = 0.46;
 
 function bridgedStagesFor(session: CleanupGuardSession): Set<number> {
   const key = session as unknown as object;
@@ -43,7 +44,7 @@ function cloneForCleanup(
     ...source,
     id: cleanupCloneId(source.id, stage, index, present),
     alive: true,
-    hp: Math.max(1, Math.min(source.maxHp, Math.round(source.maxHp * 0.62))),
+    hp: Math.max(1, Math.min(source.maxHp, Math.round(source.maxHp * SKY_DANCER_V46_CLEANUP_HP_RATIO))),
     aiClock: 0,
   };
   if (clone.archetype === "striker") {
@@ -55,15 +56,14 @@ function cloneForCleanup(
 
 /**
  * V46 shortens only the reinforcement grind. V44's cleanup attack-run phase is
- * still an authored 20-30 second combat beat and must remain visible/readable.
+ * still a distinct combat beat, but the survivors now use compact HP so it
+ * reads as a fast sweep rather than a second reinforcement wave.
  *
  * StageCycle intentionally retains its original 12+ kill contract for legacy
  * regression coverage. When V46 reaches the compact mission target, the inner
  * choreography retires the current formation. This outer bridge leaves those
  * old ids dead so StageCycle can count the synthetic retirements on its next
  * tick, while cloning five of those aircraft under fresh ids for V42 CLEANUP.
- * The result is an immediate legacy-quota handoff with a real five-aircraft
- * cleanup formation instead of replaying the reinforcement grind to 12 kills.
  */
 export function installSkyDancerCleanupCadenceGuardV46(): void {
   installSkyDancerStageCycle();
@@ -87,9 +87,6 @@ export function installSkyDancerCleanupCadenceGuardV46(): void {
     const bridged = bridgedStagesFor(this);
     if (bridged.has(stage.stage)) return;
 
-    // CombatChoreography has just retired the whole active formation. Keep the
-    // dead originals in place for one StageCycle tick so their legacy ids count
-    // toward the old reinforcementTarget, and hand CLEANUP fresh ids instead.
     const retired = this.enemies
       .filter((enemy) => enemy.kind !== "boss" && !enemy.alive)
       .sort((a, b) => b.maxHp - a.maxHp);
@@ -109,6 +106,7 @@ export function installSkyDancerCleanupCadenceGuardV46(): void {
         aliveAfterGuard: cleanup.length,
         restored: cleanup.length,
         target: SKY_DANCER_V46_CLEANUP_SURVIVORS,
+        hpRatio: SKY_DANCER_V46_CLEANUP_HP_RATIO,
         bridgeMode: "fresh-cleanup-ids",
         cleanupIds: cleanup.map((enemy) => enemy.id),
       });

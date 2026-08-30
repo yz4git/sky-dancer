@@ -2,6 +2,8 @@ import type { RallyInputState } from "../rally/RallyTypes";
 import { CartArenaSession } from "../cart/CartArenaSession";
 import type { CartEnemyState } from "../cart/CartCombat";
 import { isCartTurboHuntEnabled } from "../cart/CartRoguePhase67TurboHunt";
+import { getSkyDancerMissionV49 } from "./SkyDancerCampaignV49";
+import { skyDancerCampaignBossHpV49 } from "./SkyDancerCampaignPacingV49";
 import { getSkyDancerStageCycleSnapshot } from "./SkyDancerStageCycle";
 
 export type SkyDancerBossPhaseV34 = 1 | 2 | 3;
@@ -52,6 +54,8 @@ export const SKY_DANCER_V34_BOSS_BASE_HP = 192;
 export const SKY_DANCER_V34_BOSS_STAGE_HP_STEP = 24;
 export const SKY_DANCER_V34_BOSS_MAX_HP = 312;
 export const SKY_DANCER_V34_BOSS_MISSILE_DAMAGE_CAP = 0.085;
+export const SKY_DANCER_V49_CAMPAIGN_BOSS_LOCK_MAX_DISTANCE = 54;
+export const SKY_DANCER_V49_CAMPAIGN_BOSS_LOCK_TARGET_DISTANCE = 46;
 
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
@@ -104,6 +108,18 @@ export function skyDancerBossPhaseV34(enemy: Pick<CartEnemyState, "hp" | "maxHp"
 
 export function skyDancerBossDurabilityV34(stage: number): number {
   return Math.min(SKY_DANCER_V34_BOSS_MAX_HP, SKY_DANCER_V34_BOSS_BASE_HP + Math.max(0, stage - 1) * SKY_DANCER_V34_BOSS_STAGE_HP_STEP);
+}
+
+function liveCampaignStage(session: BossSessionView): number | null {
+  const stage = getSkyDancerStageCycleSnapshot(session as unknown as CartArenaSession);
+  return stage?.phase === "boss" && getSkyDancerMissionV49(stage.stage) ? stage.stage : null;
+}
+
+function liveBossDurability(session: BossSessionView): number {
+  const campaignStage = liveCampaignStage(session);
+  if (campaignStage != null) return skyDancerCampaignBossHpV49(campaignStage);
+  const stage = getSkyDancerStageCycleSnapshot(session as unknown as CartArenaSession);
+  return skyDancerBossDurabilityV34(stage?.stage ?? 1);
 }
 
 export function skyDancerBossModeV34(phase: SkyDancerBossPhaseV34, clock: number): SkyDancerBossModeV34 {
@@ -178,9 +194,6 @@ function forceBossForAudit(session: BossSessionView, state: BossCombatState): vo
   boss.chargeCooldown = 1.4;
   boss.chargeTime = 0;
   state.clock = 0;
-  // SwiftShader can advance far fewer fixed simulation steps than wall time.
-  // Only a webdriver-forced audit boss gets a temporary accelerated director
-  // clock so ORBIT -> STRIKE -> BREAK can be validated without changing live play.
   state.auditClockScale = 6;
   auditForceBoss = false;
 }
@@ -230,14 +243,31 @@ function updateBossFlight(
   boss.weakPointExposed = skyDancerBossCoreOpenV34(phase, state.clock);
 }
 
+function keepCampaignBossInLockEnvelope(session: BossSessionView, boss: CartEnemyState): void {
+  if (liveCampaignStage(session) == null) return;
+  const px = session.car.position.x;
+  const pz = session.car.position.z;
+  const dx = boss.x - px;
+  const dz = boss.z - pz;
+  const distance = Math.hypot(dx, dz);
+  if (distance <= SKY_DANCER_V49_CAMPAIGN_BOSS_LOCK_MAX_DISTANCE || distance < 0.001) return;
+  const scale = SKY_DANCER_V49_CAMPAIGN_BOSS_LOCK_TARGET_DISTANCE / distance;
+  boss.x = px + dx * scale;
+  boss.z = pz + dz * scale;
+}
+
 function tuneBossDurability(session: BossSessionView, state: BossCombatState, boss: CartEnemyState): void {
-  const stage = getSkyDancerStageCycleSnapshot(session as unknown as CartArenaSession)?.stage ?? 1;
-  const targetMaxHp = skyDancerBossDurabilityV34(stage);
+  const targetMaxHp = liveBossDurability(session);
   if (!state.bossWasAlive) {
     boss.maxHp = targetMaxHp;
     boss.hp = targetMaxHp;
     state.clock = 0;
     state.previousBossHp = targetMaxHp;
+  } else if (boss.maxHp > targetMaxHp) {
+    const ratio = clamp(boss.hp / Math.max(1, boss.maxHp), 0, 1);
+    boss.maxHp = targetMaxHp;
+    boss.hp = Math.max(1, Math.min(targetMaxHp, targetMaxHp * ratio));
+    state.previousBossHp = Math.min(state.previousBossHp, boss.hp);
   }
 }
 
@@ -290,9 +320,8 @@ export function installSkyDancerBossCombatV34(): void {
       if (beforeBoss && beforeBoss.id === boss.id) {
         applyBossDamageWindow(state, boss);
         updateBossFlight(this, state, boss, beforeX, beforeZ, delta);
+        keepCampaignBossInLockEnvelope(this, boss);
       }
-      // Legacy boss missiles dealt 10.5% each. Preserve danger while preventing
-      // a short homing sequence from deleting the player before a counter-pass.
       if (this.gas < beforeGas) this.gas = Math.max(this.gas, beforeGas - SKY_DANCER_V34_BOSS_MISSILE_DAMAGE_CAP);
       state.clock += delta * state.auditClockScale;
       if (state.auditClockScale > 1 && state.clock >= 8) state.auditClockScale = 1;

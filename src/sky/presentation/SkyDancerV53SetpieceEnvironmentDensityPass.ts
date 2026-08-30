@@ -100,6 +100,31 @@ export class SkyDancerV53SetpieceEnvironmentDensityPass {
     const c = config[style];
     const body = solid(c.body, style === "facility" ? 0.46 : 0.76, style === "facility" ? 0.30 : 0.08);
     const accent = emissive(c.accent, style === "storm" ? 0.66 : 0.48);
+    const shadow = solid(style === "clouds" ? 0x9ebac5 : style === "mountains" ? 0x303a38 : 0x263744, 0.90, 0.02);
+
+    // Repeating side silhouettes create near/mid/far parallax without expensive
+    // textures. The corridor stays open so enemies and lock cues remain readable.
+    for (let marker = 0; marker < 10; marker += 1) {
+      const z = 28 + marker * 31;
+      for (const side of [-1, 1]) {
+        let landmark: THREE.Mesh;
+        if (style === "clouds" || style === "storm") {
+          landmark = new THREE.Mesh(new THREE.DodecahedronGeometry(1, 0), shadow);
+          landmark.scale.set(8 + (marker % 3) * 2.2, 2.8 + (marker % 2) * 1.2, 5.6 + (marker % 4));
+          landmark.position.set(side * (43 + (marker % 3) * 8), -13 - (marker % 2) * 5, z);
+        } else if (style === "mountains") {
+          landmark = new THREE.Mesh(new THREE.ConeGeometry(10 + (marker % 3) * 2.4, 36 + (marker % 4) * 7, 6), shadow);
+          landmark.position.set(side * (46 + (marker % 3) * 9), -42, z);
+        } else {
+          landmark = new THREE.Mesh(new THREE.BoxGeometry(7 + (marker % 3) * 2.2, 20 + (marker % 4) * 8, 8), shadow);
+          landmark.position.set(side * (44 + (marker % 3) * 10), -43 + landmark.geometry.parameters.height * 0.5, z);
+          landmark.rotation.y = side * (0.08 + (marker % 2) * 0.05);
+        }
+        landmark.name = `sky-dancer-v53-${style}-depth-landmark`;
+        root.add(landmark);
+        count += 1;
+      }
+    }
 
     for (let gate = 0; gate < 4; gate += 1) {
       const z = 54 + gate * 69;

@@ -33,16 +33,20 @@ test("V52 adds peripheral speed, hit shock and perfect-evade feedback as present
   const source = read("../src/sky/presentation/SkyDancerV52CombatFxSpeedPass.ts");
   assert.match(source, /sky-dancer-v52-peripheral-speed-field/);
   assert.match(source, /for \(let index = 0; index < 28; index \+= 1\)/);
+  assert.match(source, /const x = side \* \(2\.8 \+ \(lane % 5\) \* 0\.82\)/);
   assert.match(source, /sky-dancer-v52-hit-shock-ring/);
   assert.match(source, /sky-dancer-v52-perfect-evade-ring/);
   assert.match(source, /getSkyDancerPlayerWeaponState/);
   assert.match(source, /getLatestSkyDancerCampaignSnapshotV49/);
+  assert.match(source, /intensity \* \(snapshot\.boostActive \? 0\.40 : 0\.20\)/);
   assert.doesNotMatch(source, /enemy\.hp\s*=|damage\s*=|forwardVelocity\s*=/);
 });
 
-test("V53 creates route-scale fly-through setpieces for all six visual worlds", () => {
+test("V53 creates route-scale fly-through setpieces and layered parallax for all six visual worlds", () => {
   const source = read("../src/sky/presentation/SkyDancerV53SetpieceEnvironmentDensityPass.ts");
   assert.match(source, /REANCHOR_DISTANCE = 164/);
+  assert.match(source, /for \(let marker = 0; marker < 10; marker \+= 1\)/);
+  assert.match(source, /depth-landmark/);
   assert.match(source, /for \(let gate = 0; gate < 4; gate \+= 1\)/);
   assert.match(source, /destination-marker/);
   assert.match(source, /cloud-flight-ring/);
@@ -57,9 +61,26 @@ test("V54 replaces visual hierarchy, not controls, with cinematic mission/boss/c
   assert.match(source, /skyDancerV54Active \.skyDancerV49Mission/);
   assert.match(source, /BOSS AIRSPACE \/\/ READ THE ATTACK RUN/);
   assert.match(source, /FLOW/);
+  assert.match(source, /width:min\(28vw,220px\)/);
   assert.doesNotMatch(source, /<button|onClick=|pointerdown/i);
   assert.match(phase, /SkyDancerHudV49 \/>/);
   assert.match(phase, /SkyDancerHudV54 \/>/);
+});
+
+test("V49 campaign bosses keep compact arcade durability and remain inside the missile lock envelope", () => {
+  const pacing = read("../src/sky/SkyDancerCampaignPacingV49.ts");
+  const boss = read("../src/sky/SkyDancerBossCombatV34.ts");
+  const guard = read("../src/sky/SkyDancerBossDurabilityGuardV34.ts");
+  assert.match(pacing, /SKY_DANCER_V49_BOSS_BASE_HP = 120/);
+  assert.match(pacing, /SKY_DANCER_V49_BOSS_MAX_HP = 180/);
+  assert.match(boss, /function liveBossDurability/);
+  assert.match(boss, /skyDancerCampaignBossHpV49\(campaignStage\)/);
+  assert.match(boss, /const targetMaxHp = liveBossDurability\(session\)/);
+  assert.match(boss, /SKY_DANCER_V49_CAMPAIGN_BOSS_LOCK_MAX_DISTANCE = 54/);
+  assert.match(boss, /SKY_DANCER_V49_CAMPAIGN_BOSS_LOCK_TARGET_DISTANCE = 46/);
+  assert.match(boss, /keepCampaignBossInLockEnvelope/);
+  assert.match(guard, /stageCycle\?\.phase === "boss" && getSkyDancerMissionV49\(stageCycle\.stage\)/);
+  assert.match(boss, /SKY_DANCER_V34_BOSS_BASE_HP = 192/);
 });
 
 test("V50-V53 execute after the proven V45/V47/V48 presentation stack", () => {

@@ -38,7 +38,10 @@ export class SkyDancerV52CombatFxSpeedPass {
       const line = new THREE.Mesh(streakGeometry, this.speedMaterial);
       const side = index % 2 === 0 ? -1 : 1;
       const lane = Math.floor(index / 2);
-      const x = side * (2.2 + (lane % 5) * 0.75);
+      // V55 clarity pass: keep the speed field outside the lock/target reading
+      // corridor. The effect remains strong in peripheral vision, especially on
+      // Turbo release, without drawing white streaks through the gunsight.
+      const x = side * (2.8 + (lane % 5) * 0.82);
       const y = -1.7 + (lane % 7) * 0.52;
       line.position.set(x, y, -4.5 - (lane % 6) * 1.45);
       line.scale.z = 2.8 + (lane % 4) * 1.3;
@@ -86,10 +89,12 @@ export class SkyDancerV52CombatFxSpeedPass {
   }
 
   private updateSpeedField(snapshot: CartArenaSessionSnapshot): void {
-    const speed = THREE.MathUtils.clamp((Math.abs(snapshot.speed) - 12) / 26, 0, 1);
-    const intensity = THREE.MathUtils.clamp(speed * 0.56 + (snapshot.boostActive ? 0.58 : 0), 0, 1);
-    this.speedRoot.visible = intensity > 0.08;
-    this.speedMaterial.opacity = intensity * (snapshot.boostActive ? 0.38 : 0.20);
+    // Make ordinary arcade cruise visibly fast while keeping the center sight
+    // clean. Turbo still owns the strongest streak density and opacity.
+    const speed = THREE.MathUtils.clamp((Math.abs(snapshot.speed) - 10) / 25, 0, 1);
+    const intensity = THREE.MathUtils.clamp(speed * 0.68 + (snapshot.boostActive ? 0.58 : 0), 0, 1);
+    this.speedRoot.visible = intensity > 0.06;
+    this.speedMaterial.opacity = intensity * (snapshot.boostActive ? 0.40 : 0.20);
     this.speedRoot.position.copy(this.runtime.camera.position);
     this.speedRoot.quaternion.copy(this.runtime.camera.quaternion);
 
@@ -97,10 +102,10 @@ export class SkyDancerV52CombatFxSpeedPass {
       const child = this.speedRoot.children[index];
       const baseZ = Number(child.userData.v52BaseZ ?? -5);
       const phase = Number(child.userData.v52Phase ?? 0);
-      const travel = (this.elapsed * (7 + intensity * 24) + phase) % 7.5;
+      const travel = (this.elapsed * (8 + intensity * 27) + phase) % 7.5;
       child.position.z = baseZ + travel;
       if (child.position.z > -1.3) child.position.z -= 8.8;
-      child.scale.z = 2.6 + intensity * 6.2 + (index % 4) * 0.55;
+      child.scale.z = 2.8 + intensity * 7.2 + (index % 4) * 0.55;
     }
   }
 
@@ -117,8 +122,8 @@ export class SkyDancerV52CombatFxSpeedPass {
       ring.life = Math.max(0, ring.life - delta);
       const age = 1 - ring.life / ring.maxLife;
       ring.mesh.visible = ring.life > 0;
-      ring.mesh.scale.setScalar(0.65 + age * 3.8);
-      ring.mesh.material.opacity = Math.pow(1 - age, 1.5) * 0.72;
+      ring.mesh.scale.setScalar(0.65 + age * 4.25);
+      ring.mesh.material.opacity = Math.pow(1 - age, 1.5) * 0.78;
       ring.mesh.quaternion.copy(this.runtime.camera.quaternion);
     }
   }
@@ -135,10 +140,10 @@ export class SkyDancerV52CombatFxSpeedPass {
     ring.life = ring.maxLife;
     ring.mesh.visible = true;
     ring.mesh.scale.setScalar(0.68);
-    ring.mesh.material.opacity = 0.78;
-    this.runtime.emitImpactSparks(ring.mesh.position, 10 + serialOffset * 3);
-    this.runtime.cameraShake = Math.max(this.runtime.cameraShake, 0.08 + serialOffset * 0.025);
-    this.runtime.impactFlash = Math.max(this.runtime.impactFlash, 0.06);
+    ring.mesh.material.opacity = 0.84;
+    this.runtime.emitImpactSparks(ring.mesh.position, 14 + serialOffset * 4);
+    this.runtime.cameraShake = Math.max(this.runtime.cameraShake, 0.095 + serialOffset * 0.025);
+    this.runtime.impactFlash = Math.max(this.runtime.impactFlash, 0.075);
   }
 
   private updatePerfectEvade(delta: number): void {

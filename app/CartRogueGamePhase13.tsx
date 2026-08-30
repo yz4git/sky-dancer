@@ -9,6 +9,7 @@ import CartRogueGame from "./CartRogueGame";
 import CartTurboHuntHudOverlay from "./CartTurboHuntHudOverlay";
 import CartCombatReadabilityPass from "./CartCombatReadabilityPass";
 import CartGameMenu from "./CartGameMenu";
+import SkyDancerArcadeVirtualPad from "./SkyDancerArcadeVirtualPad";
 import SkyDancerHudQualityPass from "./SkyDancerHudQualityPass";
 import SkyDancerShotControl from "./SkyDancerShotControl";
 import SkyDancerCombatPolish from "./SkyDancerCombatPolish";
@@ -53,6 +54,7 @@ export default function CartRogueGamePhase13() {
         <CartRogueGame />
         <CartTurboHuntHudOverlay />
         <CartCombatReadabilityPass />
+        <SkyDancerArcadeVirtualPad />
         <SkyDancerHudQualityPass />
         <SkyDancerShotControl />
         <SkyDancerCombatPolish />
