@@ -69,16 +69,22 @@ test("V49 grade rewards time, accuracy, near-miss evades and FLOW", () => {
   assert.equal(gradeSkyDancerMissionV49({ elapsedSeconds: 190, accuracy: 0.24, perfectEvades: 0, peakFlow: 12 }, 130), "C");
 });
 
-test("V55 only re-centers combat after a real no-target gap and forces cleanup finishers into attack lanes", () => {
+test("V55 leaves normal WAVE flight to V41 and only forces cleanup finishers into attack lanes", () => {
   const source = read("../src/sky/SkyDancerArcadePacingV55.ts");
   const facade = read("../src/sky/SkyDancerAirCombatFx.ts");
-  assert.match(source, /SKY_DANCER_V55_NO_TARGET_GRACE = 0\.72/);
-  assert.match(source, /state\.noLockElapsed >= SKY_DANCER_V55_NO_TARGET_GRACE/);
+  const cleanupBlock = source.indexOf("if (cleanup) {");
+  const firstLaneWrite = source.indexOf("moveTowardLane(this");
+  assert.ok(cleanupBlock >= 0);
+  assert.ok(firstLaneWrite > cleanupBlock);
+  assert.match(source, /const cleanup = stageCycle\.phase === "cleanup"/);
+  assert.doesNotMatch(source, /stageCycle\.phase === "reinforcements"/);
+  assert.doesNotMatch(source, /capThreatDurability/);
   assert.match(source, /SKY_DANCER_V55_CLEANUP_FINISHER_START = 12/);
   assert.match(source, /SKY_DANCER_V55_CLEANUP_LAST_TARGET_START = 18/);
   assert.match(source, /targets\.length <= 2/);
   assert.match(source, /targets\.length === 1/);
   assert.match(source, /attackLane\(this, 0, 27, 0\)/);
+  assert.match(source, /capCleanupDurability/);
   assert.match(source, /isSkyDancerCombatTargetableV42/);
   assert.match(facade, /installSkyDancerCampaignPacingV49\(\);\n    installSkyDancerArcadePacingV55\(\);/);
 });
