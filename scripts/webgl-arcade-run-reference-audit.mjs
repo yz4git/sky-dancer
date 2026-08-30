@@ -38,6 +38,11 @@ await start.click({ force: true });
 
 const canvas = page.locator('canvas[aria-label="Sky Dancer Arcade Run WebGL game view"]');
 await canvas.waitFor({ state: "visible", timeout: 30_000 });
+const captureCanvas = async (path) => {
+  const box = await canvas.boundingBox();
+  if (!box) throw new Error("Arcade Run canvas has no bounding box");
+  await page.screenshot({ path, clip: box });
+};
 await page.waitForTimeout(1400);
 const renderState = await canvas.evaluate((element) => {
   const c = element;
@@ -55,7 +60,7 @@ const renderState = await canvas.evaluate((element) => {
   };
 });
 await page.screenshot({ path: `${outputDir}/00-opening.png`, fullPage: true });
-await canvas.screenshot({ path: `${outputDir}/00-opening-canvas.png` });
+await captureCanvas(`${outputDir}/00-opening-canvas.png`);
 
 await page.keyboard.down("ArrowRight");
 await page.keyboard.down("ArrowUp");
@@ -68,14 +73,14 @@ await page.keyboard.down("x");
 await page.keyboard.down("c");
 await page.waitForTimeout(1400);
 await page.screenshot({ path: `${outputDir}/02-combat.png`, fullPage: true });
-await canvas.screenshot({ path: `${outputDir}/02-combat-canvas.png` });
+await captureCanvas(`${outputDir}/02-combat-canvas.png`);
 await page.keyboard.up("x");
 await page.keyboard.up("c");
 
 await page.keyboard.down(" ");
 await page.waitForTimeout(900);
 await page.screenshot({ path: `${outputDir}/03-turbo.png`, fullPage: true });
-await canvas.screenshot({ path: `${outputDir}/03-turbo-canvas.png` });
+await captureCanvas(`${outputDir}/03-turbo-canvas.png`);
 await page.keyboard.up(" ");
 await page.waitForTimeout(450);
 
