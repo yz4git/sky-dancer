@@ -13,6 +13,7 @@ export default function SkyDancerColorGradeV31() {
         position: fixed;
         inset: 0;
         z-index: 4;
+        display: none;
         pointer-events: none;
         background: linear-gradient(
           180deg,
@@ -25,6 +26,7 @@ export default function SkyDancerColorGradeV31() {
         );
         mix-blend-mode: multiply;
       }
+      html[data-sky-dancer-mode="turbo-hunt"] .skyDancerV31ColorGrade { display: block; }
       @media (prefers-reduced-transparency: reduce) {
         .skyDancerV31ColorGrade { opacity: .82; }
       }

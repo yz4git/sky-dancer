@@ -20,28 +20,35 @@ import SkyDancerHudV44 from "./SkyDancerHudV44";
 import SkyDancerHudV45 from "./SkyDancerHudV45";
 import SkyDancerHudV49 from "./SkyDancerHudV49";
 import SkyDancerHudV54 from "./SkyDancerHudV54";
+import SkyDancerArcadeMode from "./SkyDancerArcadeMode";
+import type { SkyDancerStartRequest } from "../src/sky/arcade/SkyDancerArcadeData";
 
 export default function CartRogueGamePhase13() {
-  const [started, setStarted] = useState(false);
+  const [activeRequest, setActiveRequest] = useState<SkyDancerStartRequest | null>(null);
   const [runKey, setRunKey] = useState(0);
 
-  const startRun = (difficulty: CartRunDifficulty) => {
-    setCartRunDifficulty(difficulty);
+  const startRun = (request: SkyDancerStartRequest) => {
+    setCartRunDifficulty(request.difficulty as CartRunDifficulty);
     setRunKey((value) => value + 1);
-    setStarted(true);
+    setActiveRequest(request);
   };
 
   useEffect(() => {
-    if (!navigator.webdriver) return undefined;
+    if (!navigator.webdriver || new URLSearchParams(location.search).has("menu")) return undefined;
     const timer = window.setTimeout(() => {
       setCartRunDifficulty("normal");
-      setStarted(true);
+      setActiveRequest({ mode: "turbo-hunt", difficulty: "normal" });
     }, 0);
     return () => window.clearTimeout(timer);
   }, []);
 
+  useEffect(() => {
+    document.documentElement.dataset.skyDancerMode = activeRequest?.mode ?? "title";
+    return () => { delete document.documentElement.dataset.skyDancerMode; };
+  }, [activeRequest?.mode]);
+
   return <>
-    {started && (
+    {activeRequest?.mode === "turbo-hunt" && (
       <Fragment key={runKey}>
         <CartRogueGame />
         <CartTurboHuntHudOverlay />
@@ -59,10 +66,14 @@ export default function CartRogueGamePhase13() {
         <SkyDancerHudV54 />
       </Fragment>
     )}
+    {activeRequest && activeRequest.mode !== "turbo-hunt" && (
+      <SkyDancerArcadeMode key={runKey} request={activeRequest} onReturnTitle={() => setActiveRequest(null)} />
+    )}
     <CartGameMenu
-      started={started}
+      started={activeRequest !== null}
+      activeMode={activeRequest?.mode ?? null}
       onStart={startRun}
-      onReturnTitle={() => setStarted(false)}
+      onReturnTitle={() => setActiveRequest(null)}
     />
   </>;
 }

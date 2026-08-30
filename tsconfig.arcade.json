@@ -1,0 +1,15 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "target": "ES2022",
+    "types": ["node", "react", "react-dom", "next/types/global"],
+    "incremental": false
+  },
+  "include": [
+    "next-env.d.ts",
+    "src/sky/arcade/**/*.ts",
+    "app/SkyDancerArcadeMode.tsx",
+    "tests/sky-arcade*.test.ts"
+  ],
+  "exclude": ["node_modules", ".next", ".vinext", "dist", "out"]
+}

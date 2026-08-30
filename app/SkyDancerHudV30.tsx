@@ -20,6 +20,7 @@ export default function SkyDancerHudV30() {
 
     const tagLiveHud = () => {
       animationFrame = 0;
+      if (document.documentElement.dataset.skyDancerMode !== "turbo-hunt") return;
 
       for (const button of document.querySelectorAll<HTMLButtonElement>("button")) {
         const strong = button.querySelector("strong");

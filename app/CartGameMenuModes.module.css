@@ -1,0 +1,239 @@
+.scrollTitleScreen {
+  overflow: auto;
+  overscroll-behavior: none;
+}
+
+.modeTitlePanel {
+  width: min(920px, calc(100vw - max(36px, env(safe-area-inset-left)) - max(36px, env(safe-area-inset-right))));
+  padding-top: 14px;
+  padding-bottom: 34px;
+}
+
+.modeTitlePanel h1 {
+  font-size: clamp(45px, 8vw, 78px);
+}
+
+.modeTitlePanel p {
+  margin: 9px 0 10px;
+}
+
+.modeSelect {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 9px;
+  max-width: 760px;
+  margin: 0 auto 10px;
+}
+
+.modeButton {
+  min-width: 0;
+  padding: 10px 12px 9px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 14px;
+  background: linear-gradient(180deg, rgba(8, 25, 37, 0.66), rgba(7, 17, 28, 0.55));
+  color: rgba(255, 255, 255, 0.66);
+  font: inherit;
+  font-weight: 1000;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.modeButton strong {
+  display: block;
+  font-size: 13px;
+  letter-spacing: 0.1em;
+}
+
+.modeButton small {
+  display: block;
+  margin-top: 4px;
+  font-size: 7px;
+  letter-spacing: 0.12em;
+  opacity: 0.66;
+}
+
+.modeButtonActive {
+  border-color: #68e4ff;
+  background: linear-gradient(145deg, rgba(37, 153, 194, 0.58), rgba(19, 70, 106, 0.66));
+  color: #fff;
+  box-shadow: 0 0 20px rgba(70, 215, 255, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.14);
+}
+
+.modeButtonDisabled {
+  opacity: 0.36;
+  cursor: not-allowed;
+  filter: saturate(0.4);
+}
+
+.practiceSelect {
+  max-width: 760px;
+  margin: 0 auto 9px;
+  padding: 8px 10px;
+  border: 1px solid rgba(116, 225, 255, 0.18);
+  border-radius: 13px;
+  background: rgba(4, 18, 30, 0.42);
+}
+
+.practiceSelect > span {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 7px;
+  font-weight: 1000;
+  letter-spacing: 0.2em;
+  color: #8ce8ff;
+}
+
+.practiceGrid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 5px;
+}
+
+.practiceGrid button {
+  min-width: 0;
+  padding: 5px 4px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.05);
+  color: rgba(255, 255, 255, 0.64);
+  font: inherit;
+  font-weight: 1000;
+  touch-action: manipulation;
+}
+
+.practiceGrid button small {
+  display: block;
+  font-size: 6px;
+  letter-spacing: 0.08em;
+  opacity: 0.6;
+}
+
+.practiceGrid button strong {
+  display: block;
+  overflow: hidden;
+  font-size: 8px;
+  letter-spacing: 0.06em;
+  text-overflow: ellipsis;
+}
+
+.practiceGrid .practiceButtonActive {
+  border-color: #ffd767;
+  background: rgba(185, 128, 28, 0.38);
+  color: #fff;
+  box-shadow: 0 0 12px rgba(255, 210, 89, 0.13);
+}
+
+.compactDifficulty {
+  margin-bottom: 9px;
+}
+
+.compactWarning {
+  margin-bottom: 8px;
+}
+
+.compactControls {
+  margin-top: 13px;
+}
+
+@media (max-height: 560px) {
+  .modeTitlePanel {
+    padding-top: 7px;
+    padding-bottom: 22px;
+  }
+
+  .compactEyebrow {
+    font-size: 8px;
+  }
+
+  .modeTitlePanel h1 {
+    font-size: clamp(38px, 7.3vw, 60px);
+  }
+
+  .compactMode {
+    margin-top: 5px;
+    padding-top: 3px;
+    padding-bottom: 4px;
+    font-size: 10px;
+  }
+
+  .modeTitlePanel p {
+    margin: 5px 0 7px;
+    font-size: 8px;
+  }
+
+  .modeSelect {
+    margin-bottom: 7px;
+  }
+
+  .modeButton {
+    padding-top: 6px;
+    padding-bottom: 5px;
+  }
+
+  .modeButton strong {
+    font-size: 10px;
+  }
+
+  .modeButton small {
+    font-size: 6px;
+  }
+
+  .practiceSelect {
+    margin-bottom: 6px;
+    padding-top: 5px;
+    padding-bottom: 5px;
+  }
+
+  .practiceGrid button {
+    padding-top: 3px;
+    padding-bottom: 3px;
+  }
+
+  .compactDifficulty {
+    margin-bottom: 6px;
+  }
+
+  .compactWarning {
+    margin-bottom: 5px;
+    padding-top: 3px;
+    padding-bottom: 3px;
+  }
+
+  .compactStart {
+    padding-top: 8px;
+    padding-bottom: 7px;
+  }
+
+  .compactStart strong {
+    font-size: 17px;
+  }
+
+  .compactControls {
+    margin-top: 7px;
+  }
+}
+
+@media (orientation: portrait) {
+  .modeTitlePanel {
+    padding-top: 32px;
+    padding-bottom: 58px;
+  }
+
+  .modeSelect {
+    grid-template-columns: 1fr;
+  }
+
+  .modeButton {
+    width: min(320px, 78vw);
+    margin: 0 auto;
+  }
+
+  .practiceGrid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .compactDifficulty {
+    flex-direction: row;
+  }
+}

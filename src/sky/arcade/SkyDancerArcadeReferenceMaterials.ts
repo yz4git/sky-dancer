@@ -1,0 +1,180 @@
+import * as THREE from "three";
+import type { SkyDancerArcadeStageDefinition } from "./SkyDancerArcadeData";
+
+export const ARCADE_SUN_DIRECTION = new THREE.Vector3(-.62, .25, -.73).normalize();
+export const ARCADE_FOG_NEAR = 100;
+export const ARCADE_FOG_FAR = 660;
+
+export const ARCADE_NOISE_GLSL = `
+float hash21(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
+float noise21(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.0-2.0*f);return mix(mix(hash21(i),hash21(i+vec2(1,0)),f.x),mix(hash21(i+vec2(0,1)),hash21(i+vec2(1,1)),f.x),f.y);}
+float fbm(vec2 p){return .57*noise21(p)+.28*noise21(p*2.03+7.1)+.15*noise21(p*4.09+19.3);}
+`;
+
+export function referenceAtmosphere(stage: SkyDancerArcadeStageDefinition) {
+  const city = stage.biome === "city";
+  const night = ["night", "orbit", "citadel"].includes(stage.biome);
+  return {
+    zenith: new THREE.Color(city ? 0x285c87 : stage.palette.sky),
+    horizon: new THREE.Color(city ? 0xf8bd76 : stage.palette.fog),
+    fog: new THREE.Color(city ? 0xadadad : stage.palette.fog),
+    cloudLight: new THREE.Color(city ? 0xffe4b3 : night ? 0x7283b5 : stage.biome === "storm" ? 0x90a5b9 : 0xeaf6ff),
+    cloudShadow: new THREE.Color(city ? 0x516080 : stage.biome === "storm" ? 0x253e5b : night ? 0x151e43 : 0x557b98),
+    key: city ? 0xffd298 : night ? 0x98b4ff : stage.biome === "volcano" ? 0xff774a : 0xffe7c4,
+    keyIntensity: city ? 3.0 : night ? 1.4 : 2.5,
+    ambient: city ? .95 : night ? .8 : 1.3,
+    night,
+  };
+}
+
+export function createArcadeSky(stage: SkyDancerArcadeStageDefinition): THREE.Mesh {
+  const palette = referenceAtmosphere(stage);
+  const shader = new THREE.ShaderMaterial({
+    uniforms: {
+      zenith: { value: palette.zenith }, horizon: { value: palette.horizon },
+      sunDirection: { value: ARCADE_SUN_DIRECTION },
+      night: { value: palette.night ? 1 : 0 }, storm: { value: stage.biome === "storm" ? 1 : 0 },
+    },
+    vertexShader: `varying vec3 vSkyDirection; void main(){vSkyDirection=position;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}`,
+    fragmentShader: `
+      uniform vec3 zenith,horizon,sunDirection;
+      uniform float night,storm;
+      varying vec3 vSkyDirection;
+      ${ARCADE_NOISE_GLSL}
+      void main(){
+        vec3 d=normalize(vSkyDirection);
+        float sunDot=max(0.0,dot(d,sunDirection));
+        float upper=smoothstep(-.08,.65,d.y);
+        vec3 c=mix(horizon,zenith,upper);
+        float glow=pow(sunDot,14.0);
+        c=mix(c,vec3(1.2,.59,.17),glow*.58*(1.0-night)*(1.0-storm));
+        c+=vec3(1.0,.64,.28)*pow(sunDot,90.0)*.6*(1.0-night);
+        float disc=smoothstep(.9993,.99972,sunDot);
+        c+=mix(vec3(9.0,5.1,2.1),vec3(.52,.7,1.0),night)*disc;
+        vec2 cloudUV=d.xz/max(.12,d.y+.28)*3.0;
+        float cloud=fbm(cloudUV*vec2(.8,2.5));
+        float bank=smoothstep(.5,.73,cloud)*smoothstep(-.02,.19,d.y)*(1.0-smoothstep(.5,.85,d.y));
+        vec3 cloudColor=mix(vec3(.22,.3,.43),mix(vec3(.95,.71,.41),vec3(.71,.8,.92),upper),glow*.7+.3);
+        c=mix(c,cloudColor,bank*(.54+.3*storm)*(1.0-night*.65));
+        if(night>.5){float stars=step(.9987,hash21(floor(d.xy*vec2(800.0,540.0))));c+=stars*smoothstep(.05,.4,d.y)*.6;}
+        c=mix(c,horizon*.5,1.0-smoothstep(-.4,-.03,d.y));
+        gl_FragColor=vec4(c,1.0);
+      }`,
+    side: THREE.BackSide, depthWrite: false, fog: false,
+  });
+  const sky=new THREE.Mesh(new THREE.SphereGeometry(980,32,18),shader);
+  sky.name="arcade-product-gradient-sky";
+  sky.renderOrder=-100;
+  return sky;
+}
+
+/** InstanceColor supplies body paint; windows use world-sized cells, not giant glowing rectangles. */
+export function createArcadeFacadeMaterial(night: boolean): THREE.MeshStandardMaterial {
+  const material=new THREE.MeshStandardMaterial({ color:0xffffff,roughness:.6,metalness:.28 });
+  material.onBeforeCompile=shader=>{
+    shader.uniforms.arcadeNight={value:night?1:0};
+    shader.vertexShader=shader.vertexShader
+      .replace("#include <common>","#include <common>\nvarying vec3 vFacadePosition; varying vec3 vFacadeNormal; varying vec3 vFacadeSize; varying float vBuildingSeed;")
+      .replace("#include <begin_vertex>",`
+        #include <begin_vertex>
+        vFacadePosition=position;
+        vFacadeNormal=normal;
+        vFacadeSize=vec3(1.0);vBuildingSeed=0.0;
+        #ifdef USE_INSTANCING
+          vFacadeSize=vec3(length(instanceMatrix[0].xyz),length(instanceMatrix[1].xyz),length(instanceMatrix[2].xyz));
+          vBuildingSeed=instanceMatrix[3].x+instanceMatrix[3].z;
+        #endif
+      `);
+    shader.fragmentShader=shader.fragmentShader
+      .replace("#include <common>",`#include <common>
+        uniform float arcadeNight;
+        varying vec3 vFacadePosition,vFacadeNormal,vFacadeSize;
+        varying float vBuildingSeed;
+        ${ARCADE_NOISE_GLSL}
+      `)
+      .replace("#include <color_fragment>",`
+        #include <color_fragment>
+        vec3 facade=(vFacadePosition+.5)*vFacadeSize;
+        vec2 fuv=vec2(abs(vFacadeNormal.x)>.5?facade.z:facade.x,facade.y);
+        vec2 cell=fract(fuv*vec2(.88,.62));
+        vec2 cellID=floor(fuv*vec2(.88,.62));
+        float windowMask=step(.22,cell.x)*step(cell.x,.73)*step(.22,cell.y)*step(cell.y,.7);
+        float wall=1.0-step(.5,abs(vFacadeNormal.y));
+        float floorLine=1.0-smoothstep(.025,.075,cell.y);
+        diffuseColor.rgb*=1.0-wall*(windowMask*.28+floorLine*.16);
+      `)
+      .replace("#include <emissivemap_fragment>",`
+        #include <emissivemap_fragment>
+        float occupied=step(.48-arcadeNight*.12,hash21(cellID+vBuildingSeed));
+        vec3 lightColor=mix(vec3(.1,.63,1.0),vec3(1.0,.5,.13),step(.28,hash21(vec2(vBuildingSeed,cellID.y))));
+        totalEmissiveRadiance+=lightColor*windowMask*wall*occupied*(.65+arcadeNight*.9);
+      `);
+  };
+  material.customProgramCacheKey=()=>"arcade-city-facade-reference-v1";
+  return material;
+}
+
+export function createArcadeCloudMaterial(stage: SkyDancerArcadeStageDefinition): THREE.ShaderMaterial {
+  const palette=referenceAtmosphere(stage);
+  return new THREE.ShaderMaterial({
+    uniforms:{
+      lit:{value:palette.cloudLight},shade:{value:palette.cloudShadow},
+      sunDirection:{value:ARCADE_SUN_DIRECTION},fogColor:{value:palette.fog},
+    },
+    vertexShader:`
+      varying vec3 vNormal,vWorld,vView;varying float vDepth;
+      void main(){
+        vec4 world=vec4(position,1.0);
+        vec3 n=normal;
+        #ifdef USE_INSTANCING
+          world=instanceMatrix*world;
+          n=mat3(instanceMatrix)*n;
+        #endif
+        world=modelMatrix*world;
+        vWorld=world.xyz;vNormal=normalize(mat3(modelMatrix)*n);
+        vView=cameraPosition-world.xyz;
+        vec4 mv=viewMatrix*world;vDepth=-mv.z;
+        gl_Position=projectionMatrix*mv;
+      }`,
+    fragmentShader:`
+      uniform vec3 lit,shade,sunDirection,fogColor;
+      varying vec3 vNormal,vWorld,vView;varying float vDepth;
+      ${ARCADE_NOISE_GLSL}
+      void main(){
+        vec3 n=normalize(vNormal);
+        float facing=max(0.0,dot(n,normalize(vView)));
+        float soft=smoothstep(.0,.52,facing);
+        float billow=fbm(vWorld.xz*.16+vWorld.y*.03);
+        float light=clamp(dot(n,sunDirection)*.5+.55,0.0,1.0);
+        vec3 c=mix(shade,lit,pow(light,.72));
+        c*=.91+billow*.19;
+        c+=lit*pow(1.0-facing,3.0)*light*.32;
+        float fog=smoothstep(100.0,630.0,vDepth);
+        c=mix(c,fogColor,fog);
+        gl_FragColor=vec4(c,soft*(.72+billow*.22)*(1.0-fog*.75));
+      }`,
+    transparent:true,depthWrite:false,side:THREE.FrontSide,
+  });
+}
+
+export function createArcadeWaterMaterial(stage: SkyDancerArcadeStageDefinition): THREE.ShaderMaterial {
+  const palette=referenceAtmosphere(stage);
+  return new THREE.ShaderMaterial({
+    uniforms:{time:{value:0},night:{value:palette.night?1:0},fogColor:{value:palette.fog}},
+    vertexShader:`varying vec3 vWorld;varying float vDepth;void main(){vec4 world=modelMatrix*vec4(position,1.0);vWorld=world.xyz;vec4 mv=viewMatrix*world;vDepth=-mv.z;gl_Position=projectionMatrix*mv;}`,
+    fragmentShader:`
+      uniform float time,night;uniform vec3 fogColor;
+      varying vec3 vWorld;varying float vDepth;
+      ${ARCADE_NOISE_GLSL}
+      void main(){
+        vec2 uv=vWorld.xz;
+        float ripples=fbm(uv*vec2(.23,1.8)+vec2(time*.1,time*.7));
+        float glint=pow(max(0.0,sin(uv.y*2.5+time*1.1)+ripples-.3),6.0);
+        float sunPath=exp(-pow((uv.x+13.0)/14.0,2.0));
+        vec3 water=mix(vec3(.035,.16,.21),vec3(.05,.22,.31),ripples);
+        water+=mix(vec3(.9,.39,.08),vec3(.04,.4,.7),night)*sunPath*(.1+min(2.0,glint)*.5);
+        water=mix(water,fogColor,smoothstep(110.0,660.0,vDepth));
+        gl_FragColor=vec4(water,1.0);
+      }`,
+  });
+}

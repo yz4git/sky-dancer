@@ -15,7 +15,15 @@ import {
   saveCartRogueConfig,
 } from "../src/cart/CartRogueConfig";
 import { loadRallySettings, saveRallySettings } from "../src/rally/RallySettings";
+import {
+  SKY_DANCER_ARCADE_STAGES,
+  type SkyDancerArcadeStageId,
+  type SkyDancerGameMode,
+  type SkyDancerStartRequest,
+} from "../src/sky/arcade/SkyDancerArcadeData";
+import { loadSkyDancerArcadeProgress } from "../src/sky/arcade/SkyDancerArcadeProgress";
 import styles from "./CartGameMenu.module.css";
+import modeStyles from "./CartGameMenuModes.module.css";
 import configStyles from "./CartGameMenuConfig.module.css";
 
 const MENU_PAUSE_EVENT = "cart-rogue-menu-pause";
@@ -25,7 +33,8 @@ type PausePage = "menu" | "config";
 
 interface CartGameMenuProps {
   started: boolean;
-  onStart: (difficulty: CartRunDifficulty) => void;
+  activeMode: SkyDancerGameMode | null;
+  onStart: (request: SkyDancerStartRequest) => void;
   onReturnTitle: () => void;
 }
 
@@ -34,14 +43,17 @@ function hasBlockingGameOverlay(): boolean {
   return Boolean(document.querySelector('[role="dialog"][aria-modal="true"], [class*="runClear"]'));
 }
 
-export default function CartGameMenu({ started, onStart, onReturnTitle }: CartGameMenuProps) {
+export default function CartGameMenu({ started, activeMode, onStart, onReturnTitle }: CartGameMenuProps) {
   const [paused, setPaused] = useState(false);
   const [pausePage, setPausePage] = useState<PausePage>("menu");
   const [difficulty, setDifficulty] = useState<CartRunDifficulty>("normal");
+  const [selectedMode, setSelectedMode] = useState<SkyDancerGameMode>("arcade-run");
+  const [practiceStageId, setPracticeStageId] = useState<SkyDancerArcadeStageId>("dawn-city");
+  const [practiceStageIds, setPracticeStageIds] = useState<SkyDancerArcadeStageId[]>([]);
   const [hardSnapshot, setHardSnapshot] = useState<CartHardModeSnapshot | null>(null);
   const [cameraDistance, setCameraDistance] = useState(DEFAULT_CART_ROGUE_CONFIG.cameraDistance);
   const [vibrationEnabled, setVibrationEnabled] = useState(true);
-  const gameOver = Boolean(hardSnapshot?.gameOver);
+  const gameOver = activeMode === "turbo-hunt" && Boolean(hardSnapshot?.gameOver);
 
   const pauseGame = useCallback(() => {
     if (!started || paused || gameOver || hasBlockingGameOverlay()) return;
@@ -57,11 +69,17 @@ export default function CartGameMenu({ started, onStart, onReturnTitle }: CartGa
     setPaused(false);
   }, [gameOver, paused, started]);
 
-  const startGame = (nextDifficulty = difficulty) => {
+  const startGame = (nextDifficulty = difficulty, nextMode = selectedMode) => {
+    if (nextMode === "stage-practice" && practiceStageIds.length === 0) return;
     setPaused(false);
     setPausePage("menu");
     setHardSnapshot(null);
-    onStart(nextDifficulty);
+    onStart({
+      mode: nextMode,
+      difficulty: nextDifficulty,
+      practiceStageId: nextMode === "stage-practice" ? practiceStageId : undefined,
+      seed: ((Date.now() & 0x7fffffff) ^ 0x51f15e) | 0,
+    });
   };
 
   const returnTitle = () => {
@@ -98,6 +116,19 @@ export default function CartGameMenu({ started, onStart, onReturnTitle }: CartGa
     setVibrationEnabled(true);
     saveRallySettings({ ...current, vibrationEnabled: true });
   };
+
+  useEffect(() => {
+    if (started) return;
+    const timer = window.setTimeout(() => {
+      const progress = loadSkyDancerArcadeProgress();
+      const cleared = SKY_DANCER_ARCADE_STAGES
+        .filter((stage) => progress.clearedStageIds.includes(stage.id))
+        .map((stage) => stage.id);
+      setPracticeStageIds(cleared);
+      setPracticeStageId((current) => cleared.length > 0 && !cleared.includes(current) ? cleared[0] : current);
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [started]);
 
   useEffect(() => {
     const onHardSnapshot = (event: Event) => {
@@ -143,46 +174,111 @@ export default function CartGameMenu({ started, onStart, onReturnTitle }: CartGa
 
   if (!started) {
     const hard = difficulty === "hard";
+    const practiceAvailable = practiceStageIds.length > 0;
+    const selectedStage = SKY_DANCER_ARCADE_STAGES.find((stage) => stage.id === practiceStageId);
+    const modeSummary = selectedMode === "arcade-run"
+      ? "BRANCHING FIXED COURSE · 7 SECTIONS · ABOUT 2 MINUTES"
+      : selectedMode === "turbo-hunt"
+        ? "HUNT THE RAID. BREAK THE LINE. KEEP MOVING."
+        : selectedStage
+          ? `${selectedStage.name} · SCORE ATTACK PRACTICE`
+          : "CLEAR AN ARCADE STAGE TO UNLOCK PRACTICE";
+    const startLabel = selectedMode === "arcade-run"
+      ? "START ARCADE RUN"
+      : selectedMode === "turbo-hunt"
+        ? hard ? "START HARD HUNT" : "START TURBO HUNT"
+        : "START STAGE PRACTICE";
     return (
-      <div className={styles.titleScreen} role="dialog" aria-modal="true" aria-label="Sky Dancer title screen">
+      <div className={`${styles.titleScreen} ${modeStyles.scrollTitleScreen}`} role="dialog" aria-modal="true" aria-label="Sky Dancer title screen">
         <div className={styles.titleGlow} aria-hidden="true" />
-        <div className={styles.titlePanel}>
-          <div className={styles.eyebrow}>HIGH SPEED AIR RAID ACTION</div>
+        <div className={`${styles.titlePanel} ${modeStyles.modeTitlePanel}`}>
+          <div className={`${styles.eyebrow} ${modeStyles.compactEyebrow}`}>HIGH SPEED AIR RAID ACTION</div>
           <h1><span>SKY</span> DANCER</h1>
-          <div className={styles.mode}>TURBO HUNT</div>
-          <p>HUNT THE RAID. BREAK THE LINE. KEEP MOVING.</p>
-          <div className={styles.difficultySelect} aria-label="Select difficulty">
+          <div className={`${styles.mode} ${modeStyles.compactMode}`}>SELECT GAME MODE</div>
+          <p>{modeSummary}</p>
+          <div className={modeStyles.modeSelect} aria-label="Select game mode">
+            <button
+              className={`${modeStyles.modeButton} ${selectedMode === "arcade-run" ? modeStyles.modeButtonActive : ""}`}
+              onClick={() => setSelectedMode("arcade-run")}
+              aria-pressed={selectedMode === "arcade-run"}
+            >
+              <strong>ARCADE RUN</strong>
+              <small>FIXED COURSE · 7 SECTIONS · 2 MIN</small>
+            </button>
+            <button
+              className={`${modeStyles.modeButton} ${selectedMode === "turbo-hunt" ? modeStyles.modeButtonActive : ""}`}
+              onClick={() => setSelectedMode("turbo-hunt")}
+              aria-pressed={selectedMode === "turbo-hunt"}
+            >
+              <strong>TURBO HUNT</strong>
+              <small>ADAPTIVE OPEN RAID</small>
+            </button>
+            <button
+              className={`${modeStyles.modeButton} ${selectedMode === "stage-practice" ? modeStyles.modeButtonActive : ""} ${!practiceAvailable ? modeStyles.modeButtonDisabled : ""}`}
+              onClick={() => practiceAvailable && setSelectedMode("stage-practice")}
+              aria-pressed={selectedMode === "stage-practice"}
+              disabled={!practiceAvailable}
+            >
+              <strong>STAGE PRACTICE</strong>
+              <small>{practiceAvailable ? `${practiceStageIds.length} STAGES READY` : "CLEAR TO UNLOCK"}</small>
+            </button>
+          </div>
+          {selectedMode === "stage-practice" && practiceAvailable && (
+            <div className={modeStyles.practiceSelect} aria-label="Select practice stage">
+              <span>SELECT STAGE</span>
+              <div className={modeStyles.practiceGrid}>
+                {SKY_DANCER_ARCADE_STAGES.filter((stage) => practiceStageIds.includes(stage.id)).map((stage) => (
+                  <button
+                    key={stage.id}
+                    className={stage.id === practiceStageId ? modeStyles.practiceButtonActive : ""}
+                    onClick={() => setPracticeStageId(stage.id)}
+                    aria-pressed={stage.id === practiceStageId}
+                  >
+                    <small>{String(stage.order).padStart(2, "0")}</small>
+                    <strong>{stage.shortName}</strong>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+          <div className={`${styles.difficultySelect} ${modeStyles.compactDifficulty}`} aria-label="Select difficulty">
             <button
               className={`${styles.difficultyButton} ${!hard ? styles.difficultyButtonActive : ""}`}
               onClick={() => setDifficulty("normal")}
               aria-pressed={!hard}
             >
               <strong>NORMAL</strong>
-              <small>STANDARD HUNT</small>
+              <small>{selectedMode === "turbo-hunt" ? "STANDARD HUNT" : "ARCADE BALANCE"}</small>
             </button>
             <button
               className={`${styles.difficultyButton} ${styles.difficultyButtonHard} ${hard ? styles.difficultyButtonHardActive : ""}`}
               onClick={() => setDifficulty("hard")}
               aria-pressed={hard}
             >
-              <strong>HARD</strong>
-              <small>EXPERT RAID</small>
+              <strong>{selectedMode === "turbo-hunt" ? "HARD" : "ACE"}</strong>
+              <small>{selectedMode === "turbo-hunt" ? "EXPERT RAID" : "ONE-HIT PRESSURE"}</small>
             </button>
           </div>
-          <div className={styles.hardWarning}>
-            GAS = LIFE · RECOVERY CELLS RESTORE GAS · ZERO GAS = GAME OVER{hard ? " · HARD RAID HITS DEAL HEAVY LIFE DAMAGE" : ""}
+          <div className={`${styles.hardWarning} ${modeStyles.compactWarning}`}>
+            {selectedMode === "turbo-hunt"
+              ? `GAS = LIFE · RECOVERY CELLS RESTORE GAS · ZERO GAS = GAME OVER${hard ? " · HARD RAID HITS DEAL HEAVY LIFE DAMAGE" : ""}`
+              : selectedMode === "arcade-run"
+                ? `2 CONTINUES · ROUTE GATES CHANGE THE RUN${hard ? " · ACE ENEMIES FIRE FASTER AND HIT HARDER" : ""}`
+                : `SINGLE STAGE · RECORD ATTACK${hard ? " · ACE DIFFICULTY" : ""}`}
           </div>
-          <button className={`${styles.startButton} ${hard ? styles.startButtonHard : ""}`} onClick={() => startGame()}>
-            <strong>{hard ? "START HARD RUN" : "START RUN"}</strong>
-            <small>{hard ? "SURVIVE THE RAID" : "TAP TO IGNITE"}</small>
+          <button className={`${styles.startButton} ${modeStyles.compactStart} ${hard ? styles.startButtonHard : ""}`} onClick={() => startGame()}>
+            <strong>{startLabel}</strong>
+            <small>{hard ? "ACE PRESSURE" : "TAP TO IGNITE"}</small>
           </button>
-          <div className={styles.titleControls}>
-            <span>DRAG LEFT · STEER</span>
-            <span>HOLD TURBO · CHARGE / RELEASE · DASH</span>
-            <span>SHOT · MISSILE</span>
+          <div className={`${styles.titleControls} ${modeStyles.compactControls}`}>
+            {selectedMode === "turbo-hunt" ? (
+              <><span>DRAG LEFT · STEER</span><span>HOLD TURBO · CHARGE / RELEASE · DASH</span><span>SHOT · MISSILE</span></>
+            ) : (
+              <><span>STICK · FLY</span><span>FIRE · GUN</span><span>LOCK / RELEASE · MISSILE SALVO</span><span>TURBO · SMASH</span></>
+            )}
           </div>
         </div>
-        <div className={styles.titleFooter}>ONE SKY · MISSILE HUNT · ADAPTIVE RAID</div>
+        <div className={styles.titleFooter}>ONE SKY · TWO STYLES · ELEVEN COURSES</div>
       </div>
     );
   }
@@ -201,7 +297,7 @@ export default function CartGameMenu({ started, onStart, onReturnTitle }: CartGa
             <span>RAID HITS {hardSnapshot.raidHits}</span>
             <span>PERFECT DODGES {hardSnapshot.perfectDodges}</span>
           </div>
-          <button className={styles.retryButton} onClick={() => startGame(failedDifficulty)}>
+          <button className={styles.retryButton} onClick={() => startGame(failedDifficulty, "turbo-hunt")}>
             <strong>{hard ? "RETRY HARD" : "RETRY RUN"}</strong>
             <small>RUN IT BACK</small>
           </button>
@@ -223,11 +319,11 @@ export default function CartGameMenu({ started, onStart, onReturnTitle }: CartGa
           <div className={styles.pausePanel}>
             <div className={styles.pauseEyebrow}>RUN SUSPENDED</div>
             <h2>PAUSED</h2>
-            <p>Steering, brake and Turbo input are released while paused.</p>
+            <p>{activeMode === "turbo-hunt" ? "Steering, brake and Turbo input are released while paused." : "Flight, weapons and Turbo input are released while paused."}</p>
             <div className={configStyles.menuActions}>
               <button className={styles.resumeButton} onClick={resumeGame}>
                 <strong>RESUME</strong>
-                <small>BACK TO THE HUNT</small>
+                <small>{activeMode === "turbo-hunt" ? "BACK TO THE HUNT" : "BACK TO THE COURSE"}</small>
               </button>
               <button className={configStyles.secondaryButton} onClick={openConfig}>
                 <strong>CONFIG</strong>
