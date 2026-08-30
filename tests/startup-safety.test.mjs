@@ -54,3 +54,20 @@ test("Sky Dancer keeps steering/Turbo touch safety and replaces Brake with Shot"
   assert.match(shot, /textContent\?\.trim\(\) === "BRAKE"/);
   assert.match(patch, /original\.call\(this, false\)/);
 });
+
+test("GitHub Pages keeps the iPhone game viewport locked against accidental zoom", async () => {
+  const html = await readFile(new URL("../index.html", import.meta.url), "utf8");
+  const entry = await readFile(new URL("../pages-entry.tsx", import.meta.url), "utf8");
+  const viewport = await readFile(new URL("../app/CartViewportSync.tsx", import.meta.url), "utf8");
+  const globals = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
+
+  assert.match(html, /maximum-scale=1/);
+  assert.match(html, /user-scalable=no/);
+  assert.match(entry, /CartViewportSync/);
+  assert.match(entry, /<CartViewportSync\s*\/>/);
+  assert.match(viewport, /gesturestart/);
+  assert.match(viewport, /gesturechange/);
+  assert.match(viewport, /touches\.length > 1/);
+  assert.match(viewport, /passive: false/);
+  assert.match(globals, /html, body, #root \{ touch-action: none; overscroll-behavior: none; \}/);
+});
