@@ -2,6 +2,7 @@ import { CartArenaSession } from "../cart/CartArenaSession";
 import type { CartEnemyState } from "../cart/CartCombat";
 import { isCartTurboHuntEnabled } from "../cart/CartRoguePhase67TurboHunt";
 import type { RallyInputState } from "../rally/RallyTypes";
+import { getSkyDancerMissionV49 } from "./SkyDancerCampaignV49";
 import { skyDancerBossDurabilityV34 } from "./SkyDancerBossCombatV34";
 import { getSkyDancerStageCycleSnapshot } from "./SkyDancerStageCycle";
 
@@ -21,14 +22,15 @@ function normalizeBossDurability(session: GuardSession): void {
   if (!boss) return;
 
   const concrete = session as unknown as CartArenaSession;
-  const stage = getSkyDancerStageCycleSnapshot(concrete)?.stage ?? 1;
+  const stageCycle = getSkyDancerStageCycleSnapshot(concrete);
+  // V49 owns durability for real campaign bosses. The V34 guard remains the
+  // standalone/legacy owner only, so the two layers never fight over maxHp.
+  if (stageCycle?.phase === "boss" && getSkyDancerMissionV49(stageCycle.stage)) return;
+
+  const stage = stageCycle?.stage ?? 1;
   const targetMaxHp = skyDancerBossDurabilityV34(stage);
   if (Math.abs(boss.maxHp - targetMaxHp) < 0.001) return;
 
-  // V28/V29 each own a historical one-time 1/10 spawn reduction. They sit
-  // inside the V34 director and can therefore rewrite a newly activated boss
-  // on the following fixed step. Convert that legacy ratio back into V34's
-  // final durability domain before the outer V34 director observes the boss.
   const legacyMaxHp = Math.max(1, boss.maxHp);
   const healthRatio = clamp(boss.hp / legacyMaxHp, 0, 1);
   boss.maxHp = targetMaxHp;
@@ -36,9 +38,9 @@ function normalizeBossDurability(session: GuardSession): void {
 }
 
 /**
- * Installs immediately inside the V34 boss director. This keeps the historical
- * V28/V29 wrappers intact for compatibility while making V34 the final owner of
- * live boss durability in both WebGL and Canvas runtimes.
+ * Installs immediately inside the V34 boss director. Historical V28/V29
+ * normalization remains intact for standalone encounters, while real campaign
+ * bosses are deliberately left to the later V49 pacing owner.
  */
 export function installSkyDancerBossDurabilityGuardV34(): void {
   const prototype = CartArenaSession.prototype as unknown as GuardSession & Record<string, unknown>;
