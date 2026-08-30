@@ -31,6 +31,9 @@ function normalizeBossDurability(session: GuardSession): void {
   const targetMaxHp = skyDancerBossDurabilityV34(stage);
   if (Math.abs(boss.maxHp - targetMaxHp) < 0.001) return;
 
+  // V28/V29 each own a historical one-time 1/10 spawn reduction. They sit
+  // inside the V34 director, so standalone encounters still normalize that
+  // legacy ratio back into V34's durability domain before boss combat runs.
   const legacyMaxHp = Math.max(1, boss.maxHp);
   const healthRatio = clamp(boss.hp / legacyMaxHp, 0, 1);
   boss.maxHp = targetMaxHp;
