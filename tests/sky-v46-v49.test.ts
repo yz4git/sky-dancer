@@ -101,13 +101,18 @@ test("V47 creates six route-specific world setpieces instead of one repeated tes
   assert.match(source, /InstancedMesh/);
 });
 
-test("V48 makes the boss a large readable setpiece with animated core and four engines", () => {
+test("V48 keeps the reference capital ship hidden until the real campaign boss encounter", () => {
   const source = read("../src/sky/presentation/SkyDancerV48BossSetpiecePass.ts");
   assert.match(source, /visualSpanUnits: 20\.3/);
   assert.match(source, /sky-dancer-v48-boss-core/);
   assert.match(source, /coreOpen \? 1\.18/);
   assert.match(source, /mode === "strike"/);
   assert.match(source, /\[-5\.4, -2\.35, 2\.35, 5\.4\]/);
+  assert.match(source, /getSkyDancerStageCycleSnapshot/);
+  assert.match(source, /getSkyDancerMissionV49/);
+  assert.match(source, /stageCycle\?\.phase === "boss"/);
+  assert.match(source, /if \(campaignMission\) bossGroup\.visible = active/);
+  assert.match(source, /reference art used a distant capital ship/);
 });
 
 test("V49 HUD and presentation pipeline are mounted after V45 without adding player controls", () => {
