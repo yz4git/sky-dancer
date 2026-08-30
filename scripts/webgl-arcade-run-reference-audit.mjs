@@ -1,4 +1,4 @@
-// 2026-08-31 V3 visual playcheck: verify wide traversal, compact HUD, incoming missile read and evasive break.
+// 2026-08-31 V4 visual playcheck: verify elastic wide traversal, target cues, capped missile pressure and boss-safe warning placement.
 import { mkdir, writeFile } from "node:fs/promises";
 import { chromium } from "playwright";
 
@@ -88,10 +88,12 @@ await page.keyboard.up("x");
 await page.keyboard.up("c");
 await page.waitForTimeout(1500);
 await page.screenshot({ path: `${outputDir}/02a-missile-approach.png`, fullPage: true });
+const missileApproachText = await page.locator("body").innerText();
 await page.keyboard.down("ArrowRight");
 await page.keyboard.down("ArrowUp");
 await page.waitForTimeout(650);
 await page.screenshot({ path: `${outputDir}/02b-enemy-missile-evasion.png`, fullPage: true });
+const missileEvasionText = await page.locator("body").innerText();
 await page.keyboard.up("ArrowRight");
 await page.keyboard.up("ArrowUp");
 
@@ -107,6 +109,8 @@ const diagnostics = {
   arcadeHud: /STAGE|DAWN CITY|CITY/i.test(bodyText),
   buttonLabels,
   renderState,
+  missileApproach: (missileApproachText.match(/MISSILE\s*×?\s*\d+\s*(?:INCOMING|BREAK NOW)?/i) || [null])[0],
+  missileEvasion: (missileEvasionText.match(/MISSILE\s*×?\s*\d+\s*(?:INCOMING|BREAK NOW)?/i) || [null])[0],
   consoleErrors,
   pageErrors,
 };
