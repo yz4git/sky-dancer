@@ -2,6 +2,8 @@ import * as THREE from "three";
 import type { CartArenaSessionSnapshot } from "../../cart/CartArenaSession";
 import type { SkyDancerFxRuntime } from "../SkyDancerAirCombatFxV2";
 import { getLatestSkyDancerBossQualityV34 } from "../SkyDancerBossCombatV34";
+import { getSkyDancerMissionV49 } from "../SkyDancerCampaignV49";
+import { getSkyDancerStageCycleSnapshot } from "../SkyDancerStageCycle";
 
 const ROOT_NAME = "sky-dancer-v48-boss-setpiece";
 const CORE_NAME = "sky-dancer-v48-boss-core";
@@ -36,7 +38,16 @@ export class SkyDancerV48BossSetpiecePass {
     if (!this.decorated || this.decorated.group !== bossGroup) this.decorated = this.decorateBoss(bossGroup);
 
     const state = getLatestSkyDancerBossQualityV34();
-    const active = Boolean(bossEnemy.alive && state?.active);
+    const stageCycle = getSkyDancerStageCycleSnapshot(this.runtime.session);
+    const campaignMission = stageCycle ? getSkyDancerMissionV49(stageCycle.stage) : null;
+    const campaignBossWindowOpen = !campaignMission || stageCycle?.phase === "boss";
+    const active = Boolean(campaignBossWindowOpen && bossEnemy.alive && state?.active);
+
+    // The reference art used a distant capital ship as an illustrative beat,
+    // not as permanent scenery. During the six-mission campaign hide the whole
+    // boss vehicle (including its legacy base mesh) until the actual BOSS phase.
+    // Standalone V34 boss audits have no campaign mission and remain unchanged.
+    if (campaignMission) bossGroup.visible = active;
     this.decorated.root.visible = active;
     if (!active) {
       this.installAuditBridge(false, false, "inactive");
