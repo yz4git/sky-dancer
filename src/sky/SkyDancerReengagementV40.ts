@@ -20,7 +20,11 @@ interface ReengagementSession {
   step(input: RallyInputState, fixedDelta?: number): void;
 }
 
-interface CleanupHoldOffset { x: number; z: number }
+interface CleanupHoldOffset {
+  x: number;
+  z: number;
+}
+
 interface ReengagementState {
   cleanupElapsed: number;
   lastCleanupDuration: number;
@@ -55,26 +59,31 @@ export const SKY_DANCER_V40_REENGAGE_ANGLE_TRIGGER = 0.68;
 export const SKY_DANCER_V40_CLEANUP_TRIGGER = 46;
 export const SKY_DANCER_V40_CLEANUP_TARGET = 35;
 export const SKY_DANCER_V40_CLEANUP_ANGLE_TRIGGER = 0.52;
-// Five cleanup aircraft release quickly enough to keep the sweep around twenty
-// seconds instead of turning into a second wave.
-export const SKY_DANCER_V40_CLEANUP_SLOT_DELAY = 3.75;
+// Preserve the authored five-survivor 20-30 second sweep. The improvement is
+// that released aircraft are quicker kills and the final pair cannot escape.
+export const SKY_DANCER_V40_CLEANUP_SLOT_DELAY = 5.25;
 export const SKY_DANCER_V40_CLEANUP_HOLD_ANGLE = 1.12;
 export const SKY_DANCER_V40_CLEANUP_HOLD_DISTANCE = 38;
-export const SKY_DANCER_V42_CLEANUP_HOLD_FOLLOW_SPEED = 44;
+export const SKY_DANCER_V42_CLEANUP_HOLD_FOLLOW_SPEED = 40;
 export const SKY_DANCER_V42_CLEANUP_RELEASE_MAX_DISTANCE = 48;
 export const SKY_DANCER_V55_LAST_TARGET_FORCE_SECONDS = 2.4;
 
-function clamp(value: number, min: number, max: number): number { return Math.max(min, Math.min(max, value)); }
+function clamp(value: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, value));
+}
+
 function normalizeAngle(value: number): number {
   let angle = value;
   while (angle > Math.PI) angle -= Math.PI * 2;
   while (angle < -Math.PI) angle += Math.PI * 2;
   return angle;
 }
+
 function rotateToward(current: number, target: number, maxTurn: number): number {
   const delta = normalizeAngle(target - current);
   return normalizeAngle(current + clamp(delta, -maxTurn, maxTurn));
 }
+
 function reengagementStateFor(session: object): ReengagementState {
   const existing = stateBySession.get(session);
   if (existing) return existing;
@@ -82,12 +91,13 @@ function reengagementStateFor(session: object): ReengagementState {
     cleanupElapsed: 0,
     lastCleanupDuration: 0,
     previousCleanup: false,
-    cleanupSlots: new Map(),
-    cleanupHoldOffsets: new Map(),
+    cleanupSlots: new Map<string, number>(),
+    cleanupHoldOffsets: new Map<string, CleanupHoldOffset>(),
   };
   stateBySession.set(session, created);
   return created;
 }
+
 function enemySlotSeed(enemy: CartEnemyState): number {
   let seed = 0;
   for (let index = 0; index < enemy.id.length; index += 1) seed = (seed * 31 + enemy.id.charCodeAt(index)) | 0;
@@ -97,7 +107,9 @@ function enemySlotSeed(enemy: CartEnemyState): number {
 export function skyDancerReengagementClosingSpeedV40(distance: number, cleanup: boolean): number {
   const target = cleanup ? SKY_DANCER_V40_CLEANUP_TARGET : SKY_DANCER_V40_REENGAGE_TARGET;
   const excess = Math.max(0, distance - target);
-  return cleanup ? clamp(48 + excess * 1.15, 48, 68) : clamp(28 + excess * 0.78, 28, 48);
+  return cleanup
+    ? clamp(44 + excess * 0.95, 44, 60)
+    : clamp(28 + excess * 0.78, 28, 48);
 }
 
 export function skyDancerReengagementInterceptV40(
@@ -115,7 +127,10 @@ export function skyDancerReengagementInterceptV40(
   const lateral = side * (cleanup ? 7.2 + (order % 2) * 1.6 : 11.5 + (seed % 3) * 1.5);
   const sin = Math.sin(playerHeading);
   const cos = Math.cos(playerHeading);
-  return { x: px + sin * forward + cos * lateral, z: pz + cos * forward - sin * lateral };
+  return {
+    x: px + sin * forward + cos * lateral,
+    z: pz + cos * forward - sin * lateral,
+  };
 }
 
 export function skyDancerCleanupHoldingPositionV40(
@@ -127,7 +142,10 @@ export function skyDancerCleanupHoldingPositionV40(
   const side = slot % 2 === 0 ? 1 : -1;
   const angle = playerHeading + side * (SKY_DANCER_V40_CLEANUP_HOLD_ANGLE + (slot % 3) * 0.08);
   const distance = SKY_DANCER_V40_CLEANUP_HOLD_DISTANCE + (slot % 2) * 2;
-  return { x: px + Math.sin(angle) * distance, z: pz + Math.cos(angle) * distance };
+  return {
+    x: px + Math.sin(angle) * distance,
+    z: pz + Math.cos(angle) * distance,
+  };
 }
 
 function liveNonBossEnemies(session: ReengagementSession, nodeId: string): CartEnemyState[] {
@@ -152,6 +170,10 @@ export function skyDancerCleanupSlotOrderV42(
   });
 }
 
+/**
+ * Pull only the radius inward when required. This preserves the aircraft's world
+ * bearing so a released target does not become glued to the camera edge.
+ */
 export function skyDancerCleanupReleasePositionV42(
   px: number,
   pz: number,
@@ -243,9 +265,11 @@ export function installSkyDancerReengagementV40(): void {
 
         const cleanupSlot = localState.cleanupSlots.get(enemy.id) ?? order;
         const releaseAt = cleanupSlot * SKY_DANCER_V40_CLEANUP_SLOT_DELAY;
-        const cleanupSlotReady = !cleanup || localState.cleanupElapsed >= releaseAt;
+        const cleanupSlotReady = !cleanup || localState.cleanupElapsed >= cleanupSlot * SKY_DANCER_V40_CLEANUP_SLOT_DELAY;
         setSkyDancerCleanupHeldV42(enemy, cleanup && !cleanupSlotReady);
 
+        // V42 keeps released targets inside the radial missile envelope while
+        // preserving the aircraft's world bearing and readable attack motion.
         if (cleanup && cleanupSlotReady) {
           const leashed = skyDancerCleanupReleasePositionV42(px, pz, enemy.x, enemy.z);
           if (Math.abs(leashed.x - enemy.x) > 0.001 || Math.abs(leashed.z - enemy.z) > 0.001) {
@@ -264,7 +288,8 @@ export function installSkyDancerReengagementV40(): void {
         if (cleanup && !cleanupSlotReady) {
           cleanupHoldingEnemies += 1;
           const fallback = skyDancerCleanupHoldingPositionV40(px, pz, playerHeading, cleanupSlot);
-          const offset = localState.cleanupHoldOffsets.get(enemy.id) ?? { x: fallback.x - px, z: fallback.z - pz };
+          const offset = localState.cleanupHoldOffsets.get(enemy.id)
+            ?? { x: fallback.x - px, z: fallback.z - pz };
           if (!localState.cleanupHoldOffsets.has(enemy.id)) localState.cleanupHoldOffsets.set(enemy.id, offset);
           const holdX = px + offset.x;
           const holdZ = pz + offset.z;
@@ -279,13 +304,22 @@ export function installSkyDancerReengagementV40(): void {
           }
           const radial = Math.atan2(offset.x, offset.z);
           const side = cleanupSlot % 2 === 0 ? 1 : -1;
-          enemy.heading = rotateToward(enemy.heading, normalizeAngle(radial + side * Math.PI * 0.5), 1.2 * delta);
+          const tangentHeading = normalizeAngle(radial + side * Math.PI * 0.5);
+          enemy.heading = rotateToward(enemy.heading, tangentHeading, 1.12 * delta);
+
+          // Held formation aircraft are deliberately not weapon targets, so
+          // exclude them from lock-envelope diagnostics until their slot opens.
           continue;
         }
 
-        const lastTargetPriority = cleanup && live.length <= 2 && localState.cleanupElapsed >= releaseAt + SKY_DANCER_V55_LAST_TARGET_FORCE_SECONDS;
+        const lastTargetPriority = cleanup
+          && live.length <= 2
+          && localState.cleanupElapsed >= releaseAt + SKY_DANCER_V55_LAST_TARGET_FORCE_SECONDS;
         const needsDistanceCorrection = distance > trigger;
-        const needsAngleCorrection = cleanup ? lockAngle > angleTrigger : needsDistanceCorrection && lockAngle > angleTrigger;
+        // V42: normal WAVE flight never angle-corrects by itself. Inside the range envelope, V41 owns natural turn/acceleration.
+        const needsAngleCorrection = cleanup
+          ? lockAngle > angleTrigger
+          : needsDistanceCorrection && lockAngle > angleTrigger;
 
         if (needsDistanceCorrection || needsAngleCorrection || lastTargetPriority) {
           let destinationX: number;
@@ -303,7 +337,9 @@ export function installSkyDancerReengagementV40(): void {
           const correctionZ = destinationZ - enemy.z;
           const correctionDistance = Math.hypot(correctionX, correctionZ);
           if (correctionDistance > 0.001) {
-            const closingSpeed = lastTargetPriority ? 72 : skyDancerReengagementClosingSpeedV40(Math.max(distance, correctionDistance), cleanup);
+            const closingSpeed = lastTargetPriority
+              ? 72
+              : skyDancerReengagementClosingSpeedV40(Math.max(distance, correctionDistance), cleanup);
             const correction = Math.min(correctionDistance, closingSpeed * delta);
             enemy.x += correctionX / correctionDistance * correction;
             enemy.z += correctionZ / correctionDistance * correction;
@@ -320,7 +356,11 @@ export function installSkyDancerReengagementV40(): void {
         lockAngle = Math.abs(normalizeAngle(targetHeadingFromPlayer - playerHeading));
         maxEnemyDistance = Math.max(maxEnemyDistance, distance);
         maxLockAngle = Math.max(maxLockAngle, lockAngle);
-        if (isSkyDancerCombatTargetableV42(enemy) && distance <= SKY_DANCER_V40_LOCK_RANGE && lockAngle <= SKY_DANCER_V40_LOCK_HALF_ANGLE) {
+        if (
+          isSkyDancerCombatTargetableV42(enemy)
+          && distance <= SKY_DANCER_V40_LOCK_RANGE
+          && lockAngle <= SKY_DANCER_V40_LOCK_HALF_ANGLE
+        ) {
           lockConeCandidates += 1;
         }
       }
