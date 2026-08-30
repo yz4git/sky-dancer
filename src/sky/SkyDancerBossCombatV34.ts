@@ -54,6 +54,8 @@ export const SKY_DANCER_V34_BOSS_BASE_HP = 192;
 export const SKY_DANCER_V34_BOSS_STAGE_HP_STEP = 24;
 export const SKY_DANCER_V34_BOSS_MAX_HP = 312;
 export const SKY_DANCER_V34_BOSS_MISSILE_DAMAGE_CAP = 0.085;
+export const SKY_DANCER_V49_CAMPAIGN_BOSS_LOCK_MAX_DISTANCE = 54;
+export const SKY_DANCER_V49_CAMPAIGN_BOSS_LOCK_TARGET_DISTANCE = 46;
 
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
@@ -108,12 +110,15 @@ export function skyDancerBossDurabilityV34(stage: number): number {
   return Math.min(SKY_DANCER_V34_BOSS_MAX_HP, SKY_DANCER_V34_BOSS_BASE_HP + Math.max(0, stage - 1) * SKY_DANCER_V34_BOSS_STAGE_HP_STEP);
 }
 
+function liveCampaignStage(session: BossSessionView): number | null {
+  const stage = getSkyDancerStageCycleSnapshot(session as unknown as CartArenaSession);
+  return stage?.phase === "boss" && getSkyDancerMissionV49(stage.stage) ? stage.stage : null;
+}
+
 function liveBossDurability(session: BossSessionView): number {
-  const concrete = session as unknown as CartArenaSession;
-  const stage = getSkyDancerStageCycleSnapshot(concrete);
-  if (stage?.phase === "boss" && getSkyDancerMissionV49(stage.stage)) {
-    return skyDancerCampaignBossHpV49(stage.stage);
-  }
+  const campaignStage = liveCampaignStage(session);
+  if (campaignStage != null) return skyDancerCampaignBossHpV49(campaignStage);
+  const stage = getSkyDancerStageCycleSnapshot(session as unknown as CartArenaSession);
   return skyDancerBossDurabilityV34(stage?.stage ?? 1);
 }
 
@@ -238,6 +243,19 @@ function updateBossFlight(
   boss.weakPointExposed = skyDancerBossCoreOpenV34(phase, state.clock);
 }
 
+function keepCampaignBossInLockEnvelope(session: BossSessionView, boss: CartEnemyState): void {
+  if (liveCampaignStage(session) == null) return;
+  const px = session.car.position.x;
+  const pz = session.car.position.z;
+  const dx = boss.x - px;
+  const dz = boss.z - pz;
+  const distance = Math.hypot(dx, dz);
+  if (distance <= SKY_DANCER_V49_CAMPAIGN_BOSS_LOCK_MAX_DISTANCE || distance < 0.001) return;
+  const scale = SKY_DANCER_V49_CAMPAIGN_BOSS_LOCK_TARGET_DISTANCE / distance;
+  boss.x = px + dx * scale;
+  boss.z = pz + dz * scale;
+}
+
 function tuneBossDurability(session: BossSessionView, state: BossCombatState, boss: CartEnemyState): void {
   const targetMaxHp = liveBossDurability(session);
   if (!state.bossWasAlive) {
@@ -302,6 +320,7 @@ export function installSkyDancerBossCombatV34(): void {
       if (beforeBoss && beforeBoss.id === boss.id) {
         applyBossDamageWindow(state, boss);
         updateBossFlight(this, state, boss, beforeX, beforeZ, delta);
+        keepCampaignBossInLockEnvelope(this, boss);
       }
       if (this.gas < beforeGas) this.gas = Math.max(this.gas, beforeGas - SKY_DANCER_V34_BOSS_MISSILE_DAMAGE_CAP);
       state.clock += delta * state.auditClockScale;
