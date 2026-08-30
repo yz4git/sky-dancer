@@ -44,7 +44,7 @@ class BurstPool {
         void main(){vUv=uv;vAlpha=lifeAlpha;gl_Position=projectionMatrix*modelViewMatrix*instanceMatrix*vec4(position,1.0);}`,
       fragmentShader: `uniform float smoke;varying vec2 vUv;varying float vAlpha;
         void main(){vec2 p=vUv*2.0-1.0;float r=length(p);float a=pow(max(0.0,1.0-r),smoke>.5?1.6:2.4);
-          vec3 color=smoke>.5?mix(vec3(.16,.20,.24),vec3(.77,.62,.43),vUv.y):mix(vec3(3.6,.66,.05),vec3(6.0,3.6,1.3),a);
+          vec3 color=smoke>.5?mix(vec3(.16,.20,.24),vec3(.77,.62,.43),vUv.y):mix(vec3(5.2,.48,.025),vec3(7.4,4.7,1.55),a);
           gl_FragColor=vec4(color,a*vAlpha);}`,
       transparent: true, depthWrite: false,
       blending: smoke ? THREE.NormalBlending : THREE.AdditiveBlending,
@@ -61,7 +61,7 @@ class BurstPool {
   }
 
   emit(position: THREE.Vector3, scale: number): void {
-    const count = this.smoke ? 7 : 23;
+    const count = this.smoke ? 5 : 30;
     for (let i = 0; i < count; i++) {
       const index = this.cursor++ % this.particles.length;
       const particle = this.particles[index];
@@ -70,8 +70,8 @@ class BurstPool {
       particle.velocity.set(noise(seed) - .5, noise(seed + 1) - .3, noise(seed + 2) - .5)
         .normalize().multiplyScalar((this.smoke ? 2 : 7 + noise(seed + 3) * 10) * scale);
       particle.age = 0;
-      particle.duration = this.smoke ? .85 + noise(seed + 4) * .8 : .25 + noise(seed + 4) * .6;
-      particle.size = (this.smoke ? 1.4 + noise(seed + 5) * 2.4 : .25 + noise(seed + 5) * .6) * scale;
+      particle.duration = this.smoke ? .7 + noise(seed + 4) * .65 : .28 + noise(seed + 4) * .62;
+      particle.size = (this.smoke ? 1.15 + noise(seed + 5) * 1.9 : .28 + noise(seed + 5) * .72) * scale;
       particle.rotation = noise(seed + 6) * Math.PI * 2;
     }
   }
@@ -93,7 +93,7 @@ class BurstPool {
         this.dummy.rotateZ(p.rotation);
         const size = p.size * (this.smoke ? .75 + t * 2.7 : 1 - t * .5);
         this.dummy.scale.set(size * (this.smoke ? 1.2 : .38), size, 1);
-        this.alpha.setX(i, (1 - t) * (this.smoke ? .65 : 1));
+        this.alpha.setX(i, (1 - t) * (this.smoke ? .46 : 1));
       }
       this.dummy.updateMatrix(); this.mesh.setMatrixAt(i, this.dummy.matrix);
     }
@@ -118,7 +118,7 @@ function createRibbon(enemy: boolean): SmokeRibbon {
   geometry.setAttribute("uv", new THREE.BufferAttribute(uv, 2));
   geometry.setIndex(indices); geometry.setDrawRange(0, 0);
   const material = new THREE.ShaderMaterial({
-    uniforms: { tint: { value: new THREE.Color(enemy ? 0xffa65e : 0xfff0d6) }, opacity: { value: .8 } },
+    uniforms: { tint: { value: new THREE.Color(enemy ? 0xff6654 : 0xc8f7ff) }, opacity: { value: .8 } },
     vertexShader: "varying vec2 vUv;void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}",
     fragmentShader: `varying vec2 vUv;uniform vec3 tint;uniform float opacity;
       void main(){float edge=pow(max(0.0,1.0-abs(vUv.x*2.0-1.0)),1.2);float tail=.18+.82*vUv.y;
@@ -127,7 +127,7 @@ function createRibbon(enemy: boolean): SmokeRibbon {
   });
   const mesh = new THREE.Mesh(geometry, material);
   mesh.name = "arcade-projectile-trail"; mesh.frustumCulled = false;
-  return { mesh, points: new Float32Array(samples * 3), positions, count: 0, width: enemy ? .13 : .2, retiredAge: null };
+  return { mesh, points: new Float32Array(samples * 3), positions, count: 0, width: enemy ? .16 : .23, retiredAge: null };
 }
 
 /** Actual missile history, camera-facing smoke and pooled bursts. No changes to hit authority. */
@@ -135,7 +135,7 @@ export class SkyDancerArcadeProductPresentation {
   private readonly root = new THREE.Group();
   private readonly speedGeometry = new THREE.BufferGeometry();
   private readonly speedMaterial = new THREE.LineBasicMaterial({
-    color: 0xc8eafa, transparent: true, opacity: .08, blending: THREE.AdditiveBlending, depthWrite: false,
+    color: 0xd7f6ff, transparent: true, opacity: .065, blending: THREE.AdditiveBlending, depthWrite: false,
   });
   private readonly speedPositions = new Float32Array(SPEED_STREAK_COUNT * 6);
   private readonly speedSeeds = new Float32Array(SPEED_STREAK_COUNT * 3);
@@ -186,7 +186,7 @@ export class SkyDancerArcadeProductPresentation {
       this.speedPositions.set([x, y, z, x, y, z - (snapshot.turboActive ? 9 : 2.4)], j);
     }
     this.speedGeometry.getAttribute("position").needsUpdate = true;
-    this.speedMaterial.opacity += ((snapshot.turboActive ? .35 : .055) - this.speedMaterial.opacity) * Math.min(1, delta * 8);
+    this.speedMaterial.opacity += ((snapshot.turboActive ? .42 : .045) - this.speedMaterial.opacity) * Math.min(1, delta * 8);
   }
 
   private updateProjectileTrails(snapshot: SkyDancerArcadeSnapshot, delta: number): void {

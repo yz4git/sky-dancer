@@ -293,10 +293,10 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
       active.add(projectile.id);
       let mesh = this.projectileMeshes.get(projectile.id);
       if (!mesh) {
-        const color = projectile.owner === "enemy" ? 0xff4c62 : projectile.owner === "player-missile" ? 0x64e9ff : 0xfff3ad;
+        const color = projectile.owner === "enemy" ? 0xff4c62 : projectile.owner === "player-missile" ? 0x64e9ff : 0xc8f8ff;
         const geometry = projectile.owner === "player-missile"
-          ? new THREE.ConeGeometry(0.12, 0.72, 7)
-          : new THREE.CylinderGeometry(0.035, 0.06, projectile.owner === "enemy" ? 1.1 : 0.78, 5);
+          ? new THREE.ConeGeometry(0.13, 0.84, 7)
+          : new THREE.CylinderGeometry(0.04, 0.072, projectile.owner === "enemy" ? 1.3 : 1.55, 5);
         geometry.rotateX(Math.PI / 2);
         mesh = new THREE.Mesh(
           geometry,
@@ -382,12 +382,12 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
 
   private syncEffects(snapshot: SkyDancerArcadeSnapshot): void {
     if (snapshot.hitSerial !== this.previousSnapshot.hitSerial) {
-      this.cameraShake = Math.min(.35, this.cameraShake + .06);
+      this.cameraShake = Math.min(.38, this.cameraShake + .075);
       const target = snapshot.enemies.find(enemy => {
         const old = this.previousSnapshot.enemies.find(previous => previous.id === enemy.id);
         return old && enemy.hp < old.hp;
       });
-      if (target) this.presentation.emitBurst(new THREE.Vector3(target.x * 8.4, 1.2 + target.y * 4.9, -target.depth), .35);
+      if (target) this.presentation.emitBurst(new THREE.Vector3(target.x * 8.4, 1.2 + target.y * 4.9, -target.depth), .52);
     }
     if (snapshot.damageSerial !== this.previousSnapshot.damageSerial) {
       this.cameraShake = Math.min(.8, this.cameraShake + .4);

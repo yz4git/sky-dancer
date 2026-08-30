@@ -2,8 +2,8 @@ import * as THREE from "three";
 import type { SkyDancerArcadeStageDefinition } from "./SkyDancerArcadeData";
 
 export const ARCADE_SUN_DIRECTION = new THREE.Vector3(-.62, .25, -.73).normalize();
-export const ARCADE_FOG_NEAR = 100;
-export const ARCADE_FOG_FAR = 660;
+export const ARCADE_FOG_NEAR = 88;
+export const ARCADE_FOG_FAR = 560;
 
 export const ARCADE_NOISE_GLSL = `
 float hash21(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
@@ -15,14 +15,14 @@ export function referenceAtmosphere(stage: SkyDancerArcadeStageDefinition) {
   const city = stage.biome === "city";
   const night = ["night", "orbit", "citadel"].includes(stage.biome);
   return {
-    zenith: new THREE.Color(city ? 0x285c87 : stage.palette.sky),
-    horizon: new THREE.Color(city ? 0xf8bd76 : stage.palette.fog),
-    fog: new THREE.Color(city ? 0xadadad : stage.palette.fog),
-    cloudLight: new THREE.Color(city ? 0xffe4b3 : night ? 0x7283b5 : stage.biome === "storm" ? 0x90a5b9 : 0xeaf6ff),
-    cloudShadow: new THREE.Color(city ? 0x516080 : stage.biome === "storm" ? 0x253e5b : night ? 0x151e43 : 0x557b98),
-    key: city ? 0xffd298 : night ? 0x98b4ff : stage.biome === "volcano" ? 0xff774a : 0xffe7c4,
-    keyIntensity: city ? 3.0 : night ? 1.4 : 2.5,
-    ambient: city ? .95 : night ? .8 : 1.3,
+    zenith: new THREE.Color(city ? 0x0b6198 : stage.palette.sky),
+    horizon: new THREE.Color(city ? 0xffb866 : stage.palette.fog),
+    fog: new THREE.Color(city ? 0x879caf : stage.palette.fog),
+    cloudLight: new THREE.Color(city ? 0xffddb0 : night ? 0x7283b5 : stage.biome === "storm" ? 0x90a5b9 : 0xeaf6ff),
+    cloudShadow: new THREE.Color(city ? 0x405d78 : stage.biome === "storm" ? 0x253e5b : night ? 0x151e43 : 0x557b98),
+    key: city ? 0xffc77b : night ? 0x98b4ff : stage.biome === "volcano" ? 0xff774a : 0xffe7c4,
+    keyIntensity: city ? 3.35 : night ? 1.4 : 2.5,
+    ambient: city ? .7 : night ? .8 : 1.3,
     night,
   };
 }
@@ -53,9 +53,9 @@ export function createArcadeSky(stage: SkyDancerArcadeStageDefinition): THREE.Me
         c+=mix(vec3(9.0,5.1,2.1),vec3(.52,.7,1.0),night)*disc;
         vec2 cloudUV=d.xz/max(.12,d.y+.28)*3.0;
         float cloud=fbm(cloudUV*vec2(.8,2.5));
-        float bank=smoothstep(.5,.73,cloud)*smoothstep(-.02,.19,d.y)*(1.0-smoothstep(.5,.85,d.y));
-        vec3 cloudColor=mix(vec3(.22,.3,.43),mix(vec3(.95,.71,.41),vec3(.71,.8,.92),upper),glow*.7+.3);
-        c=mix(c,cloudColor,bank*(.54+.3*storm)*(1.0-night*.65));
+        float bank=smoothstep(.53,.77,cloud)*smoothstep(-.03,.2,d.y)*(1.0-smoothstep(.48,.83,d.y));
+        vec3 cloudColor=mix(vec3(.18,.29,.43),mix(vec3(1.03,.65,.3),vec3(.65,.82,1.0),upper),glow*.75+.22);
+        c=mix(c,cloudColor,bank*(.36+.28*storm)*(1.0-night*.65));
         if(night>.5){float stars=step(.9987,hash21(floor(d.xy*vec2(800.0,540.0))));c+=stars*smoothstep(.05,.4,d.y)*.6;}
         c=mix(c,horizon*.5,1.0-smoothstep(-.4,-.03,d.y));
         gl_FragColor=vec4(c,1.0);
@@ -96,21 +96,21 @@ export function createArcadeFacadeMaterial(night: boolean): THREE.MeshStandardMa
         #include <color_fragment>
         vec3 facade=(vFacadePosition+.5)*vFacadeSize;
         vec2 fuv=vec2(abs(vFacadeNormal.x)>.5?facade.z:facade.x,facade.y);
-        vec2 cell=fract(fuv*vec2(.88,.62));
-        vec2 cellID=floor(fuv*vec2(.88,.62));
-        float windowMask=step(.22,cell.x)*step(cell.x,.73)*step(.22,cell.y)*step(cell.y,.7);
+        vec2 cell=fract(fuv*vec2(.48,.36));
+        vec2 cellID=floor(fuv*vec2(.48,.36));
+        float windowMask=step(.25,cell.x)*step(cell.x,.72)*step(.28,cell.y)*step(cell.y,.69);
         float wall=1.0-step(.5,abs(vFacadeNormal.y));
-        float floorLine=1.0-smoothstep(.025,.075,cell.y);
-        diffuseColor.rgb*=1.0-wall*(windowMask*.28+floorLine*.16);
+        float floorLine=1.0-smoothstep(.018,.05,cell.y);
+        float verticalPanel=smoothstep(.82,.94,fract(fuv.x*.075+vBuildingSeed*.031)); diffuseColor.rgb*=1.0-wall*(windowMask*.14+floorLine*.055+verticalPanel*.09);
       `)
       .replace("#include <emissivemap_fragment>",`
         #include <emissivemap_fragment>
         float occupied=step(.48-arcadeNight*.12,hash21(cellID+vBuildingSeed));
         vec3 lightColor=mix(vec3(.1,.63,1.0),vec3(1.0,.5,.13),step(.28,hash21(vec2(vBuildingSeed,cellID.y))));
-        totalEmissiveRadiance+=lightColor*windowMask*wall*occupied*(.65+arcadeNight*.9);
+        totalEmissiveRadiance+=lightColor*windowMask*wall*occupied*(.38+arcadeNight*1.0);
       `);
   };
-  material.customProgramCacheKey=()=>"arcade-city-facade-reference-v1";
+  material.customProgramCacheKey=()=>"arcade-city-facade-reference-v2";
   return material;
 }
 
@@ -149,9 +149,9 @@ export function createArcadeCloudMaterial(stage: SkyDancerArcadeStageDefinition)
         vec3 c=mix(shade,lit,pow(light,.72));
         c*=.91+billow*.19;
         c+=lit*pow(1.0-facing,3.0)*light*.32;
-        float fog=smoothstep(100.0,630.0,vDepth);
+        float fog=smoothstep(90.0,545.0,vDepth);
         c=mix(c,fogColor,fog);
-        gl_FragColor=vec4(c,soft*(.72+billow*.22)*(1.0-fog*.75));
+        float edgeLight=pow(max(0.0,1.0-facing),2.5)*light; c+=lit*edgeLight*.13; gl_FragColor=vec4(c,soft*(.42+billow*.13)*(1.0-fog*.82));
       }`,
     transparent:true,depthWrite:false,side:THREE.FrontSide,
   });
@@ -168,12 +168,12 @@ export function createArcadeWaterMaterial(stage: SkyDancerArcadeStageDefinition)
       ${ARCADE_NOISE_GLSL}
       void main(){
         vec2 uv=vWorld.xz;
-        float ripples=fbm(uv*vec2(.23,1.8)+vec2(time*.1,time*.7));
-        float glint=pow(max(0.0,sin(uv.y*2.5+time*1.1)+ripples-.3),6.0);
-        float sunPath=exp(-pow((uv.x+13.0)/14.0,2.0));
-        vec3 water=mix(vec3(.035,.16,.21),vec3(.05,.22,.31),ripples);
-        water+=mix(vec3(.9,.39,.08),vec3(.04,.4,.7),night)*sunPath*(.1+min(2.0,glint)*.5);
-        water=mix(water,fogColor,smoothstep(110.0,660.0,vDepth));
+        float broad=fbm(uv*vec2(.055,.24)+vec2(time*.018,time*.12)); float cross=fbm(uv*vec2(.17,.075)+vec2(-time*.055,time*.035)+17.0); float ripples=mix(broad,cross,.34);
+        float glint=pow(max(0.0,cross*.9+broad*.55-.63),5.0);
+        float sunPath=exp(-pow((uv.x+11.0)/18.0,2.0));
+        vec3 water=mix(vec3(.025,.13,.19),vec3(.035,.27,.38),ripples);
+        water+=mix(vec3(1.05,.42,.07),vec3(.04,.42,.78),night)*sunPath*(.075+glint*.48);
+        water=mix(water,fogColor,smoothstep(105.0,560.0,vDepth));
         gl_FragColor=vec4(water,1.0);
       }`,
   });

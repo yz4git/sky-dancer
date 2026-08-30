@@ -60,10 +60,10 @@ export class SkyDancerArcadeReferenceWorld {
     const palette=referenceAtmosphere(stage);
     this.scene.background=palette.zenith;
     this.scene.fog=new THREE.Fog(palette.fog,ARCADE_FOG_NEAR,ARCADE_FOG_FAR);
-    const hemi=new THREE.HemisphereLight(0xc5dcf5,0x253142,palette.ambient);
+    const hemi=new THREE.HemisphereLight(0xc9e7ff,0x172938,palette.ambient);
     const key=new THREE.DirectionalLight(palette.key,palette.keyIntensity);
     key.position.copy(ARCADE_SUN_DIRECTION).multiplyScalar(250);
-    const rim=new THREE.DirectionalLight(0x64d6ff,.85);
+    const rim=new THREE.DirectionalLight(0x55cfff,1.05);
     rim.position.set(80,25,45);
     this.root.add(hemi,key,rim,createArcadeSky(stage),this.buildBackdrop(stage));
     this.water=createArcadeWaterMaterial(stage);
@@ -122,13 +122,13 @@ export class SkyDancerArcadeReferenceWorld {
       mesh(group,g,new THREE.MeshBasicMaterial({color,side:THREE.DoubleSide,fog:false}));
     }
     if(stage.biome==="city" || stage.biome==="night"){
-      const towers=new THREE.InstancedMesh(new THREE.BoxGeometry(1,1,1),paint(0x66768a),150);
+      const towers=new THREE.InstancedMesh(new THREE.BoxGeometry(1,1,1),paint(0x526b7d),108);
       towers.name="arcade-distant-metropolis";
-      for(let i=0;i<150;i++){
+      for(let i=0;i<108;i++){
         const x=(random(i+19)-.5)*760;
-        const h=12+random(i+117)*62;
-        this.matrixObject.position.set(x,-34+h/2,-300-random(i+613)*220);
-        this.matrixObject.scale.set(3+random(i+13)*9,h,4+random(i+201)*10);
+        const hero=i%13===0; const h=14+random(i+117)*55+(hero?35:0);
+        this.matrixObject.position.set(x,-39+h/2,-315-random(i+613)*250);
+        this.matrixObject.scale.set((hero?2.7:4)+random(i+13)*8,h,(hero?3.4:5)+random(i+201)*9);
         this.matrixObject.rotation.set(0,0,0);this.matrixObject.updateMatrix();
         towers.setMatrixAt(i,this.matrixObject.matrix);
         towers.setColorAt(i,new THREE.Color(0x6d7b8c).lerp(palette.fog,random(i)*.4));
@@ -262,19 +262,19 @@ export class SkyDancerArcadeReferenceWorld {
     let n=0;let a=0;
     for(const side of [-1,1])for(let row=0;row<4;row++)for(let lane=0;lane<6;lane++){
       const seed=index*229+n*11;
-      const h=lane===0 ? 10+random(seed+3)*17 : 16+random(seed+4)*53;
-      const w=4+random(seed+13)*5.4;
-      const d=5.4+random(seed+29)*7;
-      const x=side*(29+lane*14+random(seed+7)*5);
+      const hero=lane>1 && random(seed+97)>.77; const h=lane===0 ? 9+random(seed+3)*14 : 15+random(seed+4)*45+(hero?22:0);
+      const w=(hero?3.2:4.1)+random(seed+13)*(hero?3.4:5.1);
+      const d=5+random(seed+29)*6.5;
+      const x=side*(31+lane*15+random(seed+7)*4.2);
       const z=-43+row*27+random(seed+61)*6;
       this.matrixObject.position.set(x,-25+h/2,z);
       this.matrixObject.scale.set(w,h,d);this.matrixObject.rotation.set(0,0,0);this.matrixObject.updateMatrix();
       towers.setMatrixAt(n,this.matrixObject.matrix);
-      towers.setColorAt(n,new THREE.Color(stage.biome==="night"?0x253552:0x596974).lerp(new THREE.Color(0xadb3b2),random(seed+37)*.5));
+      towers.setColorAt(n,new THREE.Color(stage.biome==="night"?0x172d4b:0x39586b).lerp(new THREE.Color(stage.biome==="night"?0x536b8e:0x94abba),.12+random(seed+37)*.62));
       this.matrixObject.position.y=-25+h+1;
       this.matrixObject.scale.set(w*.61,2,d*.66);this.matrixObject.updateMatrix();roofs.setMatrixAt(n,this.matrixObject.matrix);
-      if(n%3===0){
-        const height=3+random(seed+119)*5;
+      if(hero || n%3===0){
+        const height=3+random(seed+119)*(hero?10:5);
         this.matrixObject.position.y=-23+h+height/2;this.matrixObject.scale.set(1,height,1);this.matrixObject.updateMatrix();
         spires.setMatrixAt(a++,this.matrixObject.matrix);
       }
@@ -282,9 +282,9 @@ export class SkyDancerArcadeReferenceWorld {
     }
     towers.computeBoundingSphere();roofs.computeBoundingSphere();spires.count=a;spires.computeBoundingSphere();
     group.add(towers,roofs,spires);
-    mesh(group,new THREE.BoxGeometry(250,1,114),paint(0x263747),0,-26);
+    mesh(group,new THREE.BoxGeometry(250,1,114),paint(stage.biome==="night"?0x111d31:0x213746),0,-26);
     if(this.water){const river=mesh(group,new THREE.PlaneGeometry(40,114),this.water,-.4,-25.35);river.rotation.x=-Math.PI/2;}
-    const bank=paint(0x66757e),road=paint(0x182936),light=paint(0xffb66a,0xff8e36);
+    const bank=paint(stage.biome==="night"?0x314559:0x506879),road=paint(0x132635),light=paint(0xffc06e,0xff963b);
     for(const side of [-1,1]){
       mesh(group,new THREE.BoxGeometry(2.4,1.3,114),bank,side*21,-25.1);
       mesh(group,new THREE.BoxGeometry(3.5,.12,114),road,side*24,-24.32);
@@ -302,18 +302,18 @@ export class SkyDancerArcadeReferenceWorld {
   }
 
   private addClouds(group:THREE.Group,stage:SkyDancerArcadeStageDefinition,index:number,mat:THREE.Material):void {
-    const cloud=new THREE.InstancedMesh(new THREE.SphereGeometry(1,12,8),mat,30);
+    const cloud=new THREE.InstancedMesh(new THREE.SphereGeometry(1,12,8),mat,["cloud","storm"].includes(stage.biome)?30:18);
     cloud.name="arcade-product-cloud-deck-"+index;
     const inCloud=["cloud","storm"].includes(stage.biome);
-    for(let cluster=0;cluster<5;cluster++)for(let puff=0;puff<6;puff++){
+    for(let cluster=0;cluster<(inCloud?5:3);cluster++)for(let puff=0;puff<6;puff++){
       const n=cluster*6+puff,seed=index*83+cluster*31;
       const side=cluster%2?-1:1;
-      const baseX=side*(inCloud?14:24)+side*random(seed+3)*28;
-      const baseZ=-42+cluster*21;
-      const radius=3.2+random(seed+puff*17)*4.4;
-      this.matrixObject.position.set(baseX+(puff%3-1)*5,-12+random(seed)*4+Math.floor(puff/3)*1.8,baseZ+(puff%2?4:-4));
-      if(!inCloud)this.matrixObject.position.y-=3;
-      this.matrixObject.scale.set(radius*1.65,radius*.72,radius*1.25);
+      const baseX=side*(inCloud?18:38)+side*random(seed+3)*(inCloud?30:34);
+      const baseZ=-44+cluster*(inCloud?21:37);
+      const radius=(inCloud?3.2:2.1)+random(seed+puff*17)*(inCloud?3.6:2.2);
+      this.matrixObject.position.set(baseX+(puff%3-1)*(inCloud?5:4),-12+random(seed)*3+Math.floor(puff/3)*1.4,baseZ+(puff%2?4:-4));
+      if(!inCloud)this.matrixObject.position.y-=5;
+      this.matrixObject.scale.set(radius*1.55,radius*.62,radius*1.2);
       this.matrixObject.rotation.set(0,random(seed+puff),0);
       this.matrixObject.updateMatrix();cloud.setMatrixAt(n,this.matrixObject.matrix);
     }

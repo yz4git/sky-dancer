@@ -164,8 +164,8 @@ test("close fly-bys and route guidance stay readable", async () => {
   assert.match(runtimeSource, /ENEMY_FLYBY_CULL_DEPTH = -11\.5/);
   assert.match(runtimeSource, /enemy\.depth < ENEMY_FLYBY_CULL_DEPTH/);
   assert.match(webglSource, /PerspectiveCamera\(55, 1, 0\.04, 1200\)/);
-  assert.match(css, /\.routeOverlay\{[^}]*top:max\(70px/);
-  assert.match(css, /\.routeOption\{padding:3px 6px/);
+  assert.match(css, /\.routeOverlay\{[^}]*top:max\(76px/);
+  assert.match(css, /\.routeOption\{padding:2px 5px/);
 });
 
 test("title menu exposes all modes and keeps Turbo Hunt presentation isolated", async () => {

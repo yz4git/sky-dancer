@@ -22,7 +22,7 @@ export class SkyDancerArcadeCinematicRenderer {
     this.material=new THREE.ShaderMaterial({
       uniforms:{
         sceneColor:{value:this.target.texture},texel:{value:new THREE.Vector2(1,1)},
-        bloomStrength:{value:.18},
+        bloomStrength:{value:.23},
       },
       vertexShader:"varying vec2 vUv;void main(){vUv=uv;gl_Position=vec4(position.xy,0.0,1.0);}",
       fragmentShader:`
@@ -30,14 +30,14 @@ export class SkyDancerArcadeCinematicRenderer {
         vec3 bright(vec2 uv){vec3 c=texture2D(sceneColor,uv).rgb;float l=max(c.r,max(c.g,c.b));return c*smoothstep(.86,1.8,l);}
         void main(){
           vec3 source=texture2D(sceneColor,vUv).rgb;
-          vec2 r=texel*3.5;
-          vec3 halo=bright(vUv)*.2;
+          vec2 r=texel*3.2;
+          vec3 halo=bright(vUv)*.22;
           halo+=(bright(vUv+vec2(r.x,0))+bright(vUv-vec2(r.x,0))+bright(vUv+vec2(0,r.y))+bright(vUv-vec2(0,r.y)))*.125;
           halo+=(bright(vUv+r*1.6)+bright(vUv-r*1.6)+bright(vUv+vec2(-r.x,r.y)*1.6)+bright(vUv+vec2(r.x,-r.y)*1.6))*.075;
           vec2 p=(vUv-.5)*vec2(1.0,.8);
-          float edge=smoothstep(.24,.62,length(p));
-          vec3 result=(source+halo*bloomStrength)*(1.0-edge*.16);
-          gl_FragColor=vec4(result,1.0);
+          float edge=smoothstep(.25,.66,length(p));
+          vec3 result=(source+halo*bloomStrength)*(1.0-edge*.12); float luma=dot(result,vec3(.2126,.7152,.0722)); result=mix(vec3(luma),result,1.08); result=(result-.5)*1.055+.5; result+=vec3(.025,.006,-.012)*smoothstep(.62,1.25,luma); result+=vec3(-.012,.002,.024)*(1.0-smoothstep(.16,.5,luma));
+          gl_FragColor=vec4(max(result,vec3(0.0)),1.0);
           #include <tonemapping_fragment>
           #include <colorspace_fragment>
         }`,
@@ -54,7 +54,7 @@ export class SkyDancerArcadeCinematicRenderer {
   }
 
   render(scene:THREE.Scene,camera:THREE.Camera,turbo:boolean):void {
-    this.material.uniforms.bloomStrength.value=turbo ? .28 : .16;
+    this.material.uniforms.bloomStrength.value=turbo ? .36 : .22;
     this.renderer.setRenderTarget(this.target);
     this.renderer.render(scene,camera);
     this.renderer.setRenderTarget(null);
