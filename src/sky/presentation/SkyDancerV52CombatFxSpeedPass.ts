@@ -38,7 +38,10 @@ export class SkyDancerV52CombatFxSpeedPass {
       const line = new THREE.Mesh(streakGeometry, this.speedMaterial);
       const side = index % 2 === 0 ? -1 : 1;
       const lane = Math.floor(index / 2);
-      const x = side * (2.2 + (lane % 5) * 0.75);
+      // V55 clarity pass: keep the speed field outside the lock/target reading
+      // corridor. The effect remains strong in peripheral vision, especially on
+      // Turbo release, without drawing white streaks through the gunsight.
+      const x = side * (2.8 + (lane % 5) * 0.82);
       const y = -1.7 + (lane % 7) * 0.52;
       line.position.set(x, y, -4.5 - (lane % 6) * 1.45);
       line.scale.z = 2.8 + (lane % 4) * 1.3;
@@ -91,7 +94,7 @@ export class SkyDancerV52CombatFxSpeedPass {
     const speed = THREE.MathUtils.clamp((Math.abs(snapshot.speed) - 10) / 25, 0, 1);
     const intensity = THREE.MathUtils.clamp(speed * 0.68 + (snapshot.boostActive ? 0.58 : 0), 0, 1);
     this.speedRoot.visible = intensity > 0.06;
-    this.speedMaterial.opacity = intensity * (snapshot.boostActive ? 0.40 : 0.24);
+    this.speedMaterial.opacity = intensity * (snapshot.boostActive ? 0.40 : 0.20);
     this.speedRoot.position.copy(this.runtime.camera.position);
     this.speedRoot.quaternion.copy(this.runtime.camera.quaternion);
 
