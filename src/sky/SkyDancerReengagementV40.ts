@@ -53,9 +53,9 @@ const stateBySession = new WeakMap<object, ReengagementState>();
 
 export const SKY_DANCER_V40_LOCK_RANGE = SKY_DANCER_PLAYER_MISSILE_LOCK_DISTANCE;
 export const SKY_DANCER_V40_LOCK_HALF_ANGLE = 0.78;
-export const SKY_DANCER_V40_REENGAGE_TRIGGER = 49;
-export const SKY_DANCER_V40_REENGAGE_TARGET = 40;
-export const SKY_DANCER_V40_REENGAGE_ANGLE_TRIGGER = 0.68;
+export const SKY_DANCER_V40_REENGAGE_TRIGGER = 53;
+export const SKY_DANCER_V40_REENGAGE_TARGET = 43;
+export const SKY_DANCER_V40_REENGAGE_ANGLE_TRIGGER = 0.72;
 export const SKY_DANCER_V40_CLEANUP_TRIGGER = 46;
 export const SKY_DANCER_V40_CLEANUP_TARGET = 35;
 export const SKY_DANCER_V40_CLEANUP_ANGLE_TRIGGER = 0.52;
@@ -109,7 +109,7 @@ export function skyDancerReengagementClosingSpeedV40(distance: number, cleanup: 
   const excess = Math.max(0, distance - target);
   return cleanup
     ? clamp(44 + excess * 0.95, 44, 60)
-    : clamp(28 + excess * 0.78, 28, 48);
+    : clamp(25 + excess * 0.72, 25, 44);
 }
 
 export function skyDancerReengagementInterceptV40(
@@ -123,8 +123,8 @@ export function skyDancerReengagementInterceptV40(
   const seed = enemySlotSeed(enemy);
   const sidePattern = [-1, 1, -0.52, 0.52, 0, -0.78, 0.78] as const;
   const side = sidePattern[(seed + order) % sidePattern.length];
-  const forward = cleanup ? 29 + (order % 3) * 2.6 : 37 + (seed % 4) * 2.2;
-  const lateral = side * (cleanup ? 7.2 + (order % 2) * 1.6 : 11.5 + (seed % 3) * 1.5);
+  const forward = cleanup ? 29 + (order % 3) * 2.6 : 38 + (seed % 4) * 2.4;
+  const lateral = side * (cleanup ? 7.2 + (order % 2) * 1.6 : 12.5 + (seed % 3) * 1.8);
   const sin = Math.sin(playerHeading);
   const cos = Math.cos(playerHeading);
   return {
