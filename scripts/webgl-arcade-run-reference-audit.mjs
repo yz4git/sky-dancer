@@ -16,7 +16,8 @@ const pageErrors = [];
 page.on("console", (message) => { if (message.type() === "error") consoleErrors.push(message.text()); });
 page.on("pageerror", (error) => pageErrors.push(String(error)));
 
-await page.goto(baseUrl, { waitUntil: "networkidle", timeout: 60_000 });
+const menuUrl = `${baseUrl}${baseUrl.includes("?") ? "&" : "?"}menu=1`;
+await page.goto(menuUrl, { waitUntil: "networkidle", timeout: 60_000 });
 await page.locator("button").first().waitFor({ state: "attached", timeout: 30_000 });
 await page.screenshot({ path: `${outputDir}/title.png`, fullPage: true });
 const buttonLabels = (await page.locator("button").allTextContents()).map((text) => text.replace(/\s+/g, " ").trim()).filter(Boolean);
