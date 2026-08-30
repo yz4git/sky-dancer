@@ -170,8 +170,16 @@ test("wide-field combat source keeps enemies, guided threats and missile visuals
   assert.match(runtimeSource, /guidance = enemy\.boss/);
   assert.match(runtimeSource, /projectile\.guidance > 0/);
   assert.match(cameraSource, /playerX \* \(6\.35/);
-  assert.match(webglSource, /ConeGeometry\(0\.24, 2\.35, 8\)/);
-  assert.match(presentationSource, /width: enemy \? \.38 : \.25/);
+  assert.match(webglSource, /ConeGeometry\(0\.3, 2\.62, 8\)/);
+  assert.match(presentationSource, /width: enemy \? \.31 : \.25/);
+});
+
+test("enemy missiles curve during guidance then commit to a dodgeable terminal path", async () => {
+  const runtimeSource = await readFile(new URL("../src/sky/arcade/SkyDancerArcadeRuntime.ts", import.meta.url), "utf8");
+  assert.match(runtimeSource, /curvePhase = projectile\.id \* 1\.731/);
+  assert.match(runtimeSource, /projectile\.depth > 15/);
+  assert.match(runtimeSource, /projectile\.depth <= 15/);
+  assert.match(runtimeSource, /projectile\.guidance = 0/);
 });
 
 test("climax targets survive a real attack run", () => {

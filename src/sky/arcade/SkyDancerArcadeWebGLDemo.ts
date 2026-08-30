@@ -293,16 +293,24 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
       active.add(projectile.id);
       let mesh = this.projectileMeshes.get(projectile.id);
       if (!mesh) {
-        const color = projectile.owner === "enemy" ? 0xff5b32 : projectile.owner === "player-missile" ? 0x64e9ff : 0xc8f8ff;
+        const enemyMissile = projectile.owner === "enemy";
+        const color = enemyMissile ? 0xff8a2b : projectile.owner === "player-missile" ? 0x64e9ff : 0xc8f8ff;
         const geometry = projectile.owner === "player-missile"
           ? new THREE.ConeGeometry(0.16, 1.02, 7)
-          : projectile.owner === "enemy"
-            ? new THREE.ConeGeometry(0.24, 2.35, 8)
+          : enemyMissile
+            ? new THREE.ConeGeometry(0.3, 2.62, 8)
             : new THREE.CylinderGeometry(0.04, 0.072, 1.55, 5);
         geometry.rotateX(Math.PI / 2);
         mesh = new THREE.Mesh(
           geometry,
-          new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.94, blending: THREE.AdditiveBlending, depthWrite: false }),
+          new THREE.MeshBasicMaterial({
+            color,
+            transparent: !enemyMissile,
+            opacity: enemyMissile ? 1 : 0.94,
+            blending: enemyMissile ? THREE.NormalBlending : THREE.AdditiveBlending,
+            depthWrite: false,
+            toneMapped: false,
+          }),
         );
         if (projectile.owner === "enemy") mesh.renderOrder = 8;
         this.projectileMeshes.set(projectile.id, mesh);
@@ -312,7 +320,7 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
       const pulse = projectile.owner === "player-missile"
         ? 1.35 + Math.sin(performance.now() * 0.025 + projectile.id) * 0.15
         : projectile.owner === "enemy"
-          ? 1.18 + Math.sin(performance.now() * 0.018 + projectile.id) * 0.16
+          ? 1.14 + Math.sin(performance.now() * 0.018 + projectile.id) * 0.12
           : 1;
       mesh.scale.setScalar(pulse);
     }

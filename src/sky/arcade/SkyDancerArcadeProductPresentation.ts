@@ -118,7 +118,7 @@ function createRibbon(enemy: boolean): SmokeRibbon {
   geometry.setAttribute("uv", new THREE.BufferAttribute(uv, 2));
   geometry.setIndex(indices); geometry.setDrawRange(0, 0);
   const material = new THREE.ShaderMaterial({
-    uniforms: { tint: { value: new THREE.Color(enemy ? 0xff5b32 : 0xc8f7ff) }, opacity: { value: enemy ? .98 : .8 } },
+    uniforms: { tint: { value: new THREE.Color(enemy ? 0xff7a2e : 0xc8f7ff) }, opacity: { value: enemy ? .9 : .8 } },
     vertexShader: "varying vec2 vUv;void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}",
     fragmentShader: `varying vec2 vUv;uniform vec3 tint;uniform float opacity;
       void main(){float edge=pow(max(0.0,1.0-abs(vUv.x*2.0-1.0)),1.2);float tail=.18+.82*vUv.y;
@@ -127,7 +127,7 @@ function createRibbon(enemy: boolean): SmokeRibbon {
   });
   const mesh = new THREE.Mesh(geometry, material);
   mesh.name = "arcade-projectile-trail"; mesh.frustumCulled = false;
-  return { mesh, points: new Float32Array(samples * 3), positions, count: 0, width: enemy ? .38 : .25, retiredAge: null };
+  return { mesh, points: new Float32Array(samples * 3), positions, count: 0, width: enemy ? .31 : .25, retiredAge: null };
 }
 
 /** Actual missile history, camera-facing smoke and pooled bursts. No changes to hit authority. */
