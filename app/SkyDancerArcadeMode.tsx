@@ -371,7 +371,7 @@ export default function SkyDancerArcadeMode({ request, onReturnTitle }: SkyDance
         {snapshot.message && <div className={`${styles.message} ${productStyles.flightMessage}`}>{snapshot.message}</div>}
         {snapshot.chain > 1 && <div className={`${styles.chain} ${productStyles.chainReadout}`}>CHAIN <strong>×{snapshot.chain}</strong></div>}
         {incomingMissiles.length > 0 && (
-          <div className={`${styles.missileWarning} ${missileDanger ? styles.missileDanger : ""}`} aria-live="polite">
+          <div className={`${styles.missileWarning} ${snapshot.bossActive ? styles.missileWarningBoss : ""} ${missileDanger ? styles.missileDanger : ""}`} aria-live="polite">
             <span>MISSILE</span><strong>×{incomingMissiles.length}</strong><small>{missileDanger ? "BREAK NOW" : "INCOMING"}</small>
           </div>
         )}

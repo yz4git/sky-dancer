@@ -141,7 +141,7 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
     this.camera.position.set(0, 5.2, 15.8);
     this.camera.lookAt(0, .8, -34);
     this.player.position.set(0, 1.1, 2.8);
-    this.player.scale.setScalar(.9);
+    this.player.scale.setScalar(.86);
     this.cinematic = new SkyDancerArcadeCinematicRenderer(this.renderer);
 
     this.entityRoot.name = "arcade-enemies";
@@ -259,13 +259,33 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
         group.remove(existingRing);
         this.disposeObject(existingRing);
       }
-      const ring = group.getObjectByName("arcade-lock-ring");
-      if (ring) {
+      const aimDistance = Math.hypot(enemy.x - snapshot.playerX, enemy.y - snapshot.playerY);
+      const aimThreshold = enemy.boss ? 1.62 : enemy.kind === "bomber" ? .96 : .82;
+      const showAimCue = !enemy.locked && enemy.depth > 7 && enemy.depth < 68 && aimDistance < aimThreshold;
+      let aimRing = group.getObjectByName("arcade-aim-ring");
+      if (showAimCue && !aimRing) {
+        aimRing = createSkyDancerArcadeLockRing(0x78eeff);
+        aimRing.name = "arcade-aim-ring";
+        aimRing.traverse((object) => {
+          if (!(object instanceof THREE.Mesh)) return;
+          const material = object.material as THREE.MeshBasicMaterial;
+          material.opacity = .34;
+        });
+        group.add(aimRing);
+      } else if (!showAimCue && aimRing) {
+        group.remove(aimRing);
+        this.disposeObject(aimRing);
+        aimRing = undefined;
+      }
+      const lockRing = group.getObjectByName("arcade-lock-ring");
+      for (const ring of [lockRing, aimRing]) {
+        if (!ring) continue;
         ring.rotation.y = -group.rotation.y;
         ring.rotation.z = -group.rotation.z;
-        ring.scale.setScalar(enemy.boss ? 4.2 : enemy.kind === "bomber" ? 1.7 : 1.1);
         ring.rotation.x = this.camera.rotation.x;
       }
+      if (lockRing) lockRing.scale.setScalar(enemy.boss ? 4.2 : enemy.kind === "bomber" ? 1.7 : 1.1);
+      if (aimRing) aimRing.scale.setScalar(enemy.boss ? 3.7 : enemy.kind === "bomber" ? 1.5 : .92);
       if (enemy.boss) {
         const hpRatio = enemy.maxHp > 0 ? enemy.hp / enemy.maxHp : 0;
         const baseScale = typeof group.userData.arcadeBaseScale === "number" ? group.userData.arcadeBaseScale : 1;
@@ -460,8 +480,8 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
     const shakeY = Math.cos(snapshot.runTimeSeconds * 91) * this.cameraShake * .18;
     const targetX = pose.x + shakeX;
     const targetY = pose.y + shakeY;
-    this.camera.position.x += (targetX - this.camera.position.x) * Math.min(1, delta * 3.35);
-    this.camera.position.y += (targetY - this.camera.position.y) * Math.min(1, delta * 3.35);
+    this.camera.position.x += (targetX - this.camera.position.x) * Math.min(1, delta * 4.25);
+    this.camera.position.y += (targetY - this.camera.position.y) * Math.min(1, delta * 4.25);
     this.camera.position.z += (pose.z - this.camera.position.z) * Math.min(1, delta * 4.5);
     this.camera.fov += (pose.fov - this.camera.fov) * Math.min(1, delta * 4.5);
     this.camera.updateProjectionMatrix();

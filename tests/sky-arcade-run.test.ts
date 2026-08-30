@@ -169,10 +169,25 @@ test("wide-field combat source keeps enemies, guided threats and missile visuals
   assert.match(runtimeSource, /ENEMY_X_LIMIT = 2\.62/);
   assert.match(runtimeSource, /guidance = enemy\.boss/);
   assert.match(runtimeSource, /projectile\.guidance > 0/);
-  assert.match(cameraSource, /playerX \* \(4\.55 \+ phone \* 3\.15\)/);
+  assert.match(cameraSource, /playerX \* \(5\.15 \+ phone \* 2\.55\)/);
+  assert.match(runtimeSource, /MAX_ENEMY_PROJECTILES_NORMAL = 6/);
+  assert.match(runtimeSource, /threatBudget - activeThreats/);
+  assert.match(webglSource, /arcade-aim-ring/);
   assert.match(webglSource, /ConeGeometry\(0\.36, 1\.62, 8\)/);
   assert.match(presentationSource, /trailSamples: 18/);
   assert.match(presentationSource, /width: enemy \? \.19 : \.22/);
+});
+
+test("normal difficulty caps simultaneous enemy missile pressure", () => {
+  const runtime = new SkyDancerArcadeRuntime({ mode: "arcade-run", difficulty: "normal", seed: 31415 });
+  let maxThreats = 0;
+  for (let frame = 0; frame < 1500; frame += 1) {
+    runtime.step(1 / 60);
+    const snapshot = runtime.getSnapshot();
+    maxThreats = Math.max(maxThreats, snapshot.projectiles.filter((projectile) => projectile.owner === "enemy").length);
+    if (snapshot.status !== "running") break;
+  }
+  assert.ok(maxThreats <= 6, `normal threat budget ${maxThreats}`);
 });
 
 test("enemy missiles curve during guidance then commit to a dodgeable terminal path", async () => {
@@ -209,6 +224,7 @@ test("close fly-bys and route guidance stay readable", async () => {
   assert.match(webglSource, /PerspectiveCamera\(55, 1, 0\.04, 1200\)/);
   assert.match(css, /\.routeOverlay\{[^}]*top:max\(76px/);
   assert.match(css, /\.routeOption\{padding:1px 4px/);
+  assert.match(css, /\.missileWarningBoss\{top:max\(108px/);
 });
 
 test("title menu exposes all modes and keeps Turbo Hunt presentation isolated", async () => {

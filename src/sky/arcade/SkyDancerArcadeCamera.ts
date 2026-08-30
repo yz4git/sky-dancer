@@ -1,14 +1,14 @@
-/** Wide-field chase camera: preserve visible screen-space travel before the camera catches up. */
+/** Wide-field chase camera with an elastic landscape safety margin. */
 export function arcadeCameraPose(playerX: number, playerY: number, aspect: number, turbo: boolean) {
   const portraitPullback = Math.max(0, 1.3 - aspect) * 17;
   const phone = Math.max(0, Math.min(1, (1.3 - aspect) / .5));
   return {
-    // Landscape deliberately lags so the craft traverses the screen; portrait restores the proven safe framing.
-    x: playerX * (4.55 + phone * 3.15),
-    y: 5.2 + phone * 3 + playerY * (1.68 + phone * 1.04),
+    // Landscape still lets the craft cross the frame, while portrait keeps the proven safe framing.
+    x: playerX * (5.15 + phone * 2.55),
+    y: 5.2 + phone * 3 + playerY * (1.95 + phone * .77),
     z: 16.35 + portraitPullback + (turbo ? .8 : 0),
-    lookX: playerX * (2.95 + phone * 4.4),
-    lookY: .8 + playerY * (1.02 + phone * 1.26),
+    lookX: playerX * (3.45 + phone * 3.9),
+    lookY: .8 + playerY * (1.15 + phone * 1.13),
     lookZ: -34,
     fov: turbo ? 64 : 56,
     roll: Math.max(-.085, Math.min(.085, -playerX * .034)),

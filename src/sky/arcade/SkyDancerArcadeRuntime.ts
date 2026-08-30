@@ -174,6 +174,8 @@ const PLAYER_TURBO_SPEED_X = 4.45;
 const PLAYER_TURBO_SPEED_Y = 3.75;
 const PLAYER_MOVE_RESPONSE = 19.5;
 const ENEMY_FLYBY_CULL_DEPTH = -11.5;
+const MAX_ENEMY_PROJECTILES_NORMAL = 6;
+const MAX_ENEMY_PROJECTILES_HARD = 9;
 
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
@@ -701,7 +703,11 @@ export class SkyDancerArcadeRuntime {
         enemy.y = clamp(enemy.baseY + weaveY + this.playerY * pursuit * 0.82 + flankY, -ENEMY_Y_LIMIT, ENEMY_Y_LIMIT);
       }
       enemy.fireCooldown -= delta;
-      if (enemy.fireCooldown <= 0 && enemy.depth > 12 && enemy.depth < 72) this.enemyFire(enemy);
+      if (enemy.fireCooldown <= 0 && enemy.depth > 12 && enemy.depth < 72) {
+        // Route selection should stay tense without becoming an unreadable missile wall.
+        if (this.branchActive && !enemy.boss) enemy.fireCooldown = .48 + this.random() * .36;
+        else this.enemyFire(enemy);
+      }
       if (enemy.depth > 3.3) continue;
       const proximity = Math.hypot(enemy.x - this.playerX, enemy.y - this.playerY);
       if (proximity < (enemy.boss ? 0.76 : 0.36)) {
@@ -725,7 +731,14 @@ export class SkyDancerArcadeRuntime {
 
   private enemyFire(enemy: ArcadeEnemy): void {
     const hard = this.options.difficulty === "hard";
-    const spreadCount = enemy.boss ? (hard ? 5 : 4) : enemy.kind === "missile-boat" || enemy.kind === "bomber" ? 2 : enemy.kind === "ace" ? 2 : 1;
+    const threatBudget = hard ? MAX_ENEMY_PROJECTILES_HARD : MAX_ENEMY_PROJECTILES_NORMAL;
+    const activeThreats = this.projectiles.filter((projectile) => projectile.owner === "enemy" && projectile.life > 0).length;
+    const desiredSpread = enemy.boss ? (hard ? 4 : 3) : enemy.kind === "missile-boat" || enemy.kind === "bomber" ? 2 : enemy.kind === "ace" ? 2 : 1;
+    const spreadCount = Math.max(0, Math.min(desiredSpread, threatBudget - activeThreats));
+    if (spreadCount <= 0) {
+      enemy.fireCooldown = .38 + this.random() * .34;
+      return;
+    }
     for (let index = 0; index < spreadCount; index += 1) {
       const centered = index - (spreadCount - 1) * 0.5;
       const guidance = enemy.boss ? 1.34 : enemy.kind === "missile-boat" ? 1.52 : enemy.kind === "bomber" ? 1.26 : enemy.kind === "ace" ? 1.12 : 0.88;
@@ -745,7 +758,7 @@ export class SkyDancerArcadeRuntime {
         nearMissChecked: false,
       });
     }
-    const base = enemy.boss ? 1.22 : enemy.kind === "missile-boat" ? 1.58 : enemy.kind === "bomber" ? 1.82 : enemy.kind === "ace" ? 1.72 : 2.18;
+    const base = enemy.boss ? 1.38 : enemy.kind === "missile-boat" ? 1.68 : enemy.kind === "bomber" ? 1.9 : enemy.kind === "ace" ? 1.78 : 2.18;
     enemy.fireCooldown = base * (hard ? 0.8 : 1) * (0.84 + this.random() * 0.38);
   }
 
