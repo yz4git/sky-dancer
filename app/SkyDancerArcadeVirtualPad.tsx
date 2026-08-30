@@ -15,6 +15,7 @@ function dispatchKey(type: "keydown" | "keyup", key: "ArrowLeft" | "ArrowRight")
 export default function SkyDancerArcadeVirtualPad() {
   const pointerRef = useRef<number | null>(null);
   const directionRef = useRef<Direction>(0);
+  const [direction, setDirection] = useState<Direction>(0);
   const [active, setActive] = useState(false);
   const [knob, setKnob] = useState({ x: 0, y: 0 });
 
@@ -24,6 +25,7 @@ export default function SkyDancerArcadeVirtualPad() {
     if (previous < 0) dispatchKey("keyup", "ArrowLeft");
     if (previous > 0) dispatchKey("keyup", "ArrowRight");
     directionRef.current = next;
+    setDirection(next);
     if (next < 0) dispatchKey("keydown", "ArrowLeft");
     if (next > 0) dispatchKey("keydown", "ArrowRight");
   }, []);
@@ -89,8 +91,6 @@ export default function SkyDancerArcadeVirtualPad() {
     reset();
   };
 
-  const ariaValue = directionRef.current;
-
   return (
     <div className={styles.wrap} aria-label="Arcade steering control">
       <div
@@ -99,7 +99,7 @@ export default function SkyDancerArcadeVirtualPad() {
         aria-label="Arcade steering virtual pad"
         aria-valuemin={-1}
         aria-valuemax={1}
-        aria-valuenow={ariaValue}
+        aria-valuenow={direction}
         tabIndex={-1}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
