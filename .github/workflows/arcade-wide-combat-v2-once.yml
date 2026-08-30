@@ -1,0 +1,37 @@
+name: Apply Arcade Run wide combat V2 once
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.event.head_commit.message == 'Run Arcade Run wide combat V2 apply'
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.13.0
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: python3 scripts/apply-arcade-wide-combat-v2.py
+      - run: npm run test:rules
+      - run: npm run lint
+      - run: npm run build:pages
+      - name: Commit V2 tuning
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/arcade-wide-combat-v2-once.yml scripts/apply-arcade-wide-combat-v2.py
+          git add src/sky/arcade/SkyDancerArcadeRuntime.ts src/sky/arcade/SkyDancerArcadeCamera.ts src/sky/arcade/SkyDancerArcadeWebGLDemo.ts src/sky/arcade/SkyDancerArcadeProductPresentation.ts tests/sky-arcade-run.test.ts
+          git commit -m "Arcade Run readable curved missile combat V2"
+          git push origin main
