@@ -1,0 +1,57 @@
+name: Fix Arcade Run spire capacity once
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.event.head_commit.message == 'Fix Arcade Run spire capacity'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.13.0
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Fix instance capacity and regression contract
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          world = Path('src/sky/arcade/SkyDancerArcadeReferenceWorld.ts')
+          text = world.read_text()
+          old = 'const spires=new THREE.InstancedMesh(new THREE.CylinderGeometry(.14,.23,1,6),paint(0x697989),16);'
+          new = 'const spires=new THREE.InstancedMesh(new THREE.CylinderGeometry(.14,.23,1,6),paint(0x697989),48);'
+          if text.count(old) != 1:
+              raise SystemExit(f'world spire capacity match count: {text.count(old)}')
+          world.write_text(text.replace(old, new, 1))
+
+          test = Path('tests/sky-arcade-reference.test.ts')
+          text = test.read_text()
+          old = 'if (object instanceof THREE.InstancedMesh) assert.ok(object.count <= 150);'
+          new = 'if (object instanceof THREE.InstancedMesh) { assert.ok(object.count <= 150); assert.ok(object.count <= object.instanceMatrix.count, `${object.name} count ${object.count} exceeds capacity ${object.instanceMatrix.count}`); }'
+          if text.count(old) != 1:
+              raise SystemExit(f'instanced capacity assertion match count: {text.count(old)}')
+          test.write_text(text.replace(old, new, 1))
+          PY
+      - run: npm run test:rules
+      - run: npm run lint
+      - run: npm run build:pages
+      - name: Commit root fix
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/fix-arcade-spire-capacity-once.yml
+          git add src/sky/arcade/SkyDancerArcadeReferenceWorld.ts tests/sky-arcade-reference.test.ts
+          git commit -m "Fix Arcade Run spire instance overflow"
+          git push origin main
