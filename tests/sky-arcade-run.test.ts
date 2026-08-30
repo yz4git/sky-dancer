@@ -131,6 +131,43 @@ test("forced input release clears touch state without launching a lock salvo", (
   assert.equal(released.missileSerial, 0);
 });
 
+test("flight steering reaches evasive positions quickly", () => {
+  const runtime = new SkyDancerArcadeRuntime({ mode: "arcade-run", difficulty: "normal", seed: 61 });
+  runtime.setMove(1, 1);
+  for (let frame = 0; frame < 30; frame += 1) runtime.step(1 / 60);
+  const snapshot = runtime.getSnapshot();
+  assert.ok(snapshot.playerX > 0.6, `horizontal response ${snapshot.playerX}`);
+  assert.ok(snapshot.playerY > 0.55, `vertical response ${snapshot.playerY}`);
+});
+
+test("climax targets survive a real attack run", () => {
+  const first = new SkyDancerArcadeRuntime({ mode: "arcade-run", difficulty: "normal", seed: 62 });
+  for (let frame = 0; frame < 1200 && !first.getSnapshot().bossActive; frame += 1) first.step(1 / 60);
+  assert.ok(first.getSnapshot().bossMaxHp >= 550, `opening boss HP ${first.getSnapshot().bossMaxHp}`);
+
+  const final = new SkyDancerArcadeRuntime({
+    mode: "stage-practice",
+    difficulty: "normal",
+    startStageId: SKY_DANCER_ARCADE_FINAL_STAGE,
+    seed: 63,
+  });
+  for (let frame = 0; frame < 1200 && !final.getSnapshot().bossActive; frame += 1) final.step(1 / 60);
+  assert.ok(final.getSnapshot().bossMaxHp >= 1200, `final boss HP ${final.getSnapshot().bossMaxHp}`);
+});
+
+test("close fly-bys and route guidance stay readable", async () => {
+  const [runtimeSource, webglSource, css] = await Promise.all([
+    readFile(new URL("../src/sky/arcade/SkyDancerArcadeRuntime.ts", import.meta.url), "utf8"),
+    readFile(new URL("../src/sky/arcade/SkyDancerArcadeWebGLDemo.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/SkyDancerArcadeMode.module.css", import.meta.url), "utf8"),
+  ]);
+  assert.match(runtimeSource, /ENEMY_FLYBY_CULL_DEPTH = -11\.5/);
+  assert.match(runtimeSource, /enemy\.depth < ENEMY_FLYBY_CULL_DEPTH/);
+  assert.match(webglSource, /PerspectiveCamera\(55, 1, 0\.04, 1200\)/);
+  assert.match(css, /\.routeOverlay\{[^}]*top:max\(70px/);
+  assert.match(css, /\.routeOption\{padding:3px 6px/);
+});
+
 test("title menu exposes all modes and keeps Turbo Hunt presentation isolated", async () => {
   const [menu, phase, arcade, legacyGrade, legacyHud] = await Promise.all([
     readFile(new URL("../app/CartGameMenu.tsx", import.meta.url), "utf8"),

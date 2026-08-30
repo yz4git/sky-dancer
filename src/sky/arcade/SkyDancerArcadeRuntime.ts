@@ -165,6 +165,12 @@ const GUN_COOLDOWN = 0.105;
 const LOCK_INTERVAL = 0.13;
 const ARCADE_SECTION_RESULT_SECONDS = 0.55;
 const PRACTICE_RESULT_SECONDS = 2.8;
+const PLAYER_MOVE_SPEED_X = 1.55;
+const PLAYER_MOVE_SPEED_Y = 1.42;
+const PLAYER_TURBO_SPEED_X = 1.9;
+const PLAYER_TURBO_SPEED_Y = 1.72;
+const PLAYER_MOVE_RESPONSE = 11.8;
+const ENEMY_FLYBY_CULL_DEPTH = -11.5;
 
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
@@ -405,11 +411,10 @@ export class SkyDancerArcadeRuntime {
   }
 
   private updatePlayer(delta: number, turboActive: boolean): void {
-    const responsiveness = this.options.difficulty === "hard" ? 7.2 : 8.3;
-    const targetVX = this.input.x * (turboActive ? 1.34 : 1.12);
-    const targetVY = this.input.y * (turboActive ? 1.22 : 1.02);
-    this.playerVX = moveToward(this.playerVX, targetVX, responsiveness * delta);
-    this.playerVY = moveToward(this.playerVY, targetVY, responsiveness * delta);
+    const targetVX = this.input.x * (turboActive ? PLAYER_TURBO_SPEED_X : PLAYER_MOVE_SPEED_X);
+    const targetVY = this.input.y * (turboActive ? PLAYER_TURBO_SPEED_Y : PLAYER_MOVE_SPEED_Y);
+    this.playerVX = moveToward(this.playerVX, targetVX, PLAYER_MOVE_RESPONSE * delta);
+    this.playerVY = moveToward(this.playerVY, targetVY, PLAYER_MOVE_RESPONSE * delta);
     this.playerX = clamp(this.playerX + this.playerVX * delta, -PLAYER_X_LIMIT, PLAYER_X_LIMIT);
     this.playerY = clamp(this.playerY + this.playerVY * delta, -PLAYER_Y_LIMIT, PLAYER_Y_LIMIT);
     if (turboActive) this.turbo = Math.max(0, this.turbo - 29 * delta);
@@ -519,8 +524,9 @@ export class SkyDancerArcadeRuntime {
     if (this.bossSpawned) return;
     this.bossSpawned = true;
     const final = this.stage.id === SKY_DANCER_ARCADE_FINAL_STAGE;
-    const baseHp = final ? 620 : 205 + this.stage.act * 31;
-    const hp = Math.round(baseHp * (this.options.difficulty === "hard" ? 1.18 : 1));
+    // Climax targets must survive a full attack run instead of evaporating under one gun burst.
+    const baseHp = final ? 1280 : 440 + this.stage.act * 110;
+    const hp = Math.round(baseHp * (this.options.difficulty === "hard" ? 1.25 : 1));
     this.enemies.push({
       id: this.nextEntityId++,
       kind: "boss",
@@ -695,7 +701,8 @@ export class SkyDancerArcadeRuntime {
           enemy.alive = false;
         }
       }
-      if (!enemy.boss && enemy.depth < -5) {
+      // Keep fly-bys alive until they are close to the camera and naturally leave the frame.
+      if (!enemy.boss && enemy.depth < ENEMY_FLYBY_CULL_DEPTH) {
         enemy.alive = false;
         this.chain = 0;
       }

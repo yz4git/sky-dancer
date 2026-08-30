@@ -90,7 +90,7 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
   private readonly onRuntimeFailure: (message: string, error: unknown) => void;
   private readonly renderer: THREE.WebGLRenderer;
   private readonly scene = new THREE.Scene();
-  private readonly camera = new THREE.PerspectiveCamera(55, 1, 0.1, 1200);
+  private readonly camera = new THREE.PerspectiveCamera(55, 1, 0.04, 1200);
   private readonly cinematic: SkyDancerArcadeCinematicRenderer;
   private environmentMap: THREE.WebGLRenderTarget | null = null;
   private readonly environment: SkyDancerArcadeEnvironment;
