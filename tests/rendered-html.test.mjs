@@ -8,4 +8,6 @@ test("Pages artifact contains the playable Sky Dancer shell", async () => {
   assert.match(html, /<div id="root"><\/div>/i);
   assert.match(html, /<script type="module"[^>]+src="\.\/assets\//i);
   assert.match(html, /<link rel="stylesheet"[^>]+href="\.\/assets\//i);
+  assert.match(html, /maximum-scale=1/i);
+  assert.match(html, /user-scalable=no/i);
 });
