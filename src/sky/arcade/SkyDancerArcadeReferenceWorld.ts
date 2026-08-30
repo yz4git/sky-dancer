@@ -258,7 +258,7 @@ export class SkyDancerArcadeReferenceWorld {
     const towers=new THREE.InstancedMesh(new THREE.BoxGeometry(1,1,1),facade,count);
     towers.name="arcade-product-city-towers-"+index;
     const roofs=new THREE.InstancedMesh(new THREE.BoxGeometry(1,1,1),paint(0x53616d),count);
-    const spires=new THREE.InstancedMesh(new THREE.CylinderGeometry(.14,.23,1,6),paint(0x697989),16);
+    const spires=new THREE.InstancedMesh(new THREE.CylinderGeometry(.14,.23,1,6),paint(0x697989),48);
     let n=0;let a=0;
     for(const side of [-1,1])for(let row=0;row<4;row++)for(let lane=0;lane<6;lane++){
       const seed=index*229+n*11;

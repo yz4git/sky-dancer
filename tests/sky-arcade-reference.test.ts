@@ -91,7 +91,7 @@ test("all eleven environments have bounded geometry and continuous streaming own
     scene.traverse(object => {
       if (!(object instanceof THREE.Mesh)) return;
       draws++;
-      if (object instanceof THREE.InstancedMesh) assert.ok(object.count <= 150);
+      if (object instanceof THREE.InstancedMesh) { assert.ok(object.count <= 150); assert.ok(object.count <= object.instanceMatrix.count, `${object.name} count ${object.count} exceeds capacity ${object.instanceMatrix.count}`); }
     });
     assert.ok(draws < 160, `${stage.biome} draw calls: ${draws}`);
     world.update(10, 0, 0); const before = chunks[0].position.z;
