@@ -91,14 +91,14 @@ export default function SkyDancerHudV54() {
   return <>
     <style>{`
       .skyDancerV54Active .skyDancerV49Mission { display:none !important; }
-      .skyDancerV54Active .skyDancerStageV40 { opacity:.14 !important; }
-      .skyDancerV54Boss .skyDancerStageV40 { opacity:.28 !important; }
-      .skyDancerV54Rail {
+      .skyDancerV54Active .skyDancerStageV40 { opacity:.08 !important; }
+      .skyDancerV54Boss .skyDancerStageV40 { opacity:.22 !important; }
+      .skyDancerV54Active .skyDancerV54Rail {
         position:fixed;
         z-index:154;
         left:max(12px, env(safe-area-inset-left));
         top:max(82px, calc(env(safe-area-inset-top) + 72px));
-        width:min(31vw,238px);
+        width:min(28vw,220px);
         pointer-events:none;
         color:rgba(238,250,255,.94);
         font-family:system-ui,sans-serif;
@@ -107,8 +107,8 @@ export default function SkyDancerHudV54() {
       .skyDancerV54Rail::before {
         content:"";
         position:absolute;
-        inset:-7px -10px -8px -12px;
-        background:linear-gradient(100deg,rgba(3,19,31,.58),rgba(3,19,31,.20) 72%,transparent);
+        inset:-6px -8px -7px -12px;
+        background:linear-gradient(100deg,rgba(3,19,31,.50),rgba(3,19,31,.12) 76%,transparent);
         clip-path:polygon(0 0,94% 0,100% 18%,92% 100%,0 100%);
         border-left:2px solid rgba(110,232,255,.65);
         z-index:-1;
@@ -118,7 +118,7 @@ export default function SkyDancerHudV54() {
         align-items:center;
         justify-content:space-between;
         gap:8px;
-        color:rgba(174,234,247,.68);
+        color:rgba(174,234,247,.72);
         font:850 6.5px/1 system-ui,sans-serif;
         letter-spacing:.12em;
         white-space:nowrap;
@@ -128,7 +128,7 @@ export default function SkyDancerHudV54() {
         overflow:hidden;
         text-overflow:ellipsis;
         white-space:nowrap;
-        font:950 clamp(10px,1.18vw,13px)/1 system-ui,sans-serif;
+        font:950 clamp(10px,1.12vw,13px)/1 system-ui,sans-serif;
         letter-spacing:.055em;
       }
       .skyDancerV54Directive {
@@ -136,8 +136,8 @@ export default function SkyDancerHudV54() {
         overflow:hidden;
         text-overflow:ellipsis;
         white-space:nowrap;
-        color:rgba(222,246,252,.65);
-        font:760 clamp(6px,.72vw,8px)/1 system-ui,sans-serif;
+        color:rgba(222,246,252,.62);
+        font:760 clamp(6px,.70vw,8px)/1 system-ui,sans-serif;
         letter-spacing:.065em;
       }
       .skyDancerV54Flow {
@@ -182,10 +182,10 @@ export default function SkyDancerHudV54() {
         z-index:138;
         inset:0;
         pointer-events:none;
-        box-shadow:inset 0 0 72px rgba(0,15,31,.13);
+        box-shadow:inset 0 0 60px rgba(0,15,31,.10);
       }
       .skyDancerV54FlowHigh .skyDancerV54Frame {
-        box-shadow:inset 0 0 82px rgba(58,214,224,.12),inset 0 -12px 42px rgba(0,18,34,.12);
+        box-shadow:inset 0 0 74px rgba(58,214,224,.10),inset 0 -10px 34px rgba(0,18,34,.10);
       }
       .skyDancerV54Cinematic {
         position:fixed;
@@ -235,7 +235,7 @@ export default function SkyDancerHudV54() {
         100% { opacity:0; transform:translate(-50%,-56%) scale(1.015); filter:blur(2px); }
       }
       @media(max-height:390px) {
-        .skyDancerV54Rail { top:80px; width:min(29vw,220px); }
+        .skyDancerV54Active .skyDancerV54Rail { top:80px; width:min(27vw,204px); }
         .skyDancerV54Directive { display:none; }
         .skyDancerV54Flow { margin-top:4px; }
         .skyDancerV54Cinematic { top:35%; }
