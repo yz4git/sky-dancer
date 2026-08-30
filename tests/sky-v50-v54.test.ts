@@ -33,11 +33,12 @@ test("V52 adds peripheral speed, hit shock and perfect-evade feedback as present
   const source = read("../src/sky/presentation/SkyDancerV52CombatFxSpeedPass.ts");
   assert.match(source, /sky-dancer-v52-peripheral-speed-field/);
   assert.match(source, /for \(let index = 0; index < 28; index \+= 1\)/);
+  assert.match(source, /const x = side \* \(2\.8 \+ \(lane % 5\) \* 0\.82\)/);
   assert.match(source, /sky-dancer-v52-hit-shock-ring/);
   assert.match(source, /sky-dancer-v52-perfect-evade-ring/);
   assert.match(source, /getSkyDancerPlayerWeaponState/);
   assert.match(source, /getLatestSkyDancerCampaignSnapshotV49/);
-  assert.match(source, /intensity \* \(snapshot\.boostActive \? 0\.40 : 0\.24\)/);
+  assert.match(source, /intensity \* \(snapshot\.boostActive \? 0\.40 : 0\.20\)/);
   assert.doesNotMatch(source, /enemy\.hp\s*=|damage\s*=|forwardVelocity\s*=/);
 });
 
