@@ -1,4 +1,6 @@
-/** Shared camera framing: visible hero airframe at both stick extremes and on phones. */
+/** Shared camera framing: visible hero airframe at both stick extremes and on phones.
+ * 2026-08-31 readability pass: close fly-bys are retained by runtime/WebGL near-plane tuning.
+ */
 export function arcadeCameraPose(playerX: number, playerY: number, aspect: number, turbo: boolean) {
   const portraitPullback = Math.max(0, 1.3 - aspect) * 17;
   const phone = Math.max(0, Math.min(1, (1.3 - aspect) / .5));
