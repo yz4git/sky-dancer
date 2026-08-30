@@ -112,7 +112,7 @@ test("city renderer contains a river, instanced windows, cloud layers and horizo
   let facades = 0, rivers = 0;
   scene.traverse(object => {
     if (!(object instanceof THREE.Mesh) || Array.isArray(object.material)) return;
-    if (object.material.customProgramCacheKey() === "arcade-city-facade-reference-v1") facades++;
+    if (object.material.customProgramCacheKey() === "arcade-city-facade-reference-v2") facades++;
     if (object.material instanceof THREE.ShaderMaterial && object.material.uniforms.time) rivers++;
   });
   assert.equal(facades, 8); assert.equal(rivers, 8); world.dispose();
