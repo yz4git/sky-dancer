@@ -169,9 +169,10 @@ test("wide-field combat source keeps enemies, guided threats and missile visuals
   assert.match(runtimeSource, /ENEMY_X_LIMIT = 2\.62/);
   assert.match(runtimeSource, /guidance = enemy\.boss/);
   assert.match(runtimeSource, /projectile\.guidance > 0/);
-  assert.match(cameraSource, /playerX \* \(6\.35/);
-  assert.match(webglSource, /ConeGeometry\(0\.3, 2\.62, 8\)/);
-  assert.match(presentationSource, /width: enemy \? \.31 : \.25/);
+  assert.match(cameraSource, /playerX \* \(4\.55 \+ phone \* 3\.15\)/);
+  assert.match(webglSource, /ConeGeometry\(0\.36, 1\.62, 8\)/);
+  assert.match(presentationSource, /trailSamples: 18/);
+  assert.match(presentationSource, /width: enemy \? \.19 : \.22/);
 });
 
 test("enemy missiles curve during guidance then commit to a dodgeable terminal path", async () => {
@@ -207,7 +208,7 @@ test("close fly-bys and route guidance stay readable", async () => {
   assert.match(runtimeSource, /enemy\.depth < ENEMY_FLYBY_CULL_DEPTH/);
   assert.match(webglSource, /PerspectiveCamera\(55, 1, 0\.04, 1200\)/);
   assert.match(css, /\.routeOverlay\{[^}]*top:max\(76px/);
-  assert.match(css, /\.routeOption\{padding:2px 5px/);
+  assert.match(css, /\.routeOption\{padding:1px 4px/);
 });
 
 test("title menu exposes all modes and keeps Turbo Hunt presentation isolated", async () => {

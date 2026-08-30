@@ -64,14 +64,14 @@ await captureCanvas(`${outputDir}/00-opening-canvas.png`);
 
 await page.keyboard.down("ArrowRight");
 await page.keyboard.down("ArrowUp");
-await page.waitForTimeout(1200);
+await page.waitForTimeout(1500);
 await page.screenshot({ path: `${outputDir}/01-wide-right-top.png`, fullPage: true });
 await page.keyboard.up("ArrowRight");
 await page.keyboard.up("ArrowUp");
 
 await page.keyboard.down("ArrowLeft");
 await page.keyboard.down("ArrowDown");
-await page.waitForTimeout(1450);
+await page.waitForTimeout(2200);
 await page.screenshot({ path: `${outputDir}/01b-wide-left-bottom.png`, fullPage: true });
 await page.keyboard.up("ArrowLeft");
 await page.keyboard.up("ArrowDown");
@@ -85,8 +85,14 @@ await page.screenshot({ path: `${outputDir}/02-combat.png`, fullPage: true });
 await captureCanvas(`${outputDir}/02-combat-canvas.png`);
 await page.keyboard.up("x");
 await page.keyboard.up("c");
-await page.waitForTimeout(2300);
+await page.waitForTimeout(1500);
+await page.screenshot({ path: `${outputDir}/02a-missile-approach.png`, fullPage: true });
+await page.keyboard.down("ArrowRight");
+await page.keyboard.down("ArrowUp");
+await page.waitForTimeout(650);
 await page.screenshot({ path: `${outputDir}/02b-enemy-missile-evasion.png`, fullPage: true });
+await page.keyboard.up("ArrowRight");
+await page.keyboard.up("ArrowUp");
 
 await page.keyboard.down(" ");
 await page.waitForTimeout(900);

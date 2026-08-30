@@ -445,7 +445,7 @@ export class SkyDancerArcadeRuntime {
       this.branchSelection = this.stage.next[index] ?? this.stage.next[0] ?? null;
       if (this.message !== "SELECT ROUTE") {
         this.message = "SELECT ROUTE";
-        this.messageTimer = end - this.stageTime;
+        this.messageTimer = Math.min(1.05, end - this.stageTime);
       }
       return;
     }
@@ -686,16 +686,19 @@ export class SkyDancerArcadeRuntime {
       if (enemy.boss) {
         enemy.depth = moveToward(enemy.depth, 33, delta * 18);
         const frequency = this.options.difficulty === "hard" ? 0.82 : 0.68;
-        enemy.x = clamp(this.playerX * 0.5 + Math.sin(enemy.age * frequency) * enemy.amplitude, -ENEMY_X_LIMIT, ENEMY_X_LIMIT);
-        enemy.y = clamp(this.playerY * 0.4 + enemy.baseY + Math.sin(enemy.age * 0.92 + 1.3) * 0.74, -ENEMY_Y_LIMIT, ENEMY_Y_LIMIT);
+        enemy.x = clamp(this.playerX * 0.58 + Math.sin(enemy.age * frequency) * enemy.amplitude, -ENEMY_X_LIMIT, ENEMY_X_LIMIT);
+        enemy.y = clamp(this.playerY * 0.5 + enemy.baseY + Math.sin(enemy.age * 0.92 + 1.3) * 0.82, -ENEMY_Y_LIMIT, ENEMY_Y_LIMIT);
       } else {
         enemy.depth -= enemy.speed * delta;
         const frequency = enemy.kind === "interceptor" ? 2.35 : enemy.kind === "ace" ? 1.75 : 1.02;
-        const pursuit = clamp((62 - enemy.depth) / 62, 0.1, enemy.kind === "ace" ? 0.72 : enemy.kind === "interceptor" ? 0.62 : 0.46);
+        const pursuit = clamp((62 - enemy.depth) / 62, 0.12, enemy.kind === "ace" ? 0.84 : enemy.kind === "interceptor" ? 0.74 : 0.54);
+        const close = clamp((68 - enemy.depth) / 54, 0, 1);
         const weaveX = Math.sin(enemy.age * frequency + enemy.phase) * enemy.amplitude;
-        const weaveY = Math.cos(enemy.age * frequency * 0.72 + enemy.phase) * enemy.amplitude * 0.72;
-        enemy.x = clamp(enemy.baseX + weaveX + this.playerX * pursuit, -ENEMY_X_LIMIT, ENEMY_X_LIMIT);
-        enemy.y = clamp(enemy.baseY + weaveY + this.playerY * pursuit * 0.72, -ENEMY_Y_LIMIT, ENEMY_Y_LIMIT);
+        const weaveY = Math.cos(enemy.age * frequency * 0.72 + enemy.phase) * enemy.amplitude * 0.82;
+        const flankX = Math.sin(enemy.phase * 1.91) * close * 0.42;
+        const flankY = Math.cos(enemy.phase * 1.37) * close * 0.28;
+        enemy.x = clamp(enemy.baseX + weaveX + this.playerX * pursuit + flankX, -ENEMY_X_LIMIT, ENEMY_X_LIMIT);
+        enemy.y = clamp(enemy.baseY + weaveY + this.playerY * pursuit * 0.82 + flankY, -ENEMY_Y_LIMIT, ENEMY_Y_LIMIT);
       }
       enemy.fireCooldown -= delta;
       if (enemy.fireCooldown <= 0 && enemy.depth > 12 && enemy.depth < 72) this.enemyFire(enemy);
@@ -786,10 +789,10 @@ export class SkyDancerArcadeRuntime {
       if (projectile.owner === "enemy") {
         if (projectile.depth > 2.2) continue;
         const distance = Math.hypot(projectile.x - this.playerX, projectile.y - this.playerY);
-        if (distance < 0.28) {
+        if (distance < 0.26) {
           projectile.life = 0;
           this.takeDamage(projectile.damage);
-        } else if (!projectile.nearMissChecked && distance < 0.7) {
+        } else if (!projectile.nearMissChecked && distance < 0.82) {
           projectile.nearMissChecked = true;
           this.nearMisses += 1;
           this.addScore(420, true);

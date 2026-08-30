@@ -141,6 +141,7 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
     this.camera.position.set(0, 5.2, 15.8);
     this.camera.lookAt(0, .8, -34);
     this.player.position.set(0, 1.1, 2.8);
+    this.player.scale.setScalar(.9);
     this.cinematic = new SkyDancerArcadeCinematicRenderer(this.renderer);
 
     this.entityRoot.name = "arcade-enemies";
@@ -298,7 +299,7 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
         const geometry = projectile.owner === "player-missile"
           ? new THREE.ConeGeometry(0.16, 1.02, 7)
           : enemyMissile
-            ? new THREE.ConeGeometry(0.3, 2.62, 8)
+            ? new THREE.ConeGeometry(0.36, 1.62, 8)
             : new THREE.CylinderGeometry(0.04, 0.072, 1.55, 5);
         geometry.rotateX(Math.PI / 2);
         mesh = new THREE.Mesh(
@@ -320,7 +321,7 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
       const pulse = projectile.owner === "player-missile"
         ? 1.35 + Math.sin(performance.now() * 0.025 + projectile.id) * 0.15
         : projectile.owner === "enemy"
-          ? 1.14 + Math.sin(performance.now() * 0.018 + projectile.id) * 0.12
+          ? 1.1 + Math.sin(performance.now() * 0.018 + projectile.id) * 0.08
           : 1;
       mesh.scale.setScalar(pulse);
     }
@@ -447,6 +448,9 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
     if (snapshot.hitSerial !== this.previousSnapshot.hitSerial) this.audio.tone(90, 0.08, 0.035, "triangle");
     if (snapshot.damageSerial !== this.previousSnapshot.damageSerial) this.audio.tone(54, 0.22, 0.06, "sawtooth");
     if (snapshot.resultSerial !== this.previousSnapshot.resultSerial) this.audio.tone(660, 0.32, 0.045, "triangle");
+    const incoming = snapshot.projectiles.some((projectile) => projectile.owner === "enemy" && projectile.depth > 2.2 && projectile.depth < 30);
+    const wasIncoming = this.previousSnapshot.projectiles.some((projectile) => projectile.owner === "enemy" && projectile.depth > 2.2 && projectile.depth < 30);
+    if (incoming && !wasIncoming) this.audio.tone(880, 0.12, 0.026, "square");
   }
 
   private updateCamera(snapshot: SkyDancerArcadeSnapshot, delta: number): void {
@@ -456,10 +460,10 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
     const shakeY = Math.cos(snapshot.runTimeSeconds * 91) * this.cameraShake * .18;
     const targetX = pose.x + shakeX;
     const targetY = pose.y + shakeY;
-    this.camera.position.x += (targetX - this.camera.position.x) * Math.min(1, delta * 6.5);
-    this.camera.position.y += (targetY - this.camera.position.y) * Math.min(1, delta * 6.5);
-    this.camera.position.z += (pose.z - this.camera.position.z) * Math.min(1, delta * 5);
-    this.camera.fov += (pose.fov - this.camera.fov) * Math.min(1, delta * 5);
+    this.camera.position.x += (targetX - this.camera.position.x) * Math.min(1, delta * 3.35);
+    this.camera.position.y += (targetY - this.camera.position.y) * Math.min(1, delta * 3.35);
+    this.camera.position.z += (pose.z - this.camera.position.z) * Math.min(1, delta * 4.5);
+    this.camera.fov += (pose.fov - this.camera.fov) * Math.min(1, delta * 4.5);
     this.camera.updateProjectionMatrix();
     this.camera.lookAt(pose.lookX, pose.lookY, pose.lookZ);
     this.camera.rotateZ(pose.roll);

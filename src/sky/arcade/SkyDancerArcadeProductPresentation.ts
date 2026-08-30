@@ -1,9 +1,9 @@
 import * as THREE from "three";
 import type { SkyDancerArcadeSnapshot } from "./SkyDancerArcadeRuntime";
 
-export const ARCADE_EFFECT_BUDGET = { trails: 48, trailSamples: 32, sparks: 160, smoke: 56 } as const;
+export const ARCADE_EFFECT_BUDGET = { trails: 48, trailSamples: 18, sparks: 160, smoke: 56 } as const;
 const SPEED_STREAK_COUNT = 40;
-const RETIRE_SECONDS = .65;
+const RETIRE_SECONDS = .32;
 const fract = (n: number) => n - Math.floor(n);
 const noise = (n: number) => fract(Math.sin(n * 78.233 + 17.1) * 43758.5453);
 
@@ -118,16 +118,16 @@ function createRibbon(enemy: boolean): SmokeRibbon {
   geometry.setAttribute("uv", new THREE.BufferAttribute(uv, 2));
   geometry.setIndex(indices); geometry.setDrawRange(0, 0);
   const material = new THREE.ShaderMaterial({
-    uniforms: { tint: { value: new THREE.Color(enemy ? 0xff7a2e : 0xc8f7ff) }, opacity: { value: enemy ? .9 : .8 } },
+    uniforms: { tint: { value: new THREE.Color(enemy ? 0xff7a2e : 0xc8f7ff) }, opacity: { value: enemy ? .62 : .76 } },
     vertexShader: "varying vec2 vUv;void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}",
     fragmentShader: `varying vec2 vUv;uniform vec3 tint;uniform float opacity;
-      void main(){float edge=pow(max(0.0,1.0-abs(vUv.x*2.0-1.0)),1.2);float tail=.18+.82*vUv.y;
-      gl_FragColor=vec4(tint*(.7+.4*edge),edge*tail*opacity);}`,
+      void main(){float edge=pow(max(0.0,1.0-abs(vUv.x*2.0-1.0)),1.35);float tail=pow(clamp(vUv.y,0.0,1.0),2.25);
+      gl_FragColor=vec4(tint*(.72+.38*edge),edge*tail*opacity);}`,
     transparent: true, depthWrite: false, side: THREE.DoubleSide,
   });
   const mesh = new THREE.Mesh(geometry, material);
   mesh.name = "arcade-projectile-trail"; mesh.frustumCulled = false;
-  return { mesh, points: new Float32Array(samples * 3), positions, count: 0, width: enemy ? .31 : .25, retiredAge: null };
+  return { mesh, points: new Float32Array(samples * 3), positions, count: 0, width: enemy ? .19 : .22, retiredAge: null };
 }
 
 /** Actual missile history, camera-facing smoke and pooled bursts. No changes to hit authority. */
@@ -218,7 +218,7 @@ export class SkyDancerArcadeProductPresentation {
       if (trail.retiredAge >= RETIRE_SECONDS) {
         this.disposeTrail(trail); this.retiredTrails.splice(i, 1); continue;
       }
-      trail.mesh.material.uniforms.opacity.value = .8 * (1 - trail.retiredAge / RETIRE_SECONDS);
+      trail.mesh.material.uniforms.opacity.value = .48 * (1 - trail.retiredAge / RETIRE_SECONDS);
       for (let j = 0; j < trail.count; j++) trail.points[j * 3 + 2] += delta * 4;
       this.updateRibbon(trail);
     }

@@ -334,6 +334,10 @@ export default function SkyDancerArcadeMode({ request, onReturnTitle }: SkyDance
     : Math.min(1, snapshot.runTimeSeconds / snapshot.runDurationSeconds);
   const hpPercent = Math.max(0, Math.round(snapshot.playerHp / snapshot.playerMaxHp * 100));
   const bossPercent = snapshot.bossMaxHp > 0 ? Math.round(snapshot.bossHp / snapshot.bossMaxHp * 100) : 0;
+  const incomingMissiles = snapshot.projectiles.filter((projectile) => projectile.owner === "enemy"
+    && projectile.depth > 2.2 && projectile.depth < 34
+    && Math.hypot(projectile.x - snapshot.playerX, projectile.y - snapshot.playerY) < 1.9);
+  const missileDanger = incomingMissiles.some((projectile) => projectile.depth < 17);
   const controlsVisible = snapshot.status === "running";
   const finalOverlay = snapshot.status === "run-clear" || snapshot.status === "practice-clear" || snapshot.status === "game-over";
 
@@ -366,6 +370,11 @@ export default function SkyDancerArcadeMode({ request, onReturnTitle }: SkyDance
 
         {snapshot.message && <div className={`${styles.message} ${productStyles.flightMessage}`}>{snapshot.message}</div>}
         {snapshot.chain > 1 && <div className={`${styles.chain} ${productStyles.chainReadout}`}>CHAIN <strong>×{snapshot.chain}</strong></div>}
+        {incomingMissiles.length > 0 && (
+          <div className={`${styles.missileWarning} ${missileDanger ? styles.missileDanger : ""}`} aria-live="polite">
+            <span>MISSILE</span><strong>×{incomingMissiles.length}</strong><small>{missileDanger ? "BREAK NOW" : "INCOMING"}</small>
+          </div>
+        )}
 
         {snapshot.bossActive && (
           <div className={styles.bossHud} aria-label="Climax target">
