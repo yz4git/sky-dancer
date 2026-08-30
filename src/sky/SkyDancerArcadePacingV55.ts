@@ -119,11 +119,9 @@ function moveTowardLane(
   return true;
 }
 
-function capThreatDurability(enemy: CartEnemyState, stage: number, cleanup: boolean): boolean {
+function capCleanupDurability(enemy: CartEnemyState): boolean {
   const tankLike = enemy.archetype === "tank" || enemy.kind === "heavy";
-  const target = cleanup
-    ? (tankLike ? 42 : 28)
-    : (tankLike ? 72 + stage * 4 : 38 + stage * 3);
+  const target = tankLike ? 42 : 28;
   if (enemy.maxHp <= target) return false;
   const ratio = clamp(enemy.hp / Math.max(1, enemy.maxHp), 0, 1);
   enemy.maxHp = target;
@@ -171,21 +169,13 @@ export function installSkyDancerArcadePacingV55(): void {
     let durabilityCaps = 0;
     const cleanup = stageCycle.phase === "cleanup";
 
-    if (stageCycle.phase === "reinforcements") {
+    // V55 deliberately owns CLEANUP only. Normal WAVE flight is left entirely
+    // to the proven V40/V41/V44 choreography. Writing enemy positions here
+    // after V41 had returned was able to bypass its natural-motion separation
+    // envelope on the next fixed step and create near-camera passes.
+    if (cleanup) {
       for (const enemy of targets) {
-        if (capThreatDurability(enemy, stageCycle.stage, false)) durabilityCaps += 1;
-      }
-
-      // Do not constantly camera-track enemies. Only intervene when the player
-      // has genuinely had no lockable target for a short grace period.
-      if (state.noLockElapsed >= SKY_DANCER_V55_NO_TARGET_GRACE && targets.length > 0) {
-        const lead = targets[0];
-        const destination = attackLane(this, stageCycle.stage + Math.round(state.phaseElapsed), 34, 5.5);
-        if (moveTowardLane(this, lead, destination, 1.65)) laneCorrections += 1;
-      }
-    } else if (cleanup) {
-      for (const enemy of targets) {
-        if (capThreatDurability(enemy, stageCycle.stage, true)) durabilityCaps += 1;
+        if (capCleanupDurability(enemy)) durabilityCaps += 1;
       }
 
       // The old CLEANUP could leave one aircraft circling off-axis for a full
