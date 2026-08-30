@@ -97,4 +97,5 @@ await browser.close();
 
 if (!diagnostics.arcadeHud) throw new Error(`Arcade Run HUD was not found: ${JSON.stringify(diagnostics)}`);
 if (!renderState.webgl || renderState.cssWidth < 800 || renderState.cssHeight < 360) throw new Error(`Arcade Run WebGL surface is invalid: ${JSON.stringify(renderState)}`);
+if (consoleErrors.length) throw new Error(`Arcade Run console errors: ${consoleErrors.join(" | ")}`);
 if (pageErrors.length) throw new Error(`Arcade Run page errors: ${pageErrors.join(" | ")}`);
