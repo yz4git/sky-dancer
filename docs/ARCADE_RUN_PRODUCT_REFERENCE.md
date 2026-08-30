@@ -30,15 +30,26 @@ capture loss, pause, window blur, page hiding and orientation changes release
 controls. Arcade Run and Stage Practice are isolated from the existing Turbo
 Hunt renderer and overlays; the title keeps both game modes available.
 
-Continuation verification: 163 rules tests and six PWA/startup tests passed;
-the arcade TypeScript check passed; lint reported no errors (nine pre-existing
-warnings outside this change). The agent preview reached the title and showed
-the mode selector. Its initial load consumed the short browser-check budget,
-so live WebGL gameplay, touch release on an iPhone, and visual parity with the
-concept image are **not yet verified**. Geometry and input-unit tests do not
-substitute for those checks.
+## Completed visual verification — 2026-08-31
+
+The V2 reference-quality pass was verified with an automated 844 x 390 iPhone-
+landscape WebGL play sequence. The audit enters Arcade Run from the real title
+screen, captures opening flight, banked climb, combat/lock activity and Turbo,
+and rejects missing WebGL, undersized render surfaces, browser console errors
+or page errors.
+
+The final audit completed successfully with a 1350 x 624 WebGL backing surface,
+no console errors and no page errors. CI tests, lint and production artifact
+verification also passed, and the same revision deployed successfully to GitHub
+Pages.
+
+A visual audit exposed an InstancedMesh capacity overflow introduced while
+adding taller hero-building spires. The spire pool now has bounded capacity for
+the authored instances, and the regression suite asserts that every rendered
+InstancedMesh count remains inside its instance-matrix capacity. The resulting
+Dawn City capture has the intended full-width skyline, river corridor, golden-
+hour depth, readable cyan/white fighter, enemy layers, route guidance and Turbo
+presentation without the previous giant undefined-geometry obstruction.
 
 Keep this implementation in the GitHub source as well as the existing Site.
-The previous Site source had restored the Arcade Run files after a main-source
-sync omitted them; a later sync must not remove this mode again. Keep unrelated
-open review branches separate from this checkpoint.
+A later source sync must not remove Arcade Run or its WebGL reference audit.
