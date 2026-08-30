@@ -17,11 +17,23 @@ page.on("console", (message) => { if (message.type() === "error") consoleErrors.
 page.on("pageerror", (error) => pageErrors.push(String(error)));
 
 await page.goto(baseUrl, { waitUntil: "networkidle", timeout: 60_000 });
-const arcadeMode = page.getByRole("button", { name: /ARCADE RUN/i }).first();
-if (await arcadeMode.isVisible().catch(() => false)) await arcadeMode.click();
-const start = page.getByRole("button", { name: /START ARCADE RUN/i });
-await start.waitFor({ state: "visible", timeout: 15_000 });
-await start.click();
+await page.locator("button").first().waitFor({ state: "attached", timeout: 30_000 });
+await page.screenshot({ path: `${outputDir}/title.png`, fullPage: true });
+const buttonLabels = (await page.locator("button").allTextContents()).map((text) => text.replace(/\s+/g, " ").trim()).filter(Boolean);
+console.log("Title buttons:", buttonLabels);
+
+// Arcade Run is the title-screen default. Select it explicitly when the mode card is present,
+// then start through the first rendered START action instead of coupling the audit to exact copy.
+const arcadeMode = page.locator("button").filter({ hasText: /^\s*ARCADE RUN/i }).first();
+if (await arcadeMode.count()) await arcadeMode.click({ force: true });
+await page.waitForTimeout(100);
+const start = page.locator("button").filter({ hasText: /START/i }).last();
+if (!(await start.count())) {
+  await writeFile(`${outputDir}/startup-diagnostics.json`, JSON.stringify({ buttonLabels, body: await page.locator("body").innerText(), consoleErrors, pageErrors }, null, 2));
+  throw new Error(`No START action on title screen: ${JSON.stringify(buttonLabels)}`);
+}
+await start.scrollIntoViewIfNeeded();
+await start.click({ force: true });
 
 const canvas = page.locator('canvas[aria-label="Sky Dancer Arcade Run WebGL game view"]');
 await canvas.waitFor({ state: "visible", timeout: 30_000 });
@@ -52,14 +64,9 @@ await page.keyboard.up(" ");
 await page.waitForTimeout(450);
 
 const bodyText = await page.locator("body").innerText();
-const renderer = await page.evaluate(() => {
-  const canvas = document.querySelector('canvas[aria-label="Sky Dancer Arcade Run WebGL game view"]');
-  const gl = canvas instanceof HTMLCanvasElement ? (canvas.getContext("webgl2") || canvas.getContext("webgl")) : null;
-  return gl ? String(gl.getParameter(gl.RENDERER)) : null;
-});
 const diagnostics = {
   arcadeHud: /STAGE|DAWN CITY|CITY/i.test(bodyText),
-  renderer,
+  buttonLabels,
   consoleErrors,
   pageErrors,
 };
