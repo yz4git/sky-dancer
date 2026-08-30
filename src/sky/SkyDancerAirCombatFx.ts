@@ -1,6 +1,7 @@
 import type { CartArenaSessionSnapshot } from "../cart/CartArenaSession";
 import { SkyDancerAirCombatFxV29 } from "./SkyDancerAirCombatFxV29";
 import type { SkyDancerFxRuntime } from "./SkyDancerAirCombatFxV2";
+import { installSkyDancerArcadePacingV55 } from "./SkyDancerArcadePacingV55";
 import { installSkyDancerAttackRunsV44 } from "./SkyDancerAttackRunsV44";
 import { installSkyDancerBossAttackRunV45 } from "./SkyDancerBossAttackRunV45";
 import { installSkyDancerBossCombatV34 } from "./SkyDancerBossCombatV34";
@@ -39,8 +40,10 @@ import { SkyDancerPresentationPipeline } from "./presentation/SkyDancerPresentat
  * outermost for CLEANUP staging; V45 then synchronizes boss vertical flight to
  * the boss attack state without adding player controls. V46 wraps the complete
  * stage loop with short combat beats and FLOW scoring. Its cadence guard keeps
- * V44's five-fighter CLEANUP intact, while V49 trims only real campaign boss
- * durability so each sortie resolves without changing V34's standalone rules.
+ * V44's five-fighter CLEANUP intact, while V49 trims real campaign boss
+ * durability. V55 is the final arcade pacing owner: it only intervenes after a
+ * genuine no-target gap and turns the last cleanup survivors into readable
+ * head-on finishers instead of another long chase.
  */
 export class SkyDancerAirCombatFx extends SkyDancerAirCombatFxV29 {
   private readonly presentation: SkyDancerPresentationPipeline;
@@ -56,6 +59,7 @@ export class SkyDancerAirCombatFx extends SkyDancerAirCombatFxV29 {
     installSkyDancerCombatChoreographyV46();
     installSkyDancerCleanupCadenceGuardV46();
     installSkyDancerCampaignPacingV49();
+    installSkyDancerArcadePacingV55();
     this.presentation = new SkyDancerPresentationPipeline(runtime);
   }
 
