@@ -1,3 +1,4 @@
+// 2026-08-31 V3 visual playcheck: verify wide traversal, compact HUD, incoming missile read and evasive break.
 import { mkdir, writeFile } from "node:fs/promises";
 import { chromium } from "playwright";
 
