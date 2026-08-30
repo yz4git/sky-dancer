@@ -66,15 +66,18 @@ test("V54 replaces visual hierarchy, not controls, with cinematic mission/boss/c
   assert.match(phase, /SkyDancerHudV54 \/>/);
 });
 
-test("V49 campaign bosses keep compact arcade durability while V34 standalone durability remains intact", () => {
+test("V49 campaign bosses keep compact arcade durability and remain inside the missile lock envelope", () => {
   const pacing = read("../src/sky/SkyDancerCampaignPacingV49.ts");
   const boss = read("../src/sky/SkyDancerBossCombatV34.ts");
   const guard = read("../src/sky/SkyDancerBossDurabilityGuardV34.ts");
   assert.match(pacing, /SKY_DANCER_V49_BOSS_BASE_HP = 120/);
   assert.match(pacing, /SKY_DANCER_V49_BOSS_MAX_HP = 180/);
   assert.match(boss, /function liveBossDurability/);
-  assert.match(boss, /skyDancerCampaignBossHpV49\(stage\.stage\)/);
+  assert.match(boss, /skyDancerCampaignBossHpV49\(campaignStage\)/);
   assert.match(boss, /const targetMaxHp = liveBossDurability\(session\)/);
+  assert.match(boss, /SKY_DANCER_V49_CAMPAIGN_BOSS_LOCK_MAX_DISTANCE = 54/);
+  assert.match(boss, /SKY_DANCER_V49_CAMPAIGN_BOSS_LOCK_TARGET_DISTANCE = 46/);
+  assert.match(boss, /keepCampaignBossInLockEnvelope/);
   assert.match(guard, /stageCycle\?\.phase === "boss" && getSkyDancerMissionV49\(stageCycle\.stage\)/);
   assert.match(boss, /SKY_DANCER_V34_BOSS_BASE_HP = 192/);
 });
