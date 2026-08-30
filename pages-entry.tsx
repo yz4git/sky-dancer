@@ -1,6 +1,7 @@
 import "./app/globals.css";
 import "./app/cart-rogue-mobile-fix.css";
 import { createRoot } from "react-dom/client";
+import CartViewportSync from "./app/CartViewportSync";
 import CartRogueGamePhase13 from "./app/CartRogueGamePhase13";
 import SkyDancerColorGradeV31 from "./app/SkyDancerColorGradeV31";
 import SkyDancerHudV30 from "./app/SkyDancerHudV30";
@@ -10,6 +11,7 @@ import SkyDancerHudV32 from "./app/SkyDancerHudV32";
 const mount = document.getElementById("root");
 if (!mount) throw new Error("Sky Dancer mount element is missing");
 createRoot(mount).render(<>
+  <CartViewportSync />
   <CartRogueGamePhase13 />
   <SkyDancerColorGradeV31 />
   <SkyDancerHudV30 />
