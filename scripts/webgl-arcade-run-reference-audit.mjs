@@ -39,6 +39,21 @@ await start.click({ force: true });
 const canvas = page.locator('canvas[aria-label="Sky Dancer Arcade Run WebGL game view"]');
 await canvas.waitFor({ state: "visible", timeout: 30_000 });
 await page.waitForTimeout(1400);
+const renderState = await canvas.evaluate((element) => {
+  const c = element;
+  const rect = c.getBoundingClientRect();
+  const gl = c.getContext("webgl2") || c.getContext("webgl");
+  const debug = gl?.getExtension("WEBGL_debug_renderer_info");
+  return {
+    backingWidth: c.width,
+    backingHeight: c.height,
+    cssWidth: rect.width,
+    cssHeight: rect.height,
+    webgl: Boolean(gl),
+    renderer: debug && gl ? gl.getParameter(debug.UNMASKED_RENDERER_WEBGL) : null,
+    mode: document.documentElement.dataset.skyDancerMode || document.body.dataset.skyDancerMode || null,
+  };
+});
 await page.screenshot({ path: `${outputDir}/00-opening.png`, fullPage: true });
 await canvas.screenshot({ path: `${outputDir}/00-opening-canvas.png` });
 
@@ -68,6 +83,7 @@ const bodyText = await page.locator("body").innerText();
 const diagnostics = {
   arcadeHud: /STAGE|DAWN CITY|CITY/i.test(bodyText),
   buttonLabels,
+  renderState,
   consoleErrors,
   pageErrors,
 };
@@ -75,4 +91,5 @@ await writeFile(`${outputDir}/diagnostics.json`, JSON.stringify(diagnostics, nul
 await browser.close();
 
 if (!diagnostics.arcadeHud) throw new Error(`Arcade Run HUD was not found: ${JSON.stringify(diagnostics)}`);
+if (!renderState.webgl || renderState.cssWidth < 800 || renderState.cssHeight < 360) throw new Error(`Arcade Run WebGL surface is invalid: ${JSON.stringify(renderState)}`);
 if (pageErrors.length) throw new Error(`Arcade Run page errors: ${pageErrors.join(" | ")}`);
