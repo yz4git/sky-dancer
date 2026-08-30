@@ -1,0 +1,132 @@
+name: Arcade tuning V1 once
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.event.head_commit.message == 'Apply arcade handling/readability tuning'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Apply arcade tuning
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          def replace_once(path: str, old: str, new: str) -> None:
+              p = Path(path)
+              text = p.read_text()
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f"{path}: expected one match, found {count}: {old[:80]!r}")
+              p.write_text(text.replace(old, new, 1))
+
+          runtime = "src/sky/arcade/SkyDancerArcadeRuntime.ts"
+          replace_once(
+              runtime,
+              "const ARCADE_SECTION_RESULT_SECONDS = 0.55;\nconst PRACTICE_RESULT_SECONDS = 2.8;",
+              "const ARCADE_SECTION_RESULT_SECONDS = 0.55;\nconst PRACTICE_RESULT_SECONDS = 2.8;\nconst PLAYER_MOVE_SPEED_X = 1.55;\nconst PLAYER_MOVE_SPEED_Y = 1.42;\nconst PLAYER_TURBO_SPEED_X = 1.9;\nconst PLAYER_TURBO_SPEED_Y = 1.72;\nconst PLAYER_MOVE_RESPONSE = 11.8;\nconst ENEMY_FLYBY_CULL_DEPTH = -11.5;",
+          )
+          replace_once(
+              runtime,
+              "    const responsiveness = this.options.difficulty === \"hard\" ? 7.2 : 8.3;\n    const targetVX = this.input.x * (turboActive ? 1.34 : 1.12);\n    const targetVY = this.input.y * (turboActive ? 1.22 : 1.02);\n    this.playerVX = moveToward(this.playerVX, targetVX, responsiveness * delta);\n    this.playerVY = moveToward(this.playerVY, targetVY, responsiveness * delta);",
+              "    const targetVX = this.input.x * (turboActive ? PLAYER_TURBO_SPEED_X : PLAYER_MOVE_SPEED_X);\n    const targetVY = this.input.y * (turboActive ? PLAYER_TURBO_SPEED_Y : PLAYER_MOVE_SPEED_Y);\n    this.playerVX = moveToward(this.playerVX, targetVX, PLAYER_MOVE_RESPONSE * delta);\n    this.playerVY = moveToward(this.playerVY, targetVY, PLAYER_MOVE_RESPONSE * delta);",
+          )
+          replace_once(
+              runtime,
+              "    const baseHp = final ? 620 : 205 + this.stage.act * 31;\n    const hp = Math.round(baseHp * (this.options.difficulty === \"hard\" ? 1.18 : 1));",
+              "    // Climax targets must survive a full attack run instead of evaporating under one gun burst.\n    const baseHp = final ? 1280 : 440 + this.stage.act * 110;\n    const hp = Math.round(baseHp * (this.options.difficulty === \"hard\" ? 1.25 : 1));",
+          )
+          replace_once(
+              runtime,
+              "      if (!enemy.boss && enemy.depth < -5) {",
+              "      // Keep fly-bys alive until they are close to the camera and naturally leave the frame.\n      if (!enemy.boss && enemy.depth < ENEMY_FLYBY_CULL_DEPTH) {",
+          )
+
+          replace_once(
+              "src/sky/arcade/SkyDancerArcadeWebGLDemo.ts",
+              "  private readonly camera = new THREE.PerspectiveCamera(55, 1, 0.1, 1200);",
+              "  private readonly camera = new THREE.PerspectiveCamera(55, 1, 0.04, 1200);",
+          )
+
+          css = "app/SkyDancerArcadeMode.module.css"
+          old_css = ".routeOverlay{position:absolute;z-index:8;left:50%;top:31%;transform:translateX(-50%);width:min(720px,72vw);text-align:center;pointer-events:none}.routeOverlay>small{font-size:8px;font-weight:1000;letter-spacing:.22em;color:#fff}.routeOptions{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;gap:10px;margin-top:8px}.routeOption{padding:8px 10px;border:1px solid rgba(255,255,255,.2);border-radius:8px;background:rgba(6,13,30,.64);opacity:.62;transition:.12s}.routeOption span,.routeOption strong{display:block}.routeOption span{font-size:7px;font-weight:1000;letter-spacing:.15em;color:#6fe8ff}.routeOption strong{margin-top:3px;font-size:11px;letter-spacing:.08em}.routeSelected{transform:scale(1.06);border-color:#ffe06b;box-shadow:0 0 20px rgba(255,209,75,.32);opacity:1}"
+          new_css = ".routeOverlay{position:absolute;z-index:8;left:50%;top:max(70px,calc(env(safe-area-inset-top) + 66px));transform:translateX(-50%);width:min(520px,58vw);text-align:center;pointer-events:none}.routeOverlay>small{display:inline-block;padding:2px 7px;border-radius:999px;background:rgba(4,13,27,.38);font-size:6px;font-weight:1000;letter-spacing:.18em;color:rgba(255,255,255,.78)}.routeOptions{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;gap:6px;margin-top:3px}.routeOption{padding:3px 6px;border:1px solid rgba(255,255,255,.16);border-radius:5px;background:rgba(6,13,30,.32);opacity:.48;transition:.12s}.routeOption span,.routeOption strong{display:block}.routeOption span{font-size:5px;font-weight:1000;letter-spacing:.13em;color:#6fe8ff}.routeOption strong{margin-top:1px;font-size:8px;letter-spacing:.06em}.routeSelected{transform:scale(1.02);border-color:#ffe06b;background:rgba(23,28,39,.48);box-shadow:0 0 12px rgba(255,209,75,.2);opacity:.92}"
+          replace_once(css, old_css, new_css)
+          replace_once(css, "@media(orientation:portrait){.topHud", "@media(orientation:portrait){.routeOverlay{width:84vw}.topHud")
+
+          tests = "tests/sky-arcade-run.test.ts"
+          marker = 'test("title menu exposes all modes and keeps Turbo Hunt presentation isolated", async () => {'
+          additions = r'''test("flight steering reaches evasive positions quickly", () => {
+            const runtime = new SkyDancerArcadeRuntime({ mode: "arcade-run", difficulty: "normal", seed: 61 });
+            runtime.setMove(1, 1);
+            for (let frame = 0; frame < 30; frame += 1) runtime.step(1 / 60);
+            const snapshot = runtime.getSnapshot();
+            assert.ok(snapshot.playerX > 0.6, `horizontal response ${snapshot.playerX}`);
+            assert.ok(snapshot.playerY > 0.55, `vertical response ${snapshot.playerY}`);
+          });
+
+          test("climax targets survive a real attack run", () => {
+            const first = new SkyDancerArcadeRuntime({ mode: "arcade-run", difficulty: "normal", seed: 62 });
+            for (let frame = 0; frame < 1200 && !first.getSnapshot().bossActive; frame += 1) first.step(1 / 60);
+            assert.ok(first.getSnapshot().bossMaxHp >= 550, `opening boss HP ${first.getSnapshot().bossMaxHp}`);
+
+            const final = new SkyDancerArcadeRuntime({
+              mode: "stage-practice",
+              difficulty: "normal",
+              startStageId: SKY_DANCER_ARCADE_FINAL_STAGE,
+              seed: 63,
+            });
+            for (let frame = 0; frame < 1200 && !final.getSnapshot().bossActive; frame += 1) final.step(1 / 60);
+            assert.ok(final.getSnapshot().bossMaxHp >= 1200, `final boss HP ${final.getSnapshot().bossMaxHp}`);
+          });
+
+          test("close fly-bys and route guidance stay readable", async () => {
+            const [runtimeSource, webglSource, css] = await Promise.all([
+              readFile(new URL("../src/sky/arcade/SkyDancerArcadeRuntime.ts", import.meta.url), "utf8"),
+              readFile(new URL("../src/sky/arcade/SkyDancerArcadeWebGLDemo.ts", import.meta.url), "utf8"),
+              readFile(new URL("../app/SkyDancerArcadeMode.module.css", import.meta.url), "utf8"),
+            ]);
+            assert.match(runtimeSource, /ENEMY_FLYBY_CULL_DEPTH = -11\.5/);
+            assert.match(runtimeSource, /enemy\.depth < ENEMY_FLYBY_CULL_DEPTH/);
+            assert.match(webglSource, /PerspectiveCamera\(55, 1, 0\.04, 1200\)/);
+            assert.match(css, /\.routeOverlay\{[^}]*top:max\(70px/);
+            assert.match(css, /\.routeOption\{padding:3px 6px/);
+          });
+
+          '''
+          replace_once(tests, marker, additions + marker)
+          PY
+      - name: Test
+        run: npm test
+      - name: Lint
+        run: npm run lint
+      - name: Build
+        run: npm run build
+      - name: Commit tuned arcade mode
+        shell: bash
+        run: |
+          rm .github/workflows/arcade-tuning-v1-once.yml
+          git config user.name "yz4git"
+          git config user.email "65384484+yz4git@users.noreply.github.com"
+          git add -A
+          git diff --cached --check
+          git commit -m "Arcade tuning: faster handling, clean flybys, compact routes, tougher bosses"
+          git push origin HEAD:main
