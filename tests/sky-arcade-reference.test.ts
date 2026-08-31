@@ -184,6 +184,25 @@ test("V8.8 ice cavern exposes its vertical canyon without repeated full-screen h
   world.dispose();
 });
 
+test("V9.0 floating ruins reads as a broken sky labyrinth instead of a column forest", () => {
+  const scene = new THREE.Scene();
+  const world = new SkyDancerArcadeReferenceWorld(scene);
+  const ruins = SKY_DANCER_ARCADE_STAGES.find((stage) => stage.id === "floating-ruins")!;
+  world.setStage(ruins);
+  world.update(ruins.courseSpeed * 7, 0, 0);
+  const temple=scene.getObjectByName("arcade-ruins-sky-temple");
+  assert.ok(temple instanceof THREE.Group,
+    "floating ruins must expose one distant sky-temple destination");
+  const environment=scene.getObjectByName("arcade-course-environment")!;
+  const chunks=environment.children.filter((object)=>object.name.startsWith("arcade-course-chunk-"));
+  assert.equal(chunks.length,8);
+  assert.ok(chunks.every((chunk)=>chunk.userData.arcadeRuinsV90SkyLabyrinth===true),
+    "every ruins chunk must use the V9.0 broken-labyrinth layout");
+  assert.equal(new Set(chunks.map((chunk)=>chunk.userData.arcadeRuinsV90HeroSide)).size,2,
+    "hero causeways must alternate sides to avoid a repeated paired-column corridor");
+  world.dispose();
+});
+
 test("V8.9 prism citadel reads as an open final assault rather than a repeated ring tunnel", () => {
   const scene = new THREE.Scene();
   const world = new SkyDancerArcadeReferenceWorld(scene);

@@ -466,7 +466,7 @@ test("V8.2 branch stages carry independent course signatures and no decorative h
   const world = await readFile(new URL("../src/sky/arcade/SkyDancerArcadeReferenceWorld.ts", import.meta.url), "utf8");
   assert.doesNotMatch(world, /arcade-horizon-fleet-carrier/);
   assert.doesNotMatch(world, /createReferenceCarrier/);
-  assert.match(world, /const lift=tier\*8\.5/);
+  assert.match(world, /const lift=tier\*9\.5\+\(hero\?3:-3\)/);
   assert.match(world, /stage\.biome==="desert" && index%3===1/);
   assert.match(world, /const stormSide=index%2===0\?1:-1/);
 });
