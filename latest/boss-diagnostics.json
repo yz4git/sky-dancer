@@ -1,0 +1,32 @@
+{
+  "initialBoss": {
+    "active": true,
+    "phase": 1,
+    "mode": "orbit",
+    "coreOpen": false,
+    "hp": 192,
+    "maxHp": 192,
+    "distance": 47.060936425643874
+  },
+  "finalBoss": {
+    "active": true,
+    "phase": 1,
+    "mode": "break",
+    "coreOpen": true,
+    "hp": 192,
+    "maxHp": 192,
+    "distance": 78.39997340509862
+  },
+  "observedModes": [
+    "orbit",
+    "strike",
+    "break"
+  ],
+  "coreOpenObserved": true,
+  "unifiedHudVisible": true,
+  "unifiedHudText": "STAGE 1 BOSS P1 · INTERCEPT · 192 / 192",
+  "legacyPhaseHudVisible": false,
+  "sampleCount": 139,
+  "consoleErrors": [],
+  "pageErrors": []
+}

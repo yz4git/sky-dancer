@@ -1,0 +1,21 @@
+{
+  "maxVisibleAltitudeCues": 4,
+  "maxTrailPoints": 42,
+  "sawUpCue": true,
+  "sawDownCue": true,
+  "sawCurvedTrail": true,
+  "sawCleanup": true,
+  "sawOrbit": true,
+  "sawAttackRun": true,
+  "minOrbitDistance": 77.99999999999997,
+  "maxOrbitDistance": 84.00000000000003,
+  "maxTacticalPhase": 3,
+  "shots": 94,
+  "hits": 51,
+  "hud": {
+    "comboCenterX": null,
+    "legendVisible": true
+  },
+  "consoleErrors": [],
+  "pageErrors": []
+}

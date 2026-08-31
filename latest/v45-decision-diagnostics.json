@@ -1,0 +1,28 @@
+{
+  "sawLock": true,
+  "decisionClasses": [
+    "striker",
+    "drifter"
+  ],
+  "sawNumericAltitude": true,
+  "sawReadyWindow": true,
+  "sawHoldWindow": true,
+  "maxPlayerRibbonPoints": 28,
+  "speedFxCount": 75,
+  "normalSpeedStrength": 0.34,
+  "sawNormalSpeedState": true,
+  "sawTurboSpeedState": true,
+  "dedicatedTurboSeen": true,
+  "maxDedicatedTurboOpacity": 0.2549998771620962,
+  "backgroundTuned": true,
+  "backgroundMaterials": 11,
+  "forcedBoss": true,
+  "sawBoss": true,
+  "sawBossStrike": true,
+  "sawBossBreak": true,
+  "sawBossDirective": true,
+  "sawBossStrikeCue": true,
+  "bossHudOverlapPixels": 0,
+  "consoleErrors": [],
+  "pageErrors": []
+}

@@ -1,0 +1,27 @@
+{
+  "visual": {
+    "v36CityCount": 866,
+    "v36CityVisible": true,
+    "v35CityVisible": false,
+    "terrainVisible": false,
+    "arterialCount": 8,
+    "playerSurfaceKitVisible": true,
+    "turboLinesInstalled": true,
+    "v38SkyVisible": true,
+    "v38RidgesVisible": true,
+    "v38CloudCount": 192,
+    "v38CloudsVisible": true,
+    "fogNear": 540,
+    "fogFar": 1840
+  },
+  "terrainV41": {
+    "centerTileX": 2,
+    "centerTileZ": 0,
+    "visibleTiles": 25,
+    "reliefSpan": 5.586389021279302,
+    "legacyTerrainHidden": true
+  },
+  "hudVisible": true,
+  "consoleErrors": [],
+  "pageErrors": []
+}

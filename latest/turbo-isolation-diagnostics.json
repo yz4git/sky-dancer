@@ -1,0 +1,80 @@
+{
+  "capturedAt": "2026-08-31T04:49:45.045Z",
+  "before": {
+    "forwardVelocity": 12.982896359354628,
+    "lateralVelocity": 0,
+    "speed": 12.982896359354628,
+    "x": 560,
+    "z": 166.71650497405577,
+    "altitudeMeters": 300,
+    "minEnemyDistance": 37.25441057719603,
+    "enemyVerticalSpread": 0.37618411320936684
+  },
+  "during": {
+    "forwardVelocity": 16.399086031507963,
+    "lateralVelocity": 0,
+    "speed": 16.399086031507963,
+    "x": 560,
+    "z": 169.6862081121764,
+    "altitudeMeters": 300,
+    "minEnemyDistance": 33.66867671851127,
+    "enemyVerticalSpread": 0.3521175789557699
+  },
+  "turboDuring": {
+    "held": true,
+    "charge": 1,
+    "holdSeconds": 0.924,
+    "releaseSerial": 0,
+    "releaseCharge": 0,
+    "releaseAgeSeconds": null,
+    "preReleaseForwardSpeed": 0,
+    "postReleaseForwardSpeed": 0
+  },
+  "holdTravel": 2.9697031381206216,
+  "beforeForward": 12.982896359354628,
+  "duringForward": 16.399086031507963,
+  "turboReleaseImmediate": {
+    "held": false,
+    "charge": 0,
+    "holdSeconds": 0,
+    "releaseSerial": 1,
+    "releaseCharge": 1,
+    "releaseAgeSeconds": 0.3895,
+    "preReleaseForwardSpeed": 16.8,
+    "postReleaseForwardSpeed": 36
+  },
+  "releaseImmediateFlight": {
+    "forwardVelocity": 31.499999999999996,
+    "lateralVelocity": 0,
+    "speed": 31.499999999999996,
+    "x": 560,
+    "z": 183.92564930938264,
+    "altitudeMeters": 300,
+    "minEnemyDistance": 28.86812121125224,
+    "enemyVerticalSpread": 0.2934580182716431
+  },
+  "modelKick": 19.2,
+  "after": {
+    "forwardVelocity": 31.499999999999996,
+    "lateralVelocity": 0,
+    "speed": 31.499999999999996,
+    "x": 560,
+    "z": 185.50064930938265,
+    "altitudeMeters": 300,
+    "minEnemyDistance": 28.61166921147304,
+    "enemyVerticalSpread": 0.2996296226439352
+  },
+  "turboAfter": {
+    "held": false,
+    "charge": 0,
+    "holdSeconds": 0,
+    "releaseSerial": 1,
+    "releaseCharge": 1,
+    "releaseAgeSeconds": 0.823,
+    "preReleaseForwardSpeed": 16.8,
+    "postReleaseForwardSpeed": 36
+  },
+  "afterForward": 31.499999999999996,
+  "consoleErrors": [],
+  "pageErrors": []
+}

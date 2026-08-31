@@ -1,0 +1,45 @@
+{
+  "hudVisible": true,
+  "initialHud": "M01 · CITY AIRSPACE\n0/5\nHEAD-ON CROSS\nFLOW 0\nC",
+  "initialCinematicVisible": true,
+  "oldHudHidden": true,
+  "hudBounds": {
+    "left": 12,
+    "top": 80,
+    "right": 216,
+    "bottom": 115.5,
+    "width": 844,
+    "height": 390
+  },
+  "v50": {
+    "style": "city",
+    "fogNear": 540,
+    "fogFar": 1840,
+    "keyIntensity": 1.4060000000000001,
+    "rimIntensity": 0.776,
+    "hasGradientSky": true
+  },
+  "v51": {
+    "playerAttached": true,
+    "playerParts": 13,
+    "enemyKits": 6,
+    "visualSpan": 6.8
+  },
+  "v52": {
+    "streaks": 28,
+    "speedVisible": true,
+    "speedOpacity": 0.4,
+    "activeHitRings": 4,
+    "evadePulse": 0
+  },
+  "v52ReleasePeakOpacity": 0.4,
+  "v53": {
+    "style": "city",
+    "setpieceCount": 49,
+    "rotatingCount": 5,
+    "anchorResets": 1,
+    "reanchorDistance": 164
+  },
+  "consoleErrors": [],
+  "pageErrors": []
+}

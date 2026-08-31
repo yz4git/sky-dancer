@@ -1,0 +1,58 @@
+{
+  "bounds": {
+    "left": 17,
+    "top": 210,
+    "right": 121,
+    "bottom": 314,
+    "width": 844,
+    "height": 390
+  },
+  "before": {
+    "forwardVelocity": 12.101504579248155,
+    "lateralVelocity": 0,
+    "speed": 12.101504579248155,
+    "x": 560,
+    "z": 166.08201257361912,
+    "altitudeMeters": 300,
+    "minEnemyDistance": 38.36710558096261,
+    "enemyVerticalSpread": 0.4176628726418279
+  },
+  "left": {
+    "forwardVelocity": 16.733371589774755,
+    "lateralVelocity": 1.4947492226186756,
+    "speed": 16.800000000000004,
+    "x": 571.945594254581,
+    "z": 181.70670360576912,
+    "altitudeMeters": 300,
+    "minEnemyDistance": 31.006696194643474,
+    "enemyVerticalSpread": 0.5170545266497162
+  },
+  "right": {
+    "forwardVelocity": 16.73334044309153,
+    "lateralVelocity": -1.4950978615452997,
+    "speed": 16.8,
+    "x": 592.5114513144188,
+    "z": 169.12924681115317,
+    "altitudeMeters": 300,
+    "minEnemyDistance": 41.1377090675061,
+    "enemyVerticalSpread": 0.5174299062199759
+  },
+  "final": {
+    "forwardVelocity": 16.733333661320955,
+    "lateralVelocity": -1.4951737621103154,
+    "speed": 16.800000000000004,
+    "x": 592.4146728436847,
+    "z": 178.78609632645302,
+    "altitudeMeters": 300,
+    "minEnemyDistance": 43.297928103651394,
+    "enemyVerticalSpread": 0.304795826626753
+  },
+  "leftValue": -1,
+  "rightValue": 1,
+  "neutralAfterLeft": 0,
+  "neutralAfterRight": 0,
+  "leftDeltaX": 11.94559425458101,
+  "rightDeltaX": 20.565857059837754,
+  "consoleErrors": [],
+  "pageErrors": []
+}
