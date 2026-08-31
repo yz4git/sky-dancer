@@ -467,6 +467,8 @@ test("V8.2 branch stages carry independent course signatures and no decorative h
   assert.doesNotMatch(world, /arcade-horizon-fleet-carrier/);
   assert.doesNotMatch(world, /createReferenceCarrier/);
   assert.match(world, /const lift=tier\*9\.5\+\(hero\?3:-3\)/);
-  assert.match(world, /stage\.biome==="desert" && index%3===1/);
+  assert.match(world, /arcadeDesertV93SandwallCitadel/);
+  assert.match(world, /arcadeDesertV93BreachSide/);
+  assert.match(world, /arcade-desert-fortress-citadel/);
   assert.match(world, /const stormSide=index%2===0\?1:-1/);
 });

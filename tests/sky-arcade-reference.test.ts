@@ -205,6 +205,24 @@ test("V9.0 floating ruins reads as a broken sky labyrinth instead of a column fo
   world.dispose();
 });
 
+test("V9.3 desert fortress reads as a sandwall assault instead of a recolored canyon", () => {
+  const scene=new THREE.Scene();
+  const world=new SkyDancerArcadeReferenceWorld(scene);
+  const desert=SKY_DANCER_ARCADE_STAGES.find((stage)=>stage.id==="desert-fortress")!;
+  world.setStage(desert);
+  world.update(desert.courseSpeed*5,0,0);
+  assert.ok(scene.getObjectByName("arcade-desert-fortress-citadel") instanceof THREE.Group,
+    "desert fortress must expose one monumental citadel destination");
+  const environment=scene.getObjectByName("arcade-course-environment")!;
+  const chunks=environment.children.filter((object)=>object.name.startsWith("arcade-course-chunk-"));
+  assert.equal(chunks.length,8);
+  assert.ok(chunks.every((chunk)=>chunk.userData.arcadeDesertV93SandwallCitadel===true),
+    "every desert chunk must use the V9.3 fortress district architecture");
+  assert.equal(new Set(chunks.map((chunk)=>chunk.userData.arcadeDesertV93BreachSide)).size,2,
+    "the sandwall breach must alternate sides instead of forming one repeated symmetric gate");
+  world.dispose();
+});
+
 test("V9.2 cloud fleet reads as a sky armada instead of floating T-shaped plates", () => {
   const scene=new THREE.Scene();
   const world=new SkyDancerArcadeReferenceWorld(scene);
