@@ -1,0 +1,36 @@
+name: Apply Arcade Run playcheck V6.2 once
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "scripts/apply-arcade-playcheck-v62.py"
+      - ".github/workflows/arcade-playcheck-v62-once.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.13.0
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: python3 scripts/apply-arcade-playcheck-v62.py
+      - run: npm run test:rules
+      - run: npm run lint
+      - run: npm run build:pages
+      - name: Commit V6.2 playcheck pass
+        run: |
+          rm scripts/apply-arcade-playcheck-v62.py
+          rm .github/workflows/arcade-playcheck-v62-once.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Arcade Run V6.2: fairer readable curved-course combat"
+          git push
