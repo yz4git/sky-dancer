@@ -1,0 +1,36 @@
+name: Apply Arcade Run V5.1 visual polish once
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/arcade-v51-polish-once.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: python3 scripts/apply-arcade-v51-polish.py
+      - run: npm run test:rules
+      - run: npm run lint
+      - run: npm run build:pages
+      - name: Commit V5.1 improvements
+        run: |
+          rm -f scripts/apply-arcade-v51-polish.py .github/workflows/arcade-v51-polish-once.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'Arcade Run V5.1: readable fly-bys and shock-ring kills'
+          git push origin HEAD:main
