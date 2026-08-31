@@ -145,17 +145,29 @@ test("missile trails and explosions keep a bounded mesh and buffer count under l
 });
 
 
-test("V8.3 volcano ribbon and orbital helix expose the real course shape on screen", () => {
+test("V8.4 continuous volcano ribbon and orbital helix expose the real course shape on screen", () => {
   const scene = new THREE.Scene();
   const world = new SkyDancerArcadeReferenceWorld(scene);
   const volcano = SKY_DANCER_ARCADE_STAGES.find((stage) => stage.id === "volcano-core")!;
   world.setStage(volcano);
-  world.update(640, 0, 0);
-  const lava = scene.getObjectsByProperty("name", "arcade-volcano-route-cue");
-  assert.equal(lava.length, 10);
-  assert.ok(Math.max(...lava.map((cue) => cue.position.x)) - Math.min(...lava.map((cue) => cue.position.x)) > 12,
-    "volcano route ribbon should visibly sweep sideways");
-  assert.equal(scene.getObjectsByProperty("name", "arcade-volcano-bent-lava-ribbon").length, 10);
+  world.update(volcano.courseSpeed * 4, 0, 0);
+  const outer = scene.getObjectByName("arcade-volcano-course-ribbon-outer") as THREE.Mesh;
+  const core = scene.getObjectByName("arcade-volcano-course-ribbon-core") as THREE.Mesh;
+  assert.ok(outer instanceof THREE.Mesh && core instanceof THREE.Mesh);
+  assert.equal(scene.getObjectsByProperty("name", "arcade-volcano-bent-lava-ribbon").length, 0,
+    "old segmented road must stay removed");
+  const position = outer.geometry.getAttribute("position") as THREE.BufferAttribute;
+  assert.equal(position.count, 60);
+  const centersX:number[] = [], centersY:number[] = [];
+  for(let i=0;i<position.count;i+=2){
+    centersX.push((position.getX(i)+position.getX(i+1))*.5);
+    centersY.push((position.getY(i)+position.getY(i+1))*.5);
+  }
+  assert.ok(Math.max(...centersX)-Math.min(...centersX)>35,
+    "continuous magma river must visibly sweep across the crater");
+  assert.ok(Math.max(...centersY)-Math.min(...centersY)>8,
+    "magma river must also show the pressure dive instead of lying flat");
+  assert.equal(scene.getObjectsByProperty("name", "arcade-volcano-route-cue").length, 10);
 
   const orbit = SKY_DANCER_ARCADE_STAGES.find((stage) => stage.id === "orbital-ascent")!;
   world.setStage(orbit);

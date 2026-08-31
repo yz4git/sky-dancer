@@ -47,6 +47,7 @@ export class SkyDancerArcadeReferenceWorld {
   private readonly root=new THREE.Group();
   private readonly chunks:CourseChunk[]=[];
   private readonly routeCues:RouteCue[]=[];
+  private volcanoRibbon:{ outer:THREE.Mesh; core:THREE.Mesh }|null=null;
   private stage:SkyDancerArcadeStageDefinition|null=null;
   private water:THREE.ShaderMaterial|null=null;
   private readonly matrixObject=new THREE.Object3D();
@@ -57,7 +58,7 @@ export class SkyDancerArcadeReferenceWorld {
 
   setStage(stage:SkyDancerArcadeStageDefinition):void {
     if(this.stage?.id===stage.id)return;
-    disposeTree(this.root);this.water?.dispose();this.chunks.length=0;this.routeCues.length=0;
+    disposeTree(this.root);this.water?.dispose();this.chunks.length=0;this.routeCues.length=0;this.volcanoRibbon=null;
     this.stage=stage;
     const palette=referenceAtmosphere(stage);
     this.scene.background=palette.zenith;
@@ -76,6 +77,7 @@ export class SkyDancerArcadeReferenceWorld {
       this.root.add(group);this.chunks.push({group,index:i});
     }
     this.buildRouteCues(stage);
+    if(stage.biome==="volcano")this.buildVolcanoRibbon(stage);
     this.update(0,0,0);
   }
 
@@ -103,7 +105,64 @@ export class SkyDancerArcadeReferenceWorld {
         ? cue.phase+(distance+cue.depth)*.0068
         : course.bank*.08;
     }
+    if(this.volcanoRibbon)this.updateVolcanoRibbon(distance,playerX,playerY);
     if(this.water)this.water.uniforms.time.value=distance/this.stage.courseSpeed;
+  }
+
+  private makeVolcanoRibbonMesh(stage:SkyDancerArcadeStageDefinition,width:number,name:string,opacity:number):THREE.Mesh {
+    const samples=30;
+    const positions=new Float32Array(samples*2*3);
+    const indices:number[]=[];
+    for(let i=0;i<samples-1;i++){
+      const a=i*2;indices.push(a,a+2,a+1,a+1,a+2,a+3);
+    }
+    const geometry=new THREE.BufferGeometry();
+    const attribute=new THREE.BufferAttribute(positions,3);
+    attribute.setUsage(THREE.DynamicDrawUsage);
+    geometry.setAttribute("position",attribute);geometry.setIndex(indices);
+    const color=name.includes("core")
+      ? new THREE.Color(stage.palette.accent)
+      : new THREE.Color(stage.palette.secondary).lerp(new THREE.Color(stage.palette.accent),.58);
+    const material=new THREE.MeshBasicMaterial({
+      color,transparent:true,opacity,blending:THREE.AdditiveBlending,depthWrite:false,side:THREE.DoubleSide,
+    });
+    const ribbon=new THREE.Mesh(geometry,material);
+    ribbon.name=name;ribbon.frustumCulled=false;ribbon.renderOrder=2;this.root.add(ribbon);
+    ribbon.userData.arcadeVolcanoRibbonWidth=width;
+    return ribbon;
+  }
+
+  private buildVolcanoRibbon(stage:SkyDancerArcadeStageDefinition):void {
+    this.volcanoRibbon={
+      outer:this.makeVolcanoRibbonMesh(stage,19,"arcade-volcano-course-ribbon-outer",.62),
+      core:this.makeVolcanoRibbonMesh(stage,10,"arcade-volcano-course-ribbon-core",.92),
+    };
+  }
+
+  private updateVolcanoRibbon(distance:number,playerX:number,playerY:number):void {
+    if(!this.stage || !this.volcanoRibbon)return;
+    const update=(ribbon:THREE.Mesh,width:number,lift:number)=>{
+      const attribute=ribbon.geometry.getAttribute("position") as THREE.BufferAttribute;
+      const array=attribute.array as Float32Array;
+      const half=width*.5;
+      const samples=attribute.count/2;
+      for(let i=0;i<samples;i++){
+        const depth=16+i*13.2;
+        const course=arcadeCourseRelativePose(this.stage,distance,depth);
+        const cx=course.x-playerX*.35;
+        const cy=course.y-playerY*.16-24.05+lift;
+        const cz=-depth;
+        const lateralX=Math.cos(course.yaw)*half;
+        const lateralZ=-Math.sin(course.yaw)*half;
+        const bankY=course.bank*half*.28;
+        const left=i*6,right=left+3;
+        array[left]=cx-lateralX;array[left+1]=cy-bankY;array[left+2]=cz-lateralZ;
+        array[right]=cx+lateralX;array[right+1]=cy+bankY;array[right+2]=cz+lateralZ;
+      }
+      attribute.needsUpdate=true;
+    };
+    update(this.volcanoRibbon.outer,19,0);
+    update(this.volcanoRibbon.core,10,.11);
   }
 
   private buildRouteCues(stage:SkyDancerArcadeStageDefinition):void {
@@ -122,12 +181,11 @@ export class SkyDancerArcadeReferenceWorld {
       const phase=i*.64;
       if(kind==="volcano"){
         cue.name="arcade-volcano-route-cue";
-        const river=mesh(cue,new THREE.BoxGeometry(20,.26,46),glow,0,-24.3,0);
-        river.name="arcade-volcano-bent-lava-ribbon";
+        // Short rim markers preserve depth rhythm while the continuous ribbon shows the true curve.
         for(const side of [-1,1]){
-          const rim=mesh(cue,new THREE.BoxGeometry(3.2,1.1,45),i%2?secondary:primary,side*12,-24.6,0);
+          const rim=mesh(cue,new THREE.BoxGeometry(2.8,.9,14),i%2?secondary:primary,side*12,-24.6,0);
           rim.rotation.z=side*(i%2?.025:-.018);
-          mesh(cue,new THREE.BoxGeometry(.34,.18,43),glow,side*9.9,-23.9,0);
+          mesh(cue,new THREE.BoxGeometry(.34,.18,13),glow,side*9.9,-23.9,0);
         }
         if(i%2===0){
           const beacon=mesh(cue,new THREE.ConeGeometry(.42,7.5,6),glow,(i%4===0?1:-1)*16,-20,4);
@@ -335,6 +393,7 @@ export class SkyDancerArcadeReferenceWorld {
     for(const side of [-1,1])for(let j=0;j<5;j++){
       const z=-51+j*24+r(j+41)*6;
       const x=side*(25+r(j+71)*8.5);
+      const volcanoX=side*(33+r(j+71)*8);
       if(stage.biome==="city" || stage.biome==="night"){
         const h=25+r(j+11)*31;
         const w=2.2+r(j+19)*1.8;
@@ -349,11 +408,12 @@ export class SkyDancerArcadeReferenceWorld {
         mesh(group,new THREE.BoxGeometry(.12,h*.62,d*1.04),glow,x-side*w*.34,-25+h*.54,z);
         if(j%2===0) mesh(group,new THREE.BoxGeometry(.16,4+r(j+55)*5,.16),glow,x,-23.8+h+2.2,z);
       } else if(stage.biome==="canyon" || stage.biome==="desert" || stage.biome==="volcano"){
-        const h=24+r(j+9)*36;
-        const fin=mesh(group,new THREE.CylinderGeometry(1.8+r(j+7)*2.7,4.6+r(j+17)*3.3,h,5,2),j%2?secondary:primary,x,-26+h/2,z);
+        const h=stage.biome==="volcano"?20+r(j+9)*27:24+r(j+9)*36;
+        const rockX=stage.biome==="volcano"?volcanoX:x;
+        const fin=mesh(group,new THREE.CylinderGeometry(1.8+r(j+7)*2.7,4.6+r(j+17)*3.3,h,5,2),j%2?secondary:primary,rockX,-26+h/2,z);
         fin.rotation.z=side*(.06+r(j+27)*.16);
         fin.rotation.y=r(j+37)*Math.PI;
-        if(stage.biome==="volcano" && j%2===0) mesh(group,new THREE.ConeGeometry(.28,8+r(j+57)*10,5),glow,x-side*2,-13,z+2);
+        if(stage.biome==="volcano" && j%2===0) mesh(group,new THREE.ConeGeometry(.28,8+r(j+57)*10,5),glow,rockX-side*2,-13,z+2);
       } else if(stage.biome==="ice"){
         const h=24+r(j+8)*31;
         const crystal=mesh(group,new THREE.ConeGeometry(2.7+r(j+12)*2.2,h,5),j%2?primary:secondary,x,-19+h/2,z);
