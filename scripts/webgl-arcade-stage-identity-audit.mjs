@@ -20,16 +20,16 @@ await context.addInitScript((ids) => {
 async function selectPracticeStage(page, shortName) {
   const modeSelect = page.locator('[aria-label="Select game mode"]');
   const practiceMode = modeSelect.locator("button").filter({ hasText: /STAGE PRACTICE/i }).first();
-  await practiceMode.waitFor({ state: "visible", timeout: 30_000 });
+  await practiceMode.waitFor({ state: "visible" });
   await page.waitForFunction(() => {
     const mode = document.querySelector('[aria-label="Select game mode"]');
     const button = mode && [...mode.querySelectorAll("button")].find((candidate) => candidate.textContent?.includes("STAGE PRACTICE"));
     return Boolean(button && !button.disabled);
-  }, null, { timeout: 30_000 });
+  });
   await practiceMode.click();
 
   const practiceSelect = page.locator('[aria-label="Select practice stage"]');
-  await practiceSelect.waitFor({ state: "visible", timeout: 30_000 });
+  await practiceSelect.waitFor({ state: "visible" });
   const buttons = practiceSelect.locator("button");
   const count = await buttons.count();
   let target = null;
@@ -51,17 +51,22 @@ async function selectPracticeStage(page, shortName) {
 
 const diagnostics = [];
 for (const [index, stage] of stages.entries()) {
+  console.log(`[stage-audit] ${stage.id}: open`);
   const page = await context.newPage();
+  page.setDefaultTimeout(15_000);
+  page.setDefaultNavigationTimeout(20_000);
   const consoleErrors = [];
   const pageErrors = [];
   page.on("console", (message) => { if (message.type() === "error") consoleErrors.push(message.text()); });
   page.on("pageerror", (error) => pageErrors.push(String(error)));
-  await page.goto(`${baseUrl}?menu=1`, { waitUntil: "networkidle", timeout: 60_000 });
+  await page.goto(`${baseUrl}?menu=1`, { waitUntil: "domcontentloaded" });
+  await page.locator('[aria-label="Sky Dancer title screen"]').waitFor({ state: "visible" });
   await selectPracticeStage(page, stage.short);
   const canvas = page.locator('canvas[aria-label="Sky Dancer Arcade Run WebGL game view"]');
-  await canvas.waitFor({ state: "visible", timeout: 30_000 });
+  await canvas.waitFor({ state: "visible" });
+  console.log(`[stage-audit] ${stage.id}: running`);
   const prefix = `${String(index + 1).padStart(2, "0")}-${stage.id}`;
-  const shot = async (suffix) => page.screenshot({ path: `${outputDir}/${prefix}-${suffix}.png`, fullPage: true });
+  const shot = async (suffix) => page.screenshot({ path: `${outputDir}/${prefix}-${suffix}.png`, timeout: 15_000 });
   await page.waitForTimeout(1400);
   await shot("entry");
   await page.keyboard.down("ArrowRight"); await page.keyboard.down("ArrowUp");
@@ -84,7 +89,9 @@ for (const [index, stage] of stages.entries()) {
     const gl = element.getContext("webgl2") || element.getContext("webgl");
     return { webgl: Boolean(gl), width: element.getBoundingClientRect().width, height: element.getBoundingClientRect().height };
   });
-  diagnostics.push({ stage: stage.id, stageVisible: body.includes(stage.name), hp, glState, consoleErrors, pageErrors, failed: /AIRFRAME LOST|MISSION FAILED/i.test(body) });
+  const result = { stage: stage.id, stageVisible: body.includes(stage.name), hp, glState, consoleErrors, pageErrors, failed: /AIRFRAME LOST|MISSION FAILED/i.test(body) };
+  diagnostics.push(result);
+  console.log(`[stage-audit] ${stage.id}: ${JSON.stringify(result)}`);
   await page.close();
 }
 await writeFile(`${outputDir}/diagnostics.json`, JSON.stringify(diagnostics, null, 2));
@@ -95,3 +102,4 @@ for (const item of diagnostics) {
   if (item.failed) throw new Error(`Stage identity audit lost airframe: ${JSON.stringify(item)}`);
   if (item.consoleErrors.length || item.pageErrors.length) throw new Error(`Stage identity audit errors: ${JSON.stringify(item)}`);
 }
+console.log(`[stage-audit] complete: ${diagnostics.length} stages`);
