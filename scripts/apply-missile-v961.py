@@ -4,10 +4,12 @@ root = Path(__file__).resolve().parents[1]
 presentation_path = root / "src/sky/arcade/SkyDancerArcadeProductPresentation.ts"
 webgl_path = root / "src/sky/arcade/SkyDancerArcadeWebGLDemo.ts"
 test_path = root / "tests/sky-arcade-run.test.ts"
+reference_test_path = root / "tests/sky-arcade-reference.test.ts"
 
 presentation = presentation_path.read_text()
 webgl = webgl_path.read_text()
 tests = test_path.read_text()
+reference_tests = reference_test_path.read_text()
 
 replacements = [
     (
@@ -66,7 +68,13 @@ new = '  assert.match(presentationSource, /width: enemy \\? \\.19 : playerMissil
 assert old in tests
 tests = tests.replace(old, new, 1)
 
+old = '  for (let i = 0; i < 60; i++) presentation.update(snapshot, 1 / 60, camera);\n  assert.equal(scene.getObjectsByProperty("name", "arcade-projectile-trail").length, 0);\n  assert.ok(Array.from(missileLife.array).every((value) => Number(value) === 0), "missile smoke must fully retire instead of accumulating");'
+new = '  for (let i = 0; i < 120; i++) presentation.update(snapshot, 1 / 60, camera);\n  assert.equal(scene.getObjectsByProperty("name", "arcade-projectile-trail").length, 0);\n  assert.ok(Array.from(missileLife.array).every((value) => Number(value) === 0), "missile smoke must fully retire within two seconds instead of accumulating");'
+assert old in reference_tests
+reference_tests = reference_tests.replace(old, new, 1)
+
 presentation_path.write_text(presentation)
 webgl_path.write_text(webgl)
 test_path.write_text(tests)
+reference_test_path.write_text(reference_tests)
 print("Applied V9.6.1 high-visibility missile plume pass")
