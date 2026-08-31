@@ -26,6 +26,14 @@ test("V6 course path includes vertical flying lines and stage-specific signature
   assert.equal(signatures.size, SKY_DANCER_ARCADE_STAGES.length);
 });
 
+test("V6.1 Dawn City opens with a clearly readable S-turn", () => {
+  const stage = SKY_DANCER_ARCADE_STAGES[0];
+  const first = arcadeCoursePose(stage, stage.courseSpeed * 3.5);
+  const second = arcadeCoursePose(stage, stage.courseSpeed * 9.5);
+  assert.ok(Math.abs(first.yaw) > 0.06, `early yaw ${first.yaw}`);
+  assert.ok(Math.abs(second.x - first.x) > 7.5, `early S travel ${second.x - first.x}`);
+});
+
 test("V6 near and far objects resolve onto the same curved corridor", () => {
   const stage = SKY_DANCER_ARCADE_STAGES[0];
   const length = stage.durationSeconds * stage.courseSpeed;

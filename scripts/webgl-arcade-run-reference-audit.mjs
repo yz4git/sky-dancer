@@ -1,4 +1,4 @@
-// 2026-08-31 V6 visual playcheck: verify a visibly bending 3D course, readable fly-bys, four-minute pacing and combat.
+// 2026-08-31 V6.1 visual playcheck: verify the stronger opening S-turn, readable banking, fly-bys and combat.
 import { mkdir, writeFile } from "node:fs/promises";
 import { chromium } from "playwright";
 

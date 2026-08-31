@@ -17,7 +17,7 @@ interface CourseProfile {
 
 const TAU = Math.PI * 2;
 const COURSE_PROFILES: Record<SkyDancerArcadeStageDefinition["biome"], CourseProfile> = {
-  city: { turns: 1.35, lateral: 1.0, vertical: 4.2, phase: 0.15 },
+  city: { turns: 1.62, lateral: 1.18, vertical: 4.8, phase: 0.15 },
   canyon: { turns: 2.15, lateral: 1.16, vertical: 6.8, phase: 0.72 },
   cloud: { turns: 1.62, lateral: 0.92, vertical: 8.6, phase: 1.18 },
   storm: { turns: 2.42, lateral: 1.12, vertical: 9.4, phase: 1.91 },

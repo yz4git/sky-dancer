@@ -222,7 +222,7 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
     this.player.position.z = 2.8;
     const vx = delta > 0 ? (snapshot.playerX - this.previousSnapshot.playerX) / delta : 0;
     const vy = delta > 0 ? (snapshot.playerY - this.previousSnapshot.playerY) / delta : 0;
-    const targetRoll = THREE.MathUtils.clamp(-vx * .3, -.48, .48) - snapshot.playerX * .06 + course.bank * .62;
+    const targetRoll = THREE.MathUtils.clamp(-vx * .3, -.48, .48) - snapshot.playerX * .06 + course.bank * .82;
     const targetPitch = THREE.MathUtils.clamp(vy * .08, -.12, .12) + course.pitch * .46;
     this.player.rotation.z += (targetRoll - this.player.rotation.z) * Math.min(1, delta * 8);
     this.player.rotation.x += (targetPitch - this.player.rotation.x) * Math.min(1, delta * 7);
@@ -509,8 +509,8 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
     this.camera.position.z += (pose.z - this.camera.position.z) * Math.min(1, delta * 4.5);
     this.camera.fov += (pose.fov - this.camera.fov) * Math.min(1, delta * 4.5);
     this.camera.updateProjectionMatrix();
-    this.camera.lookAt(pose.lookX + courseAim.x * .28, pose.lookY + courseAim.y * .24, pose.lookZ);
-    this.camera.rotateZ(pose.roll + course.bank * .32 + courseAim.bank * .22);
+    this.camera.lookAt(pose.lookX + courseAim.x * .16, pose.lookY + courseAim.y * .17, pose.lookZ);
+    this.camera.rotateZ(pose.roll + course.bank * .44 + courseAim.bank * .16);
   }
 
   private resize(): void {
