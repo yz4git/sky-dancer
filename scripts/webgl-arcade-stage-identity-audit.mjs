@@ -16,6 +16,39 @@ const context = await browser.newContext({ viewport: { width: 844, height: 390 }
 await context.addInitScript((ids) => {
   localStorage.setItem("sky-dancer-arcade-progress-v1", JSON.stringify({ version: 1, clearedStageIds: ids, unlockedStageIds: ids, records: {}, bestRunScore: 0, bestRunRank: "D", completedRuns: 0, oneCreditClears: 0 }));
 }, allStageIds);
+
+async function selectPracticeStage(page, shortName) {
+  const modeSelect = page.locator('[aria-label="Select game mode"]');
+  const practiceMode = modeSelect.locator("button").filter({ hasText: /STAGE PRACTICE/i }).first();
+  await practiceMode.waitFor({ state: "visible", timeout: 30_000 });
+  await page.waitForFunction(() => {
+    const mode = document.querySelector('[aria-label="Select game mode"]');
+    const button = mode && [...mode.querySelectorAll("button")].find((candidate) => candidate.textContent?.includes("STAGE PRACTICE"));
+    return Boolean(button && !button.disabled);
+  }, null, { timeout: 30_000 });
+  await practiceMode.click();
+
+  const practiceSelect = page.locator('[aria-label="Select practice stage"]');
+  await practiceSelect.waitFor({ state: "visible", timeout: 30_000 });
+  const buttons = practiceSelect.locator("button");
+  const count = await buttons.count();
+  let target = null;
+  for (let i = 0; i < count; i++) {
+    const button = buttons.nth(i);
+    const strong = (await button.locator("strong").textContent())?.trim();
+    if (strong === shortName) {
+      target = button;
+      break;
+    }
+  }
+  if (!target) {
+    const labels = await buttons.allTextContents();
+    throw new Error(`Practice stage ${shortName} not found. Buttons: ${JSON.stringify(labels)}`);
+  }
+  await target.click();
+  await page.locator("button").filter({ hasText: /START STAGE PRACTICE/i }).first().click();
+}
+
 const diagnostics = [];
 for (const [index, stage] of stages.entries()) {
   const page = await context.newPage();
@@ -24,9 +57,7 @@ for (const [index, stage] of stages.entries()) {
   page.on("console", (message) => { if (message.type() === "error") consoleErrors.push(message.text()); });
   page.on("pageerror", (error) => pageErrors.push(String(error)));
   await page.goto(`${baseUrl}?menu=1`, { waitUntil: "networkidle", timeout: 60_000 });
-  await page.locator("button").filter({ hasText: /STAGE PRACTICE/i }).click({ force: true });
-  await page.locator("button").filter({ hasText: new RegExp(`\\b${stage.short}\\b`, "i") }).first().click({ force: true });
-  await page.locator("button").filter({ hasText: /START STAGE PRACTICE/i }).click({ force: true });
+  await selectPracticeStage(page, stage.short);
   const canvas = page.locator('canvas[aria-label="Sky Dancer Arcade Run WebGL game view"]');
   await canvas.waitFor({ state: "visible", timeout: 30_000 });
   const prefix = `${String(index + 1).padStart(2, "0")}-${stage.id}`;
