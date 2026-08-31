@@ -58,36 +58,26 @@ async function selectPracticeStage(page, shortName) {
 
 async function captureWebGLCanvas(canvas, path) {
   const capture = await canvas.evaluate((element) => {
-    const gl = element.getContext("webgl2") || element.getContext("webgl");
-    if (!gl) throw new Error("WebGL unavailable during framebuffer capture");
-    const width = element.width;
-    const height = element.height;
-    const pixels = new Uint8Array(width * height * 4);
-    gl.finish();
-    gl.readPixels(0, 0, width, height, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
-    const flipped = new Uint8ClampedArray(pixels.length);
-    let signal = 0;
-    let samples = 0;
-    const rowBytes = width * 4;
-    for (let y = 0; y < height; y++) {
-      const src = (height - 1 - y) * rowBytes;
-      const dst = y * rowBytes;
-      flipped.set(pixels.subarray(src, src + rowBytes), dst);
-    }
-    for (let i = 0; i < flipped.length; i += Math.max(4, Math.floor(flipped.length / 4096 / 4) * 4)) {
-      signal += flipped[i] + flipped[i + 1] + flipped[i + 2];
-      samples++;
-    }
+    const width = Math.max(1, Math.round(element.getBoundingClientRect().width));
+    const height = Math.max(1, Math.round(element.getBoundingClientRect().height));
     const copy = document.createElement("canvas");
     copy.width = width;
     copy.height = height;
-    const ctx = copy.getContext("2d");
+    const ctx = copy.getContext("2d", { alpha: false });
     if (!ctx) throw new Error("2D capture context unavailable");
-    ctx.putImageData(new ImageData(flipped, width, height), 0, 0);
+    ctx.drawImage(element, 0, 0, width, height);
+    const probe = ctx.getImageData(0, 0, width, height).data;
+    let signal = 0;
+    let samples = 0;
+    const stride = Math.max(4, Math.floor(probe.length / 4096 / 4) * 4);
+    for (let i = 0; i < probe.length; i += stride) {
+      signal += probe[i] + probe[i + 1] + probe[i + 2];
+      samples++;
+    }
     const encoded = copy.toDataURL("image/png");
     return { width, height, signal: samples ? signal / samples : 0, base64: encoded.slice(encoded.indexOf(",") + 1) };
   });
-  if (capture.signal < 2) throw new Error(`Framebuffer appears blank: ${JSON.stringify({ width: capture.width, height: capture.height, signal: capture.signal })}`);
+  if (capture.signal < 2) throw new Error(`Canvas transfer appears blank: ${JSON.stringify({ width: capture.width, height: capture.height, signal: capture.signal })}`);
   await writeFile(path, Buffer.from(capture.base64, "base64"));
   return { width: capture.width, height: capture.height, signal: capture.signal };
 }
