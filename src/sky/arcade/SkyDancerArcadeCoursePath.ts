@@ -82,11 +82,11 @@ function courseCenter(stage: SkyDancerArcadeStageDefinition, distance: number): 
     y += authoredU * 20;
   }
   if (stage.biome === "orbit") {
-    // Rising corkscrew: lateral radius opens with altitude while the whole course climbs toward orbit.
-    const spiralRadius = 9 + authoredU * 14;
-    x += (Math.sin(u * TAU * 1.85 + 0.3) - Math.sin(0.3)) * spiralRadius;
-    y += u * 62;
-    y += (Math.sin(u * TAU * 1.85 - 0.5) - Math.sin(-0.5)) * 3.4;
+    // V7.1 rising corkscrew: more local rotation keeps the spiral visible even with a forward-looking chase camera.
+    const spiralRadius = 12 + authoredU * 18;
+    x += (Math.sin(u * TAU * 3.05 + 0.3) - Math.sin(0.3)) * spiralRadius;
+    y += u * 66;
+    y += (Math.sin(u * TAU * 3.05 - 0.5) - Math.sin(-0.5)) * 4.8;
   }
 
   return { x, y };
