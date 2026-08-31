@@ -49,15 +49,15 @@ replace_once(
 replace_once(
     world,
     '      const x=side*(25+r(j+71)*8.5);\n',
-    '      const nearBase=stage.biome==="volcano"?33:25;\n      const nearSpan=stage.biome==="volcano"?8:8.5;\n      const x=side*(nearBase+r(j+71)*nearSpan);\n',
-    "widen volcano near pass corridor",
+    '      const x=side*(25+r(j+71)*8.5);\n      const volcanoX=side*(33+r(j+71)*8);\n',
+    "preserve near pass base and add volcano offset",
 )
 
 replace_once(
     world,
-    '      } else if(stage.biome==="canyon" || stage.biome==="desert" || stage.biome==="volcano"){\n        const h=24+r(j+9)*36;\n',
-    '      } else if(stage.biome==="canyon" || stage.biome==="desert" || stage.biome==="volcano"){\n        const h=stage.biome==="volcano"?20+r(j+9)*27:24+r(j+9)*36;\n',
-    "lower volcano near pass occluders",
+    '      } else if(stage.biome==="canyon" || stage.biome==="desert" || stage.biome==="volcano"){\n        const h=24+r(j+9)*36;\n        const fin=mesh(group,new THREE.CylinderGeometry(1.8+r(j+7)*2.7,4.6+r(j+17)*3.3,h,5,2),j%2?secondary:primary,x,-26+h/2,z);\n        fin.rotation.z=side*(.06+r(j+27)*.16);\n        fin.rotation.y=r(j+37)*Math.PI;\n        if(stage.biome==="volcano" && j%2===0) mesh(group,new THREE.ConeGeometry(.28,8+r(j+57)*10,5),glow,x-side*2,-13,z+2);\n',
+    '      } else if(stage.biome==="canyon" || stage.biome==="desert" || stage.biome==="volcano"){\n        const h=stage.biome==="volcano"?20+r(j+9)*27:24+r(j+9)*36;\n        const rockX=stage.biome==="volcano"?volcanoX:x;\n        const fin=mesh(group,new THREE.CylinderGeometry(1.8+r(j+7)*2.7,4.6+r(j+17)*3.3,h,5,2),j%2?secondary:primary,rockX,-26+h/2,z);\n        fin.rotation.z=side*(.06+r(j+27)*.16);\n        fin.rotation.y=r(j+37)*Math.PI;\n        if(stage.biome==="volcano" && j%2===0) mesh(group,new THREE.ConeGeometry(.28,8+r(j+57)*10,5),glow,rockX-side*2,-13,z+2);\n',
+    "widen and lower only volcano near pass occluders",
 )
 
 old_test = '''test("V8.3 volcano ribbon and orbital helix expose the real course shape on screen", () => {\n  const scene = new THREE.Scene();\n  const world = new SkyDancerArcadeReferenceWorld(scene);\n  const volcano = SKY_DANCER_ARCADE_STAGES.find((stage) => stage.id === "volcano-core")!;\n  world.setStage(volcano);\n  world.update(640, 0, 0);\n  const lava = scene.getObjectsByProperty("name", "arcade-volcano-route-cue");\n  assert.equal(lava.length, 10);\n  assert.ok(Math.max(...lava.map((cue) => cue.position.x)) - Math.min(...lava.map((cue) => cue.position.x)) > 12,\n    "volcano route ribbon should visibly sweep sideways");\n  assert.equal(scene.getObjectsByProperty("name", "arcade-volcano-bent-lava-ribbon").length, 10);\n\n  const orbit = SKY_DANCER_ARCADE_STAGES.find((stage) => stage.id === "orbital-ascent")!;\n  world.setStage(orbit);\n  world.update(720, 0, 0);\n  const helix = scene.getObjectsByProperty("name", "arcade-orbit-helix-cue");\n  assert.equal(helix.length, 10);\n  assert.ok(Math.max(...helix.map((cue) => cue.position.x)) - Math.min(...helix.map((cue) => cue.position.x)) > 10,\n    "orbital helix centers should bend across the view");\n  assert.ok(Math.max(...helix.map((cue) => cue.rotation.z)) - Math.min(...helix.map((cue) => cue.rotation.z)) > 1,\n    "orbital guide arcs should visibly wind around the ascent axis");\n  assert.equal(scene.getObjectsByProperty("name", "arcade-orbit-helix-arc").length, 10);\n  world.dispose();\n});'''
