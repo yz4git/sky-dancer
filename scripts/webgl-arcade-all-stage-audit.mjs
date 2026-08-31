@@ -64,7 +64,7 @@ for (let index = 0; index < stages.length; index += 1) {
   await page.locator('button').filter({ hasText: /^\s*STAGE PRACTICE/i }).first().click({ force: true });
   const grid = page.locator('[aria-label="Select practice stage"]');
   await grid.waitFor({ state: "visible", timeout: 15_000 });
-  const stageButton = grid.locator("button").filter({ hasText: new RegExp(`\\b${shortName}\\b`, "i") }).first();
+  const stageButton = grid.locator("button").filter({ hasText: new RegExp(shortName, "i") }).first();
   await stageButton.click({ force: true });
   const start = page.locator("button").filter({ hasText: /START STAGE PRACTICE/i }).last();
   await start.scrollIntoViewIfNeeded();
