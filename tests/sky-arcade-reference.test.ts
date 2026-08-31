@@ -145,6 +145,27 @@ test("missile trails and explosions keep a bounded mesh and buffer count under l
 });
 
 
+test("V8.5 ice cavern visual ribs follow the real vertical course wave", () => {
+  const scene = new THREE.Scene();
+  const world = new SkyDancerArcadeReferenceWorld(scene);
+  const ice = SKY_DANCER_ARCADE_STAGES.find((stage) => stage.id === "ice-cavern")!;
+  world.setStage(ice);
+  world.update(ice.courseSpeed * 10, 0, 0);
+  const cues = scene.getObjectsByProperty("name", "arcade-ice-wave-cue");
+  assert.equal(cues.length, 11);
+  assert.equal(scene.getObjectsByProperty("name", "arcade-ice-wave-arch").length, 11);
+  const ys = cues.map((cue) => cue.position.y);
+  const pitches = cues.map((cue) => cue.rotation.x);
+  const xs = cues.map((cue) => cue.position.x);
+  assert.ok(Math.max(...ys)-Math.min(...ys)>12,
+    "ice tunnel ribs must visibly climb and dive through the cavern");
+  assert.ok(Math.max(...pitches)-Math.min(...pitches)>.18,
+    "ice tunnel ribs must rotate with the course pitch, not form a flat straight tube");
+  assert.ok(Math.max(...xs)-Math.min(...xs)>25,
+    "ice tunnel keeps its horizontal slalom while adding the vertical wave");
+  world.dispose();
+});
+
 test("V8.4 continuous volcano ribbon and orbital helix expose the real course shape on screen", () => {
   const scene = new THREE.Scene();
   const world = new SkyDancerArcadeReferenceWorld(scene);

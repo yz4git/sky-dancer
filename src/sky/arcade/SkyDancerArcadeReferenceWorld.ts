@@ -15,7 +15,7 @@ const fract = (n: number) => n - Math.floor(n);
 const random = (seed: number) => fract(Math.sin(seed * 127.1 + 311.7) * 43758.5453);
 
 interface CourseChunk { group: THREE.Group; index: number }
-interface RouteCue { group: THREE.Group; depth: number; phase: number; kind: "volcano" | "orbit" }
+interface RouteCue { group: THREE.Group; depth: number; phase: number; kind: "ice" | "volcano" | "orbit" }
 
 function paint(color: number, emission = 0): THREE.MeshStandardMaterial {
   return new THREE.MeshStandardMaterial({
@@ -98,12 +98,13 @@ export class SkyDancerArcadeReferenceWorld {
     }
     for(const cue of this.routeCues){
       const course=arcadeCourseRelativePose(this.stage,distance,cue.depth);
-      cue.group.position.set(course.x-playerX*.35,course.y-playerY*.16,-cue.depth);
-      cue.group.rotation.y=course.yaw*.98;
-      cue.group.rotation.x=course.pitch*.78;
+      const yScale=cue.kind==="ice"?1.18:1;
+      cue.group.position.set(course.x-playerX*.35,course.y*yScale-playerY*.16,-cue.depth);
+      cue.group.rotation.y=course.yaw*(cue.kind==="ice"?1.05:.98);
+      cue.group.rotation.x=course.pitch*(cue.kind==="ice"?1.6:.78);
       cue.group.rotation.z=cue.kind==="orbit"
         ? cue.phase+(distance+cue.depth)*.0068
-        : course.bank*.08;
+        : course.bank*(cue.kind==="ice"?.18:.08);
     }
     if(this.volcanoRibbon)this.updateVolcanoRibbon(distance,playerX,playerY);
     if(this.water)this.water.uniforms.time.value=distance/this.stage.courseSpeed;
@@ -166,20 +167,38 @@ export class SkyDancerArcadeReferenceWorld {
   }
 
   private buildRouteCues(stage:SkyDancerArcadeStageDefinition):void {
-    if(stage.biome!=="volcano" && stage.biome!=="orbit")return;
-    const kind=stage.biome;
+    if(!["ice","volcano","orbit"].includes(stage.biome))return;
+    const kind=stage.biome as RouteCue["kind"];
     const primary=paint(stage.palette.primary);
     const secondary=paint(stage.palette.secondary);
     const glow=new THREE.MeshBasicMaterial({
-      color:stage.palette.accent,transparent:true,opacity:kind==="volcano"?.88:.84,
+      color:stage.palette.accent,transparent:true,opacity:kind==="volcano"?.88:kind==="ice"?.76:.84,
       blending:THREE.AdditiveBlending,depthWrite:false,
     });
     const dark=paint(stage.palette.ground);
-    for(let i=0;i<10;i++){
+    const count=kind==="ice"?11:10;
+    for(let i=0;i<count;i++){
       const cue=new THREE.Group();
-      const depth=26+i*43;
+      const depth=kind==="ice"?22+i*31:26+i*43;
       const phase=i*.64;
-      if(kind==="volcano"){
+      if(kind==="ice"){
+        cue.name="arcade-ice-wave-cue";
+        const radius=21.5+(i%3===0?-2.5:i%3===1?1.3:3.4);
+        const arch=mesh(cue,new THREE.TorusGeometry(radius,1.15,6,32,Math.PI),i%2?secondary:primary,0,-10.5,0);
+        arch.name="arcade-ice-wave-arch";
+        arch.rotation.z=(i%2?1:-1)*.055;
+        const inner=mesh(cue,new THREE.TorusGeometry(radius*.9,.42,5,28,Math.PI*.78),glow,0,-10.2,.18);
+        inner.rotation.z=Math.PI*.11+(i%2?-.045:.045);
+        for(const side of [-1,1]){
+          const fang=mesh(cue,new THREE.ConeGeometry(1.35,7.5+(i%3)*1.2,5),i%2?primary:secondary,side*radius*.48,7+(i%2)*1.8,1);
+          fang.name="arcade-ice-pressure-fang";
+          fang.rotation.z=side*(.16+(i%3)*.025);
+        }
+        if(i%2===0){
+          const floorShard=mesh(cue,new THREE.ConeGeometry(1.15,6.6,5),glow,(i%4===0?1:-1)*7.5,-20.5,.5);
+          floorShard.rotation.z=Math.PI+(i%4===0?.08:-.08);
+        }
+      }else if(kind==="volcano"){
         cue.name="arcade-volcano-route-cue";
         // Short rim markers preserve depth rhythm while the continuous ribbon shows the true curve.
         for(const side of [-1,1]){
