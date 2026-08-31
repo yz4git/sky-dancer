@@ -307,9 +307,14 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
       this.enemyGroups.delete(id);
       const previous = this.previousSnapshot.enemies.find(enemy => enemy.id === id);
       if (snapshot.enemiesDefeated > this.previousSnapshot.enemiesDefeated && previous && previous.depth > 3) {
-        const climaxStrength = previous.boss ? 1.7 : previous.kind === "bomber" || previous.kind === "missile-boat" ? 1.02 : .72;
-        this.presentation.emitClimax(group.position, climaxStrength);
-        this.cameraShake = Math.min(1.18, this.cameraShake + (previous.boss ? .74 : .18));
+        const heavyClimax = previous.boss || previous.kind === "bomber" || previous.kind === "missile-boat";
+        if (heavyClimax) {
+          const climaxStrength = previous.boss ? 1.7 : 1.02;
+          this.presentation.emitClimax(group.position, climaxStrength);
+        } else {
+          this.presentation.emitBurst(group.position, .72);
+        }
+        this.cameraShake = Math.min(1.18, this.cameraShake + (previous.boss ? .74 : heavyClimax ? .18 : .1));
         this.audio.tone(previous.boss ? 48 : 74, previous.boss ? .42 : .15, previous.boss ? .07 : .028, "sawtooth");
       }
       this.entityRoot.remove(group);
@@ -510,7 +515,8 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
     this.camera.fov += (pose.fov - this.camera.fov) * Math.min(1, delta * 4.5);
     this.camera.updateProjectionMatrix();
     this.camera.lookAt(pose.lookX + courseAim.x * .16, pose.lookY + courseAim.y * .17, pose.lookZ);
-    this.camera.rotateZ(pose.roll + course.bank * .44 + courseAim.bank * .16);
+    // Let the aircraft bank dramatically while keeping the horizon readable on a phone.
+    this.camera.rotateZ(pose.roll + course.bank * .28 + courseAim.bank * .08);
   }
 
   private resize(): void {

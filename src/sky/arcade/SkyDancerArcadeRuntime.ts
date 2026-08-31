@@ -174,7 +174,7 @@ const PLAYER_TURBO_SPEED_X = 4.45;
 const PLAYER_TURBO_SPEED_Y = 3.75;
 const PLAYER_MOVE_RESPONSE = 19.5;
 const ENEMY_FLYBY_CULL_DEPTH = -11.5;
-const MAX_ENEMY_PROJECTILES_NORMAL = 6;
+const MAX_ENEMY_PROJECTILES_NORMAL = 5;
 const MAX_ENEMY_PROJECTILES_HARD = 9;
 
 function clamp(value: number, min: number, max: number): number {
@@ -281,6 +281,7 @@ export class SkyDancerArcadeRuntime {
   private missileSerial = 0;
   private hitSerial = 0;
   private damageSerial = 0;
+  private damageCooldown = 0;
   private stageSerial = 1;
   private resultSerial = 0;
   private readonly stageStats: StageStats = { scoreAtStart: 0, damageAtStart: 0, killsAtStart: 0 };
@@ -311,8 +312,10 @@ export class SkyDancerArcadeRuntime {
     this.enemies = [];
     this.projectiles = [];
     this.hazards = [];
-    this.nextWaveAt = this.stageTime + 1.6;
-    this.nextHazardAt = this.stageTime + 2.7;
+    // Give each section a readable establishing beat before the first pressure wave.
+    this.nextWaveAt = this.stageTime + (rewindTime > 0 ? 1.35 : 2.35);
+    this.nextHazardAt = this.stageTime + (rewindTime > 0 ? 2.0 : 4.1);
+    this.damageCooldown = 0;
     this.branchSelection = null;
     this.branchWasResolved = this.stageTime >= this.stage.durationSeconds * 0.45;
     this.bossSpawned = false;
@@ -394,6 +397,7 @@ export class SkyDancerArcadeRuntime {
     this.runTime += delta;
     this.distance += this.stage.courseSpeed * (turboActive ? 1.34 : 1) * delta;
     this.messageTimer = Math.max(0, this.messageTimer - delta);
+    this.damageCooldown = Math.max(0, this.damageCooldown - delta);
     if (this.messageTimer <= 0) this.message = null;
     this.updatePlayer(delta, turboActive);
     this.updateBranch();
@@ -466,7 +470,8 @@ export class SkyDancerArcadeRuntime {
   private updateDirector(): void {
     const bossTime = this.stage.durationSeconds * (this.stage.id === SKY_DANCER_ARCADE_FINAL_STAGE ? 0.42 : 0.52);
     if (!this.bossSpawned && this.stageTime >= bossTime) this.spawnBoss();
-    if (!this.bossSpawned && this.stageTime >= this.nextWaveAt && this.enemies.filter((enemy) => enemy.alive).length < 15) {
+    const enemyCap = this.options.difficulty === "hard" ? 15 : 11;
+    if (!this.bossSpawned && this.stageTime >= this.nextWaveAt && this.enemies.filter((enemy) => enemy.alive).length < enemyCap) {
       this.spawnWave();
       const pressure = this.options.difficulty === "hard" ? 0.84 : 1;
       this.nextWaveAt += this.stage.waveIntervalSeconds * pressure * (0.84 + this.random() * 0.34);
@@ -480,7 +485,7 @@ export class SkyDancerArcadeRuntime {
   private spawnWave(): void {
     const formation = this.stage.formations[Math.floor(this.random() * this.stage.formations.length)] ?? "line";
     const hardBonus = this.options.difficulty === "hard" ? 1 : 0;
-    const count = 3 + Math.floor(this.random() * 3) + hardBonus;
+    const count = 3 + Math.floor(this.random() * 2) + hardBonus;
     for (let index = 0; index < count; index += 1) {
       const kind = this.stage.enemies[Math.floor(this.random() * this.stage.enemies.length)] ?? "fighter";
       const [x, y] = this.formationPosition(formation, index, count);
@@ -718,7 +723,8 @@ export class SkyDancerArcadeRuntime {
           this.message = "TURBO SMASH";
           this.messageTimer = 0.8;
         } else {
-          this.takeDamage(enemy.boss ? 34 : 22);
+          const hard = this.options.difficulty === "hard";
+          this.takeDamage(enemy.boss ? (hard ? 34 : 26) : (hard ? 22 : 16));
           enemy.alive = false;
         }
       }
@@ -750,7 +756,7 @@ export class SkyDancerArcadeRuntime {
         depth: enemy.depth,
         targetEnemyId: null,
         speed: enemy.boss ? 17.5 : enemy.kind === "missile-boat" ? 15.5 : enemy.kind === "bomber" ? 14.5 : 13.2,
-        damage: enemy.boss ? (hard ? 18 : 13) : hard ? 13 : 9,
+        damage: enemy.boss ? (hard ? 18 : 11) : hard ? 13 : 8,
         life: 5.6,
         vx: (this.playerX - enemy.x) * 0.28 + centered * 0.2,
         vy: (this.playerY - enemy.y) * 0.28 + centered * 0.11,
@@ -844,7 +850,8 @@ export class SkyDancerArcadeRuntime {
           this.message = "HAZARD BREAK";
           this.messageTimer = 0.6;
         } else {
-          this.takeDamage(hazard.kind === "lightning" ? 18 : 24);
+          const hard = this.options.difficulty === "hard";
+          this.takeDamage(hazard.kind === "lightning" ? (hard ? 18 : 13) : (hard ? 24 : 18));
         }
       } else if (!hazard.nearMissChecked && distance < radius + 0.28) {
         hazard.nearMissChecked = true;
@@ -885,6 +892,9 @@ export class SkyDancerArcadeRuntime {
   }
 
   private takeDamage(amount: number): void {
+    // Prevent overlapping missiles/fly-bys from deleting the airframe in a single unreadable burst.
+    if (this.damageCooldown > 0) return;
+    this.damageCooldown = this.options.difficulty === "hard" ? .28 : .5;
     const effective = this.input.turbo ? amount * 0.72 : amount;
     this.playerHp = Math.max(0, this.playerHp - effective);
     this.damageTaken += effective;

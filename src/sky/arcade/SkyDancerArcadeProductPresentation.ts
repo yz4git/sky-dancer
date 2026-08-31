@@ -234,12 +234,12 @@ export class SkyDancerArcadeProductPresentation {
     this.climaxFlash.position.copy(camera.position).addScaledVector(this.forward, 2.35);
     const aspect = camera instanceof THREE.PerspectiveCamera ? camera.aspect : 1.7;
     this.climaxFlash.scale.set(10.5 * aspect, 10.5, 1);
-    this.climaxMaterial.opacity = Math.min(.48, .055 + this.climaxEnergy * .36);
+    this.climaxMaterial.opacity = Math.min(.32, .035 + this.climaxEnergy * .24);
     this.climaxFlash.visible = this.climaxEnergy > .001;
-    this.climaxRing.position.copy(camera.position).addScaledVector(this.forward, 2.2);
+    this.climaxRing.position.copy(camera.position).addScaledVector(this.forward, 3.4);
     this.climaxRing.quaternion.copy(camera.quaternion);
-    this.climaxRing.scale.setScalar(.82 + (1 - this.climaxPulse) * 2.8);
-    this.climaxRingMaterial.opacity = Math.min(.62, this.climaxPulse * .7);
+    this.climaxRing.scale.setScalar(.72 + (1 - this.climaxPulse) * 1.75);
+    this.climaxRingMaterial.opacity = Math.min(.38, this.climaxPulse * .42);
     this.climaxRing.visible = this.climaxPulse > .001;
   }
 

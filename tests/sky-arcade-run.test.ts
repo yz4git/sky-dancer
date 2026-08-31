@@ -146,12 +146,15 @@ test("holding lock acquires targets and release launches a bounded salvo", () =>
 
 test("forced input release clears touch state without launching a lock salvo", () => {
   const runtime = new SkyDancerArcadeRuntime({ mode: "arcade-run", difficulty: "normal", seed: 51 });
+  // Acquire a real lock first; moving at the arena edge is intentionally allowed to leave the lock cone.
+  runtime.setLock(true);
+  for (let frame = 0; frame < 300; frame += 1) runtime.step(1 / 60);
+  assert.ok(runtime.getSnapshot().lockedCount > 0);
+  // Then exercise the actual touch-release contract with every continuous input active.
   runtime.setMove(0.8, -1);
   runtime.setFire(true);
   runtime.setTurbo(true);
-  runtime.setLock(true);
-  for (let frame = 0; frame < 230; frame += 1) runtime.step(1 / 60);
-  assert.ok(runtime.getSnapshot().lockedCount > 0);
+  for (let frame = 0; frame < 8; frame += 1) runtime.step(1 / 60);
   runtime.releaseInputs();
   const released = runtime.getSnapshot();
   assert.equal(released.fireActive, false);
@@ -199,7 +202,7 @@ test("wide-field combat source keeps enemies, guided threats and missile visuals
   assert.match(runtimeSource, /guidance = enemy\.boss/);
   assert.match(runtimeSource, /projectile\.guidance > 0/);
   assert.match(cameraSource, /playerX \* \(5\.15 \+ phone \* 2\.55\)/);
-  assert.match(runtimeSource, /MAX_ENEMY_PROJECTILES_NORMAL = 6/);
+  assert.match(runtimeSource, /MAX_ENEMY_PROJECTILES_NORMAL = 5/);
   assert.match(runtimeSource, /threatBudget - activeThreats/);
   assert.match(webglSource, /arcade-aim-ring/);
   assert.match(webglSource, /ConeGeometry\(0\.36, 1\.62, 8\)/);
@@ -216,7 +219,28 @@ test("normal difficulty caps simultaneous enemy missile pressure", () => {
     maxThreats = Math.max(maxThreats, snapshot.projectiles.filter((projectile) => projectile.owner === "enemy").length);
     if (snapshot.status !== "running") break;
   }
-  assert.ok(maxThreats <= 6, `normal threat budget ${maxThreats}`);
+  assert.ok(maxThreats <= 5, `normal threat budget ${maxThreats}`);
+});
+
+test("V6.2 NORMAL opening pressure preserves reaction time and readable damage cadence", async () => {
+  const runtime = new SkyDancerArcadeRuntime({ mode: "arcade-run", difficulty: "normal", seed: 0x5f3759df });
+  for (let frame = 0; frame < 720; frame += 1) runtime.step(1 / 60);
+  const snapshot = runtime.getSnapshot();
+  assert.equal(snapshot.status, "running");
+  assert.equal(snapshot.continuesRemaining, SKY_DANCER_ARCADE_MAX_CONTINUES);
+  assert.ok(snapshot.playerHp > 20, `opening HP ${snapshot.playerHp}`);
+
+  const [runtimeSource, webglSource, presentationSource] = await Promise.all([
+    readFile(new URL("../src/sky/arcade/SkyDancerArcadeRuntime.ts", import.meta.url), "utf8"),
+    readFile(new URL("../src/sky/arcade/SkyDancerArcadeWebGLDemo.ts", import.meta.url), "utf8"),
+    readFile(new URL("../src/sky/arcade/SkyDancerArcadeProductPresentation.ts", import.meta.url), "utf8"),
+  ]);
+  assert.match(runtimeSource, /damageCooldown = this\.options\.difficulty === "hard" \? \.28 : \.5/);
+  assert.match(runtimeSource, /enemyCap = this\.options\.difficulty === "hard" \? 15 : 11/);
+  assert.match(webglSource, /heavyClimax/);
+  assert.match(webglSource, /emitBurst\(group\.position, \.72\)/);
+  assert.match(presentationSource, /addScaledVector\(this\.forward, 3\.4\)/);
+  assert.match(webglSource, /course\.bank \* \.28 \+ courseAim\.bank \* \.08/);
 });
 
 test("enemy missiles curve during guidance then commit to a dodgeable terminal path", async () => {

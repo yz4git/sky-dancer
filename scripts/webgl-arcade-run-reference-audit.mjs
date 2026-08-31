@@ -1,4 +1,4 @@
-// 2026-08-31 V6.1 visual playcheck: verify the stronger opening S-turn, readable banking, fly-bys and combat.
+// 2026-08-31 V6.2 visual playcheck: verify course readability, fair NORMAL pressure and restrained kill feedback.
 import { mkdir, writeFile } from "node:fs/promises";
 import { chromium } from "playwright";
 
@@ -43,6 +43,10 @@ const captureCanvas = async (path) => {
   await page.screenshot({ path, clip: box });
 };
 const bodyText = async () => page.locator("body").innerText();
+const hpPercent = (text) => {
+  const match = text.match(/AIRFRAME\s*([0-9]+)%/i);
+  return match ? Number(match[1]) : null;
+};
 const destroyedCount = async () => {
   const text = await bodyText();
   const match = text.match(/(\d+)\s+DESTROYED/i);
@@ -79,6 +83,8 @@ await page.screenshot({ path: `${outputDir}/00b-course-bend-turbo.png`, fullPage
 await page.keyboard.up(" ");
 await page.waitForTimeout(1700);
 await page.screenshot({ path: `${outputDir}/00c-course-bend-b.png`, fullPage: true });
+const bendText = await bodyText();
+const bendHp = hpPercent(bendText);
 
 await page.keyboard.down("ArrowRight");
 await page.keyboard.down("ArrowUp");
@@ -146,6 +152,8 @@ const diagnostics = {
   buttonLabels,
   renderState,
   courseTime,
+  bendHp,
+  finalHp: hpPercent(finalText),
   destroyedBefore,
   destroyedAfter,
   climaxCaptured,
@@ -160,6 +168,8 @@ await browser.close();
 if (!diagnostics.arcadeHud) throw new Error(`Arcade Run HUD was not found: ${JSON.stringify(diagnostics)}`);
 if (!buttonLabels.some((label) => /7 SECTIONS · 4 MIN/i.test(label))) throw new Error(`Arcade Run title still exposes stale duration copy: ${JSON.stringify(buttonLabels)}`);
 if (!renderState.webgl || renderState.cssWidth < 800 || renderState.cssHeight < 360) throw new Error(`Arcade Run WebGL surface is invalid: ${JSON.stringify(renderState)}`);
+if (bendHp !== null && bendHp < 55) throw new Error(`NORMAL opening pressure is still too bursty during the course showcase: ${bendHp}%`);
+if (/AIRFRAME LOST|MISSION FAILED/i.test(finalText)) throw new Error(`Arcade playcheck lost the airframe before the first section climax`);
 // Destruction capture is diagnostic only; the gameplay/renderer audit must not fail because headless lock acquisition missed.
 if (courseTime && !/^3:/.test(courseTime)) throw new Error(`Arcade Run did not expose the doubled four-minute course: ${courseTime}`);
 if (consoleErrors.length) throw new Error(`Arcade Run console errors: ${consoleErrors.join(" | ")}`);
