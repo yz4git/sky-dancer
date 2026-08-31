@@ -350,9 +350,9 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
       let mesh = this.projectileMeshes.get(projectile.id);
       if (!mesh) {
         const enemyMissile = projectile.owner === "enemy";
-        const color = enemyMissile ? 0xff8a2b : projectile.owner === "player-missile" ? 0x64e9ff : 0xc8f8ff;
+        const color = enemyMissile ? 0xff8a2b : projectile.owner === "player-missile" ? 0xfff4de : 0xc8f8ff;
         const geometry = projectile.owner === "player-missile"
-          ? new THREE.ConeGeometry(0.16, 1.02, 7)
+          ? new THREE.ConeGeometry(0.2, 1.26, 8)
           : enemyMissile
             ? new THREE.ConeGeometry(0.36, 1.62, 8)
             : new THREE.CylinderGeometry(0.04, 0.072, 1.55, 5);

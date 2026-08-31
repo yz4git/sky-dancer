@@ -108,9 +108,18 @@ export class SkyDancerArcadeCanvasDemo implements SkyDancerArcadeDemoHandle {
     }
     for (const projectile of snapshot.projectiles) {
       const projected = this.project(projectile.x, projectile.y, projectile.depth, cssWidth, cssHeight);
-      context.fillStyle = projectile.owner === "enemy" ? "#ff4968" : projectile.owner === "player-missile" ? "#65e9ff" : "#fff1a8";
+      if (projectile.owner === "player-missile") {
+        context.strokeStyle = "rgba(255,255,255,.84)";
+        context.lineWidth = Math.max(2.4, projected.scale * 5.2);
+        context.lineCap = "round";
+        context.beginPath();
+        context.moveTo(projected.x, projected.y + projected.scale * 3);
+        context.lineTo(projected.x, projected.y + projected.scale * 20);
+        context.stroke();
+      }
+      context.fillStyle = projectile.owner === "enemy" ? "#ff4968" : projectile.owner === "player-missile" ? "#fff0c8" : "#fff1a8";
       context.beginPath();
-      context.arc(projected.x, projected.y, Math.max(1.5, projected.scale * (projectile.owner === "player-missile" ? 4 : 2.4)), 0, Math.PI * 2);
+      context.arc(projected.x, projected.y, Math.max(1.5, projected.scale * (projectile.owner === "player-missile" ? 4.8 : 2.4)), 0, Math.PI * 2);
       context.fill();
     }
     this.drawPlayer(context, snapshot, cssWidth, cssHeight);
