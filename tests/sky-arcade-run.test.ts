@@ -431,3 +431,39 @@ test("V8.1 playcheck keeps close dogfights readable and the Turbo airframe on-sc
   assert.match(camera, /turboFollow \* 1\.08/);
   assert.match(camera, /fov: turbo \? 69 : 56/);
 });
+
+
+test("V8.2 branch stages carry independent course signatures and no decorative horizon carrier", async () => {
+  const sample = (id: "cloud-fleet" | "storm-carrier" | "desert-fortress" | "floating-ruins" | "night-metro" | "prism-citadel") => {
+    const stage = SKY_DANCER_ARCADE_STAGES.find((candidate) => candidate.id === id)!;
+    const length = stage.durationSeconds * stage.courseSpeed;
+    return Array.from({ length: 121 }, (_, index) => arcadeCoursePose(stage, length * index / 120));
+  };
+  const span = (values: number[]) => Math.max(...values) - Math.min(...values);
+  const signChanges = (values: number[], epsilon = .03) => {
+    const signs = values.filter((value) => Math.abs(value) >= epsilon).map((value) => Math.sign(value));
+    return signs.reduce((count, sign, index) => index > 0 && sign !== signs[index - 1] ? count + 1 : count, 0);
+  };
+
+  const cloud = sample("cloud-fleet");
+  assert.ok(span(cloud.map((pose) => pose.y)) > 25, "cloud stage should crest vertically");
+  const storm = sample("storm-carrier");
+  assert.ok(signChanges(storm.map((pose) => pose.yaw)) >= 5, "storm should dodge laterally");
+  assert.ok(span(storm.map((pose) => pose.y)) > 25, "storm should change altitude sharply");
+  const desert = sample("desert-fortress");
+  assert.ok(span(desert.map((pose) => pose.x)) > 55, "desert fortress should alternate wall approaches");
+  const ruins = sample("floating-ruins");
+  assert.ok(span(ruins.map((pose) => pose.x)) > 55, "ruins should weave through islands");
+  assert.ok(span(ruins.map((pose) => pose.y)) > 35, "ruins should be a multi-level labyrinth");
+  const night = sample("night-metro");
+  assert.ok(signChanges(night.map((pose) => pose.yaw)) >= 6, "night metro should chicane repeatedly");
+  const citadel = sample("prism-citadel");
+  assert.ok(citadel.at(-1)!.y - citadel[0].y > 10, "citadel should climb into the finale");
+
+  const world = await readFile(new URL("../src/sky/arcade/SkyDancerArcadeReferenceWorld.ts", import.meta.url), "utf8");
+  assert.doesNotMatch(world, /arcade-horizon-fleet-carrier/);
+  assert.doesNotMatch(world, /createReferenceCarrier/);
+  assert.match(world, /const lift=tier\*8\.5/);
+  assert.match(world, /stage\.biome==="desert" && index%3===1/);
+  assert.match(world, /const stormSide=index%2===0\?1:-1/);
+});

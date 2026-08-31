@@ -102,12 +102,12 @@ test("all eleven environments have bounded geometry and continuous streaming own
   world.dispose(); assert.equal(scene.children.length, 0);
 });
 
-test("city renderer contains a river, instanced windows, cloud layers and horizon carrier", () => {
+test("city renderer contains a river, instanced windows and cloud layers without a decorative horizon carrier", () => {
   const scene = new THREE.Scene();
   const world = new SkyDancerArcadeReferenceWorld(scene);
   world.setStage(SKY_DANCER_ARCADE_STAGES[0]);
   assert.ok(scene.getObjectByName("arcade-distant-metropolis") instanceof THREE.InstancedMesh);
-  assert.ok(scene.getObjectByName("arcade-horizon-fleet-carrier"));
+  assert.equal(scene.getObjectByName("arcade-horizon-fleet-carrier"), undefined);
   assert.ok(scene.getObjectByName("arcade-product-cloud-deck-0") instanceof THREE.InstancedMesh);
   let facades = 0, rivers = 0;
   scene.traverse(object => {

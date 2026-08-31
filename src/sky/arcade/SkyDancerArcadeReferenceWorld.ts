@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import type { SkyDancerArcadeStageDefinition } from "./SkyDancerArcadeData";
-import { bakeArcadeAirframe, createReferenceCarrier } from "./SkyDancerArcadeReferenceAirframes";
+import { bakeArcadeAirframe } from "./SkyDancerArcadeReferenceAirframes";
 import { arcadeCourseRelativePose } from "./SkyDancerArcadeCoursePath";
 import {
   ARCADE_FOG_FAR, ARCADE_FOG_NEAR, ARCADE_SUN_DIRECTION,
@@ -47,7 +47,6 @@ export class SkyDancerArcadeReferenceWorld {
   private readonly chunks:CourseChunk[]=[];
   private stage:SkyDancerArcadeStageDefinition|null=null;
   private water:THREE.ShaderMaterial|null=null;
-  private carrier:THREE.Group|null=null;
   private readonly matrixObject=new THREE.Object3D();
 
   constructor(private readonly scene:THREE.Scene) {
@@ -56,7 +55,7 @@ export class SkyDancerArcadeReferenceWorld {
 
   setStage(stage:SkyDancerArcadeStageDefinition):void {
     if(this.stage?.id===stage.id)return;
-    disposeTree(this.root);this.water?.dispose();this.chunks.length=0;this.carrier=null;
+    disposeTree(this.root);this.water?.dispose();this.chunks.length=0;
     this.stage=stage;
     const palette=referenceAtmosphere(stage);
     this.scene.background=palette.zenith;
@@ -93,10 +92,6 @@ export class SkyDancerArcadeReferenceWorld {
       chunk.group.rotation.z=course.bank*.12;
     }
     if(this.water)this.water.uniforms.time.value=distance/this.stage.courseSpeed;
-    if(this.carrier){
-      this.carrier.position.y=34+Math.sin(distance*.001)*1.7;
-      this.carrier.rotation.z=Math.sin(distance*.0012)*.024;
-    }
   }
 
   private buildBackdrop(stage:SkyDancerArcadeStageDefinition):THREE.Group {
@@ -139,14 +134,6 @@ export class SkyDancerArcadeReferenceWorld {
       }
       towers.computeBoundingSphere();group.add(towers);
     }
-    if(stage.biome==="city" || stage.biome==="cloud" || stage.biome==="storm"){
-      this.carrier=createReferenceCarrier(stage,true);
-      this.carrier.name="arcade-horizon-fleet-carrier";
-      this.carrier.scale.setScalar(stage.biome==="city"?3.8:3.3);
-      this.carrier.position.set(46,34,-195);
-      this.carrier.rotation.y=-.67;
-      group.add(this.carrier);
-    }
     return group;
   }
 
@@ -177,6 +164,14 @@ export class SkyDancerArcadeReferenceWorld {
             mesh(group,new THREE.BoxGeometry(.22,3,8),glow,side*(28+j%2*28),h-22,-42+j*27);
           }
         }
+        if(stage.biome==="desert" && index%3===1){
+          const gate=index%2===0?9:-9;
+          mesh(group,new THREE.BoxGeometry(50,28,6),dark,gate-42,-11,8);
+          mesh(group,new THREE.BoxGeometry(50,28,6),dark,gate+42,-11,8);
+          mesh(group,new THREE.BoxGeometry(34,4.5,7),secondary,gate,7.2,8);
+          mesh(group,new THREE.BoxGeometry(31,.34,7.2),glow,gate,4.8,7.8);
+          for(const side of [-1,1]) mesh(group,new THREE.BoxGeometry(.3,18,6.4),glow,gate+side*17,-8,8);
+        }
         if(stage.biome==="volcano"){
           const lava=mesh(group,new THREE.PlaneGeometry(23,114,8,8),glow,0,-25);
           lava.rotation.x=-Math.PI/2;
@@ -194,11 +189,12 @@ export class SkyDancerArcadeReferenceWorld {
           mesh(group,new THREE.BoxGeometry(17,.9,21),secondary,side*35,-12,0);
           mesh(group,new THREE.BoxGeometry(13,.1,.25),glow,side*35,-11.45,-7);
         }
-        if(stage.biome==="storm" && index%2===0){
+        if(stage.biome==="storm"){
           const lightning=new THREE.Group();
-          for(let j=0;j<4;j++){
-            const bolt=mesh(lightning,new THREE.CylinderGeometry(.1,.18,8,5),glow,42+j%2*2,26-j*7,-20);
-            bolt.rotation.z=(j%2?1:-1)*.25;
+          const stormSide=index%2===0?1:-1;
+          for(let j=0;j<6;j++){
+            const bolt=mesh(lightning,new THREE.CylinderGeometry(.11,.2,8.5+j*.7,5),glow,stormSide*(24+(j%3)*7),24-j*6,-39+j*15);
+            bolt.rotation.z=stormSide*(j%2?-.34:.31);
           }
           group.add(lightning);
         }
@@ -215,13 +211,24 @@ export class SkyDancerArcadeReferenceWorld {
       }
       case "ruins":{
         for(const side of [-1,1]){
-          const island=mesh(group,new THREE.ConeGeometry(18,22,9),dark,side*31,-22,0);island.rotation.x=Math.PI;
-          mesh(group,new THREE.CylinderGeometry(18,16,1.1,9),primary,side*31,-10.5,0);
+          const tier=((index+(side>0?1:0))%3)-1;
+          const lift=tier*8.5;
+          const island=mesh(group,new THREE.ConeGeometry(18,22,9),dark,side*31,-22+lift,0);island.rotation.x=Math.PI;
+          island.rotation.z=side*tier*.035;
+          mesh(group,new THREE.CylinderGeometry(18,16,1.1,9),primary,side*31,-10.5+lift,0);
           for(let i=0;i<4;i++){
-            mesh(group,new THREE.CylinderGeometry(1.1,1.5,17,10),secondary,side*31+(i%2?7:-7),-2,-7+Math.floor(i/2)*14);
+            const broken=i===((index+(side>0?2:0))%4);
+            const column=mesh(group,new THREE.CylinderGeometry(1.1,1.5,broken?9:17,10),secondary,side*31+(i%2?7:-7),(broken?-6:-2)+lift,-7+Math.floor(i/2)*14);
+            if(broken) column.rotation.z=side*.18;
           }
-          mesh(group,new THREE.BoxGeometry(20,1.7,21),primary,side*31,7.3,0);
-          mesh(group,new THREE.BoxGeometry(17,.2,.22),glow,side*31,8.3,-9);
+          mesh(group,new THREE.BoxGeometry(20,1.7,21),primary,side*31,7.3+lift,0);
+          mesh(group,new THREE.BoxGeometry(17,.2,.22),glow,side*31,8.3+lift,-9);
+          const relic=mesh(group,new THREE.TorusGeometry(6.2,.34,6,24,Math.PI*1.35),glow,side*31,15+lift,2);
+          relic.rotation.z=side*(.45+tier*.12);
+        }
+        if(index%2===0){
+          const shard=mesh(group,new THREE.OctahedronGeometry(4.8,0),secondary,0,13+(index%4)*3,15);
+          shard.scale.y=2.1;shard.rotation.z=.38;
         }
         break;
       }

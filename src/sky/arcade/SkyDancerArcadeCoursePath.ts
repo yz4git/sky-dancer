@@ -58,6 +58,45 @@ function courseCenter(stage: SkyDancerArcadeStageDefinition, distance: number): 
   if (stage.biome === "ruins") y += Math.sin(authoredU * Math.PI * 2) * 3.2;
   if (stage.biome === "citadel") y += Math.sin(authoredU * Math.PI) * 5.2;
 
+  // V8.2 route personalities: branch choices should change how the phone moves, not only the palette.
+  if (stage.biome === "cloud") {
+    // Broad, graceful cresting arcs above the cloud sea.
+    x += (Math.sin(u * TAU * 1.18 + 0.46) - Math.sin(0.46)) * 15;
+    y += Math.sin(authoredU * Math.PI) * 17;
+    y += (Math.sin(u * TAU * 1.55 - 0.25) - Math.sin(-0.25)) * 6;
+  }
+  if (stage.biome === "storm") {
+    // Thunderhead dodge: nervous lateral reversals and sharp altitude changes.
+    x += (Math.sin(u * TAU * 3.05 + 0.62) - Math.sin(0.62)) * 11.5;
+    x += Math.sin(u * TAU * 6.1) * 3.2;
+    y += (Math.sin(u * TAU * 2.65 - 0.55) - Math.sin(-0.55)) * 9.5;
+  }
+  if (stage.biome === "desert") {
+    // Fortress breach run: long alternating wall approaches with a low, readable flight deck.
+    x += (Math.sin(u * TAU * 1.86 + 0.1) - Math.sin(0.1)) * 21;
+    x += Math.sin(u * TAU * 3.72 + 1.05) * 4.2;
+    y -= Math.sin(authoredU * Math.PI) * 4.8;
+  }
+  if (stage.biome === "ruins") {
+    // Floating labyrinth: weave between islands while climbing and dropping through broken levels.
+    x += (Math.sin(u * TAU * 1.5 + 0.75) - Math.sin(0.75)) * 24;
+    x += Math.sin(u * TAU * 4.7 - 0.2) * 5.2;
+    y += (Math.sin(u * TAU * 1.72 - 0.7) - Math.sin(-0.7)) * 18;
+  }
+  if (stage.biome === "night") {
+    // Neon pursuit: low-altitude, high-frequency metropolitan chicanes.
+    x += (Math.sin(u * TAU * 4.5 + 0.28) - Math.sin(0.28)) * 20;
+    x += Math.sin(u * TAU * 6.36) * 4;
+    y -= Math.sin(authoredU * Math.PI) * 3.6;
+  }
+  if (stage.biome === "citadel") {
+    // Finale approach: a tightening prism serpent that climbs into the titan arena.
+    const finalRadius = 16 * (1 - authoredU * .48);
+    x += (Math.sin(u * TAU * 2.75 + 0.9) - Math.sin(0.9)) * finalRadius;
+    y += authoredU * 18;
+    y += (Math.sin(u * TAU * 1.65 - 0.4) - Math.sin(-0.4)) * 5.5;
+  }
+
   // V7 stage signatures: the course shape itself is now part of each biome's identity.
   if (stage.biome === "canyon") {
     // Fast knife-edge switchbacks with a low valley floor: frequent lateral reversals, restrained vertical motion.
