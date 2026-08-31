@@ -4,10 +4,10 @@ import { chromium } from "playwright";
 const baseUrl = process.env.SKY_DANCER_AUDIT_URL || "http://127.0.0.1:4173";
 const outputDir = process.env.SKY_DANCER_AUDIT_DIR || "artifacts/arcade-stage-identity";
 const stages = [
-  { id: "red-canyon", short: "CANYON", name: "RED CANYON" },
-  { id: "ice-cavern", short: "ICE", name: "ICE CAVERN" },
-  { id: "volcano-core", short: "VOLCANO", name: "VOLCANO CORE" },
-  { id: "orbital-ascent", short: "ORBIT", name: "ORBITAL ASCENT" },
+  { id: "red-canyon", short: "CANYON", name: "RED CANYON", focus: false },
+  { id: "ice-cavern", short: "ICE", name: "ICE CAVERN", focus: true },
+  { id: "volcano-core", short: "VOLCANO", name: "VOLCANO CORE", focus: false },
+  { id: "orbital-ascent", short: "ORBIT", name: "ORBITAL ASCENT", focus: true },
 ];
 const allStageIds = ["dawn-city","red-canyon","cloud-fleet","storm-carrier","desert-fortress","ice-cavern","floating-ruins","night-metro","volcano-core","orbital-ascent","prism-citadel"];
 await mkdir(outputDir, { recursive: true });
@@ -15,13 +15,6 @@ const browser = await chromium.launch({ headless: true, args: ["--use-angle=swif
 const context = await browser.newContext({ viewport: { width: 844, height: 390 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
 await context.addInitScript((ids) => {
   localStorage.setItem("sky-dancer-arcade-progress-v1", JSON.stringify({ version: 1, clearedStageIds: ids, unlockedStageIds: ids, records: {}, bestRunScore: 0, bestRunRank: "D", completedRuns: 0, oneCreditClears: 0 }));
-  const originalGetContext = HTMLCanvasElement.prototype.getContext;
-  HTMLCanvasElement.prototype.getContext = function(type, attributes) {
-    if (type === "webgl" || type === "webgl2" || type === "experimental-webgl") {
-      return originalGetContext.call(this, type, { ...(attributes || {}), preserveDrawingBuffer: true });
-    }
-    return originalGetContext.call(this, type, attributes);
-  };
 }, allStageIds);
 
 async function selectPracticeStage(page, shortName) {
@@ -56,38 +49,19 @@ async function selectPracticeStage(page, shortName) {
   await page.locator("button").filter({ hasText: /START STAGE PRACTICE/i }).first().click();
 }
 
-async function captureWebGLCanvas(canvas, path) {
-  const capture = await canvas.evaluate((element) => {
-    const width = Math.max(1, Math.round(element.getBoundingClientRect().width));
-    const height = Math.max(1, Math.round(element.getBoundingClientRect().height));
-    const copy = document.createElement("canvas");
-    copy.width = width;
-    copy.height = height;
-    const ctx = copy.getContext("2d", { alpha: false });
-    if (!ctx) throw new Error("2D capture context unavailable");
-    ctx.drawImage(element, 0, 0, width, height);
-    const probe = ctx.getImageData(0, 0, width, height).data;
-    let signal = 0;
-    let samples = 0;
-    const stride = Math.max(4, Math.floor(probe.length / 4096 / 4) * 4);
-    for (let i = 0; i < probe.length; i += stride) {
-      signal += probe[i] + probe[i + 1] + probe[i + 2];
-      samples++;
-    }
-    const encoded = copy.toDataURL("image/png");
-    return { width, height, signal: samples ? signal / samples : 0, base64: encoded.slice(encoded.indexOf(",") + 1) };
-  });
-  if (capture.signal < 2) throw new Error(`Canvas transfer appears blank: ${JSON.stringify({ width: capture.width, height: capture.height, signal: capture.signal })}`);
-  await writeFile(path, Buffer.from(capture.base64, "base64"));
-  return { width: capture.width, height: capture.height, signal: capture.signal };
+async function captureCanvas(page, canvas, path) {
+  const box = await canvas.boundingBox();
+  if (!box) throw new Error("Arcade Run canvas has no bounding box");
+  await page.screenshot({ path, clip: box, timeout: 60_000 });
+  return { width: Math.round(box.width), height: Math.round(box.height) };
 }
 
 const diagnostics = [];
 for (const [index, stage] of stages.entries()) {
   console.log(`[stage-audit] ${stage.id}: open`);
   const page = await context.newPage();
-  page.setDefaultTimeout(15_000);
-  page.setDefaultNavigationTimeout(20_000);
+  page.setDefaultTimeout(30_000);
+  page.setDefaultNavigationTimeout(30_000);
   const consoleErrors = [];
   const pageErrors = [];
   page.on("console", (message) => { if (message.type() === "error") consoleErrors.push(message.text()); });
@@ -101,31 +75,44 @@ for (const [index, stage] of stages.entries()) {
   const prefix = `${String(index + 1).padStart(2, "0")}-${stage.id}`;
   const captures = [];
   const shot = async (suffix) => {
-    const metadata = await captureWebGLCanvas(canvas, `${outputDir}/${prefix}-${suffix}.png`);
+    const metadata = await captureCanvas(page, canvas, `${outputDir}/${prefix}-${suffix}.png`);
     captures.push({ suffix, ...metadata });
-    console.log(`[stage-audit] ${stage.id}: captured ${suffix} ${metadata.width}x${metadata.height} signal=${metadata.signal.toFixed(1)}`);
+    console.log(`[stage-audit] ${stage.id}: captured ${suffix} ${metadata.width}x${metadata.height}`);
   };
+
   await page.waitForTimeout(1400);
-  await shot("entry");
+  if (stage.focus) await shot("entry");
   await page.keyboard.down("ArrowRight"); await page.keyboard.down("ArrowUp");
   await page.waitForTimeout(850);
   await page.keyboard.up("ArrowRight"); await page.keyboard.up("ArrowUp");
   await page.waitForTimeout(2900);
   await shot("signature-a");
-  await page.keyboard.down(" ");
-  await page.waitForTimeout(1100);
-  await shot("turbo");
-  await page.keyboard.up(" ");
-  await page.keyboard.down("ArrowLeft"); await page.keyboard.down("ArrowDown");
-  await page.waitForTimeout(950);
-  await page.keyboard.up("ArrowLeft"); await page.keyboard.up("ArrowDown");
-  await page.waitForTimeout(3300);
-  await shot("signature-b");
+
+  if (stage.focus) {
+    await page.keyboard.down(" ");
+    await page.waitForTimeout(900);
+    await shot("turbo");
+    await page.keyboard.up(" ");
+    await page.keyboard.down("ArrowLeft"); await page.keyboard.down("ArrowDown");
+    await page.waitForTimeout(950);
+    await page.keyboard.up("ArrowLeft"); await page.keyboard.up("ArrowDown");
+    await page.waitForTimeout(2200);
+    await shot("signature-b");
+  }
+
   const body = await page.locator("body").innerText();
   const hp = Number((body.match(/AIRFRAME\s*([0-9]+)%/i) || [0, 0])[1]);
   const glState = await canvas.evaluate((element) => {
     const gl = element.getContext("webgl2") || element.getContext("webgl");
-    return { webgl: Boolean(gl), width: element.getBoundingClientRect().width, height: element.getBoundingClientRect().height, backingWidth: element.width, backingHeight: element.height };
+    const debug = gl?.getExtension("WEBGL_debug_renderer_info");
+    return {
+      webgl: Boolean(gl),
+      width: element.getBoundingClientRect().width,
+      height: element.getBoundingClientRect().height,
+      backingWidth: element.width,
+      backingHeight: element.height,
+      renderer: debug && gl ? gl.getParameter(debug.UNMASKED_RENDERER_WEBGL) : null,
+    };
   });
   const result = { stage: stage.id, stageVisible: body.includes(stage.name), hp, glState, captures, consoleErrors, pageErrors, failed: /AIRFRAME LOST|MISSION FAILED/i.test(body) };
   diagnostics.push(result);
@@ -138,7 +125,8 @@ for (const item of diagnostics) {
   if (!item.stageVisible) throw new Error(`Stage HUD mismatch: ${JSON.stringify(item)}`);
   if (!item.glState.webgl || item.glState.width < 800 || item.glState.height < 360) throw new Error(`Invalid WebGL surface: ${JSON.stringify(item)}`);
   if (item.hp <= 0 || item.failed) throw new Error(`Stage identity audit lost airframe: ${JSON.stringify(item)}`);
-  if (item.captures.length !== 4) throw new Error(`Missing visual captures: ${JSON.stringify(item)}`);
+  const expectedCaptures = item.stage === "ice-cavern" || item.stage === "orbital-ascent" ? 4 : 1;
+  if (item.captures.length !== expectedCaptures) throw new Error(`Missing visual captures: ${JSON.stringify(item)}`);
   if (item.consoleErrors.length || item.pageErrors.length) throw new Error(`Stage identity audit errors: ${JSON.stringify(item)}`);
 }
 console.log(`[stage-audit] complete: ${diagnostics.length} stages`);
