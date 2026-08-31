@@ -80,8 +80,8 @@ replace_once(world,
           }
         }
         for(const side of [-1,1]){
+          // Keep shoulders unnamed so the static geometry baker can merge them by material.
           const shelf=mesh(group,new THREE.BoxGeometry(24,2.4,24),side<0?primary:secondary,side*34,13+(index%3-1)*3.5,-4);
-          shelf.name="arcade-ice-canyon-shoulder";
           shelf.rotation.z=side*(.08+(index%3)*.018);
           shelf.rotation.y=side*.04;
           mesh(group,new THREE.BoxGeometry(21,.26,22),glow,side*34,11.9+(index%3-1)*3.5,-4);
@@ -112,9 +112,9 @@ replace_once(world,
 ''',
 '''      } else if(stage.biome==="ice"){
         const h=19+r(j+8)*24;
+        // Unnamed static crystals stay eligible for bakeArcadeAirframe batching.
         const crystal=mesh(group,new THREE.ConeGeometry(2.2+r(j+12)*1.8,h,5),j%2?primary:secondary,iceX,-21+h/2,z);
         crystal.rotation.z=side*(.08+r(j+24)*.16);
-        crystal.name="arcade-ice-near-crystal";
         if(j%2===1) mesh(group,new THREE.OctahedronGeometry(2.1+r(j+44)*1.6,0),glow,iceX-side*3,-1+r(j+66)*6,z+3);
 ''',
 "ice near-pass clearance")
