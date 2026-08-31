@@ -504,19 +504,27 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
     this.cameraShake = Math.max(0, this.cameraShake - delta * 2.5);
     const pose = arcadeCameraPose(snapshot.playerX, snapshot.playerY, this.camera.aspect, snapshot.turboActive);
     const course = arcadeCoursePose(snapshot.stage, snapshot.distance);
-    const courseAim = arcadeCourseRelativePose(snapshot.stage, snapshot.distance, 72);
+    // V7.1: use two look-ahead samples but deliberately lag the spline. The near sample keeps
+    // the player aimed into the corridor while the far sample is weak enough that the next bend
+    // remains visibly off-centre instead of being camera-corrected into a straight tunnel.
+    const nearCourse = arcadeCourseRelativePose(snapshot.stage, snapshot.distance, 42);
+    const farCourse = arcadeCourseRelativePose(snapshot.stage, snapshot.distance, 132);
     const shakeX = Math.sin(snapshot.runTimeSeconds * 79) * this.cameraShake * .25;
     const shakeY = Math.cos(snapshot.runTimeSeconds * 91) * this.cameraShake * .18;
-    const targetX = pose.x + shakeX;
-    const targetY = pose.y + shakeY;
-    this.camera.position.x += (targetX - this.camera.position.x) * Math.min(1, delta * 4.25);
-    this.camera.position.y += (targetY - this.camera.position.y) * Math.min(1, delta * 4.25);
+    const targetX = pose.x + shakeX - nearCourse.x * .018;
+    const targetY = pose.y + shakeY - nearCourse.y * .012;
+    this.camera.position.x += (targetX - this.camera.position.x) * Math.min(1, delta * 4.0);
+    this.camera.position.y += (targetY - this.camera.position.y) * Math.min(1, delta * 4.0);
     this.camera.position.z += (pose.z - this.camera.position.z) * Math.min(1, delta * 4.5);
     this.camera.fov += (pose.fov - this.camera.fov) * Math.min(1, delta * 4.5);
     this.camera.updateProjectionMatrix();
-    this.camera.lookAt(pose.lookX + courseAim.x * .16, pose.lookY + courseAim.y * .17, pose.lookZ);
-    // Let the aircraft bank dramatically while keeping the horizon readable on a phone.
-    this.camera.rotateZ(pose.roll + course.bank * .28 + courseAim.bank * .08);
+    this.camera.lookAt(
+      pose.lookX + nearCourse.x * .055 + farCourse.x * .028,
+      pose.lookY + nearCourse.y * .07 + farCourse.y * .018,
+      pose.lookZ,
+    );
+    // Bank enough to sell the turn, but do not rotate the horizon so far that the bend disappears.
+    this.camera.rotateZ(pose.roll + course.bank * .32 + nearCourse.bank * .05);
   }
 
   private resize(): void {

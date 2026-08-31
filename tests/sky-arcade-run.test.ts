@@ -241,7 +241,8 @@ test("V6.2 NORMAL opening pressure preserves reaction time and readable damage c
   assert.match(webglSource, /heavyClimax/);
   assert.match(webglSource, /emitBurst\(group\.position, \.72\)/);
   assert.match(presentationSource, /addScaledVector\(this\.forward, 3\.4\)/);
-  assert.match(webglSource, /course\.bank \* \.28 \+ courseAim\.bank \* \.08/);
+  assert.match(webglSource, /course\.bank \* \.32 \+ nearCourse\.bank \* \.05/);
+  assert.match(webglSource, /farCourse = arcadeCourseRelativePose\(snapshot\.stage, snapshot\.distance, 132\)/);
 });
 
 test("enemy missiles curve during guidance then commit to a dodgeable terminal path", async () => {
@@ -351,4 +352,13 @@ test("V7 signature stages have measurably distinct course geometry", () => {
   const orbit = sample("orbital-ascent");
   assert.ok(orbit.at(-1)!.y - orbit[0].y > 40, "orbit gains major altitude");
   assert.ok(span(orbit.map((pose) => pose.x)) > 60, "orbit corkscrew opens laterally");
+});
+
+
+test("V7.1 chase camera deliberately lags the shared course so bends remain visible", async () => {
+  const webgl = await readFile(new URL("../src/sky/arcade/SkyDancerArcadeWebGLDemo.ts", import.meta.url), "utf8");
+  assert.match(webgl, /nearCourse = arcadeCourseRelativePose\(snapshot\.stage, snapshot\.distance, 42\)/);
+  assert.match(webgl, /farCourse = arcadeCourseRelativePose\(snapshot\.stage, snapshot\.distance, 132\)/);
+  assert.match(webgl, /nearCourse\.x \* \.055 \+ farCourse\.x \* \.028/);
+  assert.doesNotMatch(webgl, /courseAim\.x \* \.16/);
 });
