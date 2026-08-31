@@ -364,8 +364,8 @@ test("V7.1 chase camera deliberately lags the shared course so bends remain visi
   assert.match(webgl, /nearCourse\.x \* \.055 \+ farCourse\.x \* \.028/);
   assert.doesNotMatch(webgl, /courseAim\.x \* \.16/);
   assert.match(webgl, /const iceCourse = snapshot\.stage\.biome === "ice"/);
-  assert.match(webgl, /nearCourse\.y \* \(iceCourse \? \.025 : \.07\)/);
-  assert.match(webgl, /farCourse\.y \* \(iceCourse \? \.004 : \.018\)/);
+  assert.match(webgl, /nearCourse\.y \* \(iceCourse \? \.006 : \.07\)/);
+  assert.match(webgl, /farCourse\.y \* \(iceCourse \? 0 : \.018\)/);
 });
 
 

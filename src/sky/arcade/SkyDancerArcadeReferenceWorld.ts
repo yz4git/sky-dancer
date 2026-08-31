@@ -47,6 +47,7 @@ export class SkyDancerArcadeReferenceWorld {
   private readonly root=new THREE.Group();
   private readonly chunks:CourseChunk[]=[];
   private readonly routeCues:RouteCue[]=[];
+  private iceRibbon:{ outer:THREE.Mesh; core:THREE.Mesh }|null=null;
   private volcanoRibbon:{ outer:THREE.Mesh; core:THREE.Mesh }|null=null;
   private stage:SkyDancerArcadeStageDefinition|null=null;
   private water:THREE.ShaderMaterial|null=null;
@@ -58,7 +59,7 @@ export class SkyDancerArcadeReferenceWorld {
 
   setStage(stage:SkyDancerArcadeStageDefinition):void {
     if(this.stage?.id===stage.id)return;
-    disposeTree(this.root);this.water?.dispose();this.chunks.length=0;this.routeCues.length=0;this.volcanoRibbon=null;
+    disposeTree(this.root);this.water?.dispose();this.chunks.length=0;this.routeCues.length=0;this.iceRibbon=null;this.volcanoRibbon=null;
     this.stage=stage;
     const palette=referenceAtmosphere(stage);
     this.scene.background=palette.zenith;
@@ -77,6 +78,7 @@ export class SkyDancerArcadeReferenceWorld {
       this.root.add(group);this.chunks.push({group,index:i});
     }
     this.buildRouteCues(stage);
+    if(stage.biome==="ice")this.buildIceRibbon(stage);
     if(stage.biome==="volcano")this.buildVolcanoRibbon(stage);
     this.update(0,0,0);
   }
@@ -98,16 +100,70 @@ export class SkyDancerArcadeReferenceWorld {
     }
     for(const cue of this.routeCues){
       const course=arcadeCourseRelativePose(this.stage,distance,cue.depth);
-      const yScale=cue.kind==="ice"?1.55:1;
+      const yScale=cue.kind==="ice"?1.85:1;
       cue.group.position.set(course.x-playerX*.35,course.y*yScale-playerY*.16,-cue.depth);
       cue.group.rotation.y=course.yaw*(cue.kind==="ice"?1.05:.98);
-      cue.group.rotation.x=course.pitch*(cue.kind==="ice"?1.95:.78);
+      cue.group.rotation.x=course.pitch*(cue.kind==="ice"?2.15:.78);
       cue.group.rotation.z=cue.kind==="orbit"
         ? cue.phase+(distance+cue.depth)*.0068
         : course.bank*(cue.kind==="ice"?.18:.08);
     }
+    if(this.iceRibbon)this.updateIceRibbon(distance,playerX,playerY);
     if(this.volcanoRibbon)this.updateVolcanoRibbon(distance,playerX,playerY);
     if(this.water)this.water.uniforms.time.value=distance/this.stage.courseSpeed;
+  }
+
+  private makeIceRibbonMesh(stage:SkyDancerArcadeStageDefinition,width:number,name:string,opacity:number):THREE.Mesh {
+    const samples=28;
+    const positions=new Float32Array(samples*2*3);
+    const indices:number[]=[];
+    for(let i=0;i<samples-1;i++){const a=i*2;indices.push(a,a+2,a+1,a+1,a+2,a+3);}
+    const geometry=new THREE.BufferGeometry();
+    const attribute=new THREE.BufferAttribute(positions,3);attribute.setUsage(THREE.DynamicDrawUsage);
+    geometry.setAttribute("position",attribute);geometry.setIndex(indices);
+    const color=name.includes("core")
+      ? new THREE.Color(stage.palette.accent).lerp(new THREE.Color(0xffffff),.34)
+      : new THREE.Color(stage.palette.secondary).lerp(new THREE.Color(stage.palette.accent),.42);
+    const material=new THREE.MeshBasicMaterial({
+      color,transparent:true,opacity,blending:THREE.AdditiveBlending,depthWrite:false,side:THREE.DoubleSide,
+    });
+    const ribbon=new THREE.Mesh(geometry,material);
+    ribbon.name=name;ribbon.frustumCulled=false;ribbon.renderOrder=2;this.root.add(ribbon);
+    ribbon.userData.arcadeIceRibbonWidth=width;
+    return ribbon;
+  }
+
+  private buildIceRibbon(stage:SkyDancerArcadeStageDefinition):void {
+    this.iceRibbon={
+      outer:this.makeIceRibbonMesh(stage,16,"arcade-ice-course-fissure-outer",.34),
+      core:this.makeIceRibbonMesh(stage,3.2,"arcade-ice-course-fissure-core",.92),
+    };
+  }
+
+  private updateIceRibbon(distance:number,playerX:number,playerY:number):void {
+    if(!this.stage || !this.iceRibbon)return;
+    const update=(ribbon:THREE.Mesh,width:number,lift:number)=>{
+      const attribute=ribbon.geometry.getAttribute("position") as THREE.BufferAttribute;
+      const array=attribute.array as Float32Array;
+      const half=width*.5;
+      const samples=attribute.count/2;
+      for(let i=0;i<samples;i++){
+        const depth=14+i*14.2;
+        const course=arcadeCourseRelativePose(this.stage,distance,depth);
+        const cx=course.x-playerX*.35;
+        const cy=course.y-playerY*.16-20.6+lift;
+        const cz=-depth;
+        const lateralX=Math.cos(course.yaw)*half;
+        const lateralZ=-Math.sin(course.yaw)*half;
+        const bankY=course.bank*half*.2;
+        const left=i*6,right=left+3;
+        array[left]=cx-lateralX;array[left+1]=cy-bankY;array[left+2]=cz-lateralZ;
+        array[right]=cx+lateralX;array[right+1]=cy+bankY;array[right+2]=cz+lateralZ;
+      }
+      attribute.needsUpdate=true;
+    };
+    update(this.iceRibbon.outer,16,0);
+    update(this.iceRibbon.core,3.2,.09);
   }
 
   private makeVolcanoRibbonMesh(stage:SkyDancerArcadeStageDefinition,width:number,name:string,opacity:number):THREE.Mesh {
@@ -176,10 +232,10 @@ export class SkyDancerArcadeReferenceWorld {
       blending:THREE.AdditiveBlending,depthWrite:false,
     });
     const dark=paint(stage.palette.ground);
-    const count=kind==="ice"?9:10;
+    const count=kind==="ice"?7:10;
     for(let i=0;i<count;i++){
       const cue=new THREE.Group();
-      const depth=kind==="ice"?24+i*40:26+i*43;
+      const depth=kind==="ice"?26+i*52:26+i*43;
       const phase=i*.64;
       if(kind==="ice"){
         cue.name="arcade-ice-wave-cue";

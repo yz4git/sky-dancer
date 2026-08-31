@@ -145,24 +145,33 @@ test("missile trails and explosions keep a bounded mesh and buffer count under l
 });
 
 
-test("V8.6 ice cavern visual ribs expose the stronger real vertical course wave", () => {
+test("V8.7 ice cavern exposes its real vertical wave with sparse ribs and a continuous glacial fissure", () => {
   const scene = new THREE.Scene();
   const world = new SkyDancerArcadeReferenceWorld(scene);
   const ice = SKY_DANCER_ARCADE_STAGES.find((stage) => stage.id === "ice-cavern")!;
   world.setStage(ice);
   world.update(ice.courseSpeed * 10, 0, 0);
   const cues = scene.getObjectsByProperty("name", "arcade-ice-wave-cue");
-  assert.equal(cues.length, 9);
-  assert.equal(scene.getObjectsByProperty("name", "arcade-ice-wave-arch").length, 9);
+  assert.equal(cues.length, 7);
+  assert.equal(scene.getObjectsByProperty("name", "arcade-ice-wave-arch").length, 7);
   const ys = cues.map((cue) => cue.position.y);
   const pitches = cues.map((cue) => cue.rotation.x);
   const xs = cues.map((cue) => cue.position.x);
-  assert.ok(Math.max(...ys)-Math.min(...ys)>22,
+  assert.ok(Math.max(...ys)-Math.min(...ys)>28,
     "ice tunnel ribs must visibly climb and dive through the cavern");
-  assert.ok(Math.max(...pitches)-Math.min(...pitches)>.24,
+  assert.ok(Math.max(...pitches)-Math.min(...pitches)>.28,
     "ice tunnel ribs must rotate with the course pitch, not form a flat straight tube");
   assert.ok(Math.max(...xs)-Math.min(...xs)>25,
     "ice tunnel keeps its horizontal slalom while adding the vertical wave");
+  const fissure=scene.getObjectByName("arcade-ice-course-fissure-outer") as THREE.Mesh;
+  const core=scene.getObjectByName("arcade-ice-course-fissure-core") as THREE.Mesh;
+  assert.ok(fissure instanceof THREE.Mesh && core instanceof THREE.Mesh);
+  const fissurePosition=fissure.geometry.getAttribute("position") as THREE.BufferAttribute;
+  assert.equal(fissurePosition.count,56);
+  const fissureY:number[]=[];
+  for(let i=0;i<fissurePosition.count;i+=2)fissureY.push((fissurePosition.getY(i)+fissurePosition.getY(i+1))*.5);
+  assert.ok(Math.max(...fissureY)-Math.min(...fissureY)>12,
+    "continuous glacial fissure must reveal the upcoming climb/dive");
   world.dispose();
 });
 
