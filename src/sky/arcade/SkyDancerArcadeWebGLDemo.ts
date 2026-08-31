@@ -301,7 +301,7 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
       this.enemyGroups.delete(id);
       const previous = this.previousSnapshot.enemies.find(enemy => enemy.id === id);
       if (snapshot.enemiesDefeated > this.previousSnapshot.enemiesDefeated && previous && previous.depth > 3) {
-        const climaxStrength = previous.boss ? 1.55 : previous.kind === "bomber" || previous.kind === "missile-boat" ? .78 : .52;
+        const climaxStrength = previous.boss ? 1.7 : previous.kind === "bomber" || previous.kind === "missile-boat" ? 1.02 : .72;
         this.presentation.emitClimax(group.position, climaxStrength);
         this.cameraShake = Math.min(1.18, this.cameraShake + (previous.boss ? .74 : .18));
         this.audio.tone(previous.boss ? 48 : 74, previous.boss ? .42 : .15, previous.boss ? .07 : .028, "sawtooth");

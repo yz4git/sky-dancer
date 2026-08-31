@@ -270,13 +270,20 @@ export class SkyDancerArcadeReferenceWorld {
     const r=(i:number)=>random(index*631+stage.order*173+i*7.13);
     for(const side of [-1,1])for(let j=0;j<5;j++){
       const z=-51+j*24+r(j+41)*6;
-      const x=side*(20.5+r(j+71)*7.2);
+      const x=side*(25+r(j+71)*8.5);
       if(stage.biome==="city" || stage.biome==="night"){
         const h=25+r(j+11)*31;
-        const w=2.8+r(j+19)*2.8;
-        const tower=mesh(group,new THREE.BoxGeometry(w,h,4.8+r(j+23)*3.4),j%3===0?secondary:primary,x,-25+h/2,z);
-        tower.rotation.y=(r(j+31)-.5)*.08;
-        if(j%2===0) mesh(group,new THREE.BoxGeometry(.18,3.8+r(j+55)*5,.18),glow,x,-24+h+2.2,z);
+        const w=2.2+r(j+19)*1.8;
+        const d=4+r(j+23)*2.2;
+        const tower=mesh(group,new THREE.BoxGeometry(w,h,d),j%3===0?secondary:primary,x,-25+h/2,z);
+        tower.rotation.y=(r(j+31)-.5)*.07;
+        mesh(group,new THREE.BoxGeometry(w*1.38,h*.22,d*1.18),dark,x,-25+h*.11,z);
+        mesh(group,new THREE.BoxGeometry(w*.72,1.15,d*.76),secondary,x,-24.42+h,z);
+        for(let band=0;band<3;band++){
+          mesh(group,new THREE.BoxGeometry(w*1.06,.13,d*1.03),glow,x,-25+h*(.34+band*.2),z);
+        }
+        mesh(group,new THREE.BoxGeometry(.12,h*.62,d*1.04),glow,x-side*w*.34,-25+h*.54,z);
+        if(j%2===0) mesh(group,new THREE.BoxGeometry(.16,4+r(j+55)*5,.16),glow,x,-23.8+h+2.2,z);
       } else if(stage.biome==="canyon" || stage.biome==="desert" || stage.biome==="volcano"){
         const h=24+r(j+9)*36;
         const fin=mesh(group,new THREE.CylinderGeometry(1.8+r(j+7)*2.7,4.6+r(j+17)*3.3,h,5,2),j%2?secondary:primary,x,-26+h/2,z);

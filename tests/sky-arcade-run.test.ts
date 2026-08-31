@@ -41,6 +41,19 @@ test("every authored route is a seven-section four-minute start-to-finale run", 
   }
 });
 
+test("V5.1 near-pass framing and shock-ring climax stay readable", async () => {
+  const [world, presentation, menu] = await Promise.all([
+    readFile(new URL("../src/sky/arcade/SkyDancerArcadeReferenceWorld.ts", import.meta.url), "utf8"),
+    readFile(new URL("../src/sky/arcade/SkyDancerArcadeProductPresentation.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/CartGameMenu.tsx", import.meta.url), "utf8"),
+  ]);
+  assert.match(world, /const x=side\*\(25\+r\(j\+71\)\*8\.5\)/);
+  assert.match(world, /w\*1\.38,h\*\.22,d\*1\.18/);
+  assert.match(presentation, /arcade-climax-shock-ring-v51/);
+  assert.match(presentation, /RingGeometry\(\.58, \.72, 48\)/);
+  assert.match(menu, /7 SECTIONS · 4 MIN/);
+});
+
 test("environment density and destruction climax V5 stay authored and bounded", async () => {
   assert.equal(SKY_DANCER_ARCADE_RUN_DURATION_SECONDS, 240);
   const [world, presentation, webgl] = await Promise.all([

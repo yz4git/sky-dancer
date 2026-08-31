@@ -177,7 +177,7 @@ export default function CartGameMenu({ started, activeMode, onStart, onReturnTit
     const practiceAvailable = practiceStageIds.length > 0;
     const selectedStage = SKY_DANCER_ARCADE_STAGES.find((stage) => stage.id === practiceStageId);
     const modeSummary = selectedMode === "arcade-run"
-      ? "BRANCHING FIXED COURSE · 7 SECTIONS · ABOUT 2 MINUTES"
+      ? "BRANCHING FIXED COURSE · 7 SECTIONS · ABOUT 4 MINUTES"
       : selectedMode === "turbo-hunt"
         ? "HUNT THE RAID. BREAK THE LINE. KEEP MOVING."
         : selectedStage
@@ -203,7 +203,7 @@ export default function CartGameMenu({ started, activeMode, onStart, onReturnTit
               aria-pressed={selectedMode === "arcade-run"}
             >
               <strong>ARCADE RUN</strong>
-              <small>FIXED COURSE · 7 SECTIONS · 2 MIN</small>
+              <small>FIXED COURSE · 7 SECTIONS · 4 MIN</small>
             </button>
             <button
               className={`${modeStyles.modeButton} ${selectedMode === "turbo-hunt" ? modeStyles.modeButtonActive : ""}`}

@@ -148,7 +148,10 @@ export class SkyDancerArcadeProductPresentation {
   private readonly forward = new THREE.Vector3();
   private readonly climaxMaterial = new THREE.SpriteMaterial({ color: 0xffe4b0, transparent: true, opacity: 0, depthTest: false, depthWrite: false, blending: THREE.AdditiveBlending });
   private readonly climaxFlash = new THREE.Sprite(this.climaxMaterial);
+  private readonly climaxRingMaterial = new THREE.MeshBasicMaterial({ color: 0xffefc8, transparent: true, opacity: 0, depthTest: false, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, toneMapped: false });
+  private readonly climaxRing = new THREE.Mesh(new THREE.RingGeometry(.58, .72, 48), this.climaxRingMaterial);
   private climaxEnergy = 0;
+  private climaxPulse = 0;
 
   constructor(private readonly scene: THREE.Scene) {
     this.root.name = "arcade-product-presentation";
@@ -163,12 +166,17 @@ export class SkyDancerArcadeProductPresentation {
     this.climaxFlash.name = "arcade-climax-flash-v5";
     this.climaxFlash.visible = false;
     this.climaxFlash.renderOrder = 999;
-    this.root.add(streaks, this.smoke.mesh, this.sparks.mesh, this.climaxFlash); scene.add(this.root);
+    this.climaxRing.name = "arcade-climax-shock-ring-v51";
+    this.climaxRing.visible = false;
+    this.climaxRing.renderOrder = 998;
+    this.root.add(streaks, this.smoke.mesh, this.sparks.mesh, this.climaxFlash, this.climaxRing); scene.add(this.root);
   }
 
   setStage(): void {
     this.clearTrails(); this.smoke.clear(); this.sparks.clear();
-    this.climaxEnergy = 0; this.climaxFlash.visible = false; this.climaxMaterial.opacity = 0;
+    this.climaxEnergy = 0; this.climaxPulse = 0;
+    this.climaxFlash.visible = false; this.climaxMaterial.opacity = 0;
+    this.climaxRing.visible = false; this.climaxRingMaterial.opacity = 0;
   }
 
   emitBurst(position: THREE.Vector3, size: number): void {
@@ -183,7 +191,8 @@ export class SkyDancerArcadeProductPresentation {
       const offset = new THREE.Vector3(Math.cos(angle) * (1.4 + power * 1.7), Math.sin(angle) * (1 + power), (i - 1.5) * 1.15);
       this.emitBurst(position.clone().add(offset), .65 + power * .72);
     }
-    this.climaxEnergy = Math.max(this.climaxEnergy, power);
+    this.climaxEnergy = Math.max(this.climaxEnergy, Math.max(.68, power * .82));
+    this.climaxPulse = 1;
   }
 
   update(snapshot: SkyDancerArcadeSnapshot, delta: number, camera: THREE.Camera): void {
@@ -212,16 +221,25 @@ export class SkyDancerArcadeProductPresentation {
   }
 
   private updateClimax(delta: number, camera: THREE.Camera): void {
-    if (this.climaxEnergy <= .001) {
-      this.climaxEnergy = 0; this.climaxFlash.visible = false; this.climaxMaterial.opacity = 0; return;
+    if (this.climaxEnergy <= .001 && this.climaxPulse <= .001) {
+      this.climaxEnergy = 0; this.climaxPulse = 0;
+      this.climaxFlash.visible = false; this.climaxMaterial.opacity = 0;
+      this.climaxRing.visible = false; this.climaxRingMaterial.opacity = 0;
+      return;
     }
-    this.climaxEnergy = Math.max(0, this.climaxEnergy - delta * (this.climaxEnergy > 1 ? 3.4 : 2.8));
+    this.climaxEnergy = Math.max(0, this.climaxEnergy - delta * (this.climaxEnergy > 1 ? 4.4 : 3.6));
+    this.climaxPulse = Math.max(0, this.climaxPulse - delta * 2.65);
     camera.getWorldDirection(this.forward);
-    this.climaxFlash.position.copy(camera.position).addScaledVector(this.forward, 2.4);
+    this.climaxFlash.position.copy(camera.position).addScaledVector(this.forward, 2.35);
     const aspect = camera instanceof THREE.PerspectiveCamera ? camera.aspect : 1.7;
-    this.climaxFlash.scale.set(7.5 * aspect, 7.5, 1);
-    this.climaxMaterial.opacity = Math.min(.38, .035 + this.climaxEnergy * .22);
-    this.climaxFlash.visible = true;
+    this.climaxFlash.scale.set(10.5 * aspect, 10.5, 1);
+    this.climaxMaterial.opacity = Math.min(.48, .055 + this.climaxEnergy * .36);
+    this.climaxFlash.visible = this.climaxEnergy > .001;
+    this.climaxRing.position.copy(camera.position).addScaledVector(this.forward, 2.2);
+    this.climaxRing.quaternion.copy(camera.quaternion);
+    this.climaxRing.scale.setScalar(.82 + (1 - this.climaxPulse) * 2.8);
+    this.climaxRingMaterial.opacity = Math.min(.62, this.climaxPulse * .7);
+    this.climaxRing.visible = this.climaxPulse > .001;
   }
 
   private updateProjectileTrails(snapshot: SkyDancerArcadeSnapshot, delta: number): void {
@@ -284,6 +302,8 @@ export class SkyDancerArcadeProductPresentation {
   }
   dispose(): void {
     this.clearTrails(); this.speedGeometry.dispose(); this.speedMaterial.dispose();
-    this.smoke.dispose(); this.sparks.dispose(); this.climaxMaterial.dispose(); this.root.clear(); this.scene.remove(this.root);
+    this.smoke.dispose(); this.sparks.dispose(); this.climaxMaterial.dispose();
+    this.climaxRing.geometry.dispose(); this.climaxRingMaterial.dispose();
+    this.root.clear(); this.scene.remove(this.root);
   }
 }
