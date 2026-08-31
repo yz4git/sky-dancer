@@ -17,7 +17,18 @@ const context = await browser.newContext({ viewport: { width: 844, height: 390 }
 const page = await context.newPage();
 const consoleErrors = [];
 const pageErrors = [];
-page.on("console", (message) => { if (message.type() === "error") consoleErrors.push(message.text()); });
+const httpErrors = [];
+page.on("console", (message) => {
+  if (message.type() !== "error") return;
+  const text = message.text();
+  // Chromium prints a URL-less console error for every HTTP 404. The response listener below
+  // keeps the actual URL/status so optional browser probes can be distinguished from game assets.
+  if (/Failed to load resource: the server responded with a status of 404/i.test(text)) return;
+  consoleErrors.push(text);
+});
+page.on("response", (response) => {
+  if (response.status() >= 400) httpErrors.push({ status: response.status(), url: response.url() });
+});
 page.on("pageerror", (error) => pageErrors.push(String(error)));
 
 const menuUrl = `${baseUrl}${baseUrl.includes("?") ? "&" : "?"}menu=1`;
@@ -32,7 +43,7 @@ if (await arcadeMode.count()) await arcadeMode.click({ force: true });
 await page.waitForTimeout(100);
 const start = page.locator("button").filter({ hasText: /START/i }).last();
 if (!(await start.count())) {
-  await writeFile(`${outputDir}/startup-diagnostics.json`, JSON.stringify({ buttonLabels, body: await page.locator("body").innerText(), consoleErrors, pageErrors }, null, 2));
+  await writeFile(`${outputDir}/startup-diagnostics.json`, JSON.stringify({ buttonLabels, body: await page.locator("body").innerText(), consoleErrors, pageErrors, httpErrors }, null, 2));
   throw new Error(`No START action on title screen: ${JSON.stringify(buttonLabels)}`);
 }
 await start.scrollIntoViewIfNeeded();
@@ -131,7 +142,7 @@ try {
   await page.screenshot({ path: `${outputDir}/02c-destroy-climax.png`, fullPage: true });
   await captureCanvas(`${outputDir}/02c-destroy-climax-canvas.png`);
 } catch {
-  // Diagnostics below turn a missing destruction capture into an explicit audit failure.
+  // Diagnostic only: headless lock acquisition can miss while renderer/gameplay remain valid.
 }
 const destroyedAfter = await destroyedCount();
 await page.keyboard.up("x");
@@ -156,6 +167,8 @@ await page.waitForTimeout(450);
 
 const finalText = await bodyText();
 const courseTime = (openingText.match(/COURSE TIME\s*([0-9]+:[0-9]{2})/i) || [null, null])[1];
+const optionalHttpProbe = ({ status, url }) => status === 404 && /\/(?:favicon\.ico|apple-touch-icon(?:-[^/]*)?\.png)$/i.test(new URL(url).pathname);
+const blockingHttpErrors = httpErrors.filter((entry) => !optionalHttpProbe(entry));
 const diagnostics = {
   arcadeHud: /STAGE|DAWN CITY|CITY/i.test(finalText),
   buttonLabels,
@@ -170,6 +183,8 @@ const diagnostics = {
   missileEvasion: (missileEvasionText.match(/MISSILE\s*×?\s*\d+\s*(?:INCOMING|BREAK NOW)?/i) || [null])[0],
   consoleErrors,
   pageErrors,
+  httpErrors,
+  blockingHttpErrors,
 };
 await writeFile(`${outputDir}/diagnostics.json`, JSON.stringify(diagnostics, null, 2));
 await browser.close();
@@ -178,8 +193,9 @@ if (!diagnostics.arcadeHud) throw new Error(`Arcade Run HUD was not found: ${JSO
 if (!buttonLabels.some((label) => /7 SECTIONS · 4 MIN/i.test(label))) throw new Error(`Arcade Run title still exposes stale duration copy: ${JSON.stringify(buttonLabels)}`);
 if (!renderState.webgl || renderState.cssWidth < 800 || renderState.cssHeight < 360) throw new Error(`Arcade Run WebGL surface is invalid: ${JSON.stringify(renderState)}`);
 if (bendHp !== null && bendHp < 55) throw new Error(`NORMAL opening pressure is still too bursty during the course showcase: ${bendHp}%`);
-if (/AIRFRAME LOST|MISSION FAILED/i.test(finalText)) throw new Error(`Arcade playcheck lost the airframe before the first section climax`);
+if (/AIRFRAME LOST|MISSION FAILED/i.test(finalText)) throw new Error("Arcade playcheck lost the airframe before the first section climax");
 // Destruction capture is diagnostic only; the gameplay/renderer audit must not fail because headless lock acquisition missed.
 if (courseTime && !/^3:/.test(courseTime)) throw new Error(`Arcade Run did not expose the doubled four-minute course: ${courseTime}`);
 if (consoleErrors.length) throw new Error(`Arcade Run console errors: ${consoleErrors.join(" | ")}`);
+if (blockingHttpErrors.length) throw new Error(`Arcade Run HTTP errors: ${JSON.stringify(blockingHttpErrors)}`);
 if (pageErrors.length) throw new Error(`Arcade Run page errors: ${pageErrors.join(" | ")}`);
