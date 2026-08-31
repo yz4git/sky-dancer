@@ -1,4 +1,4 @@
-# Full visual verification for canyon, ice, volcano and orbital course identities.
+# Full V8.5 visual verification for canyon, ice, volcano and orbital course identities.
 # Automatic pushes use the lightweight WebGL smoke workflow instead.
 name: Sky Dancer Arcade Stage Identity Full Audit
 
