@@ -1,0 +1,65 @@
+name: Arcade Desert V9.3 Final Audit Once
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - ".github/workflows/arcade-desert-v93-final-audit-once.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: arcade-desert-v93-final-audit-once
+  cancel-in-progress: true
+
+jobs:
+  audit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    env:
+      SKY_DANCER_CHROME_PATH: /usr/bin/google-chrome
+      SKY_DANCER_AUDIT_DIR: artifacts/arcade-desert-v93-final
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.13.0
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Install isolated browser controller
+        run: |
+          rm -rf .audit-runtime
+          mkdir -p .audit-runtime
+          printf '{"private":true,"type":"commonjs"}\n' > .audit-runtime/package.json
+          npm install --prefix .audit-runtime --no-package-lock --no-save --ignore-scripts --no-audit --no-fund playwright-core@1.55.0
+          google-chrome --version
+      - run: npm run build:pages
+      - name: Start local Pages build
+        run: |
+          python3 -m http.server 4173 --bind 127.0.0.1 --directory out > /tmp/sky-dancer-desert-v93-final-http.log 2>&1 &
+          for i in {1..30}; do
+            if curl -fsS http://127.0.0.1:4173/ >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          cat /tmp/sky-dancer-desert-v93-final-http.log
+          exit 1
+      - name: Capture Desert Fortress V9.3 final
+        run: node scripts/webgl-arcade-desert-v93-final-audit.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: sky-dancer-desert-v93-final-${{ github.sha }}
+          path: artifacts/arcade-desert-v93-final
+          if-no-files-found: error
+          retention-days: 14
+      - name: Remove temporary final audit files
+        if: success()
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/arcade-desert-v93-final-audit-once.yml scripts/webgl-arcade-desert-v93-final-audit.mjs
+          git commit -m "Remove V9.3 temporary Desert final audit files"
+          git push origin HEAD:main
