@@ -15,6 +15,13 @@ const browser = await chromium.launch({ headless: true, args: ["--use-angle=swif
 const context = await browser.newContext({ viewport: { width: 844, height: 390 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
 await context.addInitScript((ids) => {
   localStorage.setItem("sky-dancer-arcade-progress-v1", JSON.stringify({ version: 1, clearedStageIds: ids, unlockedStageIds: ids, records: {}, bestRunScore: 0, bestRunRank: "D", completedRuns: 0, oneCreditClears: 0 }));
+  const originalGetContext = HTMLCanvasElement.prototype.getContext;
+  HTMLCanvasElement.prototype.getContext = function(type, attributes) {
+    if (type === "webgl" || type === "webgl2" || type === "experimental-webgl") {
+      return originalGetContext.call(this, type, { ...(attributes || {}), preserveDrawingBuffer: true });
+    }
+    return originalGetContext.call(this, type, attributes);
+  };
 }, allStageIds);
 
 async function selectPracticeStage(page, shortName) {
