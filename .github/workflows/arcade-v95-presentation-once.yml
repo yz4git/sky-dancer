@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - scripts/apply-arcade-v95-presentation.py
+      - scripts/fix-arcade-world-type-narrowing.py
       - .github/workflows/arcade-v95-presentation-once.yml
 
 permissions:
@@ -25,6 +26,8 @@ jobs:
       - run: npm ci --no-audit --no-fund
       - name: Apply V9.5 presentation pass
         run: python3 scripts/apply-arcade-v95-presentation.py
+      - name: Fix existing Arcade world type narrowing
+        run: python3 scripts/fix-arcade-world-type-narrowing.py
       - name: Arcade rules regression
         run: npm run test:rules
       - name: Arcade typecheck
@@ -35,7 +38,7 @@ jobs:
         run: npm run build:pages
       - name: Commit V9.5 product code and remove temporary workflow
         run: |
-          rm -f scripts/apply-arcade-v95-presentation.py .github/workflows/arcade-v95-presentation-once.yml
+          rm -f scripts/apply-arcade-v95-presentation.py scripts/fix-arcade-world-type-narrowing.py .github/workflows/arcade-v95-presentation-once.yml
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
