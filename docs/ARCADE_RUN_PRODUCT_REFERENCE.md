@@ -15,7 +15,7 @@ mobile-safe Three.js geometry and effects.
 - Landscape iPhone controls: flight pad on the left, FIRE / LOCK / TURBO on the right
 
 The authored route remains deterministic and branches across eleven visual
-biomes, while each seven-section run is paced to roughly two minutes.
+biomes, while each seven-section run is now paced to roughly four minutes, with every authored section doubled in play time.
 
 ## Implementation checkpoint — 2026-08-30
 
@@ -53,3 +53,13 @@ presentation without the previous giant undefined-geometry obstruction.
 
 Keep this implementation in the GitHub source as well as the existing Site.
 A later source sync must not remove Arcade Run or its WebGL reference audit.
+
+
+## Environment density and climax pass — 2026-08-31
+
+Arcade sections now run at twice their previous duration. The streamed world adds a fourth
+backdrop depth layer, denser city blocks, higher-resolution terrain relief, and biome-specific
+visual-only near-pass structures that skim the flight corridor without changing collision
+authority. Enemy destruction now drives pooled multi-burst debris, a short full-screen additive
+flash, speed-streak energy and extra camera/audio impact; boss kills scale the same system up
+instead of using a separate unbounded effect path.

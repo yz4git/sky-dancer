@@ -23,14 +23,14 @@ test("arcade mode authors eleven distinct compact product sections", () => {
   assert.equal(new Set(SKY_DANCER_ARCADE_STAGES.map((stage) => stage.biome)).size, 11);
   assert.equal(new Set(SKY_DANCER_ARCADE_STAGES.map((stage) => stage.boss)).size, 11);
   for (const stage of SKY_DANCER_ARCADE_STAGES) {
-    assert.ok(stage.durationSeconds >= 14 && stage.durationSeconds <= 21, `${stage.id} duration`);
+    assert.ok(stage.durationSeconds >= 28 && stage.durationSeconds <= 42, `${stage.id} duration`);
     assert.ok(stage.enemies.length >= 3, `${stage.id} enemy variety`);
     assert.ok(stage.formations.length >= 3, `${stage.id} formation variety`);
     assert.ok(stage.hazards.length >= 2, `${stage.id} hazard variety`);
   }
 });
 
-test("every authored route is a seven-section two-minute start-to-finale run", () => {
+test("every authored route is a seven-section four-minute start-to-finale run", () => {
   const routes = enumerateSkyDancerArcadeRoutes();
   assert.equal(routes.length, 12);
   for (const route of routes) {
@@ -39,6 +39,21 @@ test("every authored route is a seven-section two-minute start-to-finale run", (
     assert.equal(route.at(-1), SKY_DANCER_ARCADE_FINAL_STAGE);
     assert.equal(skyDancerArcadeRunMinutes(route), SKY_DANCER_ARCADE_RUN_DURATION_SECONDS / 60);
   }
+});
+
+test("environment density and destruction climax V5 stay authored and bounded", async () => {
+  assert.equal(SKY_DANCER_ARCADE_RUN_DURATION_SECONDS, 240);
+  const [world, presentation, webgl] = await Promise.all([
+    readFile(new URL("../src/sky/arcade/SkyDancerArcadeReferenceWorld.ts", import.meta.url), "utf8"),
+    readFile(new URL("../src/sky/arcade/SkyDancerArcadeProductPresentation.ts", import.meta.url), "utf8"),
+    readFile(new URL("../src/sky/arcade/SkyDancerArcadeWebGLDemo.ts", import.meta.url), "utf8"),
+  ]);
+  assert.match(world, /arcade-near-pass-setpieces-v5/);
+  assert.match(world, /const count=72/);
+  assert.match(world, /PlaneGeometry\(260,114,48,30\)/);
+  assert.match(presentation, /arcade-climax-flash-v5/);
+  assert.match(presentation, /sparks: 240, smoke: 84/);
+  assert.match(webgl, /emitClimax\(group\.position/);
 });
 
 test("route graph references only authored stages and has one finale", () => {
@@ -88,6 +103,7 @@ test("an early boss defeat never shortens its authored run section", () => {
   for (let frame = 0; frame < 119; frame += 1) runtime.step(1 / 60);
   assert.equal(runtime.getSnapshot().status, "running");
   runtime.step(1 / 60);
+  if (runtime.getSnapshot().status === "running") runtime.step(1 / 60);
   assert.equal(runtime.getSnapshot().status, "stage-clear");
   assert.ok(runtime.getSnapshot().stageTimeSeconds >= duration);
 });

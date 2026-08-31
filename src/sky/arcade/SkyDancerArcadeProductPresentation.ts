@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import type { SkyDancerArcadeSnapshot } from "./SkyDancerArcadeRuntime";
 
-export const ARCADE_EFFECT_BUDGET = { trails: 48, trailSamples: 18, sparks: 160, smoke: 56 } as const;
+export const ARCADE_EFFECT_BUDGET = { trails: 48, trailSamples: 18, sparks: 240, smoke: 84 } as const;
 const SPEED_STREAK_COUNT = 40;
 const RETIRE_SECONDS = .32;
 const fract = (n: number) => n - Math.floor(n);
@@ -61,7 +61,7 @@ class BurstPool {
   }
 
   emit(position: THREE.Vector3, scale: number): void {
-    const count = this.smoke ? 5 : 30;
+    const count = this.smoke ? 6 : 36;
     for (let i = 0; i < count; i++) {
       const index = this.cursor++ % this.particles.length;
       const particle = this.particles[index];
@@ -145,6 +145,10 @@ export class SkyDancerArcadeProductPresentation {
   private readonly smoke = new BurstPool(ARCADE_EFFECT_BUDGET.smoke, true);
   private readonly activeIds = new Set<number>();
   private readonly right = new THREE.Vector3();
+  private readonly forward = new THREE.Vector3();
+  private readonly climaxMaterial = new THREE.SpriteMaterial({ color: 0xffe4b0, transparent: true, opacity: 0, depthTest: false, depthWrite: false, blending: THREE.AdditiveBlending });
+  private readonly climaxFlash = new THREE.Sprite(this.climaxMaterial);
+  private climaxEnergy = 0;
 
   constructor(private readonly scene: THREE.Scene) {
     this.root.name = "arcade-product-presentation";
@@ -156,26 +160,43 @@ export class SkyDancerArcadeProductPresentation {
     this.speedGeometry.setAttribute("position", new THREE.BufferAttribute(this.speedPositions, 3));
     const streaks = new THREE.LineSegments(this.speedGeometry, this.speedMaterial);
     streaks.name = "arcade-product-speed-streaks"; streaks.frustumCulled = false;
-    this.root.add(streaks, this.smoke.mesh, this.sparks.mesh); scene.add(this.root);
+    this.climaxFlash.name = "arcade-climax-flash-v5";
+    this.climaxFlash.visible = false;
+    this.climaxFlash.renderOrder = 999;
+    this.root.add(streaks, this.smoke.mesh, this.sparks.mesh, this.climaxFlash); scene.add(this.root);
   }
 
   setStage(): void {
     this.clearTrails(); this.smoke.clear(); this.sparks.clear();
+    this.climaxEnergy = 0; this.climaxFlash.visible = false; this.climaxMaterial.opacity = 0;
   }
 
   emitBurst(position: THREE.Vector3, size: number): void {
     this.smoke.emit(position, size); this.sparks.emit(position, size);
   }
 
+  emitClimax(position: THREE.Vector3, strength: number): void {
+    const power = Math.max(.35, strength);
+    this.emitBurst(position, 1 + power * 1.35);
+    for (let i = 0; i < (power > 1 ? 4 : 2); i++) {
+      const angle = i * 2.399963 + power;
+      const offset = new THREE.Vector3(Math.cos(angle) * (1.4 + power * 1.7), Math.sin(angle) * (1 + power), (i - 1.5) * 1.15);
+      this.emitBurst(position.clone().add(offset), .65 + power * .72);
+    }
+    this.climaxEnergy = Math.max(this.climaxEnergy, power);
+  }
+
   update(snapshot: SkyDancerArcadeSnapshot, delta: number, camera: THREE.Camera): void {
     this.updateSpeedStreaks(snapshot, delta);
     this.right.setFromMatrixColumn(camera.matrixWorld, 0);
     this.updateProjectileTrails(snapshot, delta);
+    this.updateClimax(delta, camera);
     this.smoke.update(delta, camera); this.sparks.update(delta, camera);
   }
 
   private updateSpeedStreaks(snapshot: SkyDancerArcadeSnapshot, delta: number): void {
-    const speed = snapshot.turboActive ? 150 : 58;
+    const impactBoost = Math.min(1, this.climaxEnergy);
+    const speed = (snapshot.turboActive ? 150 : 58) + impactBoost * 72;
     for (let i = 0; i < SPEED_STREAK_COUNT; i++) {
       const k = i * 3, j = i * 6;
       let z = this.speedSeeds[k + 2] + speed * delta;
@@ -186,7 +207,21 @@ export class SkyDancerArcadeProductPresentation {
       this.speedPositions.set([x, y, z, x, y, z - (snapshot.turboActive ? 9 : 2.4)], j);
     }
     this.speedGeometry.getAttribute("position").needsUpdate = true;
-    this.speedMaterial.opacity += ((snapshot.turboActive ? .42 : .045) - this.speedMaterial.opacity) * Math.min(1, delta * 8);
+    const targetOpacity = (snapshot.turboActive ? .42 : .045) + impactBoost * .24;
+    this.speedMaterial.opacity += (targetOpacity - this.speedMaterial.opacity) * Math.min(1, delta * 8);
+  }
+
+  private updateClimax(delta: number, camera: THREE.Camera): void {
+    if (this.climaxEnergy <= .001) {
+      this.climaxEnergy = 0; this.climaxFlash.visible = false; this.climaxMaterial.opacity = 0; return;
+    }
+    this.climaxEnergy = Math.max(0, this.climaxEnergy - delta * (this.climaxEnergy > 1 ? 3.4 : 2.8));
+    camera.getWorldDirection(this.forward);
+    this.climaxFlash.position.copy(camera.position).addScaledVector(this.forward, 2.4);
+    const aspect = camera instanceof THREE.PerspectiveCamera ? camera.aspect : 1.7;
+    this.climaxFlash.scale.set(7.5 * aspect, 7.5, 1);
+    this.climaxMaterial.opacity = Math.min(.38, .035 + this.climaxEnergy * .22);
+    this.climaxFlash.visible = true;
   }
 
   private updateProjectileTrails(snapshot: SkyDancerArcadeSnapshot, delta: number): void {
@@ -249,6 +284,6 @@ export class SkyDancerArcadeProductPresentation {
   }
   dispose(): void {
     this.clearTrails(); this.speedGeometry.dispose(); this.speedMaterial.dispose();
-    this.smoke.dispose(); this.sparks.dispose(); this.root.clear(); this.scene.remove(this.root);
+    this.smoke.dispose(); this.sparks.dispose(); this.climaxMaterial.dispose(); this.root.clear(); this.scene.remove(this.root);
   }
 }

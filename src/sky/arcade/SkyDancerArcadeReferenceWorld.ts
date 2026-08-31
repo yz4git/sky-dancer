@@ -109,7 +109,7 @@ export class SkyDancerArcadeReferenceWorld {
       atmosphere.name="arcade-planet-atmosphere";
       return group;
     }
-    for(let layer=0;layer<3;layer++){
+    for(let layer=0;layer<4;layer++){
       const positions:number[]=[];const indices:number[]=[];
       for(let i=0;i<=80;i++){
         const x=(i/80-.5)*1500;
@@ -122,9 +122,9 @@ export class SkyDancerArcadeReferenceWorld {
       mesh(group,g,new THREE.MeshBasicMaterial({color,side:THREE.DoubleSide,fog:false}));
     }
     if(stage.biome==="city" || stage.biome==="night"){
-      const towers=new THREE.InstancedMesh(new THREE.BoxGeometry(1,1,1),paint(0x526b7d),108);
+      const towers=new THREE.InstancedMesh(new THREE.BoxGeometry(1,1,1),paint(0x526b7d),144);
       towers.name="arcade-distant-metropolis";
-      for(let i=0;i<108;i++){
+      for(let i=0;i<144;i++){
         const x=(random(i+19)-.5)*760;
         const hero=i%13===0; const h=14+random(i+117)*55+(hero?35:0);
         this.matrixObject.position.set(x,-39+h/2,-315-random(i+613)*250);
@@ -242,6 +242,8 @@ export class SkyDancerArcadeReferenceWorld {
         break;
       }
     }
+    // Visual-only near-pass geometry: deliberately close to the flight corridor so speed is readable.
+    this.addNearPassSetPieces(group,stage,index,primary,secondary,dark,glow);
     // Static structural detail is batched. Instanced towers/clouds remain their own batches.
     const structures=new THREE.Group();
     for(const child of [...group.children]){
@@ -253,20 +255,78 @@ export class SkyDancerArcadeReferenceWorld {
     return group;
   }
 
+
+  private addNearPassSetPieces(
+    group:THREE.Group,
+    stage:SkyDancerArcadeStageDefinition,
+    index:number,
+    primary:THREE.Material,
+    secondary:THREE.Material,
+    dark:THREE.Material,
+    glow:THREE.Material,
+  ):void {
+    // arcade-near-pass-setpieces-v5: these are visual-only and never enter the hazard/collision runtime.
+    group.userData.arcadeNearPassSetpiecesV5=true;
+    const r=(i:number)=>random(index*631+stage.order*173+i*7.13);
+    for(const side of [-1,1])for(let j=0;j<5;j++){
+      const z=-51+j*24+r(j+41)*6;
+      const x=side*(20.5+r(j+71)*7.2);
+      if(stage.biome==="city" || stage.biome==="night"){
+        const h=25+r(j+11)*31;
+        const w=2.8+r(j+19)*2.8;
+        const tower=mesh(group,new THREE.BoxGeometry(w,h,4.8+r(j+23)*3.4),j%3===0?secondary:primary,x,-25+h/2,z);
+        tower.rotation.y=(r(j+31)-.5)*.08;
+        if(j%2===0) mesh(group,new THREE.BoxGeometry(.18,3.8+r(j+55)*5,.18),glow,x,-24+h+2.2,z);
+      } else if(stage.biome==="canyon" || stage.biome==="desert" || stage.biome==="volcano"){
+        const h=24+r(j+9)*36;
+        const fin=mesh(group,new THREE.CylinderGeometry(1.8+r(j+7)*2.7,4.6+r(j+17)*3.3,h,5,2),j%2?secondary:primary,x,-26+h/2,z);
+        fin.rotation.z=side*(.06+r(j+27)*.16);
+        fin.rotation.y=r(j+37)*Math.PI;
+        if(stage.biome==="volcano" && j%2===0) mesh(group,new THREE.ConeGeometry(.28,8+r(j+57)*10,5),glow,x-side*2,-13,z+2);
+      } else if(stage.biome==="ice"){
+        const h=24+r(j+8)*31;
+        const crystal=mesh(group,new THREE.ConeGeometry(2.7+r(j+12)*2.2,h,5),j%2?primary:secondary,x,-19+h/2,z);
+        crystal.rotation.z=side*(.12+r(j+24)*.22);
+        if(j%2===1) mesh(group,new THREE.OctahedronGeometry(2.6+r(j+44)*2.1,0),glow,x-side*3,2+r(j+66)*8,z+3);
+      } else if(stage.biome==="cloud" || stage.biome==="storm"){
+        const y=-5+r(j+6)*15;
+        const deck=mesh(group,new THREE.BoxGeometry(8+r(j+16)*6,1.1,13+r(j+26)*9),j%2?secondary:primary,x,y,z);
+        deck.rotation.z=side*(r(j+32)-.5)*.09;
+        mesh(group,new THREE.BoxGeometry(.22,.18,11+r(j+52)*7),glow,x-side*1.7,y+.72,z);
+        if(j%2===0) mesh(group,new THREE.BoxGeometry(1.1,11+r(j+62)*9,1.1),dark,x+side*2.2,y+6,z+2);
+      } else if(stage.biome==="ruins"){
+        const h=19+r(j+5)*22;
+        mesh(group,new THREE.CylinderGeometry(1.3,1.8,h,8),j%2?secondary:primary,x,-9+h/2,z);
+        mesh(group,new THREE.BoxGeometry(8+r(j+15)*5,1.1,7+r(j+25)*4),dark,x,-10,z);
+        if(j%2===0) mesh(group,new THREE.TorusGeometry(4.2,.28,5,18,Math.PI),glow,x,5+r(j+35)*7,z+2);
+      } else if(stage.biome==="orbit"){
+        const y=-7+r(j+4)*18;
+        const pylon=mesh(group,new THREE.BoxGeometry(1.6,18+r(j+14)*14,5.5),j%2?secondary:primary,x,y,z);
+        pylon.rotation.z=side*(r(j+34)-.5)*.12;
+        mesh(group,new THREE.BoxGeometry(.2,15+r(j+54)*9,5.7),glow,x-side*1,y,z-.1);
+      } else if(stage.biome==="citadel"){
+        const prism=mesh(group,new THREE.OctahedronGeometry(4.6+r(j+3)*3.6,0),j%2?secondary:primary,x,-1+r(j+13)*9,z);
+        prism.scale.y=1.7+r(j+33)*1.1;
+        prism.rotation.z=side*(.15+r(j+43)*.22);
+        if(j%2===0) mesh(group,new THREE.BoxGeometry(.3,18,3),glow,x-side*3,2,z+2);
+      }
+    }
+  }
+
   private addCity(group:THREE.Group,stage:SkyDancerArcadeStageDefinition,index:number,facade:THREE.Material):void {
-    const count=48;
+    const count=72;
     const towers=new THREE.InstancedMesh(new THREE.BoxGeometry(1,1,1),facade,count);
     towers.name="arcade-product-city-towers-"+index;
     const roofs=new THREE.InstancedMesh(new THREE.BoxGeometry(1,1,1),paint(0x53616d),count);
-    const spires=new THREE.InstancedMesh(new THREE.CylinderGeometry(.14,.23,1,6),paint(0x697989),48);
+    const spires=new THREE.InstancedMesh(new THREE.CylinderGeometry(.14,.23,1,6),paint(0x697989),72);
     let n=0;let a=0;
-    for(const side of [-1,1])for(let row=0;row<4;row++)for(let lane=0;lane<6;lane++){
+    for(const side of [-1,1])for(let row=0;row<6;row++)for(let lane=0;lane<6;lane++){
       const seed=index*229+n*11;
       const hero=lane>1 && random(seed+97)>.77; const h=lane===0 ? 9+random(seed+3)*14 : 15+random(seed+4)*45+(hero?22:0);
       const w=(hero?3.2:4.1)+random(seed+13)*(hero?3.4:5.1);
       const d=5+random(seed+29)*6.5;
       const x=side*(31+lane*15+random(seed+7)*4.2);
-      const z=-43+row*27+random(seed+61)*6;
+      const z=-50+row*19+random(seed+61)*4.5;
       this.matrixObject.position.set(x,-25+h/2,z);
       this.matrixObject.scale.set(w,h,d);this.matrixObject.rotation.set(0,0,0);this.matrixObject.updateMatrix();
       towers.setMatrixAt(n,this.matrixObject.matrix);
@@ -321,7 +381,7 @@ export class SkyDancerArcadeReferenceWorld {
   }
 
   private buildTerrain(stage:SkyDancerArcadeStageDefinition,index:number):THREE.BufferGeometry {
-    const g=new THREE.PlaneGeometry(260,114,32,20);g.rotateX(-Math.PI/2);
+    const g=new THREE.PlaneGeometry(260,114,48,30);g.rotateX(-Math.PI/2);
     const position=g.getAttribute("position") as THREE.BufferAttribute;
     const color=new Float32Array(position.count*3);
     const low=new THREE.Color(stage.palette.ground),high=new THREE.Color(stage.palette.secondary),c=new THREE.Color();
@@ -329,7 +389,8 @@ export class SkyDancerArcadeReferenceWorld {
       const x=position.getX(i),z=position.getZ(i)+index*CHUNK_LENGTH;
       const ridge=Math.max(0,Math.abs(x)-16);
       const ripple=Math.sin(z*.028+x*.014)*Math.cos(x*.13-z*.008);
-      const h=-27+Math.pow(ridge,.82)*(stage.biome==="desert"?.6:1.45)+(3+ridge*.07)*ripple;
+      const micro=Math.sin(z*.16+x*.21)*Math.cos(x*.31-z*.09);
+      const h=-27+Math.pow(ridge,.82)*(stage.biome==="desert"?.6:1.45)+(3+ridge*.07)*ripple+micro*(stage.biome==="desert"?.7:1.45);
       position.setY(i,h);
       c.copy(low).lerp(high,Math.min(.9,(h+29)/77));
       color.set([c.r,c.g,c.b],i*3);
