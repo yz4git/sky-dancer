@@ -145,7 +145,7 @@ test("missile trails and explosions keep a bounded mesh and buffer count under l
 });
 
 
-test("V8.7 ice cavern exposes its real vertical wave with sparse ribs and a continuous glacial fissure", () => {
+test("V8.8 ice cavern exposes its vertical canyon without repeated full-screen hoops", () => {
   const scene = new THREE.Scene();
   const world = new SkyDancerArcadeReferenceWorld(scene);
   const ice = SKY_DANCER_ARCADE_STAGES.find((stage) => stage.id === "ice-cavern")!;
@@ -153,7 +153,16 @@ test("V8.7 ice cavern exposes its real vertical wave with sparse ribs and a cont
   world.update(ice.courseSpeed * 10, 0, 0);
   const cues = scene.getObjectsByProperty("name", "arcade-ice-wave-cue");
   assert.equal(cues.length, 7);
-  assert.equal(scene.getObjectsByProperty("name", "arcade-ice-wave-arch").length, 7);
+  const arches=scene.getObjectsByProperty("name", "arcade-ice-wave-arch") as THREE.Mesh[];
+  assert.equal(arches.length, 7);
+  for(const arch of arches){
+    const parameters=(arch.geometry as THREE.TorusGeometry).parameters;
+    assert.ok(parameters.arc < Math.PI*.7, "ice guide ribs must stay broken/open rather than recreate a hoop tunnel");
+  }
+  const chunks=scene.children[0].children.filter((object)=>object.name.startsWith("arcade-course-chunk-"));
+  assert.equal(chunks.length,8);
+  assert.ok(chunks.every((chunk)=>chunk.userData.arcadeIceV88CanyonClearance===true),
+    "every streamed ice chunk keeps the V8.8 open-centre canyon layout");
   const ys = cues.map((cue) => cue.position.y);
   const pitches = cues.map((cue) => cue.rotation.x);
   const xs = cues.map((cue) => cue.position.x);
