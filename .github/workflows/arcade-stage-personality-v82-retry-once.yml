@@ -1,0 +1,46 @@
+name: Arcade Stage Personality V8.2 Retry Once
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - "scripts/apply-arcade-stage-personality-v82-fix.py"
+      - ".github/workflows/arcade-stage-personality-v82-retry-once.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.13.0
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Apply V8.2 stage personality pass
+        run: python3 scripts/apply-arcade-stage-personality-v82.py
+      - name: Apply V8.2 regression contract fix
+        run: python3 scripts/apply-arcade-stage-personality-v82-fix.py
+      - name: Rules regression
+        run: npm run test:rules
+      - name: Lint
+        run: npm run lint
+      - name: Pages production build
+        run: npm run build:pages
+      - name: Commit V8.2
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "Nothing to commit"
+            exit 0
+          fi
+          git commit -m "Arcade Run V8.2: distinct branch-stage flight personalities"
+          git push origin HEAD:main
