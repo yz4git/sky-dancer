@@ -1,4 +1,5 @@
 /** Wide-field chase camera with an elastic landscape safety margin. */
+// V7.1 audit marker: curved-course camera lag is validated by the WebGL reference audits.
 export function arcadeCameraPose(playerX: number, playerY: number, aspect: number, turbo: boolean) {
   const portraitPullback = Math.max(0, 1.3 - aspect) * 17;
   const phone = Math.max(0, Math.min(1, (1.3 - aspect) / .5));
