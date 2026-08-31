@@ -205,6 +205,24 @@ test("V9.0 floating ruins reads as a broken sky labyrinth instead of a column fo
   world.dispose();
 });
 
+test("V9.4 storm carrier reads as a thunderhead dreadnought instead of floating T-bars", () => {
+  const scene=new THREE.Scene();
+  const world=new SkyDancerArcadeReferenceWorld(scene);
+  const storm=SKY_DANCER_ARCADE_STAGES.find((stage)=>stage.id==="storm-carrier")!;
+  world.setStage(storm);
+  world.update(storm.courseSpeed*5,0,0);
+  assert.ok(scene.getObjectByName("arcade-storm-dreadnought") instanceof THREE.Group,
+    "storm carrier must expose one massive dreadnought silhouette in the thunderhead");
+  const environment=scene.getObjectByName("arcade-course-environment")!;
+  const chunks=environment.children.filter((object)=>object.name.startsWith("arcade-course-chunk-"));
+  assert.equal(chunks.length,8);
+  assert.ok(chunks.every((chunk)=>chunk.userData.arcadeStormV94ThunderheadDreadnought===true),
+    "every storm chunk must use armored carrier-section geometry");
+  assert.equal(new Set(chunks.map((chunk)=>chunk.userData.arcadeStormV94PressureSide)).size,2,
+    "storm carrier pressure must alternate sides rather than repeat paired T-bars");
+  world.dispose();
+});
+
 test("V9.3 desert fortress reads as a sandwall assault instead of a recolored canyon", () => {
   const scene=new THREE.Scene();
   const world=new SkyDancerArcadeReferenceWorld(scene);
