@@ -28,6 +28,19 @@ jobs:
       - run: npm ci --no-audit --no-fund
       - name: Apply V9.6 missile smoke pass
         run: python3 scripts/apply-missile-v96.py
+      - name: Update V9.6 missile visual source contract
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path("tests/sky-arcade-run.test.ts")
+          text = path.read_text()
+          old = '  assert.match(presentationSource, /width: enemy \\? \\.19 : \\.22/);'
+          new = '''  assert.match(presentationSource, /width: enemy \\? \\.19 : playerMissile \\? \\.42 : \\.22/);
+          assert.match(presentationSource, /arcade-pooled-missile-white-smoke/);
+          assert.match(presentationSource, /missileSmoke: 160/);'''
+          assert old in text
+          path.write_text(text.replace(old, new, 1))
+          PY
       - name: Arcade rules regression
         run: npm run test:rules
       - name: Arcade typecheck
@@ -40,7 +53,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add src/sky/arcade/SkyDancerArcadeProductPresentation.ts src/sky/arcade/SkyDancerArcadeWebGLDemo.ts src/sky/arcade/SkyDancerArcadeCanvasDemo.ts tests/sky-arcade-reference.test.ts
+          git add src/sky/arcade/SkyDancerArcadeProductPresentation.ts src/sky/arcade/SkyDancerArcadeWebGLDemo.ts src/sky/arcade/SkyDancerArcadeCanvasDemo.ts tests/sky-arcade-reference.test.ts tests/sky-arcade-run.test.ts
           git rm .github/workflows/arcade-v96-missile-smoke-once.yml scripts/apply-missile-v96.py
           git commit -m "Arcade Run V9.6: cinematic missile white-smoke trails"
           git push origin HEAD:main
