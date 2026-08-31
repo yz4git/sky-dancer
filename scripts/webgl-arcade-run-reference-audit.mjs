@@ -1,6 +1,8 @@
-// 2026-08-31 V6.2 visual playcheck: verify course readability, fair NORMAL pressure and restrained kill feedback.
+// 2026-08-31 V8 visual playcheck: verify faster flight, close dogfight silhouettes, overtakes and course readability.
 import { mkdir, writeFile } from "node:fs/promises";
-import { chromium } from "playwright";
+import { createRequire } from "node:module";
+const require = createRequire(import.meta.url);
+const { chromium } = require("../.audit-runtime/node_modules/playwright-core");
 
 const baseUrl = process.env.SKY_DANCER_AUDIT_URL || "http://127.0.0.1:4173";
 const outputDir = process.env.SKY_DANCER_AUDIT_DIR || "artifacts/arcade-run-reference";
@@ -8,6 +10,7 @@ await mkdir(outputDir, { recursive: true });
 
 const browser = await chromium.launch({
   headless: true,
+  executablePath: process.env.SKY_DANCER_CHROME_PATH || "/usr/bin/google-chrome",
   args: ["--use-angle=swiftshader", "--enable-webgl", "--enable-unsafe-swiftshader", "--ignore-gpu-blocklist", "--disable-dev-shm-usage"],
 });
 const context = await browser.newContext({ viewport: { width: 844, height: 390 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
@@ -83,6 +86,12 @@ await page.screenshot({ path: `${outputDir}/00b-course-bend-turbo.png`, fullPage
 await page.keyboard.up(" ");
 await page.waitForTimeout(1700);
 await page.screenshot({ path: `${outputDir}/00c-course-bend-b.png`, fullPage: true });
+await page.waitForTimeout(420);
+await page.screenshot({ path: `${outputDir}/00d-close-dogfight-a.png`, fullPage: true });
+await captureCanvas(`${outputDir}/00d-close-dogfight-a-canvas.png`);
+await page.waitForTimeout(650);
+await page.screenshot({ path: `${outputDir}/00e-close-dogfight-b.png`, fullPage: true });
+await captureCanvas(`${outputDir}/00e-close-dogfight-b-canvas.png`);
 const bendText = await bodyText();
 const bendHp = hpPercent(bendText);
 

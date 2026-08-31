@@ -362,3 +362,39 @@ test("V7.1 chase camera deliberately lags the shared course so bends remain visi
   assert.match(webgl, /nearCourse\.x \* \.055 \+ farCourse\.x \* \.028/);
   assert.doesNotMatch(webgl, /courseAim\.x \* \.16/);
 });
+
+
+test("V8 speed pass keeps enemies close and choreographs dogfight fly-bys", async () => {
+  assert.ok(Math.min(...SKY_DANCER_ARCADE_STAGES.map((stage) => stage.courseSpeed)) >= 80);
+  const runtime = new SkyDancerArcadeRuntime({ mode: "arcade-run", difficulty: "normal", seed: 0x5f3759df });
+  const seen = new Set<string>();
+  const rearIds = new Set<number>();
+  let rearToFront = false;
+  let closeSamples = 0;
+  for (let frame = 0; frame < 780; frame += 1) {
+    const snapshot = runtime.getSnapshot();
+    for (const enemy of snapshot.enemies) {
+      if (enemy.boss) continue;
+      seen.add(enemy.maneuver);
+      if (enemy.depth > 4 && enemy.depth < 24) closeSamples += 1;
+      if (enemy.maneuver === "overtake" && enemy.depth < 0) rearIds.add(enemy.id);
+      if (rearIds.has(enemy.id) && enemy.depth > 12) rearToFront = true;
+    }
+    runtime.step(1 / 60);
+    if (runtime.getSnapshot().status !== "running") break;
+  }
+  assert.ok(seen.has("close-bank"), `maneuvers ${[...seen].join(",")}`);
+  assert.ok(seen.has("overtake"), `maneuvers ${[...seen].join(",")}`);
+  assert.ok(seen.has("parallel"), `maneuvers ${[...seen].join(",")}`);
+  assert.ok(rearToFront, "rear overtaker should pass into the forward field");
+  assert.ok(closeSamples >= 120, `close silhouette samples ${closeSamples}`);
+
+  const [runtimeSource, presentationSource, cameraSource] = await Promise.all([
+    readFile(new URL("../src/sky/arcade/SkyDancerArcadeRuntime.ts", import.meta.url), "utf8"),
+    readFile(new URL("../src/sky/arcade/SkyDancerArcadeProductPresentation.ts", import.meta.url), "utf8"),
+    readFile(new URL("../src/sky/arcade/SkyDancerArcadeCamera.ts", import.meta.url), "utf8"),
+  ]);
+  assert.match(runtimeSource, /turboActive \? 1\.44 : 1/);
+  assert.match(presentationSource, /turboActive \? 205 : 78/);
+  assert.match(cameraSource, /fov: turbo \? 67 : 56/);
+});

@@ -244,7 +244,8 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
       if (!group) {
         group = createSkyDancerArcadeEnemy(snapshot.stage, enemy);
         const course = arcadeCourseRelativePose(snapshot.stage, snapshot.distance, enemy.depth);
-        group.rotation.y = Math.PI + course.yaw;
+        group.userData.arcadeCombatBaseScale = group.scale.x;
+        group.rotation.y = enemy.maneuver === "overtake" ? course.yaw : Math.PI + course.yaw;
         group.position.set(enemy.x * 8.4 + course.x, 1.2 + enemy.y * 4.9 + course.y, -enemy.depth);
         this.enemyGroups.set(enemy.id, group);
         this.entityRoot.add(group);
@@ -256,9 +257,18 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
       group.position.x += (targetX - group.position.x) * Math.min(1, delta * 13);
       group.position.y += (targetY - group.position.y) * Math.min(1, delta * 13);
       group.position.z += (targetZ - group.position.z) * Math.min(1, delta * 13);
-      group.rotation.y = Math.PI + course.yaw;
-      group.rotation.x = course.pitch * .72;
-      group.rotation.z = Math.sin(enemy.phase + snapshot.runTimeSeconds * 1.8) * (enemy.boss ? .025 : .22) + course.bank * .5;
+      const previousEnemy = this.previousSnapshot.enemies.find((previous) => previous.id === enemy.id);
+      const safeDelta = Math.max(delta, 1 / 120);
+      const lateralVelocity = previousEnemy ? (enemy.x - previousEnemy.x) / safeDelta : 0;
+      const verticalVelocity = previousEnemy ? (enemy.y - previousEnemy.y) / safeDelta : 0;
+      const targetHeading = enemy.maneuver === "overtake" ? course.yaw : Math.PI + course.yaw;
+      const headingDelta = Math.atan2(Math.sin(targetHeading - group.rotation.y), Math.cos(targetHeading - group.rotation.y));
+      group.rotation.y += headingDelta * Math.min(1, delta * (enemy.maneuver === "overtake" ? 7.5 : 5.8));
+      const targetPitch = course.pitch * .72 + THREE.MathUtils.clamp(verticalVelocity * .035, -.2, .2);
+      const maneuverBank = THREE.MathUtils.clamp(-lateralVelocity * .095, -.64, .64);
+      const targetBank = maneuverBank + course.bank * .46 + Math.sin(enemy.phase + snapshot.runTimeSeconds * 1.8) * (enemy.boss ? .025 : .08);
+      group.rotation.x += (targetPitch - group.rotation.x) * Math.min(1, delta * 8);
+      group.rotation.z += (targetBank - group.rotation.z) * Math.min(1, delta * 9);
       const existingRing = group.getObjectByName("arcade-lock-ring");
       if (enemy.locked && !existingRing) group.add(createSkyDancerArcadeLockRing(0xff4c58));
       if (!enemy.locked && existingRing) {
@@ -292,6 +302,11 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
       }
       if (lockRing) lockRing.scale.setScalar(enemy.boss ? 4.2 : enemy.kind === "bomber" ? 1.7 : 1.1);
       if (aimRing) aimRing.scale.setScalar(enemy.boss ? 3.7 : enemy.kind === "bomber" ? 1.5 : .92);
+      if (!enemy.boss) {
+        const baseScale = typeof group.userData.arcadeCombatBaseScale === "number" ? group.userData.arcadeCombatBaseScale : group.scale.x;
+        const closeBoost = 1 + THREE.MathUtils.clamp((28 - enemy.depth) / 24, 0, 1) * .16;
+        group.scale.setScalar(baseScale * closeBoost);
+      }
       if (enemy.boss) {
         const hpRatio = enemy.maxHp > 0 ? enemy.hp / enemy.maxHp : 0;
         const baseScale = typeof group.userData.arcadeBaseScale === "number" ? group.userData.arcadeBaseScale : 1;

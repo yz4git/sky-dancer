@@ -3,7 +3,7 @@ import type { SkyDancerArcadeSnapshot } from "./SkyDancerArcadeRuntime";
 import { arcadeCourseRelativePose } from "./SkyDancerArcadeCoursePath";
 
 export const ARCADE_EFFECT_BUDGET = { trails: 48, trailSamples: 18, sparks: 240, smoke: 84 } as const;
-const SPEED_STREAK_COUNT = 40;
+const SPEED_STREAK_COUNT = 52;
 const RETIRE_SECONDS = .32;
 const fract = (n: number) => n - Math.floor(n);
 const noise = (n: number) => fract(Math.sin(n * 78.233 + 17.1) * 43758.5453);
@@ -206,7 +206,7 @@ export class SkyDancerArcadeProductPresentation {
 
   private updateSpeedStreaks(snapshot: SkyDancerArcadeSnapshot, delta: number): void {
     const impactBoost = Math.min(1, this.climaxEnergy);
-    const speed = (snapshot.turboActive ? 150 : 58) + impactBoost * 72;
+    const speed = (snapshot.turboActive ? 205 : 78) + impactBoost * 82;
     for (let i = 0; i < SPEED_STREAK_COUNT; i++) {
       const k = i * 3, j = i * 6;
       let z = this.speedSeeds[k + 2] + speed * delta;
@@ -214,10 +214,10 @@ export class SkyDancerArcadeProductPresentation {
       this.speedSeeds[k + 2] = z;
       const x = this.speedSeeds[k] - snapshot.playerX * 2.5;
       const y = this.speedSeeds[k + 1] - snapshot.playerY * .9;
-      this.speedPositions.set([x, y, z, x, y, z - (snapshot.turboActive ? 9 : 2.4)], j);
+      this.speedPositions.set([x, y, z, x, y, z - (snapshot.turboActive ? 13 : 4.2)], j);
     }
     this.speedGeometry.getAttribute("position").needsUpdate = true;
-    const targetOpacity = (snapshot.turboActive ? .42 : .045) + impactBoost * .24;
+    const targetOpacity = (snapshot.turboActive ? .52 : .075) + impactBoost * .24;
     this.speedMaterial.opacity += (targetOpacity - this.speedMaterial.opacity) * Math.min(1, delta * 8);
   }
 

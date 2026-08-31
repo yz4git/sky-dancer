@@ -22,6 +22,8 @@ export type SkyDancerArcadeStatus =
   | "run-clear"
   | "practice-clear";
 
+export type SkyDancerArcadeEnemyManeuver = "approach" | "close-bank" | "overtake" | "parallel" | "cross-pass";
+
 export interface SkyDancerArcadeRuntimeOptions {
   difficulty: "normal" | "hard";
   mode: "arcade-run" | "stage-practice";
@@ -40,6 +42,7 @@ export interface SkyDancerArcadeEnemySnapshot {
   locked: boolean;
   boss: boolean;
   phase: number;
+  maneuver: SkyDancerArcadeEnemyManeuver;
 }
 
 export interface SkyDancerArcadeProjectileSnapshot {
@@ -128,6 +131,8 @@ interface ArcadeEnemy extends SkyDancerArcadeEnemySnapshot {
   fireCooldown: number;
   scoreValue: number;
   alive: boolean;
+  maneuverClock: number;
+  maneuverSign: number;
 }
 
 interface ArcadeProjectile extends SkyDancerArcadeProjectileSnapshot {
@@ -168,10 +173,10 @@ const GUN_COOLDOWN = 0.105;
 const LOCK_INTERVAL = 0.13;
 const ARCADE_SECTION_RESULT_SECONDS = 0.55;
 const PRACTICE_RESULT_SECONDS = 2.8;
-const PLAYER_MOVE_SPEED_X = 3.4;
-const PLAYER_MOVE_SPEED_Y = 2.95;
-const PLAYER_TURBO_SPEED_X = 4.45;
-const PLAYER_TURBO_SPEED_Y = 3.75;
+const PLAYER_MOVE_SPEED_X = 3.7;
+const PLAYER_MOVE_SPEED_Y = 3.18;
+const PLAYER_TURBO_SPEED_X = 5.05;
+const PLAYER_TURBO_SPEED_Y = 4.28;
 const PLAYER_MOVE_RESPONSE = 19.5;
 const ENEMY_FLYBY_CULL_DEPTH = -11.5;
 const MAX_ENEMY_PROJECTILES_NORMAL = 5;
@@ -262,6 +267,7 @@ export class SkyDancerArcadeRuntime {
   private projectiles: ArcadeProjectile[] = [];
   private hazards: ArcadeHazard[] = [];
   private nextEntityId = 1;
+  private waveSerial = 0;
   private nextWaveAt = 2.8;
   private nextHazardAt = 11;
   private gunCooldown = 0;
@@ -312,6 +318,7 @@ export class SkyDancerArcadeRuntime {
     this.enemies = [];
     this.projectiles = [];
     this.hazards = [];
+    this.waveSerial = 0;
     // Give each section a readable establishing beat before the first pressure wave.
     this.nextWaveAt = this.stageTime + (rewindTime > 0 ? 1.35 : 2.35);
     this.nextHazardAt = this.stageTime + (rewindTime > 0 ? 2.0 : 4.1);
@@ -395,7 +402,7 @@ export class SkyDancerArcadeRuntime {
     const turboActive = this.input.turbo && this.turbo > 0.5;
     this.stageTime += delta;
     this.runTime += delta;
-    this.distance += this.stage.courseSpeed * (turboActive ? 1.34 : 1) * delta;
+    this.distance += this.stage.courseSpeed * (turboActive ? 1.44 : 1) * delta;
     this.messageTimer = Math.max(0, this.messageTimer - delta);
     this.damageCooldown = Math.max(0, this.damageCooldown - delta);
     if (this.messageTimer <= 0) this.message = null;
@@ -486,10 +493,23 @@ export class SkyDancerArcadeRuntime {
     const formation = this.stage.formations[Math.floor(this.random() * this.stage.formations.length)] ?? "line";
     const hardBonus = this.options.difficulty === "hard" ? 1 : 0;
     const count = 3 + Math.floor(this.random() * 2) + hardBonus;
+    const choreography: readonly SkyDancerArcadeEnemyManeuver[] = ["close-bank", "overtake", "parallel", "cross-pass"];
+    const featured = choreography[this.waveSerial % choreography.length] ?? "close-bank";
+    this.waveSerial += 1;
     for (let index = 0; index < count; index += 1) {
       const kind = this.stage.enemies[Math.floor(this.random() * this.stage.enemies.length)] ?? "fighter";
-      const [x, y] = this.formationPosition(formation, index, count);
-      this.spawnEnemy(kind, x, y, 72 + index * 4.8 + this.random() * 15);
+      const [formationX, formationY] = this.formationPosition(formation, index, count);
+      const maneuver: SkyDancerArcadeEnemyManeuver = index === 0
+        ? featured
+        : index === 1 && count >= 4
+          ? "close-bank"
+          : "approach";
+      const sign = Math.abs(formationX) > 0.18 ? Math.sign(formationX) : index % 2 === 0 ? 1 : -1;
+      const x = maneuver === "overtake" ? sign * 1.9 : formationX;
+      const y = maneuver === "overtake" ? clamp(formationY * 0.34, -0.62, 0.62) : formationY;
+      // V8 keeps ordinary enemies in the readable mid-field and lets an overtaker enter from behind.
+      const depth = maneuver === "overtake" ? -6.4 : 51 + index * 3.8 + this.random() * 10;
+      this.spawnEnemy(kind, x, y, depth, maneuver, sign);
     }
   }
 
@@ -508,7 +528,14 @@ export class SkyDancerArcadeRuntime {
     }
   }
 
-  private spawnEnemy(kind: SkyDancerArcadeEnemyKind, x: number, y: number, depth: number): void {
+  private spawnEnemy(
+    kind: SkyDancerArcadeEnemyKind,
+    x: number,
+    y: number,
+    depth: number,
+    maneuver: SkyDancerArcadeEnemyManeuver = "approach",
+    maneuverSign = 1,
+  ): void {
     const stats = enemyStats(kind, this.options.difficulty === "hard");
     this.enemies.push({
       id: this.nextEntityId++,
@@ -521,6 +548,7 @@ export class SkyDancerArcadeRuntime {
       locked: false,
       boss: false,
       phase: this.random() * Math.PI * 2,
+      maneuver,
       age: 0,
       speed: stats.speed,
       baseX: x,
@@ -529,6 +557,8 @@ export class SkyDancerArcadeRuntime {
       fireCooldown: 1.1 + this.random() * 2.4,
       scoreValue: stats.score,
       alive: true,
+      maneuverClock: 0,
+      maneuverSign: maneuverSign < 0 ? -1 : 1,
     });
   }
 
@@ -550,6 +580,7 @@ export class SkyDancerArcadeRuntime {
       locked: false,
       boss: true,
       phase: 0,
+      maneuver: "approach",
       age: 0,
       speed: 7.2,
       baseX: 0,
@@ -558,6 +589,8 @@ export class SkyDancerArcadeRuntime {
       fireCooldown: 1.4,
       scoreValue: final ? 24000 : 12000,
       alive: true,
+      maneuverClock: 0,
+      maneuverSign: 1,
     });
     this.message = `WARNING · ${this.stage.bossName}`;
     this.messageTimer = 3.2;
@@ -696,7 +729,6 @@ export class SkyDancerArcadeRuntime {
         enemy.x = clamp(this.playerX * 0.58 + Math.sin(enemy.age * frequency) * enemy.amplitude, -ENEMY_X_LIMIT, ENEMY_X_LIMIT);
         enemy.y = clamp(this.playerY * 0.5 + enemy.baseY + Math.sin(enemy.age * 0.92 + 1.3) * 0.82, -ENEMY_Y_LIMIT, ENEMY_Y_LIMIT);
       } else {
-        enemy.depth -= enemy.speed * delta;
         const frequency = enemy.kind === "interceptor" ? 2.35 : enemy.kind === "ace" ? 1.75 : 1.02;
         const pursuit = clamp((62 - enemy.depth) / 62, 0.12, enemy.kind === "ace" ? 0.84 : enemy.kind === "interceptor" ? 0.74 : 0.54);
         const close = clamp((68 - enemy.depth) / 54, 0, 1);
@@ -704,8 +736,90 @@ export class SkyDancerArcadeRuntime {
         const weaveY = Math.cos(enemy.age * frequency * 0.72 + enemy.phase) * enemy.amplitude * 0.82;
         const flankX = Math.sin(enemy.phase * 1.91) * close * 0.42;
         const flankY = Math.cos(enemy.phase * 1.37) * close * 0.28;
-        enemy.x = clamp(enemy.baseX + weaveX + this.playerX * pursuit + flankX, -ENEMY_X_LIMIT, ENEMY_X_LIMIT);
-        enemy.y = clamp(enemy.baseY + weaveY + this.playerY * pursuit * 0.82 + flankY, -ENEMY_Y_LIMIT, ENEMY_Y_LIMIT);
+        const genericX = () => clamp(enemy.baseX + weaveX + this.playerX * pursuit + flankX, -ENEMY_X_LIMIT, ENEMY_X_LIMIT);
+        const genericY = () => clamp(enemy.baseY + weaveY + this.playerY * pursuit * 0.82 + flankY, -ENEMY_Y_LIMIT, ENEMY_Y_LIMIT);
+
+        if (enemy.maneuver === "overtake") {
+          if (enemy.depth < 24) {
+            // Enter from behind and visibly run past the player's shoulder into the forward field.
+            enemy.depth += Math.max(32, enemy.speed * 2.25) * delta;
+            const pass = clamp((enemy.depth + 6.4) / 30.4, 0, 1);
+            enemy.x = clamp(this.playerX + enemy.maneuverSign * (1.94 - pass * 0.66) + Math.sin(enemy.age * 5.2) * 0.1, -ENEMY_X_LIMIT, ENEMY_X_LIMIT);
+            enemy.y = clamp(this.playerY * 0.56 + enemy.baseY * 0.28 + Math.sin(enemy.age * 3.6 + enemy.phase) * 0.24, -ENEMY_Y_LIMIT, ENEMY_Y_LIMIT);
+          } else {
+            enemy.maneuverClock += delta;
+            enemy.depth = moveToward(enemy.depth, 20 + Math.sin(enemy.maneuverClock * 2.7) * 1.3, delta * 8.5);
+            enemy.x = clamp(this.playerX + enemy.maneuverSign * (1.22 + Math.sin(enemy.maneuverClock * 3.2) * 0.18), -ENEMY_X_LIMIT, ENEMY_X_LIMIT);
+            enemy.y = clamp(this.playerY * 0.65 + Math.sin(enemy.maneuverClock * 2.5 + enemy.phase) * 0.44, -ENEMY_Y_LIMIT, ENEMY_Y_LIMIT);
+            if (enemy.maneuverClock >= 1.15) {
+              enemy.maneuver = "close-bank";
+              enemy.maneuverClock = 0;
+              enemy.baseX = enemy.x;
+              enemy.baseY = enemy.y;
+            }
+          }
+        } else if (enemy.maneuver === "parallel") {
+          if (enemy.depth > 19) {
+            enemy.depth -= enemy.speed * 1.5 * delta;
+            enemy.x = clamp(genericX() + enemy.maneuverSign * 0.34, -ENEMY_X_LIMIT, ENEMY_X_LIMIT);
+            enemy.y = genericY();
+          } else {
+            // Hold a large readable silhouette beside the player for almost two seconds.
+            enemy.maneuverClock += delta;
+            enemy.depth = moveToward(enemy.depth, 15.8 + Math.sin(enemy.maneuverClock * 2.1) * 1.6, delta * 7.5);
+            enemy.x = clamp(this.playerX + enemy.maneuverSign * (1.18 + Math.sin(enemy.maneuverClock * 2.8) * 0.16), -ENEMY_X_LIMIT, ENEMY_X_LIMIT);
+            enemy.y = clamp(this.playerY * 0.72 + Math.sin(enemy.maneuverClock * 2.2 + enemy.phase) * 0.48, -ENEMY_Y_LIMIT, ENEMY_Y_LIMIT);
+            if (enemy.maneuverClock >= 1.9) {
+              enemy.maneuver = "cross-pass";
+              enemy.maneuverClock = 0;
+              enemy.baseX = enemy.x;
+              enemy.baseY = enemy.y;
+            }
+          }
+        } else if (enemy.maneuver === "cross-pass") {
+          if (enemy.depth > 19) {
+            enemy.depth -= enemy.speed * 1.42 * delta;
+            enemy.x = genericX();
+            enemy.y = genericY();
+          } else {
+            enemy.maneuverClock += delta;
+            const t = clamp(enemy.maneuverClock / 1.25, 0, 1);
+            const eased = t * t * (3 - 2 * t);
+            enemy.depth = moveToward(enemy.depth, 12.6, delta * 8);
+            enemy.x = clamp(this.playerX + enemy.maneuverSign * (1.86 - eased * 3.72), -ENEMY_X_LIMIT, ENEMY_X_LIMIT);
+            enemy.y = clamp(this.playerY * 0.62 + Math.sin(t * Math.PI + enemy.phase) * 0.62, -ENEMY_Y_LIMIT, ENEMY_Y_LIMIT);
+            if (enemy.maneuverClock >= 1.25) {
+              enemy.maneuver = "approach";
+              enemy.maneuverClock = 0;
+              enemy.baseX = enemy.x - enemy.maneuverSign * 0.42;
+              enemy.baseY = enemy.y;
+            }
+          }
+        } else if (enemy.maneuver === "close-bank") {
+          if (enemy.depth > 19) {
+            enemy.depth -= enemy.speed * 1.42 * delta;
+            enemy.x = genericX();
+            enemy.y = genericY();
+          } else {
+            // A close turning fight: slow relative depth while the raider visibly banks across the canopy.
+            enemy.maneuverClock += delta;
+            const arc = Math.sin(clamp(enemy.maneuverClock / 1.65, 0, 1) * Math.PI);
+            enemy.depth = moveToward(enemy.depth, 11.8 + Math.sin(enemy.maneuverClock * 3) * 1.5, delta * 7.6);
+            enemy.x = clamp(this.playerX + enemy.maneuverSign * (1.36 - arc * 0.48) + Math.sin(enemy.maneuverClock * 3.15 + enemy.phase) * 0.28, -ENEMY_X_LIMIT, ENEMY_X_LIMIT);
+            enemy.y = clamp(this.playerY * 0.7 + enemy.baseY * 0.22 + Math.sin(enemy.maneuverClock * 2.45 + enemy.phase) * 0.62, -ENEMY_Y_LIMIT, ENEMY_Y_LIMIT);
+            if (enemy.maneuverClock >= 1.65) {
+              enemy.maneuver = "approach";
+              enemy.maneuverClock = 0;
+              enemy.baseX = clamp(enemy.x + enemy.maneuverSign * 0.7, -ENEMY_X_LIMIT, ENEMY_X_LIMIT);
+              enemy.baseY = enemy.y;
+              enemy.amplitude = Math.min(1.25, enemy.amplitude * 1.15);
+            }
+          }
+        } else {
+          enemy.depth -= enemy.speed * delta;
+          enemy.x = genericX();
+          enemy.y = genericY();
+        }
       }
       enemy.fireCooldown -= delta;
       if (enemy.fireCooldown <= 0 && enemy.depth > 12 && enemy.depth < 72) {
@@ -838,7 +952,7 @@ export class SkyDancerArcadeRuntime {
 
   private updateHazards(delta: number, turboActive: boolean): void {
     for (const hazard of this.hazards) {
-      hazard.depth -= hazard.speed * (turboActive ? 1.16 : 1) * delta;
+      hazard.depth -= hazard.speed * (turboActive ? 1.24 : 1) * delta;
       if (hazard.depth > 2.4) continue;
       const radius = hazard.scale * (hazard.kind === "lightning" ? 0.55 : 0.42);
       const distance = Math.hypot(hazard.x - this.playerX, hazard.y - this.playerY);
@@ -1032,6 +1146,7 @@ export class SkyDancerArcadeRuntime {
         locked: enemy.locked,
         boss: enemy.boss,
         phase: enemy.phase,
+        maneuver: enemy.maneuver,
       })),
       projectiles: this.projectiles.filter((projectile) => projectile.life > 0).map((projectile) => ({
         id: projectile.id,

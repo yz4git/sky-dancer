@@ -11,7 +11,7 @@ export function arcadeCameraPose(playerX: number, playerY: number, aspect: numbe
     lookX: playerX * (3.45 + phone * 3.9),
     lookY: .8 + playerY * (1.15 + phone * 1.13),
     lookZ: -34,
-    fov: turbo ? 64 : 56,
+    fov: turbo ? 67 : 56,
     roll: Math.max(-.085, Math.min(.085, -playerX * .034)),
   };
 }
