@@ -1,4 +1,4 @@
-// 2026-08-31 V5 visual playcheck: verify denser streamed scenery, close fly-bys, four-minute pacing and destruction climax.
+// 2026-08-31 V5.1 final visual playcheck: verify detailed readable fly-bys, four-minute pacing and shock-ring destruction climax.
 import { mkdir, writeFile } from "node:fs/promises";
 import { chromium } from "playwright";
 
@@ -69,7 +69,6 @@ const renderState = await canvas.evaluate((element) => {
 await page.screenshot({ path: `${outputDir}/00-opening.png`, fullPage: true });
 await captureCanvas(`${outputDir}/00-opening-canvas.png`);
 
-// Traverse both extremes so close scenery has to sweep past the camera instead of reading as a static backdrop.
 await page.keyboard.down("ArrowRight");
 await page.keyboard.down("ArrowUp");
 await page.waitForTimeout(1500);
@@ -89,7 +88,6 @@ await page.waitForTimeout(550);
 await page.screenshot({ path: `${outputDir}/01d-near-pass-density.png`, fullPage: true });
 await captureCanvas(`${outputDir}/01d-near-pass-density-canvas.png`);
 
-// Lock first without gun kills, then release the salvo and let the page itself wait for the first destruction.
 const destroyedBefore = await destroyedCount();
 await page.keyboard.down("c");
 await page.waitForTimeout(1200);
@@ -107,7 +105,7 @@ try {
   await page.screenshot({ path: `${outputDir}/02c-destroy-climax.png`, fullPage: true });
   await captureCanvas(`${outputDir}/02c-destroy-climax-canvas.png`);
 } catch {
-  // Diagnostics below will turn a missing destruction capture into an explicit audit failure.
+  // Diagnostics below turn a missing destruction capture into an explicit audit failure.
 }
 const destroyedAfter = await destroyedCount();
 await page.keyboard.up("x");
@@ -149,6 +147,7 @@ await writeFile(`${outputDir}/diagnostics.json`, JSON.stringify(diagnostics, nul
 await browser.close();
 
 if (!diagnostics.arcadeHud) throw new Error(`Arcade Run HUD was not found: ${JSON.stringify(diagnostics)}`);
+if (!buttonLabels.some((label) => /7 SECTIONS · 4 MIN/i.test(label))) throw new Error(`Arcade Run title still exposes stale duration copy: ${JSON.stringify(buttonLabels)}`);
 if (!renderState.webgl || renderState.cssWidth < 800 || renderState.cssHeight < 360) throw new Error(`Arcade Run WebGL surface is invalid: ${JSON.stringify(renderState)}`);
 if (!climaxCaptured) throw new Error(`Arcade Run destruction climax was not captured: ${JSON.stringify(diagnostics)}`);
 if (courseTime && !/^3:/.test(courseTime)) throw new Error(`Arcade Run did not expose the doubled four-minute course: ${courseTime}`);
