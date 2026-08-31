@@ -17,6 +17,8 @@ jobs:
   apply:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
+    env:
+      SKY_DANCER_V961_REVISION: "2"
     steps:
       - uses: actions/checkout@v4
         with:
@@ -40,7 +42,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add src/sky/arcade/SkyDancerArcadeProductPresentation.ts src/sky/arcade/SkyDancerArcadeWebGLDemo.ts tests/sky-arcade-run.test.ts
+          git add src/sky/arcade/SkyDancerArcadeProductPresentation.ts src/sky/arcade/SkyDancerArcadeWebGLDemo.ts tests/sky-arcade-run.test.ts tests/sky-arcade-reference.test.ts
           git rm .github/workflows/arcade-v961-missile-plume-once.yml scripts/apply-missile-v961.py
           git commit -m "Arcade Run V9.6.1: amplify missile white-smoke plume"
           git push origin HEAD:main
