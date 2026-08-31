@@ -1,0 +1,58 @@
+name: Arcade Course Camera V7.1 One Shot
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - "scripts/apply-arcade-course-camera-v71.py"
+      - ".github/workflows/arcade-course-camera-v71-once.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: arcade-course-camera-v71-once
+  cancel-in-progress: true
+
+jobs:
+  patch:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.13.0
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Apply V7.1 camera readability patch
+        run: python3 scripts/apply-arcade-course-camera-v71.py
+
+      - name: Rules regression
+        run: npm run test:rules
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Pages production build
+        run: npm run build:pages
+
+      - name: Commit patch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "Nothing to commit"
+            exit 0
+          fi
+          git commit -m "Arcade Run V7.1: reveal curved course with camera lag"
+          git push origin HEAD:main
