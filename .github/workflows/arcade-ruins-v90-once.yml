@@ -29,6 +29,18 @@ jobs:
       - run: npm ci --no-audit --no-fund
       - name: Apply V9.0 Ruins reconstruction
         run: python3 scripts/apply-ruins-v90.py
+      - name: Update V8.2 compatibility assertion
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path("tests/sky-arcade-run.test.ts")
+          text=p.read_text()
+          old=r'  assert.match(world, /const lift=tier\*8\.5/);'
+          new=r'  assert.match(world, /const lift=tier\*9\.5\+\(hero\?3:-3\)/);'
+          if old not in text:
+              raise SystemExit("missing legacy ruins lift assertion")
+          p.write_text(text.replace(old,new,1))
+          PY
       - name: Rules regression
         run: npm run test:rules
       - name: Lint
@@ -39,7 +51,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add src/sky/arcade/SkyDancerArcadeReferenceWorld.ts tests/sky-arcade-reference.test.ts
+          git add src/sky/arcade/SkyDancerArcadeReferenceWorld.ts tests/sky-arcade-reference.test.ts tests/sky-arcade-run.test.ts
           git rm -f scripts/apply-ruins-v90.py .github/workflows/arcade-ruins-v90-once.yml
           git commit -m "Arcade Run V9.0: reconstruct Floating Ruins sky labyrinth"
           git push origin HEAD:main
