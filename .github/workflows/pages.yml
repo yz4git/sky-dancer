@@ -3,6 +3,17 @@ name: Deploy Sky Dancer to GitHub Pages
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - "README.md"
+      - "docs/**"
+      - "tests/**"
+      - "artifacts/**"
+      - "scripts/webgl-*.mjs"
+      - ".github/workflows/ci.yml"
+      - ".github/workflows/webgl-audit.yml"
+      - ".github/workflows/webgl-smoke.yml"
+      - ".github/workflows/arcade-stage-identity-audit.yml"
+      - ".github/workflows/audit-tools.yml"
   workflow_dispatch:
 
 permissions:
@@ -35,6 +46,12 @@ jobs:
 
       - name: Build GitHub Pages artifact
         run: npm run build:pages
+
+      - name: Verify rendered Pages shell
+        run: node --test tests/rendered-html.test.mjs
+
+      - name: Validate packaged Sites artifact
+        run: npm run validate:artifact
 
       - name: Configure GitHub Pages
         id: pages

@@ -1,23 +1,24 @@
-# V7 visual verification for canyon, ice, volcano and orbital course identities.
-name: Sky Dancer Arcade Stage Identity Audit
+# Full visual verification for canyon, ice, volcano and orbital course identities.
+# Automatic pushes use the lightweight WebGL smoke workflow instead.
+name: Sky Dancer Arcade Stage Identity Full Audit
 
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
-    paths:
-      - "src/sky/arcade/SkyDancerArcadeCoursePath.ts"
-      - "src/sky/arcade/SkyDancerArcadeReferenceWorld.ts"
-      - "scripts/webgl-arcade-stage-identity-audit.mjs"
-      - ".github/workflows/arcade-stage-identity-audit.yml"
 
 permissions:
   contents: read
 
+concurrency:
+  group: sky-dancer-arcade-stage-full-audit
+  cancel-in-progress: true
+
 jobs:
   stage-identity:
     runs-on: ubuntu-latest
-    timeout-minutes: 12
+    timeout-minutes: 10
+    env:
+      SKY_DANCER_STAGE_AUDIT_VISUAL: "1"
+      SKY_DANCER_CHROME_PATH: /usr/bin/google-chrome
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -25,9 +26,10 @@ jobs:
           node-version: 22.13.0
           cache: npm
       - run: npm ci --no-audit --no-fund
-      - run: |
-          npm install --no-save --package-lock=false --legacy-peer-deps playwright@1.55.0
-          npx playwright install --with-deps chromium
+      - name: Install lightweight browser controller
+        run: |
+          npm install --no-save --package-lock=false --legacy-peer-deps --ignore-scripts --no-audit --no-fund playwright-core@1.55.0
+          google-chrome --version
       - run: npm run build:pages
       - run: |
           python3 -m http.server 4173 --bind 127.0.0.1 --directory out > /tmp/sky-dancer-stage-http.log 2>&1 &

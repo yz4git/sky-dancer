@@ -1,0 +1,87 @@
+name: Sky Dancer WebGL Smoke
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "app/**"
+      - "src/sky/**"
+      - "src/cart/**"
+      - "public/**"
+      - "package.json"
+      - "package-lock.json"
+      - "vite.pages.config.ts"
+      - "scripts/build-pages.sh"
+      - "scripts/webgl-smoke-audit.mjs"
+      - "scripts/webgl-arcade-stage-identity-audit.mjs"
+      - ".github/workflows/webgl-smoke.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "app/**"
+      - "src/sky/**"
+      - "src/cart/**"
+      - "public/**"
+      - "package.json"
+      - "package-lock.json"
+      - "vite.pages.config.ts"
+      - "scripts/build-pages.sh"
+      - "scripts/webgl-smoke-audit.mjs"
+      - "scripts/webgl-arcade-stage-identity-audit.mjs"
+      - ".github/workflows/webgl-smoke.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sky-dancer-webgl-smoke-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    env:
+      SKY_DANCER_CHROME_PATH: /usr/bin/google-chrome
+      SKY_DANCER_STAGE_AUDIT_VISUAL: "0"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.13.0
+          cache: npm
+      - name: Install project dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Install lightweight browser controller
+        run: |
+          npm install --no-save --package-lock=false --legacy-peer-deps --ignore-scripts --no-audit --no-fund playwright-core@1.55.0
+          google-chrome --version
+      - name: Build Pages artifact once
+        run: npm run build:pages
+      - name: Start production preview
+        run: |
+          python3 -m http.server 4173 --bind 127.0.0.1 --directory out > /tmp/sky-dancer-smoke-http.log 2>&1 &
+          echo $! > /tmp/sky-dancer-smoke-http.pid
+          for i in {1..30}; do
+            if curl -fsS http://127.0.0.1:4173/ >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          cat /tmp/sky-dancer-smoke-http.log
+          exit 1
+      - name: Smoke default flight WebGL
+        run: node scripts/webgl-smoke-audit.mjs
+      - name: Smoke representative Arcade stages
+        run: node scripts/webgl-arcade-stage-identity-audit.mjs
+      - name: Upload smoke diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sky-dancer-webgl-smoke-${{ github.sha }}
+          path: |
+            artifacts/webgl-smoke
+            artifacts/arcade-stage-identity
+          if-no-files-found: warn
+          retention-days: 7

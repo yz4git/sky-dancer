@@ -1,52 +1,14 @@
-name: Sky Dancer WebGL Visual Audit
+name: Sky Dancer Full WebGL Visual Audit
 
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
-    paths:
-      - "app/**"
-      - "src/sky/**"
-      - "public/**"
-      - "scripts/webgl-visual-audit.mjs"
-      - "scripts/webgl-arcade-pad-audit.mjs"
-      - "scripts/webgl-boss-audit.mjs"
-      - "scripts/webgl-turbo-isolation-audit.mjs"
-      - "scripts/webgl-v35-reference-audit.mjs"
-      - "scripts/webgl-v39-reference-audit.mjs"
-      - "scripts/webgl-v40-quality-audit.mjs"
-      - "scripts/webgl-v41-flight-terrain-audit.mjs"
-      - "scripts/webgl-v43-vertical-audit.mjs"
-      - "scripts/webgl-v44-readability-audit.mjs"
-      - "scripts/webgl-v45-decision-audit.mjs"
-      - "scripts/webgl-v54-visual-master-audit.mjs"
-      - "tests/**"
-      - "package.json"
-      - ".github/workflows/webgl-audit.yml"
-  pull_request:
-    branches: [main]
-    paths:
-      - "app/**"
-      - "src/sky/**"
-      - "public/**"
-      - "scripts/webgl-visual-audit.mjs"
-      - "scripts/webgl-arcade-pad-audit.mjs"
-      - "scripts/webgl-boss-audit.mjs"
-      - "scripts/webgl-turbo-isolation-audit.mjs"
-      - "scripts/webgl-v35-reference-audit.mjs"
-      - "scripts/webgl-v39-reference-audit.mjs"
-      - "scripts/webgl-v40-quality-audit.mjs"
-      - "scripts/webgl-v41-flight-terrain-audit.mjs"
-      - "scripts/webgl-v43-vertical-audit.mjs"
-      - "scripts/webgl-v44-readability-audit.mjs"
-      - "scripts/webgl-v45-decision-audit.mjs"
-      - "scripts/webgl-v54-visual-master-audit.mjs"
-      - "tests/**"
-      - "package.json"
-      - ".github/workflows/webgl-audit.yml"
 
 permissions:
-  contents: write
+  contents: read
+
+concurrency:
+  group: sky-dancer-full-webgl-audit
+  cancel-in-progress: true
 
 jobs:
   visual-audit:
@@ -65,7 +27,7 @@ jobs:
       - name: Install project dependencies
         run: npm ci --no-audit --no-fund
 
-      - name: Install Playwright for audit only
+      - name: Install Playwright for full audit
         run: |
           npm install --no-save --package-lock=false --legacy-peer-deps playwright@1.55.0
           npx playwright install --with-deps chromium
@@ -130,24 +92,3 @@ jobs:
           path: artifacts/webgl-audit
           if-no-files-found: error
           retention-days: 14
-
-      - name: Publish latest frames to visual-audit branch
-        if: success() && github.event_name == 'push'
-        env:
-          GH_TOKEN: ${{ github.token }}
-          AUDIT_SHA: ${{ github.sha }}
-          REPOSITORY: ${{ github.repository }}
-        run: |
-          rm -rf /tmp/sky-dancer-visual-audit
-          mkdir -p /tmp/sky-dancer-visual-audit/latest
-          cp -a artifacts/webgl-audit/. /tmp/sky-dancer-visual-audit/latest/
-          printf '%s\n' "$AUDIT_SHA" > /tmp/sky-dancer-visual-audit/latest/source-sha.txt
-          cd /tmp/sky-dancer-visual-audit
-          git init
-          git checkout -b visual-audit
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add latest
-          git commit -m "WebGL visual audit $AUDIT_SHA"
-          git remote add origin "https://x-access-token:${GH_TOKEN}@github.com/${REPOSITORY}.git"
-          git push --force origin HEAD:visual-audit

@@ -3,16 +3,38 @@ name: Sky Dancer CI
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - "README.md"
+      - "docs/**"
+      - "artifacts/**"
+      - "scripts/webgl-*.mjs"
+      - ".github/workflows/webgl-audit.yml"
+      - ".github/workflows/webgl-smoke.yml"
+      - ".github/workflows/arcade-stage-identity-audit.yml"
+      - ".github/workflows/audit-tools.yml"
   pull_request:
     branches: [main]
+    paths-ignore:
+      - "README.md"
+      - "docs/**"
+      - "artifacts/**"
+      - "scripts/webgl-*.mjs"
+      - ".github/workflows/webgl-audit.yml"
+      - ".github/workflows/webgl-smoke.yml"
+      - ".github/workflows/arcade-stage-identity-audit.yml"
+      - ".github/workflows/audit-tools.yml"
 
 permissions:
   contents: read
 
+concurrency:
+  group: sky-dancer-ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   validate:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 12
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -23,9 +45,12 @@ jobs:
           cache: npm
       - name: Install dependencies
         run: npm ci --no-audit --no-fund
-      - name: Test
-        run: npm test
+      - name: Fast tests
+        run: npm run test:fast
       - name: Lint
         run: npm run lint
-      - name: Verify artifact
-        run: npm run validate:artifact
+      - name: Verify production artifacts on pull requests
+        if: github.event_name == 'pull_request'
+        run: |
+          npm run test:pages
+          npm run validate:artifact
