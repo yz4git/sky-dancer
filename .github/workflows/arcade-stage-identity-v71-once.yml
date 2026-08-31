@@ -1,0 +1,63 @@
+name: Arcade Stage Identity V7.1 One Shot
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - ".github/workflows/arcade-stage-identity-v71-once.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: sky-dancer-arcade-stage-v71-once
+  cancel-in-progress: true
+
+jobs:
+  stage-identity:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      SKY_DANCER_STAGE_AUDIT_VISUAL: "1"
+      SKY_DANCER_CHROME_PATH: /usr/bin/google-chrome
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.13.0
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Install isolated browser controller
+        run: |
+          rm -rf .audit-runtime
+          mkdir -p .audit-runtime
+          printf '{"private":true,"type":"commonjs"}\n' > .audit-runtime/package.json
+          npm install --prefix .audit-runtime --no-package-lock --no-save --ignore-scripts --no-audit --no-fund playwright-core@1.55.0
+          google-chrome --version
+      - run: npm run build:pages
+      - run: |
+          python3 -m http.server 4173 --bind 127.0.0.1 --directory out > /tmp/sky-dancer-stage-v71-http.log 2>&1 &
+          for i in {1..30}; do
+            if curl -fsS http://127.0.0.1:4173/ >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          cat /tmp/sky-dancer-stage-v71-http.log
+          exit 1
+      - run: node scripts/webgl-arcade-stage-identity-audit.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: sky-dancer-stage-identity-v71-${{ github.sha }}
+          path: artifacts/arcade-stage-identity
+          if-no-files-found: error
+          retention-days: 14
+      - name: Remove one-shot workflow
+        if: success()
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/arcade-stage-identity-v71-once.yml
+          git commit -m "Remove completed V7.1 stage audit workflow"
+          git push origin HEAD:main
