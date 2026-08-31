@@ -5,6 +5,7 @@ on:
     branches: ["main"]
     paths:
       - "scripts/apply-arcade-playcheck-v81.py"
+      - "scripts/apply-arcade-playcheck-v81-test-fix.py"
       - ".github/workflows/arcade-playcheck-v81-once.yml"
 
 permissions:
@@ -28,7 +29,9 @@ jobs:
           cache: npm
       - run: npm ci --no-audit --no-fund
       - name: Apply V8.1 playcheck polish
-        run: python3 scripts/apply-arcade-playcheck-v81.py
+        run: |
+          python3 scripts/apply-arcade-playcheck-v81.py
+          python3 scripts/apply-arcade-playcheck-v81-test-fix.py
       - name: Rules regression
         run: npm run test:rules
       - name: Lint
