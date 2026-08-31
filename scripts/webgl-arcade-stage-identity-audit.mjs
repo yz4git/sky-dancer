@@ -25,7 +25,7 @@ for (const [index, stage] of stages.entries()) {
   page.on("pageerror", (error) => pageErrors.push(String(error)));
   await page.goto(`${baseUrl}?menu=1`, { waitUntil: "networkidle", timeout: 60_000 });
   await page.locator("button").filter({ hasText: /STAGE PRACTICE/i }).click({ force: true });
-  await page.locator("button").filter({ hasText: new RegExp(`^\\s*${stage.short}\\b`, "i") }).first().click({ force: true });
+  await page.locator("button").filter({ hasText: new RegExp(`\\b${stage.short}\\b`, "i") }).first().click({ force: true });
   await page.locator("button").filter({ hasText: /START STAGE PRACTICE/i }).click({ force: true });
   const canvas = page.locator('canvas[aria-label="Sky Dancer Arcade Run WebGL game view"]');
   await canvas.waitFor({ state: "visible", timeout: 30_000 });
