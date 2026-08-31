@@ -28,7 +28,10 @@ jobs:
           cache: npm
       - run: npm ci --no-audit --no-fund
       - name: Apply V8 speed and dogfight pass
-        run: python3 scripts/apply-arcade-speed-dogfight-v8.py
+        run: |
+          python3 scripts/apply-arcade-speed-dogfight-v8.py
+          # Persistent workflow edits need user authorization; keep this bot commit source-only.
+          git checkout HEAD -- .github/workflows/arcade-run-reference-audit.yml
       - name: Rules regression
         run: npm run test:rules
       - name: Lint
