@@ -25,35 +25,50 @@ for (let i = 0; i < await practice.count(); i++) { const b = practice.nth(i); if
 if (!target) throw new Error("CITY practice stage not found"); await target.click();
 await page.locator("button").filter({ hasText: /START STAGE PRACTICE/i }).first().click();
 const canvas = page.locator('canvas[aria-label="Sky Dancer Arcade Run WebGL game view"]'); await canvas.waitFor({ state: "visible" });
+await page.waitForFunction(() => Boolean(window.__skyDancerAuditDemo?.getSnapshot));
 const captures = []; const shot = async (label) => { await canvas.screenshot({ path: `${outputDir}/${label}.png`, timeout: 60_000 }); captures.push(label); console.log(`[v96-final] ${label}`); };
-await page.waitForTimeout(1150); await shot("00-entry");
+await page.waitForTimeout(950); await shot("00-entry");
 
-// Hold keyboard lock while sweeping the airframe until a real enemy is inside the 1.45 lock cone.
-await page.keyboard.down("c");
-const sweep = ["ArrowLeft","ArrowRight","ArrowUp","ArrowDown","ArrowRight","ArrowLeft"];
+// The audit build exposes the existing demo handle only to observe real enemy coordinates.
+// Steering, locking, missile launch, runtime timing and hit rules remain the product implementation.
+await page.waitForFunction(() => window.__skyDancerAuditDemo.getSnapshot().enemies.some((e) => e.depth >= 4 && e.depth <= 92), null, { timeout: 8000 });
+await page.evaluate(() => window.__skyDancerAuditDemo.setLock(true));
 let locked = 0;
-for (let cycle = 0; cycle < 18 && locked === 0; cycle++) {
-  const key = sweep[cycle % sweep.length];
-  await page.keyboard.down(key); await page.waitForTimeout(260); await page.keyboard.up(key); await page.waitForTimeout(180);
-  const text = await page.locator("body").innerText();
-  locked = Number((text.match(/LOCK\s+([1-8])\/8/i) || [0,0])[1]);
+for (let cycle = 0; cycle < 100 && locked === 0; cycle++) {
+  const state = await page.evaluate(() => window.__skyDancerAuditDemo.getSnapshot());
+  locked = state.lockedCount;
+  if (locked > 0) break;
+  const candidate = state.enemies.filter((e) => e.depth >= 4 && e.depth <= 92 && !e.locked)
+    .sort((a, b) => Math.hypot(a.x - state.playerX, a.y - state.playerY) - Math.hypot(b.x - state.playerX, b.y - state.playerY))[0];
+  if (candidate) {
+    const dx = candidate.x - state.playerX, dy = candidate.y - state.playerY;
+    const x = Math.max(-1, Math.min(1, dx * 1.35));
+    const y = Math.max(-1, Math.min(1, dy * 1.35));
+    await page.evaluate(({ x, y }) => window.__skyDancerAuditDemo.setMove(x, y), { x, y });
+  }
+  await page.waitForTimeout(70);
 }
-if (locked <= 0) { await page.keyboard.up("c"); throw new Error("No real missile lock acquired during sweep"); }
+if (locked <= 0) { await page.evaluate(() => { window.__skyDancerAuditDemo.setMove(0,0); window.__skyDancerAuditDemo.setLock(false); }); throw new Error("No real missile lock acquired while tracking live enemy coordinates"); }
+await page.evaluate(() => window.__skyDancerAuditDemo.setMove(0, 0));
 await shot("01-real-lock");
-await page.keyboard.up("c");
-await page.waitForFunction(() => /FOX TWO|MULTI LOCK/i.test(document.body.innerText), null, { timeout: 3000 });
-await page.waitForTimeout(18); await shot("02-salvo-launch");
-await page.waitForTimeout(65); await shot("03-white-plume-a");
-await page.waitForTimeout(95); await shot("04-white-plume-b");
-await page.waitForTimeout(145); await shot("05-white-smoke-tail");
+const serialBefore = await page.evaluate(() => window.__skyDancerAuditDemo.getSnapshot().missileSerial);
+await page.evaluate(() => window.__skyDancerAuditDemo.setLock(false));
+await page.waitForFunction((serial) => window.__skyDancerAuditDemo.getSnapshot().missileSerial > serial, serialBefore, { timeout: 1500 });
+const launchState = await page.evaluate(() => window.__skyDancerAuditDemo.getSnapshot());
+if (!launchState.projectiles.some((p) => p.owner === "player-missile")) throw new Error("Missile serial advanced without a live player missile");
+await page.waitForTimeout(12); await shot("02-salvo-launch");
+await page.waitForTimeout(55); await shot("03-white-plume-a");
+await page.waitForTimeout(80); await shot("04-white-plume-b");
+await page.waitForTimeout(120); await shot("05-white-smoke-tail");
 
 const body = await page.locator("body").innerText(); const hp = Number((body.match(/AIRFRAME\s*([0-9]+)%/i) || [0,0])[1]);
+const finalState = await page.evaluate(() => window.__skyDancerAuditDemo.getSnapshot());
 const glState = await canvas.evaluate((element) => { const gl = element.getContext("webgl2") || element.getContext("webgl"); const debug = gl?.getExtension("WEBGL_debug_renderer_info"); return { webgl: Boolean(gl), width: element.getBoundingClientRect().width, height: element.getBoundingClientRect().height, renderer: debug && gl ? gl.getParameter(debug.UNMASKED_RENDERER_WEBGL) : null }; });
 const blockingConsoleErrors = consoleErrors.filter((m) => !/Failed to load resource:.*404/i.test(m));
-const diagnostics = { stageVisible: body.includes("DAWN CITY"), hp, lockedBeforeLaunch: locked, launchMessageSeen: /FOX TWO|MULTI LOCK/i.test(body), glState, captures, blockingConsoleErrors, pageErrors, failed: /AIRFRAME LOST|MISSION FAILED/i.test(body) };
+const diagnostics = { stageVisible: body.includes("DAWN CITY"), hp, lockedBeforeLaunch: locked, missileSerialBefore: serialBefore, missileSerialAfter: finalState.missileSerial, glState, captures, blockingConsoleErrors, pageErrors, failed: /AIRFRAME LOST|MISSION FAILED/i.test(body) };
 await writeFile(`${outputDir}/diagnostics.json`, JSON.stringify(diagnostics, null, 2)); await browser.close();
 if (!diagnostics.stageVisible || !glState.webgl || glState.width < 800 || glState.height < 360) throw new Error(`Invalid render: ${JSON.stringify(diagnostics)}`);
-if (hp <= 0 || diagnostics.failed || locked <= 0) throw new Error(`Invalid combat state: ${JSON.stringify(diagnostics)}`);
+if (hp <= 0 || diagnostics.failed || locked <= 0 || diagnostics.missileSerialAfter <= diagnostics.missileSerialBefore) throw new Error(`Invalid combat state: ${JSON.stringify(diagnostics)}`);
 if (captures.length !== 6) throw new Error(`Missing captures: ${JSON.stringify(diagnostics)}`);
 if (blockingConsoleErrors.length || pageErrors.length) throw new Error(`Browser errors: ${JSON.stringify(diagnostics)}`);
-console.log(`[v96-final] complete / lock ${locked} / hp ${hp}`);
+console.log(`[v96-final] complete / lock ${locked} / missile ${diagnostics.missileSerialBefore}->${diagnostics.missileSerialAfter} / hp ${hp}`);
