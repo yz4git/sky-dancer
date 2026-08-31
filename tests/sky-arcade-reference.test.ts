@@ -184,6 +184,31 @@ test("V8.8 ice cavern exposes its vertical canyon without repeated full-screen h
   world.dispose();
 });
 
+test("V8.9 prism citadel reads as an open final assault rather than a repeated ring tunnel", () => {
+  const scene = new THREE.Scene();
+  const world = new SkyDancerArcadeReferenceWorld(scene);
+  const citadel = SKY_DANCER_ARCADE_STAGES.find((stage) => stage.id === "prism-citadel")!;
+  world.setStage(citadel);
+  world.update(citadel.courseSpeed * 8, 0, 0);
+  const fortress=scene.getObjectByName("arcade-citadel-final-fortress");
+  const core=scene.getObjectByName("arcade-citadel-final-core");
+  assert.ok(fortress instanceof THREE.Group && core instanceof THREE.Mesh,
+    "final stage must expose a single distant fortress destination and sovereign core");
+  const environment=scene.getObjectByName("arcade-course-environment")!;
+  const chunks=environment.children.filter((object)=>object.name.startsWith("arcade-course-chunk-"));
+  assert.equal(chunks.length,8);
+  assert.ok(chunks.every((chunk)=>chunk.userData.arcadeCitadelV89FinalAssault===true),
+    "every citadel chunk must use the V8.9 open-assault layout");
+  assert.equal(new Set(chunks.map((chunk)=>chunk.userData.arcadeCitadelV89GateSide)).size,2,
+    "citadel fortress pressure must alternate sides instead of repeating a symmetric tunnel");
+  let torusCount=0;
+  for(const chunk of chunks)chunk.traverse((object)=>{
+    if(object instanceof THREE.Mesh && object.geometry.type==="TorusGeometry")torusCount++;
+  });
+  assert.equal(torusCount,0,"streamed citadel architecture must not rebuild the old hex-ring tunnel");
+  world.dispose();
+});
+
 test("V8.4 continuous volcano ribbon and orbital helix expose the real course shape on screen", () => {
   const scene = new THREE.Scene();
   const world = new SkyDancerArcadeReferenceWorld(scene);

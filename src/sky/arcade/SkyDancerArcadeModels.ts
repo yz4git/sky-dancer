@@ -81,9 +81,22 @@ export function createSkyDancerArcadeHazard(
     bolt.rotation.z = 0.12;
     group.add(bolt);
   } else if (hazard.kind === "arch") {
-    const arch = new THREE.Mesh(new THREE.TorusGeometry(2.25, 0.28, 7, 24, Math.PI), primary);
-    arch.rotation.z = Math.PI;
-    group.add(arch);
+    if (stage.biome === "citadel") {
+      // V8.9: Citadel arches are split sovereign blades, not another circular tunnel motif.
+      for (const side of [-1, 1]) {
+        const blade = new THREE.Mesh(new THREE.BoxGeometry(0.48, 4.9, 0.6), primary);
+        blade.position.set(side * 1.55, 0.1, 0);
+        blade.rotation.z = side * 0.42;
+        group.add(blade);
+      }
+      const crown = new THREE.Mesh(new THREE.BoxGeometry(2.8, 0.22, 0.52), warning);
+      crown.position.y = 2.15;
+      group.add(crown);
+    } else {
+      const arch = new THREE.Mesh(new THREE.TorusGeometry(2.25, 0.28, 7, 24, Math.PI), primary);
+      arch.rotation.z = Math.PI;
+      group.add(arch);
+    }
   } else if (hazard.kind === "tower") {
     const tower = new THREE.Mesh(new THREE.BoxGeometry(1.25, 7, 1.25), primary);
     tower.position.y = -2.4;
