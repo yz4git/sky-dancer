@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import type { SkyDancerArcadeStageDefinition } from "./SkyDancerArcadeData";
 import { bakeArcadeAirframe, createReferenceCarrier } from "./SkyDancerArcadeReferenceAirframes";
+import { arcadeCourseRelativePose } from "./SkyDancerArcadeCoursePath";
 import {
   ARCADE_FOG_FAR, ARCADE_FOG_NEAR, ARCADE_SUN_DIRECTION,
   createArcadeCloudMaterial, createArcadeFacadeMaterial, createArcadeSky,
@@ -78,15 +79,18 @@ export class SkyDancerArcadeReferenceWorld {
 
   update(distance:number,playerX:number,playerY:number):void {
     if(!this.stage)return;
-    const amplitude=this.stage.curveStrength*19;
-    const currentCurve=Math.sin(distance*.0018)*amplitude;
     for(const chunk of this.chunks) {
       const local=((chunk.index*CHUNK_LENGTH-distance)%WORLD_SPAN+WORLD_SPAN)%WORLD_SPAN;
-      // All geometry is behind the camera before recycling; the other end is fog-hidden.
-      chunk.group.position.z=140-local;
-      const along=distance+local-140;
-      chunk.group.position.x=Math.sin(along*.0018)*amplitude-currentCurve-playerX*.35;
-      chunk.group.position.y=-playerY*.16;
+      // Stream each rigid chunk along the shared 3D course spline. Rotation turns the corridor itself,
+      // rather than merely sliding straight scenery sideways.
+      const depth=local-140;
+      const course=arcadeCourseRelativePose(this.stage,distance,depth);
+      chunk.group.position.z=-depth;
+      chunk.group.position.x=course.x-playerX*.35;
+      chunk.group.position.y=course.y-playerY*.16;
+      chunk.group.rotation.y=course.yaw*.94;
+      chunk.group.rotation.x=course.pitch*.72;
+      chunk.group.rotation.z=course.bank*.12;
     }
     if(this.water)this.water.uniforms.time.value=distance/this.stage.courseSpeed;
     if(this.carrier){

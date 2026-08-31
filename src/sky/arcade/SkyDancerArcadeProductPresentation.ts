@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import type { SkyDancerArcadeSnapshot } from "./SkyDancerArcadeRuntime";
+import { arcadeCourseRelativePose } from "./SkyDancerArcadeCoursePath";
 
 export const ARCADE_EFFECT_BUDGET = { trails: 48, trailSamples: 18, sparks: 240, smoke: 84 } as const;
 const SPEED_STREAK_COUNT = 40;
@@ -252,7 +253,8 @@ export class SkyDancerArcadeProductPresentation {
         trail = createRibbon(p.owner === "enemy"); this.trails.set(p.id, trail); this.root.add(trail.mesh);
       }
       if (!trail) continue;
-      const x = p.x * 8.4, y = 1.2 + p.y * 4.9, z = -p.depth;
+      const course = arcadeCourseRelativePose(snapshot.stage, snapshot.distance, p.depth);
+      const x = p.x * 8.4 + course.x, y = 1.2 + p.y * 4.9 + course.y, z = -p.depth;
       const last = Math.max(0, trail.count - 1) * 3;
       const moved = Math.hypot(x - trail.points[last], y - trail.points[last + 1], z - trail.points[last + 2]);
       if (trail.count === 0 || moved > .12) {

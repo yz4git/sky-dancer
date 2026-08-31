@@ -5,6 +5,7 @@ import { SkyDancerArcadeEnvironment } from "./SkyDancerArcadeEnvironment";
 import { SkyDancerArcadeProductPresentation } from "./SkyDancerArcadeProductPresentation";
 import { SkyDancerArcadeCinematicRenderer } from "./SkyDancerArcadeCinematicRenderer";
 import { arcadeCameraPose } from "./SkyDancerArcadeCamera";
+import { arcadeCoursePose, arcadeCourseRelativePose } from "./SkyDancerArcadeCoursePath";
 import { ARCADE_SUN_DIRECTION, referenceAtmosphere } from "./SkyDancerArcadeReferenceMaterials";
 import {
   createSkyDancerArcadeEnemy,
@@ -213,6 +214,7 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
   }
 
   private syncPlayer(snapshot: SkyDancerArcadeSnapshot, delta: number): void {
+    const course = arcadeCoursePose(snapshot.stage, snapshot.distance);
     const targetX = snapshot.playerX * 7.8;
     const targetY = 1.1 + snapshot.playerY * 4.25;
     this.player.position.x += (targetX - this.player.position.x) * Math.min(1, delta * 12);
@@ -220,8 +222,8 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
     this.player.position.z = 2.8;
     const vx = delta > 0 ? (snapshot.playerX - this.previousSnapshot.playerX) / delta : 0;
     const vy = delta > 0 ? (snapshot.playerY - this.previousSnapshot.playerY) / delta : 0;
-    const targetRoll = THREE.MathUtils.clamp(-vx * .3, -.48, .48) - snapshot.playerX * .06;
-    const targetPitch = THREE.MathUtils.clamp(vy * .08, -.12, .12);
+    const targetRoll = THREE.MathUtils.clamp(-vx * .3, -.48, .48) - snapshot.playerX * .06 + course.bank * .62;
+    const targetPitch = THREE.MathUtils.clamp(vy * .08, -.12, .12) + course.pitch * .46;
     this.player.rotation.z += (targetRoll - this.player.rotation.z) * Math.min(1, delta * 8);
     this.player.rotation.x += (targetPitch - this.player.rotation.x) * Math.min(1, delta * 7);
     for (const object of this.engineGlows) {
@@ -241,18 +243,22 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
       let group = this.enemyGroups.get(enemy.id);
       if (!group) {
         group = createSkyDancerArcadeEnemy(snapshot.stage, enemy);
-        group.rotation.y = Math.PI;
-        group.position.set(enemy.x * 8.4, 1.2 + enemy.y * 4.9, -enemy.depth);
+        const course = arcadeCourseRelativePose(snapshot.stage, snapshot.distance, enemy.depth);
+        group.rotation.y = Math.PI + course.yaw;
+        group.position.set(enemy.x * 8.4 + course.x, 1.2 + enemy.y * 4.9 + course.y, -enemy.depth);
         this.enemyGroups.set(enemy.id, group);
         this.entityRoot.add(group);
       }
-      const targetX = enemy.x * 8.4;
-      const targetY = 1.2 + enemy.y * 4.9;
+      const course = arcadeCourseRelativePose(snapshot.stage, snapshot.distance, enemy.depth);
+      const targetX = enemy.x * 8.4 + course.x;
+      const targetY = 1.2 + enemy.y * 4.9 + course.y;
       const targetZ = -enemy.depth;
       group.position.x += (targetX - group.position.x) * Math.min(1, delta * 13);
       group.position.y += (targetY - group.position.y) * Math.min(1, delta * 13);
       group.position.z += (targetZ - group.position.z) * Math.min(1, delta * 13);
-      group.rotation.z = Math.sin(enemy.phase + snapshot.runTimeSeconds * 1.8) * (enemy.boss ? .025 : .22);
+      group.rotation.y = Math.PI + course.yaw;
+      group.rotation.x = course.pitch * .72;
+      group.rotation.z = Math.sin(enemy.phase + snapshot.runTimeSeconds * 1.8) * (enemy.boss ? .025 : .22) + course.bank * .5;
       const existingRing = group.getObjectByName("arcade-lock-ring");
       if (enemy.locked && !existingRing) group.add(createSkyDancerArcadeLockRing(0xff4c58));
       if (!enemy.locked && existingRing) {
@@ -340,7 +346,10 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
         this.projectileMeshes.set(projectile.id, mesh);
         this.projectileRoot.add(mesh);
       }
-      mesh.position.set(projectile.x * 8.4, 1.2 + projectile.y * 4.9, -projectile.depth);
+      const course = arcadeCourseRelativePose(snapshot.stage, snapshot.distance, projectile.depth);
+      mesh.position.set(projectile.x * 8.4 + course.x, 1.2 + projectile.y * 4.9 + course.y, -projectile.depth);
+      mesh.rotation.y = course.yaw;
+      mesh.rotation.x = course.pitch;
       const pulse = projectile.owner === "player-missile"
         ? 1.35 + Math.sin(performance.now() * 0.025 + projectile.id) * 0.15
         : projectile.owner === "enemy"
@@ -367,7 +376,8 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
         this.hazardGroups.set(hazard.id, group);
         this.hazardRoot.add(group);
       }
-      group.position.set(hazard.x * 8.4, 1.2 + hazard.y * 4.9, -hazard.depth);
+      const course = arcadeCourseRelativePose(snapshot.stage, snapshot.distance, hazard.depth);
+      group.position.set(hazard.x * 8.4 + course.x, 1.2 + hazard.y * 4.9 + course.y, -hazard.depth);
       group.rotation.x += delta * 0.42;
       group.rotation.y += delta * 0.58;
     }
@@ -402,6 +412,7 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
         marker.rotation.z = angle + Math.PI / 2;
         gate.add(marker);
       }
+      gate.userData.baseX = x;
       gate.position.set(x, 1.2, -82);
       this.branchRoot.add(gate);
     });
@@ -411,8 +422,13 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
   private syncBranchGates(snapshot: SkyDancerArcadeSnapshot, delta: number): void {
     this.branchRoot.visible = snapshot.branchActive;
     if (!snapshot.branchActive) return;
-    this.branchRoot.position.z += (0 - this.branchRoot.position.z) * Math.min(1, delta * 2.2);
+    const gateDepth = 82;
+    const course = arcadeCourseRelativePose(snapshot.stage, snapshot.distance, gateDepth);
     this.branchRoot.children.forEach((child, index) => {
+      const baseX = typeof child.userData.baseX === "number" ? child.userData.baseX : 0;
+      child.position.set(baseX + course.x, 1.2 + course.y, -gateDepth);
+      child.rotation.y = course.yaw;
+      child.rotation.x = course.pitch;
       child.rotation.z += delta * (index % 2 === 0 ? 0.7 : -0.7);
       const selected = snapshot.branchSelection === snapshot.branchOptions[index];
       child.scale.setScalar(selected ? 1.2 + Math.sin(performance.now() * 0.012) * 0.08 : 0.92);
@@ -426,7 +442,10 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
         const old = this.previousSnapshot.enemies.find(previous => previous.id === enemy.id);
         return old && enemy.hp < old.hp;
       });
-      if (target) this.presentation.emitBurst(new THREE.Vector3(target.x * 8.4, 1.2 + target.y * 4.9, -target.depth), .52);
+      if (target) {
+        const course = arcadeCourseRelativePose(snapshot.stage, snapshot.distance, target.depth);
+        this.presentation.emitBurst(new THREE.Vector3(target.x * 8.4 + course.x, 1.2 + target.y * 4.9 + course.y, -target.depth), .52);
+      }
     }
     if (snapshot.damageSerial !== this.previousSnapshot.damageSerial) {
       this.cameraShake = Math.min(.8, this.cameraShake + .4);
@@ -479,6 +498,8 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
   private updateCamera(snapshot: SkyDancerArcadeSnapshot, delta: number): void {
     this.cameraShake = Math.max(0, this.cameraShake - delta * 2.5);
     const pose = arcadeCameraPose(snapshot.playerX, snapshot.playerY, this.camera.aspect, snapshot.turboActive);
+    const course = arcadeCoursePose(snapshot.stage, snapshot.distance);
+    const courseAim = arcadeCourseRelativePose(snapshot.stage, snapshot.distance, 72);
     const shakeX = Math.sin(snapshot.runTimeSeconds * 79) * this.cameraShake * .25;
     const shakeY = Math.cos(snapshot.runTimeSeconds * 91) * this.cameraShake * .18;
     const targetX = pose.x + shakeX;
@@ -488,8 +509,8 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
     this.camera.position.z += (pose.z - this.camera.position.z) * Math.min(1, delta * 4.5);
     this.camera.fov += (pose.fov - this.camera.fov) * Math.min(1, delta * 4.5);
     this.camera.updateProjectionMatrix();
-    this.camera.lookAt(pose.lookX, pose.lookY, pose.lookZ);
-    this.camera.rotateZ(pose.roll);
+    this.camera.lookAt(pose.lookX + courseAim.x * .28, pose.lookY + courseAim.y * .24, pose.lookZ);
+    this.camera.rotateZ(pose.roll + course.bank * .32 + courseAim.bank * .22);
   }
 
   private resize(): void {
