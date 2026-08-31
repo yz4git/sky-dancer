@@ -15,10 +15,16 @@ if old not in demo:
 DEMO.write_text(demo.replace(old, new, 1))
 
 test = TEST.read_text()
+legacy = '  assert.match(webglSource, /course\\.bank \\* \\.28 \\+ courseAim\\.bank \\* \\.08/);'
+replacement = '''  assert.match(webglSource, /course\\.bank \\* \\.32 \\+ nearCourse\\.bank \\* \\.05/);\n  assert.match(webglSource, /farCourse = arcadeCourseRelativePose\\(snapshot\\.stage, snapshot\\.distance, 132\\)/);'''
+if legacy not in test:
+    raise SystemExit("expected V6.2 camera readability assertion not found")
+test = test.replace(legacy, replacement, 1)
+
 marker = 'test("V7.1 chase camera deliberately lags the shared course so bends remain visible"'
 if marker not in test:
     test += '''\n\ntest("V7.1 chase camera deliberately lags the shared course so bends remain visible", async () => {\n  const webgl = await readFile(new URL("../src/sky/arcade/SkyDancerArcadeWebGLDemo.ts", import.meta.url), "utf8");\n  assert.match(webgl, /nearCourse = arcadeCourseRelativePose\\(snapshot\\.stage, snapshot\\.distance, 42\\)/);\n  assert.match(webgl, /farCourse = arcadeCourseRelativePose\\(snapshot\\.stage, snapshot\\.distance, 132\\)/);\n  assert.match(webgl, /nearCourse\\.x \\* \\.055 \\+ farCourse\\.x \\* \\.028/);\n  assert.doesNotMatch(webgl, /courseAim\\.x \\* \\.16/);\n});\n'''
-    TEST.write_text(test)
+TEST.write_text(test)
 
 SELF.unlink(missing_ok=True)
 WORKFLOW.unlink(missing_ok=True)
