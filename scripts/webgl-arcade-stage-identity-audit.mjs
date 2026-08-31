@@ -49,6 +49,42 @@ async function selectPracticeStage(page, shortName) {
   await page.locator("button").filter({ hasText: /START STAGE PRACTICE/i }).first().click();
 }
 
+async function captureWebGLCanvas(canvas, path) {
+  const capture = await canvas.evaluate((element) => {
+    const gl = element.getContext("webgl2") || element.getContext("webgl");
+    if (!gl) throw new Error("WebGL unavailable during framebuffer capture");
+    const width = element.width;
+    const height = element.height;
+    const pixels = new Uint8Array(width * height * 4);
+    gl.finish();
+    gl.readPixels(0, 0, width, height, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
+    const flipped = new Uint8ClampedArray(pixels.length);
+    let signal = 0;
+    let samples = 0;
+    const rowBytes = width * 4;
+    for (let y = 0; y < height; y++) {
+      const src = (height - 1 - y) * rowBytes;
+      const dst = y * rowBytes;
+      flipped.set(pixels.subarray(src, src + rowBytes), dst);
+    }
+    for (let i = 0; i < flipped.length; i += Math.max(4, Math.floor(flipped.length / 4096 / 4) * 4)) {
+      signal += flipped[i] + flipped[i + 1] + flipped[i + 2];
+      samples++;
+    }
+    const copy = document.createElement("canvas");
+    copy.width = width;
+    copy.height = height;
+    const ctx = copy.getContext("2d");
+    if (!ctx) throw new Error("2D capture context unavailable");
+    ctx.putImageData(new ImageData(flipped, width, height), 0, 0);
+    const encoded = copy.toDataURL("image/png");
+    return { width, height, signal: samples ? signal / samples : 0, base64: encoded.slice(encoded.indexOf(",") + 1) };
+  });
+  if (capture.signal < 2) throw new Error(`Framebuffer appears blank: ${JSON.stringify({ width: capture.width, height: capture.height, signal: capture.signal })}`);
+  await writeFile(path, Buffer.from(capture.base64, "base64"));
+  return { width: capture.width, height: capture.height, signal: capture.signal };
+}
+
 const diagnostics = [];
 for (const [index, stage] of stages.entries()) {
   console.log(`[stage-audit] ${stage.id}: open`);
@@ -66,7 +102,12 @@ for (const [index, stage] of stages.entries()) {
   await canvas.waitFor({ state: "visible" });
   console.log(`[stage-audit] ${stage.id}: running`);
   const prefix = `${String(index + 1).padStart(2, "0")}-${stage.id}`;
-  const shot = async (suffix) => page.screenshot({ path: `${outputDir}/${prefix}-${suffix}.png`, timeout: 15_000 });
+  const captures = [];
+  const shot = async (suffix) => {
+    const metadata = await captureWebGLCanvas(canvas, `${outputDir}/${prefix}-${suffix}.png`);
+    captures.push({ suffix, ...metadata });
+    console.log(`[stage-audit] ${stage.id}: captured ${suffix} ${metadata.width}x${metadata.height} signal=${metadata.signal.toFixed(1)}`);
+  };
   await page.waitForTimeout(1400);
   await shot("entry");
   await page.keyboard.down("ArrowRight"); await page.keyboard.down("ArrowUp");
@@ -87,9 +128,9 @@ for (const [index, stage] of stages.entries()) {
   const hp = Number((body.match(/AIRFRAME\s*([0-9]+)%/i) || [0, 0])[1]);
   const glState = await canvas.evaluate((element) => {
     const gl = element.getContext("webgl2") || element.getContext("webgl");
-    return { webgl: Boolean(gl), width: element.getBoundingClientRect().width, height: element.getBoundingClientRect().height };
+    return { webgl: Boolean(gl), width: element.getBoundingClientRect().width, height: element.getBoundingClientRect().height, backingWidth: element.width, backingHeight: element.height };
   });
-  const result = { stage: stage.id, stageVisible: body.includes(stage.name), hp, glState, consoleErrors, pageErrors, failed: /AIRFRAME LOST|MISSION FAILED/i.test(body) };
+  const result = { stage: stage.id, stageVisible: body.includes(stage.name), hp, glState, captures, consoleErrors, pageErrors, failed: /AIRFRAME LOST|MISSION FAILED/i.test(body) };
   diagnostics.push(result);
   console.log(`[stage-audit] ${stage.id}: ${JSON.stringify(result)}`);
   await page.close();
@@ -99,7 +140,8 @@ await browser.close();
 for (const item of diagnostics) {
   if (!item.stageVisible) throw new Error(`Stage HUD mismatch: ${JSON.stringify(item)}`);
   if (!item.glState.webgl || item.glState.width < 800 || item.glState.height < 360) throw new Error(`Invalid WebGL surface: ${JSON.stringify(item)}`);
-  if (item.failed) throw new Error(`Stage identity audit lost airframe: ${JSON.stringify(item)}`);
+  if (item.hp <= 0 || item.failed) throw new Error(`Stage identity audit lost airframe: ${JSON.stringify(item)}`);
+  if (item.captures.length !== 4) throw new Error(`Missing visual captures: ${JSON.stringify(item)}`);
   if (item.consoleErrors.length || item.pageErrors.length) throw new Error(`Stage identity audit errors: ${JSON.stringify(item)}`);
 }
 console.log(`[stage-audit] complete: ${diagnostics.length} stages`);
