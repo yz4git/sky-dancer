@@ -209,7 +209,7 @@ test("wide-field combat source keeps enemies, guided threats and missile visuals
   assert.match(webglSource, /arcade-aim-ring/);
   assert.match(webglSource, /ConeGeometry\(0\.36, 1\.62, 8\)/);
   assert.match(presentationSource, /trailSamples: 18/);
-  assert.match(presentationSource, /width: enemy \? \.19 : playerMissile \? \.42 : \.22/);
+  assert.match(presentationSource, /width: enemy \? \.19 : playerMissile \? \.72 : \.22/);
 assert.match(presentationSource, /arcade-pooled-missile-white-smoke/);
 assert.match(presentationSource, /missileSmoke: 160/);
 });

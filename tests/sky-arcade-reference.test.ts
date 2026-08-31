@@ -143,9 +143,9 @@ test("missile trails and explosions keep a bounded mesh and buffer count under l
   const missileLife = missileSmoke.geometry.getAttribute("lifeAlpha") as THREE.InstancedBufferAttribute;
   assert.ok(Array.from(missileLife.array).some((value) => Number(value) > .05), "player missiles must leave visible pooled white smoke");
   snapshot.projectiles = [];
-  for (let i = 0; i < 60; i++) presentation.update(snapshot, 1 / 60, camera);
+  for (let i = 0; i < 120; i++) presentation.update(snapshot, 1 / 60, camera);
   assert.equal(scene.getObjectsByProperty("name", "arcade-projectile-trail").length, 0);
-  assert.ok(Array.from(missileLife.array).every((value) => Number(value) === 0), "missile smoke must fully retire instead of accumulating");
+  assert.ok(Array.from(missileLife.array).every((value) => Number(value) === 0), "missile smoke must fully retire within two seconds instead of accumulating");
   presentation.dispose(); assert.equal(scene.children.length, 0);
 });
 

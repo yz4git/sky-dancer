@@ -125,8 +125,8 @@ class MissileSmokePool {
         void main(){vUv=uv;vAlpha=lifeAlpha;gl_Position=projectionMatrix*modelViewMatrix*instanceMatrix*vec4(position,1.0);}`,
       fragmentShader: `varying vec2 vUv;varying float vAlpha;
         void main(){vec2 p=vUv*2.0-1.0;float r=length(p);float core=1.0-smoothstep(.08,1.0,r);
-          float cloud=pow(max(0.0,core),1.35);vec3 whiteSmoke=mix(vec3(.68,.73,.79),vec3(1.18,1.2,1.22),cloud);
-          gl_FragColor=vec4(whiteSmoke,cloud*vAlpha*.82);}`,
+          float cloud=pow(max(0.0,core),1.12);vec3 whiteSmoke=mix(vec3(.82,.86,.91),vec3(1.48,1.5,1.52),cloud);
+          gl_FragColor=vec4(whiteSmoke,cloud*vAlpha*.96);}`,
       transparent: true, depthWrite: false, depthTest: true, blending: THREE.NormalBlending, toneMapped: false,
     });
     this.mesh = new THREE.InstancedMesh(geometry, material, count);
@@ -142,15 +142,20 @@ class MissileSmokePool {
   }
 
   emit(position: THREE.Vector3, scale = 1): void {
-    const index = this.cursor++ % this.particles.length;
-    const particle = this.particles[index];
-    const seed = ++this.serial * 9.37;
-    particle.position.copy(position);
-    particle.velocity.set((noise(seed) - .5) * .58, .28 + noise(seed + 1) * .58, (noise(seed + 2) - .5) * .34);
-    particle.age = 0;
-    particle.duration = .5 + noise(seed + 3) * .34;
-    particle.size = (.58 + noise(seed + 4) * .44) * scale;
-    particle.rotation = noise(seed + 5) * Math.PI * 2;
+    // Two overlapping puffs make the exhaust read as dense white missile smoke even on a phone-sized viewport.
+    for (let plume = 0; plume < 2; plume++) {
+      const index = this.cursor++ % this.particles.length;
+      const particle = this.particles[index];
+      const seed = ++this.serial * 9.37;
+      particle.position.copy(position);
+      particle.position.x += (noise(seed + 6) - .5) * .3 * scale;
+      particle.position.y += (noise(seed + 7) - .5) * .22 * scale;
+      particle.velocity.set((noise(seed) - .5) * .82, .34 + noise(seed + 1) * .76, (noise(seed + 2) - .5) * .5);
+      particle.age = 0;
+      particle.duration = .86 + noise(seed + 3) * .52;
+      particle.size = (1.12 + noise(seed + 4) * .82) * scale;
+      particle.rotation = noise(seed + 5) * Math.PI * 2;
+    }
   }
 
   update(delta: number, camera: THREE.Camera): void {
@@ -167,9 +172,9 @@ class MissileSmokePool {
         this.dummy.position.copy(p.position);
         this.dummy.quaternion.copy(camera.quaternion);
         this.dummy.rotateZ(p.rotation + t * .45);
-        const size = p.size * (.78 + t * 1.72);
-        this.dummy.scale.set(size * (1.08 + t * .22), size, 1);
-        this.alpha.setX(i, Math.pow(1 - t, 1.18));
+        const size = p.size * (.92 + t * 2.2);
+        this.dummy.scale.set(size * (1.12 + t * .32), size, 1);
+        this.alpha.setX(i, Math.pow(1 - t, .82));
       }
       this.dummy.updateMatrix(); this.mesh.setMatrixAt(i, this.dummy.matrix);
     }
@@ -196,13 +201,13 @@ function createRibbon(enemy: boolean, playerMissile: boolean): SmokeRibbon {
   const material = new THREE.ShaderMaterial({
     uniforms: {
       tint: { value: new THREE.Color(enemy ? 0xff7a2e : playerMissile ? 0xf7fbff : 0xc8f7ff) },
-      opacity: { value: enemy ? .62 : playerMissile ? .96 : .76 },
+      opacity: { value: enemy ? .62 : playerMissile ? 1 : .76 },
       smokeBody: { value: playerMissile ? 1 : 0 },
     },
     vertexShader: "varying vec2 vUv;void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}",
     fragmentShader: `varying vec2 vUv;uniform vec3 tint;uniform float opacity;uniform float smokeBody;
       void main(){float side=abs(vUv.x*2.0-1.0);float edge=pow(max(0.0,1.0-side),smokeBody>.5?.72:1.35);
-      float tail=pow(clamp(vUv.y,0.0,1.0),smokeBody>.5?1.3:2.25);
+      float tail=pow(clamp(vUv.y,0.0,1.0),smokeBody>.5?.82:2.25);
       float breakup=smokeBody>.5?(.84+.16*sin(vUv.y*51.0+side*9.0)):1.0;
       gl_FragColor=vec4(tint*(smokeBody>.5?1.12:.72+.38*edge),edge*tail*opacity*breakup);}`,
     transparent: true, depthWrite: false, side: THREE.DoubleSide,
@@ -213,8 +218,8 @@ function createRibbon(enemy: boolean, playerMissile: boolean): SmokeRibbon {
   if (playerMissile) mesh.renderOrder = 5;
   return {
     mesh, points: new Float32Array(samples * 3), positions, count: 0,
-    width: enemy ? .19 : playerMissile ? .42 : .22, playerMissile,
-    retireSeconds: playerMissile ? .5 : RETIRE_SECONDS, retiredAge: null,
+    width: enemy ? .19 : playerMissile ? .72 : .22, playerMissile,
+    retireSeconds: playerMissile ? .76 : RETIRE_SECONDS, retiredAge: null,
   };
 }
 /** Actual missile history, camera-facing smoke and pooled bursts. No changes to hit authority. */
@@ -359,15 +364,15 @@ export class SkyDancerArcadeProductPresentation {
         if (!anchor) {
           anchor = this.missilePoint.clone();
           this.missileSmokeLast.set(p.id, anchor);
-          this.missileSmoke.emit(this.missilePoint, 1.12);
+          this.missileSmoke.emit(this.missilePoint, 1.52);
         } else {
           const movedSq = anchor.distanceToSquared(this.missilePoint);
-          if (movedSq > .18) {
-            if (movedSq > 1.35) {
+          if (movedSq > .1) {
+            if (movedSq > .64) {
               this.missileMidpoint.copy(anchor).lerp(this.missilePoint, .5);
-              this.missileSmoke.emit(this.missileMidpoint, .92);
+              this.missileSmoke.emit(this.missileMidpoint, 1.15);
             }
-            this.missileSmoke.emit(this.missilePoint, 1.02);
+            this.missileSmoke.emit(this.missilePoint, 1.24);
             anchor.copy(this.missilePoint);
           }
         }
