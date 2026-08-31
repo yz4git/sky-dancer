@@ -16,6 +16,7 @@ import {
   SkyDancerArcadeRuntime,
   skyDancerArcadeRankForScore,
 } from "../src/sky/arcade/SkyDancerArcadeRuntime";
+import { arcadeCoursePose } from "../src/sky/arcade/SkyDancerArcadeCoursePath";
 
 test("arcade mode authors eleven distinct compact product sections", () => {
   assert.equal(SKY_DANCER_ARCADE_STAGES.length, 11);
@@ -320,4 +321,34 @@ test("product graphics are derived from the generated Arcade Run reference", asy
   assert.match(presentation, /arcade-product-speed-streaks/);
   assert.match(presentation, /arcade-projectile-trail/);
   assert.match(reference, /arcade-run-product-reference\.png/);
+});
+
+
+test("V7 signature stages have measurably distinct course geometry", () => {
+  const sample = (id: "red-canyon" | "ice-cavern" | "volcano-core" | "orbital-ascent") => {
+    const stage = SKY_DANCER_ARCADE_STAGES.find((candidate) => candidate.id === id)!;
+    const length = stage.durationSeconds * stage.courseSpeed;
+    return Array.from({ length: 121 }, (_, index) => arcadeCoursePose(stage, length * index / 120));
+  };
+  const span = (values: number[]) => Math.max(...values) - Math.min(...values);
+  const signChanges = (values: number[], epsilon = .03) => {
+    const signs = values.filter((value) => Math.abs(value) >= epsilon).map((value) => Math.sign(value));
+    return signs.reduce((count, sign, index) => index > 0 && sign !== signs[index - 1] ? count + 1 : count, 0);
+  };
+
+  const canyon = sample("red-canyon");
+  assert.ok(span(canyon.map((pose) => pose.x)) > 90, "canyon switchback width");
+  assert.ok(signChanges(canyon.map((pose) => pose.yaw)) >= 5, "canyon switchback reversals");
+
+  const ice = sample("ice-cavern");
+  assert.ok(span(ice.map((pose) => pose.y)) > 30, "ice tunnel vertical span");
+  assert.ok(signChanges(ice.map((pose) => pose.yaw)) >= 6, "ice slalom reversals");
+
+  const volcano = sample("volcano-core");
+  assert.ok(span(volcano.map((pose) => pose.y)) > 25, "volcano crater dive span");
+  assert.ok(Math.min(...volcano.map((pose) => pose.y)) < -25, "volcano dives toward the core");
+
+  const orbit = sample("orbital-ascent");
+  assert.ok(orbit.at(-1)!.y - orbit[0].y > 40, "orbit gains major altitude");
+  assert.ok(span(orbit.map((pose) => pose.x)) > 60, "orbit corkscrew opens laterally");
 });

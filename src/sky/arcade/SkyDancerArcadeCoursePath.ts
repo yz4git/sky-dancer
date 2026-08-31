@@ -41,7 +41,7 @@ function courseCenter(stage: SkyDancerArcadeStageDefinition, distance: number): 
 
   const p1 = phase + u * TAU * profile.turns;
   const p2 = phase * 0.61 + 1.17 + u * TAU * (profile.turns * 0.53 + 0.31);
-  const x = lateralAmplitude * (
+  let x = lateralAmplitude * (
     (Math.sin(p1) - Math.sin(phase)) * 0.72
     + (Math.sin(p2) - Math.sin(phase * 0.61 + 1.17)) * 0.28
   );
@@ -55,13 +55,51 @@ function courseCenter(stage: SkyDancerArcadeStageDefinition, distance: number): 
 
   const authoredU = clamp(u, 0, 1);
   if (stage.biome === "cloud") y += Math.sin(authoredU * Math.PI) * 4.2;
-  if (stage.biome === "canyon") y -= Math.sin(authoredU * Math.PI) * 3.8;
   if (stage.biome === "ruins") y += Math.sin(authoredU * Math.PI * 2) * 3.2;
-  if (stage.biome === "volcano") y -= Math.sin(authoredU * Math.PI) * 8.5;
-  if (stage.biome === "orbit") y += u * 24;
   if (stage.biome === "citadel") y += Math.sin(authoredU * Math.PI) * 5.2;
 
+  // V7 stage signatures: the course shape itself is now part of each biome's identity.
+  if (stage.biome === "canyon") {
+    // Fast knife-edge switchbacks with a low valley floor: frequent lateral reversals, restrained vertical motion.
+    x += (Math.sin(u * TAU * 2.65 + 0.18) - Math.sin(0.18)) * 14;
+    x += Math.sin(u * TAU * 5.3) * 3.2;
+    y -= Math.sin(authoredU * Math.PI) * 7.2;
+    y += (Math.sin(u * TAU * 2.1 - 0.35) - Math.sin(-0.35)) * 2.8;
+  }
+  if (stage.biome === "ice") {
+    // Crystal-tunnel slalom: tightly alternating horizontal gates plus pronounced ceiling/floor waves.
+    x += (Math.sin(u * TAU * 3.4 + 1.1) - Math.sin(1.1)) * 11;
+    x += (Math.sin(u * TAU * 6.8 + 0.2) - Math.sin(0.2)) * 2.8;
+    y += (Math.sin(u * TAU * 2.35 - 0.4) - Math.sin(-0.4)) * 8.5;
+    y += (Math.sin(u * TAU * 4.7 + 0.8) - Math.sin(0.8)) * 3.2;
+  }
+  if (stage.biome === "volcano") {
+    // Crater spiral: wide orbital sweeps dive toward the magma core, then pull back to the rim before the boss.
+    x += (Math.sin(u * TAU * 1.45 + 2.1) - Math.sin(2.1)) * 22;
+    x += (Math.sin(u * TAU * 3.2 + 0.35) - Math.sin(0.35)) * 8;
+    y -= Math.sin(authoredU * Math.PI) * 22;
+    y += (Math.sin(u * TAU * 1.45 + 0.6) - Math.sin(0.6)) * 4.6;
+    y += authoredU * 20;
+  }
+  if (stage.biome === "orbit") {
+    // Rising corkscrew: lateral radius opens with altitude while the whole course climbs toward orbit.
+    const spiralRadius = 9 + authoredU * 14;
+    x += (Math.sin(u * TAU * 1.85 + 0.3) - Math.sin(0.3)) * spiralRadius;
+    y += u * 62;
+    y += (Math.sin(u * TAU * 1.85 - 0.5) - Math.sin(-0.5)) * 3.4;
+  }
+
   return { x, y };
+}
+
+function limitsFor(stage: SkyDancerArcadeStageDefinition) {
+  switch (stage.biome) {
+    case "canyon": return { yaw: 0.48, pitch: 0.24, bank: 1.48 };
+    case "ice": return { yaw: 0.43, pitch: 0.30, bank: 1.38 };
+    case "volcano": return { yaw: 0.45, pitch: 0.29, bank: 1.44 };
+    case "orbit": return { yaw: 0.39, pitch: 0.34, bank: 1.34 };
+    default: return { yaw: 0.34, pitch: 0.19, bank: 1.28 };
+  }
 }
 
 export function arcadeCoursePose(stage: SkyDancerArcadeStageDefinition, distance: number): SkyDancerArcadeCoursePose {
@@ -71,14 +109,15 @@ export function arcadeCoursePose(stage: SkyDancerArcadeStageDefinition, distance
   const after = courseCenter(stage, distance + sample);
   const dx = (after.x - before.x) / (sample * 2);
   const dy = (after.y - before.y) / (sample * 2);
-  const yaw = clamp(Math.atan(dx), -0.34, 0.34);
-  const pitch = clamp(Math.atan(dy), -0.19, 0.19);
+  const limits = limitsFor(stage);
+  const yaw = clamp(Math.atan(dx), -limits.yaw, limits.yaw);
+  const pitch = clamp(Math.atan(dy), -limits.pitch, limits.pitch);
   return {
     x: center.x,
     y: center.y,
     yaw,
     pitch,
-    bank: clamp(-yaw * 1.28, -0.38, 0.38),
+    bank: clamp(-yaw * limits.bank, -0.46, 0.46),
   };
 }
 

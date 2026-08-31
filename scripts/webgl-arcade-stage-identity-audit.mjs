@@ -1,0 +1,66 @@
+import { mkdir, writeFile } from "node:fs/promises";
+import { chromium } from "playwright";
+
+const baseUrl = process.env.SKY_DANCER_AUDIT_URL || "http://127.0.0.1:4173";
+const outputDir = process.env.SKY_DANCER_AUDIT_DIR || "artifacts/arcade-stage-identity";
+const stages = [
+  { id: "red-canyon", short: "CANYON", name: "RED CANYON" },
+  { id: "ice-cavern", short: "ICE", name: "ICE CAVERN" },
+  { id: "volcano-core", short: "VOLCANO", name: "VOLCANO CORE" },
+  { id: "orbital-ascent", short: "ORBIT", name: "ORBITAL ASCENT" },
+];
+const allStageIds = ["dawn-city","red-canyon","cloud-fleet","storm-carrier","desert-fortress","ice-cavern","floating-ruins","night-metro","volcano-core","orbital-ascent","prism-citadel"];
+await mkdir(outputDir, { recursive: true });
+const browser = await chromium.launch({ headless: true, args: ["--use-angle=swiftshader", "--enable-webgl", "--enable-unsafe-swiftshader", "--ignore-gpu-blocklist", "--disable-dev-shm-usage"] });
+const context = await browser.newContext({ viewport: { width: 844, height: 390 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
+await context.addInitScript((ids) => {
+  localStorage.setItem("sky-dancer-arcade-progress-v1", JSON.stringify({ version: 1, clearedStageIds: ids, unlockedStageIds: ids, records: {}, bestRunScore: 0, bestRunRank: "D", completedRuns: 0, oneCreditClears: 0 }));
+}, allStageIds);
+const diagnostics = [];
+for (const [index, stage] of stages.entries()) {
+  const page = await context.newPage();
+  const consoleErrors = [];
+  const pageErrors = [];
+  page.on("console", (message) => { if (message.type() === "error") consoleErrors.push(message.text()); });
+  page.on("pageerror", (error) => pageErrors.push(String(error)));
+  await page.goto(`${baseUrl}?menu=1`, { waitUntil: "networkidle", timeout: 60_000 });
+  await page.locator("button").filter({ hasText: /STAGE PRACTICE/i }).click({ force: true });
+  await page.locator("button").filter({ hasText: new RegExp(stage.short, "i") }).first().click({ force: true });
+  await page.locator("button").filter({ hasText: /START STAGE PRACTICE/i }).click({ force: true });
+  const canvas = page.locator('canvas[aria-label="Sky Dancer Arcade Run WebGL game view"]');
+  await canvas.waitFor({ state: "visible", timeout: 30_000 });
+  const prefix = `${String(index + 1).padStart(2, "0")}-${stage.id}`;
+  const shot = async (suffix) => page.screenshot({ path: `${outputDir}/${prefix}-${suffix}.png`, fullPage: true });
+  await page.waitForTimeout(1400);
+  await shot("entry");
+  await page.keyboard.down("ArrowRight"); await page.keyboard.down("ArrowUp");
+  await page.waitForTimeout(850);
+  await page.keyboard.up("ArrowRight"); await page.keyboard.up("ArrowUp");
+  await page.waitForTimeout(2900);
+  await shot("signature-a");
+  await page.keyboard.down(" ");
+  await page.waitForTimeout(1100);
+  await shot("turbo");
+  await page.keyboard.up(" ");
+  await page.keyboard.down("ArrowLeft"); await page.keyboard.down("ArrowDown");
+  await page.waitForTimeout(950);
+  await page.keyboard.up("ArrowLeft"); await page.keyboard.up("ArrowDown");
+  await page.waitForTimeout(3300);
+  await shot("signature-b");
+  const body = await page.locator("body").innerText();
+  const hp = Number((body.match(/AIRFRAME\s*([0-9]+)%/i) || [0, 0])[1]);
+  const glState = await canvas.evaluate((element) => {
+    const gl = element.getContext("webgl2") || element.getContext("webgl");
+    return { webgl: Boolean(gl), width: element.getBoundingClientRect().width, height: element.getBoundingClientRect().height };
+  });
+  diagnostics.push({ stage: stage.id, stageVisible: body.includes(stage.name), hp, glState, consoleErrors, pageErrors, failed: /AIRFRAME LOST|MISSION FAILED/i.test(body) });
+  await page.close();
+}
+await writeFile(`${outputDir}/diagnostics.json`, JSON.stringify(diagnostics, null, 2));
+await browser.close();
+for (const item of diagnostics) {
+  if (!item.stageVisible) throw new Error(`Stage HUD mismatch: ${JSON.stringify(item)}`);
+  if (!item.glState.webgl || item.glState.width < 800 || item.glState.height < 360) throw new Error(`Invalid WebGL surface: ${JSON.stringify(item)}`);
+  if (item.failed) throw new Error(`Stage identity audit lost airframe: ${JSON.stringify(item)}`);
+  if (item.consoleErrors.length || item.pageErrors.length) throw new Error(`Stage identity audit errors: ${JSON.stringify(item)}`);
+}
