@@ -29,6 +29,17 @@ jobs:
           node-version: 22.13.0
           cache: npm
       - run: npm ci --no-audit --no-fund
+      - name: Expose existing demo handle to audit controller only
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path("app/SkyDancerArcadeMode.tsx")
+          text = path.read_text()
+          old = "        demoRef.current = demo;\n      }"
+          new = "        demoRef.current = demo;\n        Object.assign(window, { __skyDancerAuditDemo: demo });\n      }"
+          assert old in text
+          path.write_text(text.replace(old, new, 1))
+          PY
       - name: Install isolated browser controller
         run: |
           rm -rf .audit-runtime
@@ -58,6 +69,7 @@ jobs:
       - name: Remove temporary V9.6 final audit files
         if: success()
         run: |
+          git reset --hard HEAD
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git rm .github/workflows/arcade-missile-v96-final-audit-once.yml scripts/webgl-arcade-missile-v96-final-audit.mjs
