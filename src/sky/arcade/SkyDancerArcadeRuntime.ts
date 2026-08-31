@@ -785,9 +785,10 @@ export class SkyDancerArcadeRuntime {
             enemy.maneuverClock += delta;
             const t = clamp(enemy.maneuverClock / 1.25, 0, 1);
             const eased = t * t * (3 - 2 * t);
-            enemy.depth = moveToward(enemy.depth, 12.6, delta * 8);
+            enemy.depth = moveToward(enemy.depth, 13.8, delta * 8);
             enemy.x = clamp(this.playerX + enemy.maneuverSign * (1.86 - eased * 3.72), -ENEMY_X_LIMIT, ENEMY_X_LIMIT);
-            enemy.y = clamp(this.playerY * 0.62 + Math.sin(t * Math.PI + enemy.phase) * 0.62, -ENEMY_Y_LIMIT, ENEMY_Y_LIMIT);
+            const verticalLane = Math.abs(this.playerY) > .12 ? -Math.sign(this.playerY) : enemy.maneuverSign;
+            enemy.y = clamp(this.playerY * .35 + verticalLane * .88 + Math.sin(t * Math.PI + enemy.phase) * .16, -ENEMY_Y_LIMIT, ENEMY_Y_LIMIT);
             if (enemy.maneuverClock >= 1.25) {
               enemy.maneuver = "approach";
               enemy.maneuverClock = 0;
@@ -804,8 +805,8 @@ export class SkyDancerArcadeRuntime {
             // A close turning fight: slow relative depth while the raider visibly banks across the canopy.
             enemy.maneuverClock += delta;
             const arc = Math.sin(clamp(enemy.maneuverClock / 1.65, 0, 1) * Math.PI);
-            enemy.depth = moveToward(enemy.depth, 11.8 + Math.sin(enemy.maneuverClock * 3) * 1.5, delta * 7.6);
-            enemy.x = clamp(this.playerX + enemy.maneuverSign * (1.36 - arc * 0.48) + Math.sin(enemy.maneuverClock * 3.15 + enemy.phase) * 0.28, -ENEMY_X_LIMIT, ENEMY_X_LIMIT);
+            enemy.depth = moveToward(enemy.depth, 13.2 + Math.sin(enemy.maneuverClock * 3) * 1.25, delta * 7.6);
+            enemy.x = clamp(this.playerX + enemy.maneuverSign * (1.52 - arc * .34) + Math.sin(enemy.maneuverClock * 3.15 + enemy.phase) * .18, -ENEMY_X_LIMIT, ENEMY_X_LIMIT);
             enemy.y = clamp(this.playerY * 0.7 + enemy.baseY * 0.22 + Math.sin(enemy.maneuverClock * 2.45 + enemy.phase) * 0.62, -ENEMY_Y_LIMIT, ENEMY_Y_LIMIT);
             if (enemy.maneuverClock >= 1.65) {
               enemy.maneuver = "approach";

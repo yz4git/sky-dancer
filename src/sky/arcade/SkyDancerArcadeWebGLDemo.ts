@@ -304,8 +304,9 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
       if (aimRing) aimRing.scale.setScalar(enemy.boss ? 3.7 : enemy.kind === "bomber" ? 1.5 : .92);
       if (!enemy.boss) {
         const baseScale = typeof group.userData.arcadeCombatBaseScale === "number" ? group.userData.arcadeCombatBaseScale : group.scale.x;
-        const closeBoost = 1 + THREE.MathUtils.clamp((28 - enemy.depth) / 24, 0, 1) * .16;
-        group.scale.setScalar(baseScale * closeBoost);
+        const extremeCloseClamp = 1 - THREE.MathUtils.clamp((18 - enemy.depth) / 15, 0, 1) * .18;
+        const maneuverPresence = enemy.maneuver === "parallel" || enemy.maneuver === "close-bank" ? 1.035 : 1;
+        group.scale.setScalar(baseScale * maneuverPresence * extremeCloseClamp);
       }
       if (enemy.boss) {
         const hpRatio = enemy.maxHp > 0 ? enemy.hp / enemy.maxHp : 0;
@@ -322,14 +323,15 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
       this.enemyGroups.delete(id);
       const previous = this.previousSnapshot.enemies.find(enemy => enemy.id === id);
       if (snapshot.enemiesDefeated > this.previousSnapshot.enemiesDefeated && previous && previous.depth > 3) {
-        const heavyClimax = previous.boss || previous.kind === "bomber" || previous.kind === "missile-boat";
-        if (heavyClimax) {
-          const climaxStrength = previous.boss ? 1.7 : 1.02;
-          this.presentation.emitClimax(group.position, climaxStrength);
+        const heavyCraft = previous.kind === "bomber" || previous.kind === "missile-boat";
+        if (previous.boss) {
+          this.presentation.emitClimax(group.position, 1.5);
+        } else if (heavyCraft) {
+          this.presentation.emitBurst(group.position, .98);
         } else {
           this.presentation.emitBurst(group.position, .72);
         }
-        this.cameraShake = Math.min(1.18, this.cameraShake + (previous.boss ? .74 : heavyClimax ? .18 : .1));
+        this.cameraShake = Math.min(1.08, this.cameraShake + (previous.boss ? .68 : heavyCraft ? .14 : .1));
         this.audio.tone(previous.boss ? 48 : 74, previous.boss ? .42 : .15, previous.boss ? .07 : .028, "sawtooth");
       }
       this.entityRoot.remove(group);

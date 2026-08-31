@@ -202,7 +202,7 @@ test("wide-field combat source keeps enemies, guided threats and missile visuals
   assert.match(runtimeSource, /ENEMY_X_LIMIT = 2\.62/);
   assert.match(runtimeSource, /guidance = enemy\.boss/);
   assert.match(runtimeSource, /projectile\.guidance > 0/);
-  assert.match(cameraSource, /playerX \* \(5\.15 \+ phone \* 2\.55\)/);
+  assert.match(cameraSource, /playerX \* \(5\.15 \+ phone \* 2\.55 \+ turboFollow \* \.95\)/);
   assert.match(runtimeSource, /MAX_ENEMY_PROJECTILES_NORMAL = 5/);
   assert.match(runtimeSource, /threatBudget - activeThreats/);
   assert.match(webglSource, /arcade-aim-ring/);
@@ -238,9 +238,11 @@ test("V6.2 NORMAL opening pressure preserves reaction time and readable damage c
   ]);
   assert.match(runtimeSource, /damageCooldown = this\.options\.difficulty === "hard" \? \.28 : \.5/);
   assert.match(runtimeSource, /enemyCap = this\.options\.difficulty === "hard" \? 15 : 11/);
-  assert.match(webglSource, /heavyClimax/);
+  assert.match(webglSource, /const heavyCraft = previous\.kind === "bomber" \|\| previous\.kind === "missile-boat"/);
+  assert.match(webglSource, /if \(previous\.boss\)[\s\S]*emitClimax\(group\.position, 1\.5\)/);
+  assert.match(webglSource, /else if \(heavyCraft\)[\s\S]*emitBurst\(group\.position, \.98\)/);
   assert.match(webglSource, /emitBurst\(group\.position, \.72\)/);
-  assert.match(presentationSource, /addScaledVector\(this\.forward, 3\.4\)/);
+  assert.match(presentationSource, /addScaledVector\(this\.forward, 3\.8\)/);
   assert.match(webglSource, /course\.bank \* \.32 \+ nearCourse\.bank \* \.05/);
   assert.match(webglSource, /farCourse = arcadeCourseRelativePose\(snapshot\.stage, snapshot\.distance, 132\)/);
 });
@@ -396,5 +398,36 @@ test("V8 speed pass keeps enemies close and choreographs dogfight fly-bys", asyn
   ]);
   assert.match(runtimeSource, /turboActive \? 1\.44 : 1/);
   assert.match(presentationSource, /turboActive \? 205 : 78/);
-  assert.match(cameraSource, /fov: turbo \? 67 : 56/);
+  assert.match(cameraSource, /fov: turbo \? 69 : 56/);
+});
+
+
+test("V8.1 playcheck keeps close dogfights readable and the Turbo airframe on-screen", async () => {
+  const runtime = new SkyDancerArcadeRuntime({ mode: "arcade-run", difficulty: "normal", seed: 0x5f3759df });
+  let minCrossPassSeparation = Number.POSITIVE_INFINITY;
+  for (let frame = 0; frame < 1500; frame += 1) {
+    const snapshot = runtime.getSnapshot();
+    for (const enemy of snapshot.enemies) {
+      if (enemy.boss || enemy.maneuver !== "cross-pass" || enemy.depth >= 18) continue;
+      minCrossPassSeparation = Math.min(minCrossPassSeparation, Math.hypot(enemy.x - snapshot.playerX, enemy.y - snapshot.playerY));
+    }
+    runtime.step(1 / 60);
+    if (runtime.getSnapshot().status !== "running") break;
+  }
+  assert.ok(Number.isFinite(minCrossPassSeparation), "expected at least one close cross-pass sample");
+  assert.ok(minCrossPassSeparation >= .58, `cross-pass separation ${minCrossPassSeparation}`);
+
+  const [webgl, presentation, camera] = await Promise.all([
+    readFile(new URL("../src/sky/arcade/SkyDancerArcadeWebGLDemo.ts", import.meta.url), "utf8"),
+    readFile(new URL("../src/sky/arcade/SkyDancerArcadeProductPresentation.ts", import.meta.url), "utf8"),
+    readFile(new URL("../src/sky/arcade/SkyDancerArcadeCamera.ts", import.meta.url), "utf8"),
+  ]);
+  assert.match(webgl, /extremeCloseClamp/);
+  assert.match(webgl, /if \(previous\.boss\)[\s\S]*emitClimax\(group\.position, 1\.5\)/);
+  assert.match(webgl, /heavyCraft[\s\S]*emitBurst\(group\.position, \.98\)/);
+  assert.match(presentation, /Math\.min\(\.2, \.018 \+ this\.climaxEnergy \* \.15\)/);
+  assert.match(presentation, /Math\.min\(\.24, this\.climaxPulse \* \.27\)/);
+  assert.match(camera, /turboFollow \* \.95/);
+  assert.match(camera, /turboFollow \* 1\.08/);
+  assert.match(camera, /fov: turbo \? 69 : 56/);
 });
