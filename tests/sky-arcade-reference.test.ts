@@ -205,6 +205,29 @@ test("V9.0 floating ruins reads as a broken sky labyrinth instead of a column fo
   world.dispose();
 });
 
+test("V9.1 night metro reads as a neon express pursuit rather than a recolored city river", () => {
+  const scene = new THREE.Scene();
+  const world = new SkyDancerArcadeReferenceWorld(scene);
+  const night = SKY_DANCER_ARCADE_STAGES.find((stage) => stage.id === "night-metro")!;
+  world.setStage(night);
+  world.update(night.courseSpeed * 6, 0, 0);
+  assert.ok(scene.getObjectByName("arcade-night-metro-hub") instanceof THREE.Group,
+    "night metro must expose a dedicated interchange destination");
+  const environment=scene.getObjectByName("arcade-course-environment")!;
+  const chunks=environment.children.filter((object)=>object.name.startsWith("arcade-course-chunk-"));
+  assert.equal(chunks.length,8);
+  assert.ok(chunks.every((chunk)=>chunk.userData.arcadeNightV91NeonPursuit===true),
+    "every night chunk must use the V9.1 elevated transit pursuit layer");
+  assert.equal(new Set(chunks.map((chunk)=>chunk.userData.arcadeNightV91LeadSide)).size,2,
+    "close transit pressure must alternate sides so the chicane reads on screen");
+  let animatedRivers=0;
+  scene.traverse((object)=>{
+    if(object instanceof THREE.Mesh && !Array.isArray(object.material) && object.material instanceof THREE.ShaderMaterial && object.material.uniforms.time)animatedRivers++;
+  });
+  assert.equal(animatedRivers,0,"night metro replaces the Dawn City river with an expressway/metro trench");
+  world.dispose();
+});
+
 test("V8.9 prism citadel reads as an open final assault rather than a repeated ring tunnel", () => {
   const scene = new THREE.Scene();
   const world = new SkyDancerArcadeReferenceWorld(scene);

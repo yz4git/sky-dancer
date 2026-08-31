@@ -345,6 +345,26 @@ export class SkyDancerArcadeReferenceWorld {
       }
       towers.computeBoundingSphere();group.add(towers);
     }
+    if(stage.biome==="night"){
+      // V9.1: a recognizable metro interchange anchors the pursuit in the distance instead of
+      // reading as Dawn City with a darker palette.
+      const hub=new THREE.Group();hub.name="arcade-night-metro-hub";hub.position.set(0,-3,-330);
+      const hubDark=paint(0x0b1025),hubPurple=paint(stage.palette.secondary);
+      const hubGlow=new THREE.MeshBasicMaterial({color:stage.palette.accent,transparent:true,opacity:.9,blending:THREE.AdditiveBlending,depthWrite:false,toneMapped:false});
+      const concourse=mesh(hub,new THREE.BoxGeometry(74,8,30),hubDark,0,-2,0);
+      concourse.rotation.z=-.025;
+      for(const side of [-1,1]){
+        const tower=mesh(hub,new THREE.BoxGeometry(11,72,13),hubPurple,side*38,23,0);
+        tower.rotation.z=side*.055;
+        mesh(hub,new THREE.BoxGeometry(1.2,60,14),hubGlow,side*32,23,2);
+        const rail=mesh(hub,new THREE.BoxGeometry(26,2.2,64),hubDark,side*18,-9,20);
+        rail.rotation.y=side*.035;
+        mesh(hub,new THREE.BoxGeometry(.55,.35,60),hubGlow,side*13.5,-7.7,20);
+      }
+      const crown=mesh(hub,new THREE.BoxGeometry(42,3.5,9),hubPurple,0,42,1);crown.rotation.z=.035;
+      mesh(hub,new THREE.BoxGeometry(30,.7,9.4),hubGlow,0,44.2,1);
+      group.add(hub);
+    }
     if(stage.biome==="ruins"){
       // V9.0: a single sky temple gives the labyrinth a destination and a recognizable ancient silhouette.
       const temple=new THREE.Group();temple.name="arcade-ruins-sky-temple";temple.position.set(0,13,-305);
@@ -372,6 +392,7 @@ export class SkyDancerArcadeReferenceWorld {
     const glow=paint(stage.palette.accent,stage.palette.accent);
     if(stage.biome==="city" || stage.biome==="night"){
       this.addCity(group,stage,index,facade);
+      if(stage.biome==="night")this.addNightMetroPursuit(group,index,primary,secondary,dark,glow);
     } else if(!["cloud","storm","orbit","citadel","ruins"].includes(stage.biome)){
       const ground=this.buildTerrain(stage,index);
       const groundMaterial=primary.clone();groundMaterial.vertexColors=true;groundMaterial.color.setHex(0xffffff);
@@ -566,7 +587,7 @@ export class SkyDancerArcadeReferenceWorld {
       const x=side*(25+r(j+71)*8.5);
       const volcanoX=side*(33+r(j+71)*8);
       const iceX=side*(35+r(j+71)*11.5);
-      if(stage.biome==="city" || stage.biome==="night"){
+      if(stage.biome==="city"){
         const h=25+r(j+11)*31;
         const w=2.2+r(j+19)*1.8;
         const d=4+r(j+23)*2.2;
@@ -579,6 +600,21 @@ export class SkyDancerArcadeReferenceWorld {
         }
         mesh(group,new THREE.BoxGeometry(.12,h*.62,d*1.04),glow,x-side*w*.34,-25+h*.54,z);
         if(j%2===0) mesh(group,new THREE.BoxGeometry(.16,4+r(j+55)*5,.16),glow,x,-23.8+h+2.2,z);
+      } else if(stage.biome==="night"){
+        // V9.1: close passes alternate station blades, signs and canopy fragments instead of ten more skyscrapers.
+        const metroX=side*(34+r(j+71)*10+(j%2)*3);
+        const y=-6+r(j+6)*15;
+        if((j+index)%2===0){
+          const blade=mesh(group,new THREE.BoxGeometry(1.1,16+r(j+5)*13,7+r(j+25)*5),secondary,metroX,y+7,z);
+          blade.rotation.z=side*(.08+r(j+52)*.12);
+          mesh(group,new THREE.BoxGeometry(.35,12+r(j+12)*8,7.2),glow,metroX-side*.8,y+7,z+.1);
+        }else{
+          const canopy=mesh(group,new THREE.BoxGeometry(10+r(j+15)*6,1.1,12+r(j+25)*8),dark,metroX,y,z);
+          canopy.rotation.z=side*(r(j+32)-.5)*.1;
+          mesh(group,new THREE.BoxGeometry(7+r(j+35)*5,.22,10+r(j+45)*6),glow,metroX-side*1.5,y+.72,z);
+          const mast=mesh(group,new THREE.BoxGeometry(1.2,11+r(j+55)*8,1.2),secondary,metroX+side*3,y-5,z+2);
+          mast.rotation.z=side*.07;
+        }
       } else if(stage.biome==="canyon" || stage.biome==="desert" || stage.biome==="volcano"){
         const h=stage.biome==="volcano"?20+r(j+9)*27:24+r(j+9)*36;
         const rockX=stage.biome==="volcano"?volcanoX:x;
@@ -634,6 +670,55 @@ export class SkyDancerArcadeReferenceWorld {
     }
   }
 
+  private addNightMetroPursuit(
+    group:THREE.Group,
+    index:number,
+    primary:THREE.Material,
+    secondary:THREE.Material,
+    dark:THREE.Material,
+    glow:THREE.Material,
+  ):void {
+    // V9.1: streamed chunks alternate the close transit side so the chicane reads as a pursuit route,
+    // while every structure remains outside the center flight lane and eligible for static batching.
+    group.userData.arcadeNightV91NeonPursuit=true;
+    const leadSide=index%2===0?1:-1;
+    group.userData.arcadeNightV91LeadSide=leadSide;
+    const tier=(index%3)-1;
+    const leadY=-7+tier*4.2;
+    const farY=-14-tier*2.6;
+
+    for(const side of [-1,1]){
+      const lead=side===leadSide;
+      const railX=side*(lead?19:31);
+      const railY=lead?leadY:farY;
+      const deck=mesh(group,new THREE.BoxGeometry(lead?10:7,1.1,84),lead?secondary:dark,railX,railY,0);
+      deck.rotation.z=side*(lead?.035:-.018);
+      mesh(group,new THREE.BoxGeometry(.42,.22,80),glow,railX-side*(lead?3.3:2.2),railY+.78,0);
+      mesh(group,new THREE.BoxGeometry(.28,.18,80),primary,railX+side*(lead?3.2:2.1),railY+.72,0);
+
+      if(lead){
+        const canopy=mesh(group,new THREE.BoxGeometry(16,1.3,26),dark,side*26,6+tier*2,-14);
+        canopy.rotation.z=side*.055;canopy.rotation.y=side*.025;
+        mesh(group,new THREE.BoxGeometry(12,.28,23),glow,side*24.5,6.9+tier*2,-14);
+        for(const z of [-23,-5]){
+          const support=mesh(group,new THREE.BoxGeometry(1.5,18,1.5),secondary,side*31,-2+tier*2,z);
+          support.rotation.z=side*.06;
+        }
+      }
+    }
+
+    // Split gantries mark speed beats without recreating a full-screen hoop/tunnel.
+    if(index%2===1){
+      for(const side of [-1,1]){
+        const post=mesh(group,new THREE.BoxGeometry(1.4,25,2),secondary,side*31,2,-32);
+        post.rotation.z=side*.035;
+        const arm=mesh(group,new THREE.BoxGeometry(12,1.3,2),side===leadSide?primary:dark,side*25,14,-32);
+        arm.rotation.z=side*(side===leadSide?-.04:.025);
+        mesh(group,new THREE.BoxGeometry(7,.3,2.2),glow,side*21.5,15,-32);
+      }
+    }
+  }
+
   private addCity(group:THREE.Group,stage:SkyDancerArcadeStageDefinition,index:number,facade:THREE.Material):void {
     const count=72;
     const towers=new THREE.InstancedMesh(new THREE.BoxGeometry(1,1,1),facade,count);
@@ -664,7 +749,17 @@ export class SkyDancerArcadeReferenceWorld {
     towers.computeBoundingSphere();roofs.computeBoundingSphere();spires.count=a;spires.computeBoundingSphere();
     group.add(towers,roofs,spires);
     mesh(group,new THREE.BoxGeometry(250,1,114),paint(stage.biome==="night"?0x111d31:0x213746),0,-26);
-    if(this.water){const river=mesh(group,new THREE.PlaneGeometry(40,114),this.water,-.4,-25.35);river.rotation.x=-Math.PI/2;}
+    if(this.water && stage.biome!=="night"){
+      const river=mesh(group,new THREE.PlaneGeometry(40,114),this.water,-.4,-25.35);river.rotation.x=-Math.PI/2;
+    }
+    if(stage.biome==="night"){
+      const metroBed=paint(0x080e20),metroGlow=paint(stage.palette.accent,stage.palette.accent);
+      mesh(group,new THREE.BoxGeometry(38,.32,114),metroBed,0,-25.2,0);
+      for(const side of [-1,1]){
+        mesh(group,new THREE.BoxGeometry(.34,.14,112),metroGlow,side*10.5,-24.95,0);
+        mesh(group,new THREE.BoxGeometry(.18,.11,112),paint(stage.palette.secondary),side*15.5,-24.92,0);
+      }
+    }
     const bank=paint(stage.biome==="night"?0x314559:0x506879),road=paint(0x132635),light=paint(0xffc06e,0xff963b);
     for(const side of [-1,1]){
       mesh(group,new THREE.BoxGeometry(2.4,1.3,114),bank,side*21,-25.1);
