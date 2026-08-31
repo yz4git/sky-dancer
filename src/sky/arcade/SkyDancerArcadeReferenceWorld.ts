@@ -142,6 +142,7 @@ export class SkyDancerArcadeReferenceWorld {
 
   private updateIceRibbon(distance:number,playerX:number,playerY:number):void {
     if(!this.stage || !this.iceRibbon)return;
+    const stage=this.stage;
     const update=(ribbon:THREE.Mesh,width:number,lift:number)=>{
       const attribute=ribbon.geometry.getAttribute("position") as THREE.BufferAttribute;
       const array=attribute.array as Float32Array;
@@ -149,7 +150,7 @@ export class SkyDancerArcadeReferenceWorld {
       const samples=attribute.count/2;
       for(let i=0;i<samples;i++){
         const depth=14+i*14.2;
-        const course=arcadeCourseRelativePose(this.stage,distance,depth);
+        const course=arcadeCourseRelativePose(stage,distance,depth);
         const cx=course.x-playerX*.35;
         const cy=course.y-playerY*.16-20.6+lift;
         const cz=-depth;
@@ -198,6 +199,7 @@ export class SkyDancerArcadeReferenceWorld {
 
   private updateVolcanoRibbon(distance:number,playerX:number,playerY:number):void {
     if(!this.stage || !this.volcanoRibbon)return;
+    const stage=this.stage;
     const update=(ribbon:THREE.Mesh,width:number,lift:number)=>{
       const attribute=ribbon.geometry.getAttribute("position") as THREE.BufferAttribute;
       const array=attribute.array as Float32Array;
@@ -205,7 +207,7 @@ export class SkyDancerArcadeReferenceWorld {
       const samples=attribute.count/2;
       for(let i=0;i<samples;i++){
         const depth=16+i*13.2;
-        const course=arcadeCourseRelativePose(this.stage,distance,depth);
+        const course=arcadeCourseRelativePose(stage,distance,depth);
         const cx=course.x-playerX*.35;
         const cy=course.y-playerY*.16-24.05+lift;
         const cz=-depth;

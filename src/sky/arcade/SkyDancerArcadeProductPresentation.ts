@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import type { SkyDancerArcadeSnapshot } from "./SkyDancerArcadeRuntime";
 import { arcadeCourseRelativePose } from "./SkyDancerArcadeCoursePath";
+import type { SkyDancerArcadePresentationFrame } from "./SkyDancerArcadePresentationDirector";
 
 export const ARCADE_EFFECT_BUDGET = { trails: 48, trailSamples: 18, sparks: 240, smoke: 84 } as const;
 const SPEED_STREAK_COUNT = 52;
@@ -153,6 +154,8 @@ export class SkyDancerArcadeProductPresentation {
   private readonly climaxRing = new THREE.Mesh(new THREE.RingGeometry(.58, .72, 48), this.climaxRingMaterial);
   private climaxEnergy = 0;
   private climaxPulse = 0;
+  private rushAccent = 0;
+  private bossArrival = 0;
 
   constructor(private readonly scene: THREE.Scene) {
     this.root.name = "arcade-product-presentation";
@@ -175,7 +178,7 @@ export class SkyDancerArcadeProductPresentation {
 
   setStage(): void {
     this.clearTrails(); this.smoke.clear(); this.sparks.clear();
-    this.climaxEnergy = 0; this.climaxPulse = 0;
+    this.climaxEnergy = 0; this.climaxPulse = 0; this.rushAccent = 0; this.bossArrival = 0;
     this.climaxFlash.visible = false; this.climaxMaterial.opacity = 0;
     this.climaxRing.visible = false; this.climaxRingMaterial.opacity = 0;
   }
@@ -183,6 +186,10 @@ export class SkyDancerArcadeProductPresentation {
   emitBurst(position: THREE.Vector3, size: number): void {
     this.smoke.emit(position, size); this.sparks.emit(position, size);
   }
+
+  emitRushAccent(): void { this.rushAccent = 1; }
+
+  emitBossArrival(): void { this.bossArrival = 1; this.climaxEnergy = Math.max(this.climaxEnergy, .34); this.climaxPulse = Math.max(this.climaxPulse, .58); }
 
   emitClimax(position: THREE.Vector3, strength: number): void {
     const power = Math.max(.35, strength);
@@ -196,17 +203,20 @@ export class SkyDancerArcadeProductPresentation {
     this.climaxPulse = 1;
   }
 
-  update(snapshot: SkyDancerArcadeSnapshot, delta: number, camera: THREE.Camera): void {
-    this.updateSpeedStreaks(snapshot, delta);
+  update(snapshot: SkyDancerArcadeSnapshot, delta: number, camera: THREE.Camera, fx?: SkyDancerArcadePresentationFrame): void {
+    this.rushAccent = Math.max(0, this.rushAccent - delta * 4.2);
+    this.bossArrival = Math.max(0, this.bossArrival - delta * 1.55);
+    this.updateSpeedStreaks(snapshot, delta, fx);
     this.right.setFromMatrixColumn(camera.matrixWorld, 0);
     this.updateProjectileTrails(snapshot, delta);
     this.updateClimax(delta, camera);
     this.smoke.update(delta, camera); this.sparks.update(delta, camera);
   }
 
-  private updateSpeedStreaks(snapshot: SkyDancerArcadeSnapshot, delta: number): void {
+  private updateSpeedStreaks(snapshot: SkyDancerArcadeSnapshot, delta: number, fx?: SkyDancerArcadePresentationFrame): void {
     const impactBoost = Math.min(1, this.climaxEnergy);
-    const speed = (snapshot.turboActive ? 205 : 78) + impactBoost * 82;
+    const rush = Math.min(1.35, (fx?.rush ?? 0) + this.rushAccent * .58 + this.bossArrival * .18);
+    const speed = (snapshot.turboActive ? 205 : 78) + impactBoost * 82 + rush * 68;
     for (let i = 0; i < SPEED_STREAK_COUNT; i++) {
       const k = i * 3, j = i * 6;
       let z = this.speedSeeds[k + 2] + speed * delta;
@@ -214,10 +224,11 @@ export class SkyDancerArcadeProductPresentation {
       this.speedSeeds[k + 2] = z;
       const x = this.speedSeeds[k] - snapshot.playerX * 2.5;
       const y = this.speedSeeds[k + 1] - snapshot.playerY * .9;
-      this.speedPositions.set([x, y, z, x, y, z - (snapshot.turboActive ? 13 : 4.2)], j);
+      const length = (snapshot.turboActive ? 13 : 4.2) + rush * 7.2 + this.bossArrival * 2.1;
+      this.speedPositions.set([x, y, z, x, y, z - length], j);
     }
     this.speedGeometry.getAttribute("position").needsUpdate = true;
-    const targetOpacity = (snapshot.turboActive ? .52 : .075) + impactBoost * .24;
+    const targetOpacity = Math.min(.76, (snapshot.turboActive ? .52 : .075) + impactBoost * .24 + rush * .16 + this.bossArrival * .09);
     this.speedMaterial.opacity += (targetOpacity - this.speedMaterial.opacity) * Math.min(1, delta * 8);
   }
 

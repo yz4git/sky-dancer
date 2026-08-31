@@ -17,6 +17,7 @@ import {
   skyDancerArcadeRankForScore,
 } from "../src/sky/arcade/SkyDancerArcadeRuntime";
 import { arcadeCoursePose } from "../src/sky/arcade/SkyDancerArcadeCoursePath";
+import { SkyDancerArcadePresentationDirector } from "../src/sky/arcade/SkyDancerArcadePresentationDirector";
 
 test("arcade mode authors eleven distinct compact product sections", () => {
   assert.equal(SKY_DANCER_ARCADE_STAGES.length, 11);
@@ -471,4 +472,35 @@ test("V8.2 branch stages carry independent course signatures and no decorative h
   assert.match(world, /arcadeDesertV93BreachSide/);
   assert.match(world, /arcade-desert-fortress-citadel/);
   assert.match(world, /const stormSide=index%2===0\?1:-1/);
+});
+
+
+test("V9.5 presentation director stacks speed, near-miss, damage and boss peaks without touching gameplay", async () => {
+  const base = { turboActive: false, nearMisses: 0, enemiesDefeated: 0, bossActive: false, hitSerial: 0, damageSerial: 0, stageSerial: 0, resultSerial: 0 };
+  const director = new SkyDancerArcadePresentationDirector();
+  const turbo = director.update({ ...base, turboActive: true }, base, 1 / 60);
+  assert.ok(turbo.rush > 0);
+  assert.ok(turbo.fovKick >= 5);
+  assert.ok(turbo.bloomBoost > 0);
+
+  director.reset();
+  const near = director.update({ ...base, nearMisses: 1 }, base, 1 / 60);
+  assert.ok(near.nearMiss > .9);
+  assert.ok(near.cameraShake > .1);
+  assert.ok(near.fovKick > 1.5);
+
+  director.reset();
+  const damage = director.update({ ...base, damageSerial: 1 }, base, 1 / 60);
+  assert.ok(damage.damage > .9);
+  assert.ok(damage.cameraShake > .2);
+
+  director.reset();
+  const boss = director.update({ ...base, bossActive: true }, base, 1 / 60);
+  assert.ok(boss.boss > .9);
+  assert.ok(boss.pullback > .4);
+
+  const cinematic = await readFile(new URL("../src/sky/arcade/SkyDancerArcadeCinematicRenderer.ts", import.meta.url), "utf8");
+  assert.match(cinematic, /only two velocity-color taps/);
+  assert.match(cinematic, /rushStrength/);
+  assert.match(cinematic, /damageStrength/);
 });

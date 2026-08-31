@@ -4,6 +4,7 @@ import { SkyDancerArcadeRuntime, type SkyDancerArcadeSnapshot } from "./SkyDance
 import { SkyDancerArcadeEnvironment } from "./SkyDancerArcadeEnvironment";
 import { SkyDancerArcadeProductPresentation } from "./SkyDancerArcadeProductPresentation";
 import { SkyDancerArcadeCinematicRenderer } from "./SkyDancerArcadeCinematicRenderer";
+import { SkyDancerArcadePresentationDirector, type SkyDancerArcadePresentationFrame } from "./SkyDancerArcadePresentationDirector";
 import { arcadeCameraPose } from "./SkyDancerArcadeCamera";
 import { arcadeCoursePose, arcadeCourseRelativePose } from "./SkyDancerArcadeCoursePath";
 import { ARCADE_SUN_DIRECTION, referenceAtmosphere } from "./SkyDancerArcadeReferenceMaterials";
@@ -116,6 +117,8 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
   private previousSnapshot: SkyDancerArcadeSnapshot;
   private currentStageId: string;
   private cameraShake = 0;
+  private readonly presentationDirector = new SkyDancerArcadePresentationDirector();
+  private presentationFx: SkyDancerArcadePresentationFrame = { rush: 0, turboKick: 0, nearMiss: 0, impact: 0, damage: 0, kill: 0, boss: 0, transition: 0, fovKick: 0, cameraShake: 0, pullback: 0, bloomBoost: 0, exposureBoost: 0 };
 
   constructor(
     mount: HTMLElement,
@@ -178,7 +181,7 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
       }
       const snapshot = this.runtime.getSnapshot();
       this.sync(snapshot, snapshot.status === "paused" ? 0 : elapsed);
-      this.cinematic.render(this.scene, this.camera, snapshot.turboActive);
+      this.cinematic.render(this.scene, this.camera, snapshot.turboActive, this.presentationFx);
       this.snapshotClock += elapsed;
       if (this.snapshotClock >= 0.075 || snapshot.status !== this.previousSnapshot.status || snapshot.stageSerial !== this.previousSnapshot.stageSerial) {
         this.snapshotClock = 0;
@@ -192,6 +195,7 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
   };
 
   private sync(snapshot: SkyDancerArcadeSnapshot, delta: number): void {
+    this.presentationFx = this.presentationDirector.update(snapshot, this.previousSnapshot, delta);
     if (snapshot.stage.id !== this.currentStageId) {
       this.currentStageId = snapshot.stage.id;
       this.environment.setStage(snapshot.stage);
@@ -210,7 +214,7 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
     this.syncAudio(snapshot);
     this.updateCamera(snapshot, delta);
     this.camera.updateMatrixWorld();
-    this.presentation.update(snapshot, delta, this.camera);
+    this.presentation.update(snapshot, delta, this.camera, this.presentationFx);
   }
 
   private syncPlayer(snapshot: SkyDancerArcadeSnapshot, delta: number): void {
@@ -473,6 +477,12 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
       this.cameraShake = Math.min(.8, this.cameraShake + .4);
       this.presentation.emitBurst(this.player.position, .45);
     }
+    if (snapshot.nearMisses > this.previousSnapshot.nearMisses) {
+      this.cameraShake = Math.min(.82, this.cameraShake + .11);
+      this.presentation.emitRushAccent();
+    }
+    if (snapshot.turboActive && !this.previousSnapshot.turboActive) this.presentation.emitRushAccent();
+    if (snapshot.bossActive && !this.previousSnapshot.bossActive) this.presentation.emitBossArrival();
   }
 
   /** Small deterministic outdoor reflection map for the ceramic skin and canopy. */
@@ -512,6 +522,11 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
     if (snapshot.hitSerial !== this.previousSnapshot.hitSerial) this.audio.tone(90, 0.08, 0.035, "triangle");
     if (snapshot.damageSerial !== this.previousSnapshot.damageSerial) this.audio.tone(54, 0.22, 0.06, "sawtooth");
     if (snapshot.resultSerial !== this.previousSnapshot.resultSerial) this.audio.tone(660, 0.32, 0.045, "triangle");
+    if (snapshot.turboActive && !this.previousSnapshot.turboActive) this.audio.tone(132, .2, .035, "sawtooth");
+    if (snapshot.nearMisses > this.previousSnapshot.nearMisses) this.audio.tone(1180, .075, .018, "triangle");
+    if (snapshot.enemiesDefeated > this.previousSnapshot.enemiesDefeated) this.audio.tone(236, .08, .018, "triangle");
+    if (snapshot.bossActive && !this.previousSnapshot.bossActive) { this.audio.tone(72, .42, .052, "sawtooth"); this.audio.tone(144, .34, .025, "triangle"); }
+    if (snapshot.stageSerial !== this.previousSnapshot.stageSerial) this.audio.tone(330, .18, .025, "triangle");
     const incoming = snapshot.projectiles.some((projectile) => projectile.owner === "enemy" && projectile.depth > 2.2 && projectile.depth < 30);
     const wasIncoming = this.previousSnapshot.projectiles.some((projectile) => projectile.owner === "enemy" && projectile.depth > 2.2 && projectile.depth < 30);
     if (incoming && !wasIncoming) this.audio.tone(880, 0.12, 0.026, "square");
@@ -526,15 +541,16 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
     // remains visibly off-centre instead of being camera-corrected into a straight tunnel.
     const nearCourse = arcadeCourseRelativePose(snapshot.stage, snapshot.distance, 42);
     const farCourse = arcadeCourseRelativePose(snapshot.stage, snapshot.distance, 132);
-    const shakeX = Math.sin(snapshot.runTimeSeconds * 79) * this.cameraShake * .25;
-    const shakeY = Math.cos(snapshot.runTimeSeconds * 91) * this.cameraShake * .18;
+    const totalShake = this.cameraShake + this.presentationFx.cameraShake;
+    const shakeX = Math.sin(snapshot.runTimeSeconds * 79) * totalShake * .25;
+    const shakeY = Math.cos(snapshot.runTimeSeconds * 91) * totalShake * .18;
     const iceCourse = snapshot.stage.biome === "ice";
     const targetX = pose.x + shakeX - nearCourse.x * .018;
     const targetY = pose.y + shakeY - nearCourse.y * (iceCourse ? 0 : .012);
     this.camera.position.x += (targetX - this.camera.position.x) * Math.min(1, delta * 4.0);
     this.camera.position.y += (targetY - this.camera.position.y) * Math.min(1, delta * 4.0);
-    this.camera.position.z += (pose.z - this.camera.position.z) * Math.min(1, delta * 4.5);
-    this.camera.fov += (pose.fov - this.camera.fov) * Math.min(1, delta * 4.5);
+    this.camera.position.z += (pose.z + this.presentationFx.pullback - this.camera.position.z) * Math.min(1, delta * 4.5);
+    this.camera.fov += (pose.fov + this.presentationFx.fovKick - this.camera.fov) * Math.min(1, delta * 7.2);
     this.camera.updateProjectionMatrix();
     this.camera.lookAt(
       pose.lookX + nearCourse.x * .055 + farCourse.x * .028,
