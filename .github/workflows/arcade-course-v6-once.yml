@@ -1,0 +1,35 @@
+name: Apply Arcade Run curved-course V6 once
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "scripts/apply-arcade-course-v6.py"
+      - ".github/workflows/arcade-course-v6-once.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.13.0
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: python3 scripts/apply-arcade-course-v6.py
+      - run: npm run test:rules
+      - run: npm run lint
+      - run: npm run build:pages
+      - name: Commit V6 course path
+        run: |
+          rm -f scripts/apply-arcade-course-v6.py .github/workflows/arcade-course-v6-once.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Arcade Run V6: full 3D curved course flight" || exit 0
+          git push origin main
