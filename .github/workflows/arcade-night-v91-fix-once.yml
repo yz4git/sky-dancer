@@ -1,0 +1,47 @@
+name: Arcade Night V9.1 Fix Once
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - "scripts/fix-night-v91.py"
+      - ".github/workflows/arcade-night-v91-fix-once.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: arcade-night-v91-fix-once
+  cancel-in-progress: true
+
+jobs:
+  patch:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.13.0
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Apply V9.1 Night reconstruction
+        run: python3 scripts/apply-night-v91.py
+      - name: Fix V9.1 scoped rail material
+        run: python3 scripts/fix-night-v91.py
+      - name: Rules regression
+        run: npm run test:rules
+      - name: Lint
+        run: npm run lint
+      - name: Pages production build
+        run: npm run build:pages
+      - name: Commit V9.1
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/sky/arcade/SkyDancerArcadeReferenceWorld.ts tests/sky-arcade-reference.test.ts
+          git rm -f scripts/apply-night-v91.py scripts/fix-night-v91.py .github/workflows/arcade-night-v91-once.yml .github/workflows/arcade-night-v91-fix-once.yml
+          git commit -m "Arcade Run V9.1: reconstruct Night Metro neon pursuit"
+          git push origin HEAD:main
