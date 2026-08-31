@@ -205,6 +205,24 @@ test("V9.0 floating ruins reads as a broken sky labyrinth instead of a column fo
   world.dispose();
 });
 
+test("V9.2 cloud fleet reads as a sky armada instead of floating T-shaped plates", () => {
+  const scene=new THREE.Scene();
+  const world=new SkyDancerArcadeReferenceWorld(scene);
+  const fleet=SKY_DANCER_ARCADE_STAGES.find((stage)=>stage.id==="cloud-fleet")!;
+  world.setStage(fleet);
+  world.update(fleet.courseSpeed*5,0,0);
+  assert.ok(scene.getObjectByName("arcade-cloud-fleet-flagship") instanceof THREE.Group,
+    "cloud fleet must expose a distant carrier silhouette");
+  const environment=scene.getObjectByName("arcade-course-environment")!;
+  const chunks=environment.children.filter((object)=>object.name.startsWith("arcade-course-chunk-"));
+  assert.equal(chunks.length,8);
+  assert.ok(chunks.every((chunk)=>chunk.userData.arcadeCloudV92SkyArmada===true),
+    "every cloud chunk must author broad warship silhouettes");
+  assert.equal(new Set(chunks.map((chunk)=>chunk.userData.arcadeCloudV92LeadSide)).size,2,
+    "hero warships must alternate sides to create fleet weave rather than a symmetric corridor");
+  world.dispose();
+});
+
 test("V9.1 night metro reads as a neon express pursuit rather than a recolored city river", () => {
   const scene = new THREE.Scene();
   const world = new SkyDancerArcadeReferenceWorld(scene);
