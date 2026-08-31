@@ -22,7 +22,7 @@ const COURSE_PROFILES: Record<SkyDancerArcadeStageDefinition["biome"], CoursePro
   cloud: { turns: 1.62, lateral: 0.92, vertical: 8.6, phase: 1.18 },
   storm: { turns: 2.42, lateral: 1.12, vertical: 9.4, phase: 1.91 },
   desert: { turns: 1.28, lateral: 0.9, vertical: 5.0, phase: 2.46 },
-  ice: { turns: 2.72, lateral: 1.14, vertical: 10.6, phase: 2.98 },
+  ice: { turns: 2.72, lateral: 1.14, vertical: 14.2, phase: 2.98 },
   ruins: { turns: 2.08, lateral: 1.02, vertical: 11.2, phase: 3.57 },
   night: { turns: 2.86, lateral: 1.18, vertical: 7.8, phase: 4.13 },
   volcano: { turns: 2.24, lateral: 1.08, vertical: 12.8, phase: 4.71 },
@@ -109,8 +109,8 @@ function courseCenter(stage: SkyDancerArcadeStageDefinition, distance: number): 
     // Crystal-tunnel slalom: tightly alternating horizontal gates plus pronounced ceiling/floor waves.
     x += (Math.sin(u * TAU * 3.4 + 1.1) - Math.sin(1.1)) * 11;
     x += (Math.sin(u * TAU * 6.8 + 0.2) - Math.sin(0.2)) * 2.8;
-    y += (Math.sin(u * TAU * 2.35 - 0.4) - Math.sin(-0.4)) * 8.5;
-    y += (Math.sin(u * TAU * 4.7 + 0.8) - Math.sin(0.8)) * 3.2;
+    y += (Math.sin(u * TAU * 2.35 - 0.4) - Math.sin(-0.4)) * 13.5;
+    y += (Math.sin(u * TAU * 4.7 + 0.8) - Math.sin(0.8)) * 5.0;
   }
   if (stage.biome === "volcano") {
     // Crater spiral: wide orbital sweeps dive toward the magma core, then pull back to the rim before the boss.
@@ -134,7 +134,7 @@ function courseCenter(stage: SkyDancerArcadeStageDefinition, distance: number): 
 function limitsFor(stage: SkyDancerArcadeStageDefinition) {
   switch (stage.biome) {
     case "canyon": return { yaw: 0.48, pitch: 0.24, bank: 1.48 };
-    case "ice": return { yaw: 0.43, pitch: 0.30, bank: 1.38 };
+    case "ice": return { yaw: 0.43, pitch: 0.33, bank: 1.38 };
     case "volcano": return { yaw: 0.45, pitch: 0.29, bank: 1.44 };
     case "orbit": return { yaw: 0.39, pitch: 0.34, bank: 1.34 };
     default: return { yaw: 0.34, pitch: 0.19, bank: 1.28 };

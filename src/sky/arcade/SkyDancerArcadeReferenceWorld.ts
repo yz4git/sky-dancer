@@ -98,10 +98,10 @@ export class SkyDancerArcadeReferenceWorld {
     }
     for(const cue of this.routeCues){
       const course=arcadeCourseRelativePose(this.stage,distance,cue.depth);
-      const yScale=cue.kind==="ice"?1.18:1;
+      const yScale=cue.kind==="ice"?1.55:1;
       cue.group.position.set(course.x-playerX*.35,course.y*yScale-playerY*.16,-cue.depth);
       cue.group.rotation.y=course.yaw*(cue.kind==="ice"?1.05:.98);
-      cue.group.rotation.x=course.pitch*(cue.kind==="ice"?1.6:.78);
+      cue.group.rotation.x=course.pitch*(cue.kind==="ice"?1.95:.78);
       cue.group.rotation.z=cue.kind==="orbit"
         ? cue.phase+(distance+cue.depth)*.0068
         : course.bank*(cue.kind==="ice"?.18:.08);
@@ -176,10 +176,10 @@ export class SkyDancerArcadeReferenceWorld {
       blending:THREE.AdditiveBlending,depthWrite:false,
     });
     const dark=paint(stage.palette.ground);
-    const count=kind==="ice"?11:10;
+    const count=kind==="ice"?9:10;
     for(let i=0;i<count;i++){
       const cue=new THREE.Group();
-      const depth=kind==="ice"?22+i*31:26+i*43;
+      const depth=kind==="ice"?24+i*40:26+i*43;
       const phase=i*.64;
       if(kind==="ice"){
         cue.name="arcade-ice-wave-cue";

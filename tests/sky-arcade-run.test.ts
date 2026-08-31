@@ -344,7 +344,7 @@ test("V7 signature stages have measurably distinct course geometry", () => {
   assert.ok(signChanges(canyon.map((pose) => pose.yaw)) >= 5, "canyon switchback reversals");
 
   const ice = sample("ice-cavern");
-  assert.ok(span(ice.map((pose) => pose.y)) > 30, "ice tunnel vertical span");
+  assert.ok(span(ice.map((pose) => pose.y)) > 42, "ice tunnel vertical span");
   assert.ok(signChanges(ice.map((pose) => pose.yaw)) >= 6, "ice slalom reversals");
 
   const volcano = sample("volcano-core");
@@ -363,6 +363,9 @@ test("V7.1 chase camera deliberately lags the shared course so bends remain visi
   assert.match(webgl, /farCourse = arcadeCourseRelativePose\(snapshot\.stage, snapshot\.distance, 132\)/);
   assert.match(webgl, /nearCourse\.x \* \.055 \+ farCourse\.x \* \.028/);
   assert.doesNotMatch(webgl, /courseAim\.x \* \.16/);
+  assert.match(webgl, /const iceCourse = snapshot\.stage\.biome === "ice"/);
+  assert.match(webgl, /nearCourse\.y \* \(iceCourse \? \.025 : \.07\)/);
+  assert.match(webgl, /farCourse\.y \* \(iceCourse \? \.004 : \.018\)/);
 });
 
 
