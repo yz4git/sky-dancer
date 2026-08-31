@@ -89,33 +89,27 @@ await page.waitForTimeout(550);
 await page.screenshot({ path: `${outputDir}/01d-near-pass-density.png`, fullPage: true });
 await captureCanvas(`${outputDir}/01d-near-pass-density-canvas.png`);
 
-// Acquire a salvo, keep gun pressure on, and poll fast enough to capture the actual destruction flash.
+// Lock first without gun kills, then release the salvo and let the page itself wait for the first destruction.
 const destroyedBefore = await destroyedCount();
-let destroyedAfter = destroyedBefore;
-let climaxCaptured = false;
-await page.keyboard.down("x");
 await page.keyboard.down("c");
-for (let tick = 0; tick < 26; tick += 1) {
-  await page.waitForTimeout(50);
-  destroyedAfter = await destroyedCount();
-  if (!climaxCaptured && destroyedAfter > destroyedBefore) {
-    climaxCaptured = true;
-    await page.screenshot({ path: `${outputDir}/02c-destroy-climax.png`, fullPage: true });
-    await captureCanvas(`${outputDir}/02c-destroy-climax-canvas.png`);
-  }
-}
+await page.waitForTimeout(1200);
 await page.screenshot({ path: `${outputDir}/02-combat.png`, fullPage: true });
 await captureCanvas(`${outputDir}/02-combat-canvas.png`);
+await page.keyboard.down("x");
 await page.keyboard.up("c");
-for (let tick = 0; tick < 110 && !climaxCaptured; tick += 1) {
-  await page.waitForTimeout(50);
-  destroyedAfter = await destroyedCount();
-  if (destroyedAfter > destroyedBefore) {
-    climaxCaptured = true;
-    await page.screenshot({ path: `${outputDir}/02c-destroy-climax.png`, fullPage: true });
-    await captureCanvas(`${outputDir}/02c-destroy-climax-canvas.png`);
-  }
+let climaxCaptured = false;
+try {
+  await page.waitForFunction((before) => {
+    const match = document.body.innerText.match(/(\d+)\s+DESTROYED/i);
+    return Number(match?.[1] || 0) > before;
+  }, destroyedBefore, { timeout: 8_000, polling: 80 });
+  climaxCaptured = true;
+  await page.screenshot({ path: `${outputDir}/02c-destroy-climax.png`, fullPage: true });
+  await captureCanvas(`${outputDir}/02c-destroy-climax-canvas.png`);
+} catch {
+  // Diagnostics below will turn a missing destruction capture into an explicit audit failure.
 }
+const destroyedAfter = await destroyedCount();
 await page.keyboard.up("x");
 
 await page.waitForTimeout(900);
