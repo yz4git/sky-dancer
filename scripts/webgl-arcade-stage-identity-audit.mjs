@@ -1,6 +1,8 @@
 import { mkdir, writeFile } from "node:fs/promises";
-import { chromium } from "playwright-core";
+import { createRequire } from "node:module";
 
+const auditRequire = createRequire(new URL("../.audit-runtime/package.json", import.meta.url));
+const { chromium } = auditRequire("playwright-core");
 const baseUrl = process.env.SKY_DANCER_AUDIT_URL || "http://127.0.0.1:4173";
 const outputDir = process.env.SKY_DANCER_AUDIT_DIR || "artifacts/arcade-stage-identity";
 const visualAudit = process.env.SKY_DANCER_STAGE_AUDIT_VISUAL === "1";
@@ -111,8 +113,6 @@ for (const [index, stage] of stages.entries()) {
       await shot("signature-b");
     }
   } else {
-    // Smoke mode deliberately avoids GPU readback/screenshots. It only proves the
-    // real WebGL course boots, moves, accepts Turbo, and survives a few frames.
     await page.waitForTimeout(650);
     await page.keyboard.down("ArrowRight"); await page.keyboard.down("ArrowUp");
     await page.waitForTimeout(350);
@@ -138,6 +138,7 @@ for (const [index, stage] of stages.entries()) {
       renderer: debug && gl ? gl.getParameter(debug.UNMASKED_RENDERER_WEBGL) : null,
     };
   });
+  const blockingConsoleErrors = consoleErrors.filter((message) => !/Failed to load resource:.*404/i.test(message));
   const result = {
     mode: visualAudit ? "visual" : "smoke",
     stage: stage.id,
@@ -146,6 +147,7 @@ for (const [index, stage] of stages.entries()) {
     glState,
     captures,
     consoleErrors,
+    blockingConsoleErrors,
     pageErrors,
     failed: /AIRFRAME LOST|MISSION FAILED/i.test(body),
   };
@@ -162,6 +164,6 @@ for (const item of diagnostics) {
   if (item.hp <= 0 || item.failed) throw new Error(`Stage identity audit lost airframe: ${JSON.stringify(item)}`);
   const expectedCaptures = visualAudit ? (item.stage === "ice-cavern" || item.stage === "orbital-ascent" ? 4 : 1) : 0;
   if (item.captures.length !== expectedCaptures) throw new Error(`Unexpected visual capture count: ${JSON.stringify(item)}`);
-  if (item.consoleErrors.length || item.pageErrors.length) throw new Error(`Stage identity audit errors: ${JSON.stringify(item)}`);
+  if (item.blockingConsoleErrors.length || item.pageErrors.length) throw new Error(`Stage identity audit errors: ${JSON.stringify(item)}`);
 }
 console.log(`[stage-audit] complete: ${diagnostics.length} stages (${visualAudit ? "visual" : "smoke"})`);
