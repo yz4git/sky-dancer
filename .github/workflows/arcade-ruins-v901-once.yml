@@ -1,0 +1,45 @@
+name: Arcade Ruins V9.0.1 Once
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - "scripts/apply-ruins-v901.py"
+      - ".github/workflows/arcade-ruins-v901-once.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: arcade-ruins-v901-once
+  cancel-in-progress: true
+
+jobs:
+  patch:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.13.0
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Apply V9.0.1 Ruins readability polish
+        run: python3 scripts/apply-ruins-v901.py
+      - name: Rules regression
+        run: npm run test:rules
+      - name: Lint
+        run: npm run lint
+      - name: Pages production build
+        run: npm run build:pages
+      - name: Commit V9.0.1
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/sky/arcade/SkyDancerArcadeReferenceWorld.ts tests/sky-arcade-reference.test.ts
+          git rm -f scripts/apply-ruins-v901.py .github/workflows/arcade-ruins-v901-once.yml
+          git commit -m "Arcade Run V9.0.1: polish Floating Ruins readability"
+          git push origin HEAD:main
