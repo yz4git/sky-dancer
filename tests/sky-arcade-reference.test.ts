@@ -193,6 +193,8 @@ test("V9.0 floating ruins reads as a broken sky labyrinth instead of a column fo
   const temple=scene.getObjectByName("arcade-ruins-sky-temple");
   assert.ok(temple instanceof THREE.Group,
     "floating ruins must expose one distant sky-temple destination");
+  assert.ok(temple.position.z > -340 && temple.scale.x >= 1.1,
+    "V9.0.1 sky temple must remain large and close enough to read through the stage haze");
   const environment=scene.getObjectByName("arcade-course-environment")!;
   const chunks=environment.children.filter((object)=>object.name.startsWith("arcade-course-chunk-"));
   assert.equal(chunks.length,8);

@@ -347,7 +347,8 @@ export class SkyDancerArcadeReferenceWorld {
     }
     if(stage.biome==="ruins"){
       // V9.0: a single sky temple gives the labyrinth a destination and a recognizable ancient silhouette.
-      const temple=new THREE.Group();temple.name="arcade-ruins-sky-temple";temple.position.set(0,18,-390);
+      const temple=new THREE.Group();temple.name="arcade-ruins-sky-temple";temple.position.set(0,13,-305);
+      temple.scale.setScalar(1.14);
       const stone=paint(stage.palette.primary),gold=paint(stage.palette.secondary);
       const templeGlow=new THREE.MeshBasicMaterial({color:stage.palette.accent,transparent:true,opacity:.82,blending:THREE.AdditiveBlending,depthWrite:false,toneMapped:false});
       const island=mesh(temple,new THREE.ConeGeometry(43,40,9),paint(stage.palette.ground),0,-29,0);island.rotation.x=Math.PI;
@@ -465,18 +466,19 @@ export class SkyDancerArcadeReferenceWorld {
           mesh(group,new THREE.CylinderGeometry(radius,radius-2.2,1.25,9),primary,x,-10.5+lift,hero?-5:9);
           // Only two architectural supports per island; one is always visibly broken or leaning.
           for(let i=0;i<2;i++){
-            const h=hero?(i===0?17:10):(i===0?12:7.5);
-            const column=mesh(group,new THREE.BoxGeometry(2.7,h,2.7),i===0?secondary:primary,x+side*(i===0?-6:6),-1+h*.5+lift,hero?-10+i*13:4+i*10);
-            column.rotation.z=side*(i===1?.2:.035);
-            if(i===1)column.rotation.x=.08*(tier||1);
+            const h=hero?(i===0?18:12):(i===0?11:7);
+            const column=mesh(group,new THREE.BoxGeometry(hero?3.1:2.5,h,hero?3.1:2.5),i===0?secondary:primary,x+side*(i===0?-5.4:5.4),-1+h*.5+lift,hero?-8+i*12:5+i*9);
+            column.rotation.z=side*(i===1?.15:.025);
+            if(i===1)column.rotation.x=.06*(tier||1);
           }
           // Broken bridge/causeway projects toward the route but never spans the entire screen.
           const bridgeX=side*(hero?18.5:31);
           const bridge=mesh(group,new THREE.BoxGeometry(hero?23:15,1.25,6.5),hero?secondary:primary,bridgeX,5.8+lift,hero?1:5);
           bridge.rotation.z=side*(hero?-.12:.08);bridge.rotation.y=side*(hero?.07:-.04);
           mesh(group,new THREE.BoxGeometry(hero?18:10,.2,.36),glow,bridgeX-side*1.5,6.55+lift,hero?-1:3);
-          const lintel=mesh(group,new THREE.BoxGeometry(hero?17:12,2.3,3.2),secondary,x,14+lift,hero?-2:8);
-          lintel.rotation.z=side*(hero?.14:-.09);
+          const lintel=mesh(group,new THREE.BoxGeometry(hero?14.5:10.5,2.5,3.5),secondary,x,13+lift,hero?-2:8);
+          lintel.rotation.z=side*(hero?.1:-.07);
+          if(hero) mesh(group,new THREE.BoxGeometry(9.5,.32,3.7),glow,x-side*.8,14.35+lift,-2.1);
           if(hero){
             const relic=mesh(group,new THREE.OctahedronGeometry(4.4,0),glow,x-side*3,20+lift,-2);
             relic.scale.set(.62,1.55,.62);relic.rotation.z=side*.72;
@@ -598,9 +600,9 @@ export class SkyDancerArcadeReferenceWorld {
         if(j%2===0) mesh(group,new THREE.BoxGeometry(1.1,11+r(j+62)*9,1.1),dark,x+side*2.2,y+6,z+2);
       } else if(stage.biome==="ruins"){
         // V9.0: near passes are broken walls and hanging slabs, not a forest of full-height columns.
-        const ruinsX=side*(36+r(j+71)*13+(j%2)*3);
-        const y=-9+r(j+6)*13;
-        const slab=mesh(group,new THREE.BoxGeometry(8+r(j+15)*7,1.2,8+r(j+25)*6),j%2?dark:primary,ruinsX,y,z);
+        const ruinsX=side*(43+r(j+71)*12+(j%2)*3);
+        const y=-11+r(j+6)*11;
+        const slab=mesh(group,new THREE.BoxGeometry(6+r(j+15)*5.2,1.05,7+r(j+25)*5),j%2?dark:primary,ruinsX,y,z);
         slab.rotation.z=side*(r(j+32)-.5)*.18;slab.rotation.y=side*(r(j+42)-.5)*.12;
         if((j+index)%2===0){
           const h=10+r(j+5)*13;
