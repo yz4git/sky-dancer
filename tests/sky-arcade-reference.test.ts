@@ -143,3 +143,29 @@ test("missile trails and explosions keep a bounded mesh and buffer count under l
   assert.equal(scene.getObjectsByProperty("name", "arcade-projectile-trail").length, 0);
   presentation.dispose(); assert.equal(scene.children.length, 0);
 });
+
+
+test("V8.3 volcano ribbon and orbital helix expose the real course shape on screen", () => {
+  const scene = new THREE.Scene();
+  const world = new SkyDancerArcadeReferenceWorld(scene);
+  const volcano = SKY_DANCER_ARCADE_STAGES.find((stage) => stage.id === "volcano-core")!;
+  world.setStage(volcano);
+  world.update(640, 0, 0);
+  const lava = scene.getObjectsByProperty("name", "arcade-volcano-route-cue");
+  assert.equal(lava.length, 10);
+  assert.ok(Math.max(...lava.map((cue) => cue.position.x)) - Math.min(...lava.map((cue) => cue.position.x)) > 12,
+    "volcano route ribbon should visibly sweep sideways");
+  assert.equal(scene.getObjectsByProperty("name", "arcade-volcano-bent-lava-ribbon").length, 10);
+
+  const orbit = SKY_DANCER_ARCADE_STAGES.find((stage) => stage.id === "orbital-ascent")!;
+  world.setStage(orbit);
+  world.update(720, 0, 0);
+  const helix = scene.getObjectsByProperty("name", "arcade-orbit-helix-cue");
+  assert.equal(helix.length, 10);
+  assert.ok(Math.max(...helix.map((cue) => cue.position.x)) - Math.min(...helix.map((cue) => cue.position.x)) > 10,
+    "orbital helix centers should bend across the view");
+  assert.ok(Math.max(...helix.map((cue) => cue.rotation.z)) - Math.min(...helix.map((cue) => cue.rotation.z)) > 1,
+    "orbital guide arcs should visibly wind around the ascent axis");
+  assert.equal(scene.getObjectsByProperty("name", "arcade-orbit-helix-arc").length, 10);
+  world.dispose();
+});

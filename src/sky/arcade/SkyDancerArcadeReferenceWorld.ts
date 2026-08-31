@@ -15,6 +15,7 @@ const fract = (n: number) => n - Math.floor(n);
 const random = (seed: number) => fract(Math.sin(seed * 127.1 + 311.7) * 43758.5453);
 
 interface CourseChunk { group: THREE.Group; index: number }
+interface RouteCue { group: THREE.Group; depth: number; phase: number; kind: "volcano" | "orbit" }
 
 function paint(color: number, emission = 0): THREE.MeshStandardMaterial {
   return new THREE.MeshStandardMaterial({
@@ -45,6 +46,7 @@ function disposeTree(root: THREE.Object3D): void {
 export class SkyDancerArcadeReferenceWorld {
   private readonly root=new THREE.Group();
   private readonly chunks:CourseChunk[]=[];
+  private readonly routeCues:RouteCue[]=[];
   private stage:SkyDancerArcadeStageDefinition|null=null;
   private water:THREE.ShaderMaterial|null=null;
   private readonly matrixObject=new THREE.Object3D();
@@ -55,7 +57,7 @@ export class SkyDancerArcadeReferenceWorld {
 
   setStage(stage:SkyDancerArcadeStageDefinition):void {
     if(this.stage?.id===stage.id)return;
-    disposeTree(this.root);this.water?.dispose();this.chunks.length=0;
+    disposeTree(this.root);this.water?.dispose();this.chunks.length=0;this.routeCues.length=0;
     this.stage=stage;
     const palette=referenceAtmosphere(stage);
     this.scene.background=palette.zenith;
@@ -73,6 +75,7 @@ export class SkyDancerArcadeReferenceWorld {
       const group=this.buildChunk(stage,i,facade,cloud);
       this.root.add(group);this.chunks.push({group,index:i});
     }
+    this.buildRouteCues(stage);
     this.update(0,0,0);
   }
 
@@ -91,7 +94,58 @@ export class SkyDancerArcadeReferenceWorld {
       chunk.group.rotation.x=course.pitch*.72;
       chunk.group.rotation.z=course.bank*.12;
     }
+    for(const cue of this.routeCues){
+      const course=arcadeCourseRelativePose(this.stage,distance,cue.depth);
+      cue.group.position.set(course.x-playerX*.35,course.y-playerY*.16,-cue.depth);
+      cue.group.rotation.y=course.yaw*.98;
+      cue.group.rotation.x=course.pitch*.78;
+      cue.group.rotation.z=cue.kind==="orbit"
+        ? cue.phase+(distance+cue.depth)*.0068
+        : course.bank*.08;
+    }
     if(this.water)this.water.uniforms.time.value=distance/this.stage.courseSpeed;
+  }
+
+  private buildRouteCues(stage:SkyDancerArcadeStageDefinition):void {
+    if(stage.biome!=="volcano" && stage.biome!=="orbit")return;
+    const kind=stage.biome;
+    const primary=paint(stage.palette.primary);
+    const secondary=paint(stage.palette.secondary);
+    const glow=new THREE.MeshBasicMaterial({
+      color:stage.palette.accent,transparent:true,opacity:kind==="volcano"?.88:.84,
+      blending:THREE.AdditiveBlending,depthWrite:false,
+    });
+    const dark=paint(stage.palette.ground);
+    for(let i=0;i<10;i++){
+      const cue=new THREE.Group();
+      const depth=26+i*43;
+      const phase=i*.64;
+      if(kind==="volcano"){
+        cue.name="arcade-volcano-route-cue";
+        const river=mesh(cue,new THREE.BoxGeometry(20,.26,46),glow,0,-24.3,0);
+        river.name="arcade-volcano-bent-lava-ribbon";
+        for(const side of [-1,1]){
+          const rim=mesh(cue,new THREE.BoxGeometry(3.2,1.1,45),i%2?secondary:primary,side*12,-24.6,0);
+          rim.rotation.z=side*(i%2?.025:-.018);
+          mesh(cue,new THREE.BoxGeometry(.34,.18,43),glow,side*9.9,-23.9,0);
+        }
+        if(i%2===0){
+          const beacon=mesh(cue,new THREE.ConeGeometry(.42,7.5,6),glow,(i%4===0?1:-1)*16,-20,4);
+          beacon.rotation.z=(i%4===0?1:-1)*.16;
+        }
+      }else{
+        cue.name="arcade-orbit-helix-cue";
+        const arcA=mesh(cue,new THREE.TorusGeometry(29,.62,5,30,Math.PI*.78),glow,0,0,0);
+        arcA.name="arcade-orbit-helix-arc";
+        const arcB=mesh(cue,new THREE.TorusGeometry(29,.34,5,24,Math.PI*.58),secondary,0,0,.15);
+        arcB.rotation.z=Math.PI;
+        const node=mesh(cue,new THREE.OctahedronGeometry(2.2,0),glow,29,0,0);
+        node.name="arcade-orbit-helix-node";
+        mesh(cue,new THREE.BoxGeometry(7,.45,18),dark,-34,0,-1);
+      }
+      this.root.add(cue);
+      this.routeCues.push({group:cue,depth,phase,kind});
+    }
   }
 
   private buildBackdrop(stage:SkyDancerArcadeStageDefinition):THREE.Group {
@@ -173,8 +227,7 @@ export class SkyDancerArcadeReferenceWorld {
           for(const side of [-1,1]) mesh(group,new THREE.BoxGeometry(.3,18,6.4),glow,gate+side*17,-8,8);
         }
         if(stage.biome==="volcano"){
-          const lava=mesh(group,new THREE.PlaneGeometry(23,114,8,8),glow,0,-25);
-          lava.rotation.x=-Math.PI/2;
+          // V8.3: the continuous lava corridor is route-following, not one straight plane per rigid chunk.
           for(let i=0;i<5;i++){
             const vent=mesh(group,new THREE.ConeGeometry(.4,11+r(i)*9,6),new THREE.MeshBasicMaterial({color:0xffa743,transparent:true,opacity:.6,depthWrite:false}),r(i+8)*50-25,-15,r(i+4)*100-50);
             vent.rotation.z=.15;
@@ -233,9 +286,9 @@ export class SkyDancerArcadeReferenceWorld {
         break;
       }
       case "orbit":{
-        const ring=mesh(group,new THREE.TorusGeometry(33,1.9,8,48),primary,0,0,0);ring.rotation.z=index*.3;
-        const light=mesh(group,new THREE.TorusGeometry(31,.16,5,48),glow,0,0,.2);
-        light.name="arcade-orbital-guide";
+        // V8.3: avoid a stack of full concentric rings, which flattened the real corkscrew into a straight tunnel.
+        const frame=mesh(group,new THREE.TorusGeometry(33,1.35,7,42,Math.PI*1.12),primary,0,0,0);
+        frame.name="arcade-orbital-open-frame";frame.rotation.z=index*.71;
         for(const side of [-1,1]){
           mesh(group,new THREE.BoxGeometry(4,24,10),secondary,side*36,0,-5);
           mesh(group,new THREE.BoxGeometry(18,.2,32),dark,side*49,5,-5);
