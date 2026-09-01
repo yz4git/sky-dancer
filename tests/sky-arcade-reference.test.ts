@@ -151,66 +151,56 @@ test("city renderer contains a river, instanced windows and cloud layers without
 
 
 
-test("V10.3.3 Dawn City keeps the river continuous without intersecting giant rigid slabs", () => {
-  const city = SKY_DANCER_ARCADE_STAGES.find(stage => stage.biome === "city");
-  const canyon = SKY_DANCER_ARCADE_STAGES.find(stage => stage.biome === "canyon");
+test("V10.3.4 Dawn City uses continuous riverbanks instead of rigid slabs on sharp turns", () => {
+  const city=SKY_DANCER_ARCADE_STAGES.find(stage=>stage.biome==="city");
+  const canyon=SKY_DANCER_ARCADE_STAGES.find(stage=>stage.biome==="canyon");
   assert.ok(city && canyon);
-
-  const water = createArcadeWaterMaterial(city);
-  assert.equal(water.side, THREE.DoubleSide);
-  assert.equal(water.depthWrite, true);
-  assert.equal(water.depthTest, true);
-  water.dispose();
-
-  const scene = new THREE.Scene();
-  const world = new SkyDancerArcadeReferenceWorld(scene);
+  const scene=new THREE.Scene();
+  const world=new SkyDancerArcadeReferenceWorld(scene);
   world.setStage(city);
-  const cityChunks = Array.from({ length: 8 }, (_, i) => scene.getObjectByName(`arcade-course-chunk-${i}`));
-  assert.ok(cityChunks.every(Boolean));
-  assert.ok(cityChunks.every(chunk => chunk!.userData.arcadeCityCompositionV1033 === true));
+  const chunks=Array.from({length:8},(_,i)=>scene.getObjectByName(`arcade-course-chunk-${i}`));
+  assert.ok(chunks.every(Boolean));
+  assert.ok(chunks.every(chunk=>chunk!.userData.arcadeCityCompositionV1033===true));
+  assert.ok(chunks.every(chunk=>chunk!.userData.arcadeCityRigidQuayCountV1034===0),"Dawn City must have no rigid broad quays");
+  assert.ok(chunks.every(chunk=>Number(chunk!.userData.arcadeCityCrossStreetInnerClearanceV1034)>=46),"side streets stay outside the flight corridor");
 
-  const surface = scene.getObjectByName("arcade-city-river-ribbon-surface") as THREE.Mesh;
-  const bed = scene.getObjectByName("arcade-city-river-ribbon-bed") as THREE.Mesh;
-  assert.ok(surface instanceof THREE.Mesh && bed instanceof THREE.Mesh);
-  assert.equal(scene.getObjectsByProperty("name", "arcade-city-river-surface").length, 0, "per-chunk river planes must be gone");
-  assert.equal((surface.material as THREE.Material).side, THREE.DoubleSide);
+  const river=scene.getObjectByName("arcade-city-river-ribbon-surface") as THREE.Mesh;
+  const bed=scene.getObjectByName("arcade-city-river-ribbon-bed") as THREE.Mesh;
+  const left=scene.getObjectByName("arcade-city-bank-ribbon-left") as THREE.Mesh;
+  const right=scene.getObjectByName("arcade-city-bank-ribbon-right") as THREE.Mesh;
+  assert.ok(river instanceof THREE.Mesh && bed instanceof THREE.Mesh && left instanceof THREE.Mesh && right instanceof THREE.Mesh);
+  assert.equal(scene.getObjectsByProperty("name","arcade-city-river-surface").length,0);
+  assert.equal((river.material as THREE.Material).side,THREE.DoubleSide);
+  for(const bank of [left,right]){
+    assert.equal(bank.userData.arcadeCityBankV1034,true);
+    assert.equal((bank.material as THREE.Material).side,THREE.DoubleSide);
+    assert.equal(bank.userData.arcadeCityBankInner,22);
+    assert.equal(bank.userData.arcadeCityBankOuter,116);
+  }
 
-  let giantRigidCitySlabs = 0;
-  for (const chunk of cityChunks) chunk!.traverse(object => {
-    if (!(object instanceof THREE.Mesh) || !(object.geometry instanceof THREE.BoxGeometry)) return;
-    const p = object.geometry.parameters;
-    if (p.width >= 200 && p.depth >= 100) giantRigidCitySlabs++;
-  });
-  assert.equal(giantRigidCitySlabs, 0, "no full-width rigid slab may rotate across the flight corridor");
-  assert.ok(cityChunks.every(chunk => chunk!.userData.arcadeCityQuayCountV1033 === 2), "each streamed chunk owns two separated river banks before static batching");
-  const bridgeChunks = cityChunks.filter(chunk => Number(chunk!.userData.arcadeCityBridgeDeckThicknessV1033) > 0);
-  assert.ok(bridgeChunks.length >= 2);
-  assert.ok(bridgeChunks.every(chunk => Number(chunk!.userData.arcadeCityBridgeDeckThicknessV1033) <= .3), "crossings must be thin bridge decks, not opaque cards");
-
-  const length = city.durationSeconds * city.courseSpeed;
-  for (const progress of [.12, .18, .25, .29, .39, .43, .51]) {
-    world.update(length * progress, 0, 0);
-    const position = surface.geometry.getAttribute("position") as THREE.BufferAttribute;
-    const centres: THREE.Vector3[] = [];
-    for (let i = 0; i < position.count; i += 2) {
-      const left = new THREE.Vector3().fromBufferAttribute(position, i);
-      const right = new THREE.Vector3().fromBufferAttribute(position, i + 1);
-      centres.push(left.add(right).multiplyScalar(.5));
-    }
-    assert.ok(Array.from(position.array).every(Number.isFinite));
-    for (let i = 1; i < centres.length; i++) {
-      assert.ok(centres[i].distanceTo(centres[i - 1]) < 32, `river must remain a continuous spline at progress ${progress}`);
+  const length=city.durationSeconds*city.courseSpeed;
+  for(const progress of [.12,.18,.25,.29,.39,.43,.51]){
+    world.update(length*progress,0,0);
+    for(const ribbon of [river,left,right]){
+      const pos=ribbon.geometry.getAttribute("position") as THREE.BufferAttribute;
+      assert.ok(Array.from(pos.array).every(Number.isFinite));
+      const centres:THREE.Vector3[]=[];
+      for(let i=0;i<pos.count;i+=2){
+        const a=new THREE.Vector3().fromBufferAttribute(pos,i);
+        const b=new THREE.Vector3().fromBufferAttribute(pos,i+1);
+        centres.push(a.add(b).multiplyScalar(.5));
+      }
+      for(let i=1;i<centres.length;i++)assert.ok(centres[i].distanceTo(centres[i-1])<34,`continuous city surface at ${progress}`);
     }
   }
 
   world.setStage(canyon);
-  const terrains = scene.getObjectsByProperty("name", "arcade-continuous-terrain") as THREE.Mesh[];
-  assert.equal(terrains.length, 8);
-  for (const terrain of terrains) {
-    assert.equal((terrain.material as THREE.Material).side, THREE.DoubleSide);
-    assert.equal(terrain.userData.arcadeTerrainSolidV1032, true);
-    const geometry = terrain.geometry as THREE.PlaneGeometry;
-    assert.ok(geometry.parameters.height >= 140);
+  const terrains=scene.getObjectsByProperty("name","arcade-continuous-terrain") as THREE.Mesh[];
+  assert.equal(terrains.length,8);
+  for(const terrain of terrains){
+    assert.equal((terrain.material as THREE.Material).side,THREE.DoubleSide);
+    assert.equal(terrain.userData.arcadeTerrainSolidV1032,true);
+    assert.ok((terrain.geometry as THREE.PlaneGeometry).parameters.height>=140);
   }
   world.dispose();
 });

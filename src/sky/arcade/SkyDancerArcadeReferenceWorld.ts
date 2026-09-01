@@ -52,6 +52,7 @@ export class SkyDancerArcadeReferenceWorld {
   private iceRibbon:{ outer:THREE.Mesh; core:THREE.Mesh }|null=null;
   private volcanoRibbon:{ outer:THREE.Mesh; core:THREE.Mesh }|null=null;
   private cityRiver:{ surface:THREE.Mesh; bed:THREE.Mesh }|null=null;
+  private cityBanks:{ left:THREE.Mesh; right:THREE.Mesh }|null=null;
   private stage:SkyDancerArcadeStageDefinition|null=null;
   private water:THREE.ShaderMaterial|null=null;
   private readonly matrixObject=new THREE.Object3D();
@@ -62,7 +63,7 @@ export class SkyDancerArcadeReferenceWorld {
 
   setStage(stage:SkyDancerArcadeStageDefinition):void {
     if(this.stage?.id===stage.id)return;
-    disposeTree(this.root);this.water?.dispose();this.chunks.length=0;this.routeCues.length=0;this.iceRibbon=null;this.volcanoRibbon=null;this.cityRiver=null;
+    disposeTree(this.root);this.water?.dispose();this.chunks.length=0;this.routeCues.length=0;this.iceRibbon=null;this.volcanoRibbon=null;this.cityRiver=null;this.cityBanks=null;
     this.stage=stage;
     const palette=referenceAtmosphere(stage);
     this.scene.background=palette.zenith;
@@ -80,7 +81,7 @@ export class SkyDancerArcadeReferenceWorld {
       const group=this.buildChunk(stage,i,facade,cloud);
       this.root.add(group);this.chunks.push({group,index:i});
     }
-    if(stage.biome==="city")this.buildCityRiver(stage);
+    if(stage.biome==="city"){this.buildCityRiver(stage);this.buildCityBanks(stage);}
     this.buildRouteCues(stage);
     if(stage.biome==="ice")this.buildIceRibbon(stage);
     if(stage.biome==="volcano")this.buildVolcanoRibbon(stage);
@@ -103,6 +104,7 @@ export class SkyDancerArcadeReferenceWorld {
       chunk.group.rotation.z=course.bank*.38;
     }
     if(this.cityRiver)this.updateCityRiver(distance,playerX,playerY);
+    if(this.cityBanks)this.updateCityBanks(distance,playerX,playerY);
     for(const cue of this.routeCues){
       const course=arcadeCourseRelativePose(this.stage,distance,cue.depth);
       const cueAhead=arcadeCourseRelativePose(this.stage,distance,cue.depth+24);
@@ -171,6 +173,55 @@ export class SkyDancerArcadeReferenceWorld {
     };
     update(this.cityRiver.bed,43,-.48);
     update(this.cityRiver.surface,40,0);
+  }
+
+  private makeCityBankRibbon(side:-1|1,stage:SkyDancerArcadeStageDefinition):THREE.Mesh {
+    const samples=40;
+    const positions=new Float32Array(samples*2*3);
+    const indices:number[]=[];
+    for(let i=0;i<samples-1;i++){const a=i*2;indices.push(a,a+2,a+1,a+1,a+2,a+3);}
+    const geometry=new THREE.BufferGeometry();
+    const attribute=new THREE.BufferAttribute(positions,3);attribute.setUsage(THREE.DynamicDrawUsage);
+    geometry.setAttribute("position",attribute);geometry.setIndex(indices);
+    const material=new THREE.MeshBasicMaterial({
+      color:new THREE.Color(stage.palette.ground).multiplyScalar(.82),side:THREE.DoubleSide,depthWrite:true,depthTest:true,
+    });
+    const ribbon=new THREE.Mesh(geometry,material);
+    ribbon.name=side<0?"arcade-city-bank-ribbon-left":"arcade-city-bank-ribbon-right";
+    ribbon.frustumCulled=false;ribbon.renderOrder=0;this.root.add(ribbon);
+    ribbon.userData.arcadeCityBankV1034=true;
+    ribbon.userData.arcadeCityBankInner=22;
+    ribbon.userData.arcadeCityBankOuter=116;
+    return ribbon;
+  }
+
+  private buildCityBanks(stage:SkyDancerArcadeStageDefinition):void {
+    this.cityBanks={left:this.makeCityBankRibbon(-1,stage),right:this.makeCityBankRibbon(1,stage)};
+  }
+
+  private updateCityBanks(distance:number,playerX:number,playerY:number):void {
+    if(!this.stage || !this.cityBanks)return;
+    const update=(ribbon:THREE.Mesh,side:-1|1)=>{
+      const attribute=ribbon.geometry.getAttribute("position") as THREE.BufferAttribute;
+      const array=attribute.array as Float32Array;
+      const samples=attribute.count/2;
+      const inner=side*22,outer=side*116;
+      for(let i=0;i<samples;i++){
+        const depth=8+i*13.6;
+        const course=arcadeCourseRelativePose(this.stage!,distance,depth);
+        const cx=course.x-playerX*.35;
+        const cy=course.y-playerY*.16-25.82;
+        const cz=-depth;
+        const write=(offset:number,base:number)=>{
+          array[base]=cx+Math.cos(course.yaw)*offset;
+          array[base+1]=cy+course.bank*offset*.22;
+          array[base+2]=cz-Math.sin(course.yaw)*offset;
+        };
+        const base=i*6;write(inner,base);write(outer,base+3);
+      }
+      attribute.needsUpdate=true;
+    };
+    update(this.cityBanks.left,-1);update(this.cityBanks.right,1);
   }
 
   private makeIceRibbonMesh(stage:SkyDancerArcadeStageDefinition,width:number,name:string,opacity:number):THREE.Mesh {
@@ -980,12 +1031,11 @@ export class SkyDancerArcadeReferenceWorld {
     // V10.3.3 composition cleanup: never rotate one full-width city slab through the camera.
     // The river is a root-level spline ribbon; rigid chunks own only the two river-bank districts.
     group.userData.arcadeCityCompositionV1033=true;
-    group.userData.arcadeCityQuayCountV1033=2;
+    // V10.3.4: Dawn City ground is no longer a pair of rigid, rotating 124m slabs.
+    // Only Night Metro keeps rigid district bases; Dawn City owns two root-level continuous bank ribbons.
+    group.userData.arcadeCityRigidQuayCountV1034=stage.biome==="night"?2:0;
     const cityFloor=paint(stage.biome==="night"?0x111d31:0x213746);
-    for(const side of [-1,1]){
-      const quay=mesh(group,new THREE.BoxGeometry(96,1,CITY_QUAY_DEPTH),cityFloor,side*72,-26);
-      quay.userData.arcadeCityQuayV1033=true;
-    }
+    if(stage.biome==="night")for(const side of [-1,1])mesh(group,new THREE.BoxGeometry(96,1,CITY_QUAY_DEPTH),cityFloor,side*72,-26);
     if(stage.biome==="night"){
       const metroBed=paint(0x080e20),metroGlow=paint(stage.palette.accent,stage.palette.accent);
       mesh(group,new THREE.BoxGeometry(38,.32,CITY_QUAY_DEPTH),metroBed,0,-25.2,0);
@@ -999,7 +1049,9 @@ export class SkyDancerArcadeReferenceWorld {
       mesh(group,new THREE.BoxGeometry(2.4,1.3,CITY_QUAY_DEPTH),bank,side*21,-25.1);
       mesh(group,new THREE.BoxGeometry(3.5,.12,CITY_QUAY_DEPTH),road,side*24,-24.32);
       mesh(group,new THREE.BoxGeometry(.07,.06,CITY_QUAY_DEPTH-2),light,side*24,-24.22);
-      for(let r=0;r<4;r++)mesh(group,new THREE.BoxGeometry(83,.14,2.2),road,side*66,-24.6,-53+r*28);
+      // V10.3.4: side streets stop well outside the river corridor so a yawed chunk cannot form a giant diagonal card.
+      group.userData.arcadeCityCrossStreetInnerClearanceV1034=46;
+      for(let r=0;r<4;r++)mesh(group,new THREE.BoxGeometry(48,.14,2.2),road,side*70,-24.6,-53+r*28);
     }
     if(index%3===1){
       group.userData.arcadeCityBridgeDeckThicknessV1033=.26;
