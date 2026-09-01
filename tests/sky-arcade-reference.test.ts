@@ -195,13 +195,27 @@ test("V10.3.4 Dawn City uses continuous riverbanks instead of rigid slabs on sha
   }
 
   world.setStage(canyon);
-  const terrains=scene.getObjectsByProperty("name","arcade-continuous-terrain") as THREE.Mesh[];
-  assert.equal(terrains.length,8);
-  for(const terrain of terrains){
-    assert.equal((terrain.material as THREE.Material).side,THREE.DoubleSide);
-    assert.equal(terrain.userData.arcadeTerrainSolidV1032,true);
-    assert.ok((terrain.geometry as THREE.PlaneGeometry).parameters.height>=140);
+  const terrain=scene.getObjectByName("arcade-continuous-terrain-ribbon") as THREE.Mesh;
+  assert.ok(terrain instanceof THREE.Mesh);
+  assert.equal(terrain.userData.arcadeContinuousTerrainV1037,true);
+  assert.equal((terrain.material as THREE.Material).side,THREE.DoubleSide);
+  assert.equal(Number(terrain.userData.arcadeTerrainDepthSamples),42);
+  assert.equal(Number(terrain.userData.arcadeTerrainLateralSamples),25);
+  assert.equal(Number(terrain.userData.arcadeTerrainWidth),260);
+  const canyonLength=canyon.durationSeconds*canyon.courseSpeed;
+  for(const progress of [.12,.25,.39,.51]){
+    world.update(canyonLength*progress,.8,-.6);
+    const pos=terrain.geometry.getAttribute("position") as THREE.BufferAttribute;
+    assert.ok(Array.from(pos.array).every(Number.isFinite),`continuous terrain remains finite at ${progress}`);
+    const lateralSamples=Number(terrain.userData.arcadeTerrainLateralSamples);
+    const centres:THREE.Vector3[]=[];
+    for(let d=0;d<Number(terrain.userData.arcadeTerrainDepthSamples);d++){
+      const i=d*lateralSamples+Math.floor(lateralSamples/2);
+      centres.push(new THREE.Vector3().fromBufferAttribute(pos,i));
+    }
+    for(let i=1;i<centres.length;i++)assert.ok(centres[i].distanceTo(centres[i-1])<25,`terrain centerline follows one continuous spline at ${progress}`);
   }
+  assert.equal(scene.getObjectsByProperty("name","arcade-continuous-terrain").length,0,"legacy rigid terrain slabs must be gone");
   world.dispose();
 });
 

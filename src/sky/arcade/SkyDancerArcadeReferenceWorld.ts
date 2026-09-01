@@ -53,6 +53,7 @@ export class SkyDancerArcadeReferenceWorld {
   private volcanoRibbon:{ outer:THREE.Mesh; core:THREE.Mesh }|null=null;
   private cityRiver:{ surface:THREE.Mesh; bed:THREE.Mesh }|null=null;
   private cityBanks:{ left:THREE.Mesh; right:THREE.Mesh }|null=null;
+  private terrainRibbon:THREE.Mesh|null=null;
   private backdrop:THREE.Group|null=null;
   private stage:SkyDancerArcadeStageDefinition|null=null;
   private water:THREE.ShaderMaterial|null=null;
@@ -64,7 +65,7 @@ export class SkyDancerArcadeReferenceWorld {
 
   setStage(stage:SkyDancerArcadeStageDefinition):void {
     if(this.stage?.id===stage.id)return;
-    disposeTree(this.root);this.water?.dispose();this.chunks.length=0;this.routeCues.length=0;this.iceRibbon=null;this.volcanoRibbon=null;this.cityRiver=null;this.cityBanks=null;this.backdrop=null;
+    disposeTree(this.root);this.water?.dispose();this.chunks.length=0;this.routeCues.length=0;this.iceRibbon=null;this.volcanoRibbon=null;this.cityRiver=null;this.cityBanks=null;this.terrainRibbon=null;this.backdrop=null;
     this.stage=stage;
     const palette=referenceAtmosphere(stage);
     this.scene.background=palette.zenith;
@@ -86,6 +87,7 @@ export class SkyDancerArcadeReferenceWorld {
       const group=this.buildChunk(stage,i,facade,cloud);
       this.root.add(group);this.chunks.push({group,index:i});
     }
+    if(["canyon","desert","ice","volcano"].includes(stage.biome))this.buildContinuousTerrain(stage);
     if(stage.biome==="city"){this.buildCityRiver(stage);this.buildCityBanks(stage);}
     this.buildRouteCues(stage);
     if(stage.biome==="ice")this.buildIceRibbon(stage);
@@ -114,6 +116,7 @@ export class SkyDancerArcadeReferenceWorld {
       chunk.group.rotation.z=course.bank*bankScale;
       chunk.group.userData.arcadeUnifiedCourseFrameV1036=true;
     }
+    if(this.terrainRibbon)this.updateContinuousTerrain(distance,playerX,playerY);
     if(this.cityRiver)this.updateCityRiver(distance,playerX,playerY);
     if(this.cityBanks)this.updateCityBanks(distance,playerX,playerY);
     for(const cue of this.routeCues){
@@ -135,6 +138,66 @@ export class SkyDancerArcadeReferenceWorld {
     if(this.iceRibbon)this.updateIceRibbon(distance,playerX,playerY);
     if(this.volcanoRibbon)this.updateVolcanoRibbon(distance,playerX,playerY);
     if(this.water)this.water.uniforms.time.value=distance/this.stage.courseSpeed;
+  }
+
+  private buildContinuousTerrain(stage:SkyDancerArcadeStageDefinition):void {
+    const depthSamples=42,lateralSamples=25,width=260;
+    const geometry=new THREE.BufferGeometry();
+    const positions=new Float32Array(depthSamples*lateralSamples*3);
+    const colors=new Float32Array(depthSamples*lateralSamples*3);
+    const indices:number[]=[];
+    for(let d=0;d<depthSamples-1;d++)for(let l=0;l<lateralSamples-1;l++){
+      const a=d*lateralSamples+l,b=a+lateralSamples;
+      indices.push(a,b,a+1,a+1,b,b+1);
+    }
+    const position=new THREE.BufferAttribute(positions,3);position.setUsage(THREE.DynamicDrawUsage);
+    const color=new THREE.BufferAttribute(colors,3);color.setUsage(THREE.DynamicDrawUsage);
+    geometry.setAttribute("position",position);geometry.setAttribute("color",color);geometry.setIndex(indices);
+    const material=new THREE.MeshStandardMaterial({
+      color:0xffffff,vertexColors:true,roughness:.86,metalness:.04,side:THREE.DoubleSide,depthWrite:true,depthTest:true,
+    });
+    const terrain=new THREE.Mesh(geometry,material);
+    terrain.name="arcade-continuous-terrain-ribbon";terrain.frustumCulled=false;terrain.renderOrder=0;
+    terrain.userData.arcadeContinuousTerrainV1037=true;
+    terrain.userData.arcadeTerrainBiome=stage.biome;
+    terrain.userData.arcadeTerrainDepthSamples=depthSamples;terrain.userData.arcadeTerrainLateralSamples=lateralSamples;terrain.userData.arcadeTerrainWidth=width;
+    this.root.add(terrain);this.terrainRibbon=terrain;this.updateContinuousTerrain(0,0,0);
+  }
+
+  private updateContinuousTerrain(distance:number,playerX:number,playerY:number):void {
+    if(!this.stage||!this.terrainRibbon)return;
+    const terrain=this.terrainRibbon;
+    const depthSamples=Number(terrain.userData.arcadeTerrainDepthSamples);
+    const lateralSamples=Number(terrain.userData.arcadeTerrainLateralSamples);
+    const width=Number(terrain.userData.arcadeTerrainWidth);
+    const position=terrain.geometry.getAttribute("position") as THREE.BufferAttribute;
+    const color=terrain.geometry.getAttribute("color") as THREE.BufferAttribute;
+    const p=position.array as Float32Array,cArray=color.array as Float32Array;
+    const low=new THREE.Color(this.stage.palette.ground),high=new THREE.Color(this.stage.palette.secondary),c=new THREE.Color();
+    const bankScale=this.stage.biome==="desert"?.1:this.stage.biome==="ice"?.12:.16;
+    for(let d=0;d<depthSamples;d++){
+      // Start slightly behind the player so the floor remains continuous, but construct every row directly on the spline.
+      // No full-width rigid plane is ever yawed through the camera.
+      const depth=-12+d*13.8;
+      const course=arcadeCourseRelativePose(this.stage,distance,depth);
+      const cosYaw=Math.cos(course.yaw),sinYaw=Math.sin(course.yaw);
+      const worldDepth=distance+depth;
+      for(let l=0;l<lateralSamples;l++){
+        const lateral=(l/(lateralSamples-1)-.5)*width;
+        const ridge=Math.max(0,Math.abs(lateral)-16);
+        const ripple=Math.sin(worldDepth*.028+lateral*.014)*Math.cos(lateral*.13-worldDepth*.008);
+        const micro=Math.sin(worldDepth*.16+lateral*.21)*Math.cos(lateral*.31-worldDepth*.09);
+        const h=-27+Math.pow(ridge,.82)*(this.stage.biome==="desert"?.6:1.45)+(3+ridge*.07)*ripple+micro*(this.stage.biome==="desert"?.7:1.45);
+        const bankY=Math.tan(course.bank*bankScale)*lateral;
+        const i=(d*lateralSamples+l)*3;
+        p[i]=course.x-playerX*.35+cosYaw*lateral;
+        p[i+1]=course.y-playerY*.16+h+bankY;
+        p[i+2]=-depth-sinYaw*lateral;
+        c.copy(low).lerp(high,Math.min(.9,Math.max(0,(h+29)/77)));
+        cArray[i]=c.r;cArray[i+1]=c.g;cArray[i+2]=c.b;
+      }
+    }
+    position.needsUpdate=true;color.needsUpdate=true;terrain.geometry.computeVertexNormals();
   }
 
   private makeCityRiverRibbon(width:number,name:string,material:THREE.Material,renderOrder:number):THREE.Mesh {
@@ -580,14 +643,6 @@ export class SkyDancerArcadeReferenceWorld {
     if(stage.biome==="city" || stage.biome==="night"){
       this.addCity(group,stage,index,facade);
       if(stage.biome==="night")this.addNightMetroPursuit(group,index,primary,secondary,dark,glow);
-    } else if(!["cloud","storm","orbit","citadel","ruins"].includes(stage.biome)){
-      const ground=this.buildTerrain(stage,index);
-      const groundMaterial=primary.clone();groundMaterial.vertexColors=true;groundMaterial.color.setHex(0xffffff);
-      // V10.3.2: steep course pitch/bank can expose the mathematical underside of the terrain plane.
-      // Keep it solid from either side, while the widened surface overlaps the neighbouring rigid chunk.
-      groundMaterial.side=THREE.DoubleSide;groundMaterial.depthWrite=true;groundMaterial.depthTest=true;
-      const terrain=mesh(group,ground,groundMaterial);terrain.name="arcade-continuous-terrain";
-      terrain.userData.arcadeTerrainSolidV1032=true;
     }
     if(!["orbit","citadel"].includes(stage.biome))this.addClouds(group,stage,index,cloud);
     const r=(i:number)=>random(index*37+stage.order*139+i*3.71);
@@ -842,7 +897,9 @@ export class SkyDancerArcadeReferenceWorld {
     for(const side of [-1,1])for(let j=0;j<5;j++){
       const z=-51+j*24+r(j+41)*6;
       const x=side*(25+r(j+71)*8.5);
-      const volcanoX=side*(33+r(j+71)*8);
+      // V10.3.7: canyon fins need more screen-space clearance than city towers; sharp spline yaw otherwise lets a near fin wipe the phone display.
+      const canyonX=side*(34+r(j+71)*10);
+      const volcanoX=side*(37+r(j+71)*9);
       const iceX=side*(35+r(j+71)*11.5);
       if(stage.biome==="city"){
         const h=25+r(j+11)*31;
@@ -874,7 +931,7 @@ export class SkyDancerArcadeReferenceWorld {
         }
       } else if(stage.biome==="canyon" || stage.biome==="volcano"){
         const h=stage.biome==="volcano"?20+r(j+9)*27:24+r(j+9)*36;
-        const rockX=stage.biome==="volcano"?volcanoX:x;
+        const rockX=stage.biome==="volcano"?volcanoX:canyonX;
         const fin=mesh(group,new THREE.CylinderGeometry(1.8+r(j+7)*2.7,4.6+r(j+17)*3.3,h,5,2),j%2?secondary:primary,rockX,-26+h/2,z);
         fin.rotation.z=side*(.06+r(j+27)*.16);
         fin.rotation.y=r(j+37)*Math.PI;
@@ -1102,25 +1159,6 @@ export class SkyDancerArcadeReferenceWorld {
     cloud.computeBoundingSphere();group.add(cloud);
   }
 
-  private buildTerrain(stage:SkyDancerArcadeStageDefinition,index:number):THREE.BufferGeometry {
-    // V10.3.2: 32m of extra depth overlaps neighbouring pitched/banked chunks instead of leaving a slit.
-    const g=new THREE.PlaneGeometry(260,SURFACE_CHUNK_DEPTH,48,36);g.rotateX(-Math.PI/2);
-    const position=g.getAttribute("position") as THREE.BufferAttribute;
-    const color=new Float32Array(position.count*3);
-    const low=new THREE.Color(stage.palette.ground),high=new THREE.Color(stage.palette.secondary),c=new THREE.Color();
-    for(let i=0;i<position.count;i++){
-      const x=position.getX(i),z=position.getZ(i)+index*CHUNK_LENGTH;
-      const ridge=Math.max(0,Math.abs(x)-16);
-      const ripple=Math.sin(z*.028+x*.014)*Math.cos(x*.13-z*.008);
-      const micro=Math.sin(z*.16+x*.21)*Math.cos(x*.31-z*.09);
-      const h=-27+Math.pow(ridge,.82)*(stage.biome==="desert"?.6:1.45)+(3+ridge*.07)*ripple+micro*(stage.biome==="desert"?.7:1.45);
-      position.setY(i,h);
-      c.copy(low).lerp(high,Math.min(.9,(h+29)/77));
-      color.set([c.r,c.g,c.b],i*3);
-    }
-    g.setAttribute("color",new THREE.BufferAttribute(color,3));g.computeVertexNormals();
-    return g;
-  }
 
   dispose():void {
     disposeTree(this.root);this.water?.dispose();this.scene.remove(this.root);this.chunks.length=0;
