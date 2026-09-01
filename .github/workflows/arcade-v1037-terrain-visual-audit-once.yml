@@ -1,0 +1,69 @@
+name: Arcade V10.3.7 Terrain Visual Audit
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/arcade-v1037-terrain-visual-audit-once.yml"
+
+permissions:
+  contents: write
+
+env:
+  SKY_DANCER_CHROME_PATH: /usr/bin/google-chrome
+
+jobs:
+  terrain-audit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.13.0
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Install isolated browser controller
+        run: |
+          rm -rf .audit-runtime
+          mkdir -p .audit-runtime
+          printf '{"private":true,"type":"commonjs"}\n' > .audit-runtime/package.json
+          npm install --prefix .audit-runtime --no-package-lock --no-save --ignore-scripts --no-audit --no-fund playwright-core@1.55.0
+          google-chrome --version
+      - name: Inject deterministic V10.3.7 terrain audit bridge
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('app/SkyDancerArcadeMode.tsx');s=p.read_text()
+          needle='''        demoRef.current = demo;\n      }'''
+          insert='''        demoRef.current = demo;\n        const auditDemo = demo as SkyDancerArcadeWebGLDemo;\n        (globalThis as unknown as { __skyDancerV1037TerrainAudit?: { sample: (params: { stageId: string; progress: number; moveX: number; moveY: number; turbo: boolean; label: string }) => unknown } }).__skyDancerV1037TerrainAudit = {\n          sample: ({ stageId, progress, moveX, moveY, turbo, label }) => {\n            const target = auditDemo as unknown as Record<string, any>;\n            cancelAnimationFrame(Number(target.animationFrame) || 0); target.animationFrame = 0;\n            const runtime = target.runtime as Record<string, any>;\n            const stage = skyDancerArcadeStageById(stageId as any);\n            runtime.stage = stage; runtime.status = "running"; runtime.statusBeforePause = "running";\n            runtime.stageTime = stage.durationSeconds * progress; runtime.distance = runtime.stageTime * stage.courseSpeed; runtime.runTimeSeconds = runtime.stageTime;\n            runtime.playerHp = 100; runtime.playerX = 0; runtime.playerY = 0; runtime.enemies = []; runtime.projectiles = []; runtime.hazards = []; runtime.impactEvents = [];\n            runtime.setMove(moveX,moveY); runtime.setTurbo(turbo); runtime.setFire(false); runtime.setLock(false);\n            let snapshot = runtime.getSnapshot(); target.previousSnapshot = snapshot;\n            for (let i=0;i<24;i+=1) { runtime.step(1/60); runtime.enemies=[]; runtime.projectiles=[]; runtime.hazards=[]; runtime.impactEvents=[]; runtime.playerHp=100; snapshot=runtime.getSnapshot(); target.sync(snapshot,1/60); target.previousSnapshot=snapshot; }\n            target.camera.updateMatrixWorld(); target.cinematic.render(target.scene,target.camera,snapshot.turboActive,target.presentationFx); target.onSnapshot(snapshot);\n            const terrain = target.scene.getObjectByName("arcade-continuous-terrain-ribbon") as any;\n            const positions = terrain?.geometry?.getAttribute?.("position");\n            const finite = positions ? Array.from(positions.array as ArrayLike<number>).every(Number.isFinite) : false;\n            return {\n              label, stageId:snapshot.stage.id, distance:snapshot.distance, playerX:snapshot.playerX, playerY:snapshot.playerY,\n              continuousTerrain:Boolean(terrain?.userData?.arcadeContinuousTerrainV1037),\n              terrainBiome:terrain?.userData?.arcadeTerrainBiome ?? null,\n              terrainFinite:finite,\n              terrainVertices:positions?.count ?? 0,\n              legacyTerrainCount:target.scene.getObjectsByProperty("name","arcade-continuous-terrain").length,\n              camera:[target.camera.position.x,target.camera.position.y,target.camera.position.z,target.camera.rotation.x,target.camera.rotation.y,target.camera.rotation.z],\n            };\n          },\n        };\n      }'''
+          assert needle in s,'WebGL demo attachment block changed';p.write_text(s.replace(needle,insert,1))
+          PY
+      - name: Audit bridge typecheck
+        run: npm run check:arcade
+      - name: Build audit target
+        run: npm run build:pages
+      - name: Start local Pages target
+        run: |
+          python3 -m http.server 4173 --bind 127.0.0.1 --directory out > /tmp/sky-dancer-v1037-terrain-http.log 2>&1 &
+          for i in {1..30}; do if curl -fsS http://127.0.0.1:4173/ >/dev/null; then exit 0; fi; sleep 1; done
+          cat /tmp/sky-dancer-v1037-terrain-http.log; exit 1
+      - name: Capture V10.3.7 terrain frames
+        run: node scripts/webgl-arcade-v1037-terrain-visual-audit.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: sky-dancer-v1037-terrain-visual-audit-${{ github.sha }}
+          path: artifacts/arcade-v1037-terrain-visual-audit
+          if-no-files-found: error
+          retention-days: 14
+      - name: Remove temporary terrain audit files
+        if: success()
+        run: |
+          set -euo pipefail
+          git checkout -- app/SkyDancerArcadeMode.tsx
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm -f scripts/webgl-arcade-v1037-terrain-visual-audit.mjs .github/workflows/arcade-v1037-terrain-visual-audit-once.yml
+          git commit -m "Remove V10.3.7 terrain visual audit files"
+          git push
