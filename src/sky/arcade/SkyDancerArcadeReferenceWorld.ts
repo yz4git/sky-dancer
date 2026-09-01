@@ -138,9 +138,9 @@ export class SkyDancerArcadeReferenceWorld {
 
   private buildIceRibbon(stage:SkyDancerArcadeStageDefinition):void {
     this.iceRibbon={
-      // V10.3: a floor fissure, not a luminous road filling the foreground.
-      outer:this.makeIceRibbonMesh(stage,10.5,"arcade-ice-course-fissure-outer",.18),
-      core:this.makeIceRibbonMesh(stage,1.6,"arcade-ice-course-fissure-core",.62),
+      // V10.3.1: a thin irregular floor crack, never a luminous road through the centre of the frame.
+      outer:this.makeIceRibbonMesh(stage,5.2,"arcade-ice-course-fissure-outer",.11),
+      core:this.makeIceRibbonMesh(stage,.7,"arcade-ice-course-fissure-core",.46),
     };
   }
 
@@ -153,22 +153,26 @@ export class SkyDancerArcadeReferenceWorld {
       const half=width*.5;
       const samples=attribute.count/2;
       for(let i=0;i<samples;i++){
-        const depth=30+i*13.8;
+        const depth=42+i*14.4;
         const course=arcadeCourseRelativePose(stage,distance,depth);
-        const cx=course.x-playerX*.35;
-        const cy=course.y-playerY*.16-23.2+lift;
+        const crackPhase=distance+depth;
+        const jitter=Math.sin(crackPhase*.091)*1.35+Math.sin(crackPhase*.037+1.7)*.85;
+        const widthScale=.38+.62*Math.abs(Math.sin(crackPhase*.061+i*.79));
+        const localHalf=half*widthScale;
+        const cx=course.x-playerX*.35+jitter;
+        const cy=course.y-playerY*.16-24.6+lift;
         const cz=-depth;
-        const lateralX=Math.cos(course.yaw)*half;
-        const lateralZ=-Math.sin(course.yaw)*half;
-        const bankY=course.bank*half*.12;
+        const lateralX=Math.cos(course.yaw)*localHalf;
+        const lateralZ=-Math.sin(course.yaw)*localHalf;
+        const bankY=course.bank*localHalf*.08;
         const left=i*6,right=left+3;
         array[left]=cx-lateralX;array[left+1]=cy-bankY;array[left+2]=cz-lateralZ;
         array[right]=cx+lateralX;array[right+1]=cy+bankY;array[right+2]=cz+lateralZ;
       }
       attribute.needsUpdate=true;
     };
-    update(this.iceRibbon.outer,10.5,0);
-    update(this.iceRibbon.core,1.6,.07);
+    update(this.iceRibbon.outer,5.2,0);
+    update(this.iceRibbon.core,.7,.05);
   }
 
   private makeVolcanoRibbonMesh(stage:SkyDancerArcadeStageDefinition,width:number,name:string,opacity:number):THREE.Mesh {
@@ -234,27 +238,27 @@ export class SkyDancerArcadeReferenceWorld {
     const primary=paint(stage.palette.primary);
     const secondary=paint(stage.palette.secondary);
     const glow=new THREE.MeshBasicMaterial({
-      color:stage.palette.accent,transparent:true,opacity:kind==="volcano"?.88:kind==="ice"?.5:.84,
+      color:stage.palette.accent,transparent:true,opacity:kind==="volcano"?.88:kind==="ice"?.38:.84,
       blending:THREE.AdditiveBlending,depthWrite:false,
     });
     const dark=paint(stage.palette.ground);
-    const count=kind==="ice"?7:10;
+    const count=kind==="ice"?6:10;
     for(let i=0;i<count;i++){
       const cue=new THREE.Group();
-      const depth=kind==="ice"?42+i*58:26+i*43;
+      const depth=kind==="ice"?58+i*66:26+i*43;
       const phase=i*.64;
       cue.userData.arcadeRouteDepth=depth;
       if(kind==="ice"){
         cue.name="arcade-ice-wave-cue";
         // V8.8: use broken, alternating ribs rather than seven complete hoops. The route stays readable,
         // but the player sees the canyon climb/dive instead of a repeated tunnel silhouette.
-        const radius=18+(i%3===0?-1.5:i%3===1?1.2:2.1);
-        const arc=Math.PI*(i%3===0?.44:i%3===1?.54:.48);
-        const arch=mesh(cue,new THREE.TorusGeometry(radius,1.02,6,28,arc),i%2?secondary:primary,(i%2?1:-1)*3.8,-10.5,0);
+        const radius=15.5+(i%3===0?-1.2:i%3===1?.9:1.5);
+        const arc=Math.PI*(i%3===0?.36:i%3===1?.46:.41);
+        const arch=mesh(cue,new THREE.TorusGeometry(radius,.74,6,26,arc),i%2?secondary:primary,(i%2?1:-1)*3.4,-10.8,0);
         arch.name="arcade-ice-wave-arch";
         arch.rotation.z=(i%2?Math.PI*.12:Math.PI*.88)+(i%3-1)*.045;
         arch.rotation.y=(i%2?1:-1)*.06;
-        const inner=mesh(cue,new THREE.TorusGeometry(radius*.9,.24,5,24,arc*.72),glow,(i%2?1:-1)*3.2,-10.1,.18);
+        const inner=mesh(cue,new THREE.TorusGeometry(radius*.9,.16,5,22,arc*.68),glow,(i%2?1:-1)*2.9,-10.4,.18);
         inner.rotation.z=arch.rotation.z+(i%2?-.05:.05);
         for(const side of [-1,1]){
           const fang=mesh(cue,new THREE.ConeGeometry(1.05,6.2+(i%3)*.9,5),i%2?primary:secondary,side*(radius*.6+3),6.2+(i%2)*1.2,1);
@@ -463,9 +467,11 @@ export class SkyDancerArcadeReferenceWorld {
     switch(stage.biome){
       case "city":case "night":break;
       case "canyon":{
+        // V10.3.1 foreground safety: keep the knife-run walls dramatic without a near cliff swallowing half the phone.
+        group.userData.arcadeCanyonV1031Clearance=true;
         for(const side of [-1,1])for(let j=0;j<4;j++){
-          const h=17+r(j+side*15)*32;
-          const rock=mesh(group,new THREE.CylinderGeometry(4+r(j+3)*5,8+r(j+5)*7,h,7,3),j%2?primary:secondary,side*(28+j%2*28),-25+h/2,-42+j*27);
+          const h=17+r(j+side*15)*30;
+          const rock=mesh(group,new THREE.CylinderGeometry(3.5+r(j+3)*4.2,6.5+r(j+5)*5.5,h,7,3),j%2?primary:secondary,side*(34+j%2*30),-25+h/2,-42+j*27);
           rock.rotation.y=r(j+19)*2;
         }
         break;

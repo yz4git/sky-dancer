@@ -6,6 +6,7 @@ import { arcadeCameraPose } from "../src/sky/arcade/SkyDancerArcadeCamera";
 import { arcadeCoursePose, arcadeCourseRelativePose } from "../src/sky/arcade/SkyDancerArcadeCoursePath";
 import { createReferenceFighter, createReferenceCarrier } from "../src/sky/arcade/SkyDancerArcadeReferenceAirframes";
 import { SkyDancerArcadeReferenceWorld } from "../src/sky/arcade/SkyDancerArcadeReferenceWorld";
+import { referenceAtmosphere } from "../src/sky/arcade/SkyDancerArcadeReferenceMaterials";
 import { ARCADE_EFFECT_BUDGET, SkyDancerArcadeProductPresentation } from "../src/sky/arcade/SkyDancerArcadeProductPresentation";
 import { SKY_DANCER_ARCADE_STAGES } from "../src/sky/arcade/SkyDancerArcadeData";
 import { SkyDancerArcadeRuntime } from "../src/sky/arcade/SkyDancerArcadeRuntime";
@@ -234,12 +235,12 @@ test("V8.8 ice cavern exposes its vertical canyon without repeated full-screen h
   world.setStage(ice);
   world.update(ice.courseSpeed * 10, 0, 0);
   const cues = scene.getObjectsByProperty("name", "arcade-ice-wave-cue");
-  assert.equal(cues.length, 7);
+  assert.equal(cues.length, 6);
   const arches=scene.getObjectsByProperty("name", "arcade-ice-wave-arch") as THREE.Mesh[];
-  assert.equal(arches.length, 7);
+  assert.equal(arches.length, 6);
   for(const arch of arches){
     const parameters=(arch.geometry as THREE.TorusGeometry).parameters;
-    assert.ok(parameters.arc < Math.PI*.58, "ice guide ribs must stay short/open rather than recreate a hoop tunnel");
+    assert.ok(parameters.arc < Math.PI*.5, "ice guide ribs must stay compact/open rather than recreate a hoop tunnel");
   }
   const chunks=scene.children[0].children.filter((object)=>object.name.startsWith("arcade-course-chunk-"));
   assert.equal(chunks.length,8);
@@ -257,7 +258,7 @@ test("V8.8 ice cavern exposes its vertical canyon without repeated full-screen h
   const auditDistance=ice.courseSpeed*10;
   for(const cue of cues){
     const depth=Number(cue.userData.arcadeRouteDepth);
-    assert.ok(depth>=42,"nearest ice guide must stay out of the camera/airframe foreground");
+    assert.ok(depth>=58,"nearest ice guide must stay well outside the camera/airframe foreground");
     const authored=arcadeCourseRelativePose(ice,auditDistance,depth);
     assert.ok(Math.abs(cue.position.y-authored.y)<1e-6,
       "ice guide ribs must remain tethered to the actual course centre instead of floating independently");
@@ -271,15 +272,24 @@ test("V8.8 ice cavern exposes its vertical canyon without repeated full-screen h
   for(let i=0;i<fissurePosition.count;i+=2)fissureY.push((fissurePosition.getY(i)+fissurePosition.getY(i+1))*.5);
   assert.ok(Math.max(...fissureY)-Math.min(...fissureY)>12,
     "continuous glacial fissure must reveal the upcoming climb/dive");
-  assert.ok(Number(fissure.userData.arcadeIceRibbonWidth)<=11,
+  assert.ok(Number(fissure.userData.arcadeIceRibbonWidth)<=5.5,
     "glacial fissure must stay narrow enough to read as a floor crack, not a luminous road");
   const fissureMaterial=fissure.material as THREE.MeshBasicMaterial;
   const coreMaterial=core.material as THREE.MeshBasicMaterial;
-  assert.ok(fissureMaterial.opacity<=.2 && coreMaterial.opacity<=.65,
+  assert.ok(fissureMaterial.opacity<=.12 && coreMaterial.opacity<=.5,
     "ice fissure glow must not wash out the foreground");
   const firstCenterZ=(fissurePosition.getZ(0)+fissurePosition.getZ(1))*.5;
-  assert.ok(firstCenterZ<=-26,
+  assert.ok(firstCenterZ<=-38,
     "continuous fissure must begin far enough ahead to avoid clipping into the camera/airframe");
+  const fissureWidths:number[]=[];
+  for(let i=0;i<fissurePosition.count;i+=2){
+    const dx=fissurePosition.getX(i)-fissurePosition.getX(i+1);
+    const dy=fissurePosition.getY(i)-fissurePosition.getY(i+1);
+    const dz=fissurePosition.getZ(i)-fissurePosition.getZ(i+1);
+    fissureWidths.push(Math.hypot(dx,dy,dz));
+  }
+  assert.ok(Math.max(...fissureWidths)-Math.min(...fissureWidths)>1.5,
+    "ice fissure width must vary enough to read as a natural crack instead of a constant-width road");
   world.dispose();
 });
 
@@ -322,6 +332,21 @@ test("V9.4 storm carrier reads as a thunderhead dreadnought instead of floating 
   world.dispose();
 });
 
+test("V10.3.1 red canyon keeps dramatic walls outside the phone foreground safety lane", () => {
+  const scene=new THREE.Scene();
+  const world=new SkyDancerArcadeReferenceWorld(scene);
+  const canyon=SKY_DANCER_ARCADE_STAGES.find((stage)=>stage.id==="red-canyon")!;
+  world.setStage(canyon);
+  world.update(canyon.courseSpeed*6,0,0);
+  const environment=scene.getObjectByName("arcade-course-environment")!;
+  const chunks=environment.children.filter((object)=>object.name.startsWith("arcade-course-chunk-"));
+  assert.equal(chunks.length,8);
+  assert.ok(chunks.every((chunk)=>chunk.userData.arcadeCanyonV1031Clearance===true),
+    "every canyon chunk must preserve the V10.3.1 foreground clearance layout");
+  world.dispose();
+});
+
+
 test("V9.3 desert fortress reads as a sandwall assault instead of a recolored canyon", () => {
   const scene=new THREE.Scene();
   const world=new SkyDancerArcadeReferenceWorld(scene);
@@ -355,6 +380,11 @@ test("V9.2 cloud fleet reads as a sky armada instead of floating T-shaped plates
     "every cloud chunk must author broad warship silhouettes");
   assert.equal(new Set(chunks.map((chunk)=>chunk.userData.arcadeCloudV92LeadSide)).size,2,
     "hero warships must alternate sides to create fleet weave rather than a symmetric corridor");
+  const atmosphere=referenceAtmosphere(fleet);
+  assert.notEqual(atmosphere.fog.getHex(),fleet.palette.fog,
+    "Cloud Fleet needs a dedicated midtone fog grade so white ships remain readable against the cloud sea");
+  assert.ok(atmosphere.keyIntensity<2.3 && atmosphere.ambient<1.15,
+    "Cloud Fleet lighting must stay restrained enough to avoid white-out on mobile");
   world.dispose();
 });
 

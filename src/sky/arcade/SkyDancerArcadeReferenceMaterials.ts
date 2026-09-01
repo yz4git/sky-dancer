@@ -13,16 +13,19 @@ float fbm(vec2 p){return .57*noise21(p)+.28*noise21(p*2.03+7.1)+.15*noise21(p*4.
 
 export function referenceAtmosphere(stage: SkyDancerArcadeStageDefinition) {
   const city = stage.biome === "city";
+  const cloud = stage.biome === "cloud";
   const night = ["night", "orbit", "citadel"].includes(stage.biome);
+  const cloudHorizon = new THREE.Color(stage.palette.fog).lerp(new THREE.Color(stage.palette.secondary), .26);
+  const cloudFog = new THREE.Color(stage.palette.fog).lerp(new THREE.Color(stage.palette.secondary), .34);
   return {
-    zenith: new THREE.Color(city ? 0x0b6198 : stage.palette.sky),
-    horizon: new THREE.Color(city ? 0xffb866 : stage.palette.fog),
-    fog: new THREE.Color(city ? 0x879caf : stage.palette.fog),
-    cloudLight: new THREE.Color(city ? 0xffddb0 : night ? 0x7283b5 : stage.biome === "storm" ? 0x90a5b9 : 0xeaf6ff),
-    cloudShadow: new THREE.Color(city ? 0x405d78 : stage.biome === "storm" ? 0x253e5b : night ? 0x151e43 : 0x557b98),
+    zenith: new THREE.Color(city ? 0x0b6198 : cloud ? 0x62b3dc : stage.palette.sky),
+    horizon: city ? new THREE.Color(0xffb866) : cloud ? cloudHorizon : new THREE.Color(stage.palette.fog),
+    fog: city ? new THREE.Color(0x879caf) : cloud ? cloudFog : new THREE.Color(stage.palette.fog),
+    cloudLight: new THREE.Color(city ? 0xffddb0 : cloud ? 0xd5ebf4 : night ? 0x7283b5 : stage.biome === "storm" ? 0x90a5b9 : 0xeaf6ff),
+    cloudShadow: new THREE.Color(city ? 0x405d78 : cloud ? 0x527a93 : stage.biome === "storm" ? 0x253e5b : night ? 0x151e43 : 0x557b98),
     key: city ? 0xffc77b : night ? 0x98b4ff : stage.biome === "volcano" ? 0xff774a : 0xffe7c4,
-    keyIntensity: city ? 3.35 : night ? 1.4 : 2.5,
-    ambient: city ? .7 : night ? .8 : 1.3,
+    keyIntensity: city ? 3.35 : cloud ? 2.15 : night ? 1.4 : 2.5,
+    ambient: city ? .7 : cloud ? 1.05 : night ? .8 : 1.3,
     night,
   };
 }
