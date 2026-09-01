@@ -8,12 +8,13 @@ import { SkyDancerArcadePresentationDirector, type SkyDancerArcadePresentationFr
 import { arcadeCameraPose } from "./SkyDancerArcadeCamera";
 import { arcadeCoursePose, arcadeCourseRelativeVisualPose } from "./SkyDancerArcadeCoursePath";
 import { ARCADE_SUN_DIRECTION, referenceAtmosphere } from "./SkyDancerArcadeReferenceMaterials";
-import { arcadeSharedSceneryAttitudeV1041 } from "./SkyDancerArcadeReferenceWorld";
+import { arcadeGroundSurfaceLocalYV1052, arcadeSharedSceneryAttitudeV1041 } from "./SkyDancerArcadeReferenceWorld";
 import {
   createSkyDancerArcadeEnemy,
   createSkyDancerArcadeHazard,
   createSkyDancerArcadeLockRing,
   createSkyDancerArcadePlayer,
+  extendArcadeGroundConnectorsV1052,
 } from "./SkyDancerArcadeModels";
 
 export interface SkyDancerArcadeDemoHandle {
@@ -430,11 +431,18 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
         this.hazardRoot.add(group);
       }
       const course = arcadeCourseRelativeVisualPose(snapshot.stage, snapshot.distance, hazard.depth);
-      group.position.set(hazard.x * 8.4 + course.x, 1.2 + hazard.y * 4.9 + course.y, course.z);
+      const hazardLateral = hazard.x * 8.4;
+      group.position.set(hazardLateral + course.x, 1.2 + hazard.y * 4.9 + course.y, course.z);
       if (group.userData.arcadeWorldAnchoredHazardV105 === true) {
         // V10.5: terrain and architecture are one part of the course world, never independent actors.
         const sceneryAttitude = arcadeSharedSceneryAttitudeV1041(snapshot.stage, snapshot.distance);
         group.rotation.set(sceneryAttitude.pitch, sceneryAttitude.yaw, sceneryAttitude.roll);
+        // V10.5.2: keep the authored top/collision lane fixed and extend only foundations down to the actual floor.
+        const surfaceLocalY = arcadeGroundSurfaceLocalYV1052(snapshot.stage, snapshot.distance, hazard.depth, hazardLateral);
+        if (surfaceLocalY !== null) {
+          const groundWorldY = course.y - snapshot.playerY * .16 + surfaceLocalY;
+          extendArcadeGroundConnectorsV1052(group, groundWorldY - group.position.y);
+        }
       } else if (group.userData.arcadeAtmosphericHazardV105 === true) {
         // Lightning translates with the weather hazard but does not tumble like a solid object.
         group.rotation.set(0, 0, 0);

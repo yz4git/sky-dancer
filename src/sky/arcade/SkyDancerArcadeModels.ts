@@ -14,6 +14,33 @@ function flatMaterial(color: number, emissive = 0): THREE.MeshStandardMaterial {
   });
 }
 
+function markArcadeGroundConnectorV1052(mesh: THREE.Mesh, baseHeight: number): void {
+  mesh.userData.arcadeGroundConnectorV1052 = true;
+  mesh.userData.arcadeGroundConnectorTopYV1052 = mesh.position.y + baseHeight * .5;
+  mesh.userData.arcadeGroundConnectorBaseHeightV1052 = baseHeight;
+  mesh.userData.arcadeGroundConnectorBaseScaleYV1052 = mesh.scale.y;
+}
+
+export function extendArcadeGroundConnectorsV1052(group: THREE.Group, groundLocalY: number): void {
+  let connected = 0;
+  group.traverse(object => {
+    if (!(object instanceof THREE.Mesh) || object.userData.arcadeGroundConnectorV1052 !== true) return;
+    const top = Number(object.userData.arcadeGroundConnectorTopYV1052);
+    const baseHeight = Number(object.userData.arcadeGroundConnectorBaseHeightV1052);
+    const baseScaleY = Number(object.userData.arcadeGroundConnectorBaseScaleYV1052);
+    if (!Number.isFinite(top) || !Number.isFinite(baseHeight) || baseHeight <= 0 || !Number.isFinite(baseScaleY)) return;
+    // Never shorten authored geometry. Only grow downward, preserving the top/collision silhouette exactly.
+    const targetHeight = Math.max(baseHeight, top - groundLocalY);
+    object.scale.y = baseScaleY * targetHeight / baseHeight;
+    object.position.y = top - targetHeight * .5;
+    object.userData.arcadeGroundConnectorBottomYV1052 = top - targetHeight;
+    connected += 1;
+  });
+  group.userData.arcadeGroundConnectedV1052 = connected > 0;
+  group.userData.arcadeGroundConnectorCountV1052 = connected;
+  group.userData.arcadeGroundLocalYV1052 = groundLocalY;
+}
+
 export function createSkyDancerArcadePlayer(): THREE.Group {
   return createReferenceFighter();
 }
@@ -114,6 +141,7 @@ export function createSkyDancerArcadeHazard(
     group.userData.arcadeHazardIdentityV105 = stage.biome === "night" ? "neon-pylon" : "city-pylon";
     const shaft = new THREE.Mesh(new THREE.BoxGeometry(1.4, 10.8, 1.4), primary);
     shaft.position.y = -4.9;
+    markArcadeGroundConnectorV1052(shaft, 10.8);
     group.add(shaft);
     const shoulder = new THREE.Mesh(new THREE.BoxGeometry(2.9, 1.0, 2.1), warning);
     shoulder.position.y = 0.65;
@@ -129,6 +157,7 @@ export function createSkyDancerArcadeHazard(
     for (const side of [-1, 1]) {
       const support = new THREE.Mesh(new THREE.BoxGeometry(0.86, 7.8, 1.0), primary);
       support.position.set(side * 2.25, -2.75, 0);
+      markArcadeGroundConnectorV1052(support, 7.8);
       group.add(support);
       const shoulder = new THREE.Mesh(new THREE.BoxGeometry(1.85, 0.7, 1.0), warning);
       shoulder.position.set(side * 1.55, 1.15, 0);
@@ -145,6 +174,7 @@ export function createSkyDancerArcadeHazard(
     group.userData.arcadeHazardIdentityV105 = "basalt-spire";
     const main = new THREE.Mesh(new THREE.CylinderGeometry(1.35, 2.8, 10.5, 7, 3), primary);
     main.position.y = -4.2;
+    markArcadeGroundConnectorV1052(main, 10.5);
     main.rotation.y = 0.22;
     group.add(main);
     const shard = new THREE.Mesh(new THREE.CylinderGeometry(0.65, 1.35, 6.6, 6, 2), secondary);
@@ -156,6 +186,7 @@ export function createSkyDancerArcadeHazard(
     for (const side of [-1, 1]) {
       const pillar = new THREE.Mesh(new THREE.CylinderGeometry(1.1, 2.0, 8.8, 7, 2), primary);
       pillar.position.set(side * 2.55, -3.1, 0);
+      markArcadeGroundConnectorV1052(pillar, 8.8);
       pillar.rotation.z = side * 0.08;
       group.add(pillar);
     }
@@ -167,6 +198,7 @@ export function createSkyDancerArcadeHazard(
     group.userData.arcadeHazardIdentityV105 = "fortress-pylon";
     const shaft = new THREE.Mesh(new THREE.BoxGeometry(2.1, 9.4, 2.5), primary);
     shaft.position.y = -4.0;
+    markArcadeGroundConnectorV1052(shaft, 9.4);
     group.add(shaft);
     const crown = new THREE.Mesh(new THREE.BoxGeometry(3.8, 1.15, 3.0), secondary);
     crown.position.y = 0.9;
@@ -181,6 +213,7 @@ export function createSkyDancerArcadeHazard(
     for (const side of [-1, 1]) {
       const crystal = new THREE.Mesh(new THREE.ConeGeometry(1.55, 9.2, 6), primary);
       crystal.position.set(side * 2.55, -2.75, 0);
+      markArcadeGroundConnectorV1052(crystal, 9.2);
       crystal.rotation.z = side * 0.13;
       group.add(crystal);
     }
@@ -228,6 +261,7 @@ export function createSkyDancerArcadeHazard(
     group.userData.arcadeHazardIdentityV105 = "magma-pillar";
     const pillar = new THREE.Mesh(new THREE.CylinderGeometry(1.4, 3.0, 10.2, 7, 3), primary);
     pillar.position.y = -4.15;
+    markArcadeGroundConnectorV1052(pillar, 10.2);
     group.add(pillar);
     const crack = new THREE.Mesh(new THREE.BoxGeometry(0.22, 5.4, 0.16), accent);
     crack.position.set(0.55, -2.7, 1.52);
@@ -252,6 +286,7 @@ export function createSkyDancerArcadeHazard(
     for (const side of [-1, 1]) {
       const blade = new THREE.Mesh(new THREE.BoxGeometry(0.48, 6.2, 0.65), primary);
       blade.position.set(side * 1.75, -0.55, 0);
+      markArcadeGroundConnectorV1052(blade, 6.2);
       blade.rotation.z = side * 0.34;
       group.add(blade);
     }
@@ -263,6 +298,7 @@ export function createSkyDancerArcadeHazard(
     group.userData.arcadeHazardIdentityV105 = "prism-spire";
     const spire = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 1.7, 10.2, 6, 3), primary);
     spire.position.y = -4.0;
+    markArcadeGroundConnectorV1052(spire, 10.2);
     group.add(spire);
     const tip = new THREE.Mesh(new THREE.ConeGeometry(0.8, 3.0, 6), accent);
     tip.position.y = 2.55;

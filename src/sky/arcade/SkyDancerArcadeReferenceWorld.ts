@@ -47,6 +47,32 @@ export function arcadeSharedSceneryAttitudeV1041(
   };
 }
 
+// V10.5.2: single source of truth for the visible floor beneath course-anchored structures.
+// Returns Y relative to the course centre; null means the biome is intentionally airborne/spaceborne.
+export function arcadeGroundSurfaceLocalYV1052(
+  stage: SkyDancerArcadeStageDefinition,
+  distance: number,
+  depth: number,
+  lateral: number,
+): number | null {
+  if (stage.biome === "city") return -25.82; // river bed / quay datum
+  if (stage.biome === "night") return -25; // streamed metro foundation datum
+  if (stage.biome === "citadel") return -19.2; // final-stage floor rail datum
+  if (!["canyon", "desert", "ice", "volcano"].includes(stage.biome)) return null;
+
+  const course = arcadeCourseRelativeVisualPose(stage, distance, depth);
+  const worldDepth = distance + depth;
+  const ridge = Math.max(0, Math.abs(lateral) - 16);
+  const ripple = Math.sin(worldDepth * .028 + lateral * .014) * Math.cos(lateral * .13 - worldDepth * .008);
+  const micro = Math.sin(worldDepth * .16 + lateral * .21) * Math.cos(lateral * .31 - worldDepth * .09);
+  const h = -27
+    + Math.pow(ridge, .82) * (stage.biome === "desert" ? .6 : 1.45)
+    + (3 + ridge * .07) * ripple
+    + micro * (stage.biome === "desert" ? .7 : 1.45);
+  const bankScale = stage.biome === "desert" ? .1 : stage.biome === "ice" ? .12 : .16;
+  return h + Math.tan(course.bank * bankScale) * lateral;
+}
+
 interface CourseChunk { group: THREE.Group; index: number }
 interface RouteCue { group: THREE.Group; depth: number; phase: number; kind: "ice" | "volcano" | "orbit" }
 

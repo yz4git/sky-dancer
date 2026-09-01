@@ -5,7 +5,8 @@ import { normalizeArcadeStick } from "../src/sky/arcade/SkyDancerArcadeInput";
 import { arcadeCameraPose } from "../src/sky/arcade/SkyDancerArcadeCamera";
 import { arcadeCoursePose, arcadeCourseRelativePose, arcadeCourseRelativeVisualPose } from "../src/sky/arcade/SkyDancerArcadeCoursePath";
 import { createReferenceFighter, createReferenceCarrier } from "../src/sky/arcade/SkyDancerArcadeReferenceAirframes";
-import { ARCADE_NEAR_PASS_CLEARANCE_V1039, arcadeCourseVisualBankScaleV104, arcadeSharedSceneryAttitudeV1041, SkyDancerArcadeReferenceWorld } from "../src/sky/arcade/SkyDancerArcadeReferenceWorld";
+import { ARCADE_NEAR_PASS_CLEARANCE_V1039, arcadeCourseVisualBankScaleV104, arcadeGroundSurfaceLocalYV1052, arcadeSharedSceneryAttitudeV1041, SkyDancerArcadeReferenceWorld } from "../src/sky/arcade/SkyDancerArcadeReferenceWorld";
+import { createSkyDancerArcadeHazard, extendArcadeGroundConnectorsV1052 } from "../src/sky/arcade/SkyDancerArcadeModels";
 import { createArcadeWaterMaterial, referenceAtmosphere } from "../src/sky/arcade/SkyDancerArcadeReferenceMaterials";
 import { ARCADE_EFFECT_BUDGET, SkyDancerArcadeProductPresentation } from "../src/sky/arcade/SkyDancerArcadeProductPresentation";
 import { SKY_DANCER_ARCADE_STAGES } from "../src/sky/arcade/SkyDancerArcadeData";
@@ -801,4 +802,32 @@ test("V10.4 camera has one owner for course motion instead of double-transformin
   assert.doesNotMatch(camera,/course\.yaw|course\.pitch|course\.bank|nearCourse|farCourse/);
   assert.match(camera,/const targetX = pose\.x \+ shakeX/);
   assert.match(camera,/const desiredRoll = pose\.roll/);
+});
+
+
+test("V10.5.2 grounded structural hazards preserve their top while foundations reach the visible floor", () => {
+  const city = SKY_DANCER_ARCADE_STAGES.find(stage => stage.biome === "city");
+  assert.ok(city);
+  const surface = arcadeGroundSurfaceLocalYV1052(city, 120, 90, 0);
+  assert.equal(surface, -25.82);
+  const gate = createSkyDancerArcadeHazard(city, { id: 991, kind: "arch" } as never);
+  const connectors: THREE.Mesh[] = [];
+  gate.traverse(object => {
+    if (object instanceof THREE.Mesh && object.userData.arcadeGroundConnectorV1052 === true) connectors.push(object);
+  });
+  assert.equal(connectors.length, 2, "city gate has two terrain-reaching supports");
+  const tops = connectors.map(object => Number(object.userData.arcadeGroundConnectorTopYV1052));
+  extendArcadeGroundConnectorsV1052(gate, -27.02);
+  connectors.forEach((object, index) => {
+    const baseHeight = Number(object.userData.arcadeGroundConnectorBaseHeightV1052);
+    const baseScaleY = Number(object.userData.arcadeGroundConnectorBaseScaleYV1052);
+    const height = baseHeight * object.scale.y / baseScaleY;
+    assert.ok(Math.abs((object.position.y + height * .5) - tops[index]) < 1e-9, "gate top remains fixed in flight lane");
+    assert.ok(Math.abs((object.position.y - height * .5) - (-27.02)) < 1e-9, "support bottom reaches ground datum");
+  });
+  assert.equal(gate.userData.arcadeGroundConnectedV1052, true);
+
+  const orbit = SKY_DANCER_ARCADE_STAGES.find(stage => stage.biome === "orbit");
+  assert.ok(orbit);
+  assert.equal(arcadeGroundSurfaceLocalYV1052(orbit, 120, 90, 0), null, "space rings remain intentionally airborne");
 });
