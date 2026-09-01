@@ -205,6 +205,36 @@ test("V10.3.4 Dawn City uses continuous riverbanks instead of rigid slabs on sha
   world.dispose();
 });
 
+test("V10.3.5 far-field skyline follows the same course without steering swim or city over-bank", () => {
+  const city=SKY_DANCER_ARCADE_STAGES.find(stage=>stage.biome==="city");
+  assert.ok(city);
+  const scene=new THREE.Scene();
+  const world=new SkyDancerArcadeReferenceWorld(scene);
+  world.setStage(city);
+  const backdrop=scene.getObjectByName("arcade-product-backdrop") as THREE.Group;
+  assert.ok(backdrop instanceof THREE.Group);
+  assert.equal(backdrop.userData.arcadeBackdropCourseFollowV1035,true);
+  assert.equal(backdrop.userData.arcadeBackdropDepthV1035,430);
+  const length=city.durationSeconds*city.courseSpeed;
+  const xs:number[]=[],ys:number[]=[];
+  let maxChunkBank=0;
+  for(const progress of [.06,.12,.18,.25,.32,.4]){
+    world.update(length*progress,0,0);
+    xs.push(backdrop.position.x);ys.push(backdrop.position.y);
+    for(let i=0;i<8;i++){
+      const chunk=scene.getObjectByName(`arcade-course-chunk-${i}`);
+      assert.ok(chunk);maxChunkBank=Math.max(maxChunkBank,Math.abs(chunk.rotation.z));
+    }
+  }
+  const range=(values:number[])=>Math.max(...values)-Math.min(...values);
+  assert.ok(range(xs)>2||range(ys)>1.5,`far field must follow the authored route: x=${range(xs)} y=${range(ys)}`);
+  assert.ok(maxChunkBank<.3,`dense city chunks should not over-bank: ${maxChunkBank}`);
+  world.update(length*.25,1,.8);const steeredX=backdrop.position.x,steeredY=backdrop.position.y;
+  world.update(length*.25,-1,-.8);
+  assert.ok(Math.abs(backdrop.position.x-steeredX)<1e-9&&Math.abs(backdrop.position.y-steeredY)<1e-9,"far skyline must not swim with steering input");
+  world.dispose();
+});
+
 test("missile trails and explosions keep a bounded mesh and buffer count under load", () => {
   const scene = new THREE.Scene(), camera = new THREE.PerspectiveCamera(55, 16 / 9, .1, 1200);
   camera.position.set(0, 5, 16); camera.lookAt(0, 0, -30); camera.updateMatrixWorld();

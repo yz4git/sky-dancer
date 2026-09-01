@@ -667,8 +667,12 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
       pose.lookY + nearCourse.y * (iceCourse ? .018 : .105) + farCourse.y * (iceCourse ? .006 : .032) + course.pitch * 2.2,
       pose.lookZ,
     );
-    // Stronger horizon roll makes the corridor visibly bank while remaining below motion-sickness territory.
-    this.camera.rotateZ(pose.roll + course.bank * .56 + nearCourse.bank * .14);
+    // V10.3.5: dense city silhouettes amplify roll far more than open terrain.
+    // Keep the aircraft banking, but stabilize the city horizon so buildings do not appear to detach and orbit the camera.
+    const denseSkyline = snapshot.stage.biome === "city" || snapshot.stage.biome === "night";
+    this.camera.rotateZ(
+      pose.roll + course.bank * (denseSkyline ? .34 : .56) + nearCourse.bank * (denseSkyline ? .07 : .14),
+    );
   }
 
   private resize(): void {

@@ -247,7 +247,9 @@ test("V6.2 NORMAL opening pressure preserves reaction time and readable damage c
   assert.match(webglSource, /else if \(heavyCraft\)[\s\S]*emitHeavyExplosion\(position, impact\.missile\)/);
   assert.match(webglSource, /emitSmallExplosion\(position, impact\.missile\)/);
   assert.match(presentationSource, /addScaledVector\(this\.forward, 3\.8\)/);
-  assert.match(webglSource, /course\.bank \* \.56 \+ nearCourse\.bank \* \.14/);
+  assert.match(webglSource, /denseSkyline = snapshot\.stage\.biome === "city" \|\| snapshot\.stage\.biome === "night"/);
+  assert.match(webglSource, /course\.bank \* \(denseSkyline \? \.34 : \.56\)/);
+  assert.match(webglSource, /nearCourse\.bank \* \(denseSkyline \? \.07 : \.14\)/);
   assert.match(webglSource, /farCourse = arcadeCourseRelativePose\(snapshot\.stage, snapshot\.distance, 132\)/);
 });
 

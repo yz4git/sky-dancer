@@ -53,6 +53,7 @@ export class SkyDancerArcadeReferenceWorld {
   private volcanoRibbon:{ outer:THREE.Mesh; core:THREE.Mesh }|null=null;
   private cityRiver:{ surface:THREE.Mesh; bed:THREE.Mesh }|null=null;
   private cityBanks:{ left:THREE.Mesh; right:THREE.Mesh }|null=null;
+  private backdrop:THREE.Group|null=null;
   private stage:SkyDancerArcadeStageDefinition|null=null;
   private water:THREE.ShaderMaterial|null=null;
   private readonly matrixObject=new THREE.Object3D();
@@ -63,7 +64,7 @@ export class SkyDancerArcadeReferenceWorld {
 
   setStage(stage:SkyDancerArcadeStageDefinition):void {
     if(this.stage?.id===stage.id)return;
-    disposeTree(this.root);this.water?.dispose();this.chunks.length=0;this.routeCues.length=0;this.iceRibbon=null;this.volcanoRibbon=null;this.cityRiver=null;this.cityBanks=null;
+    disposeTree(this.root);this.water?.dispose();this.chunks.length=0;this.routeCues.length=0;this.iceRibbon=null;this.volcanoRibbon=null;this.cityRiver=null;this.cityBanks=null;this.backdrop=null;
     this.stage=stage;
     const palette=referenceAtmosphere(stage);
     this.scene.background=palette.zenith;
@@ -73,7 +74,9 @@ export class SkyDancerArcadeReferenceWorld {
     key.position.copy(ARCADE_SUN_DIRECTION).multiplyScalar(250);
     const rim=new THREE.DirectionalLight(0x55cfff,1.05);
     rim.position.set(80,25,45);
-    this.root.add(hemi,key,rim,createArcadeSky(stage),this.buildBackdrop(stage));
+    this.backdrop=this.buildBackdrop(stage);
+    this.backdrop.userData.arcadeBackdropCourseFollowV1035=stage.biome!=="orbit"&&stage.biome!=="citadel";
+    this.root.add(hemi,key,rim,createArcadeSky(stage),this.backdrop);
     this.water=createArcadeWaterMaterial(stage);
     const facade=createArcadeFacadeMaterial(palette.night);
     const cloud=createArcadeCloudMaterial(stage);
@@ -99,10 +102,14 @@ export class SkyDancerArcadeReferenceWorld {
       chunk.group.position.z=-depth;
       chunk.group.position.x=course.x-playerX*.35;
       chunk.group.position.y=course.y-playerY*.16;
-      chunk.group.rotation.y=course.yaw*1.08;
-      chunk.group.rotation.x=course.pitch*.94;
-      chunk.group.rotation.z=course.bank*.38;
+      const skylineStage=this.stage.biome==="city"||this.stage.biome==="night";
+      // V10.3.5: city architecture is a scenery wall, not the flight deck itself.
+      // Let the continuous river/banks carry the exact turn and keep rigid building chunks from over-banking.
+      chunk.group.rotation.y=course.yaw*(skylineStage?.82:1.08);
+      chunk.group.rotation.x=course.pitch*(skylineStage?.7:.94);
+      chunk.group.rotation.z=course.bank*(skylineStage?.23:.38);
     }
+    if(this.backdrop)this.updateBackdrop(distance);
     if(this.cityRiver)this.updateCityRiver(distance,playerX,playerY);
     if(this.cityBanks)this.updateCityBanks(distance,playerX,playerY);
     for(const cue of this.routeCues){
@@ -121,6 +128,30 @@ export class SkyDancerArcadeReferenceWorld {
     if(this.iceRibbon)this.updateIceRibbon(distance,playerX,playerY);
     if(this.volcanoRibbon)this.updateVolcanoRibbon(distance,playerX,playerY);
     if(this.water)this.water.uniforms.time.value=distance/this.stage.courseSpeed;
+  }
+
+  private updateBackdrop(distance:number):void {
+    if(!this.stage||!this.backdrop)return;
+    const followsCourse=this.stage.biome!=="orbit"&&this.stage.biome!=="citadel";
+    if(!followsCourse){
+      this.backdrop.position.set(0,0,0);
+      this.backdrop.rotation.set(0,0,0);
+      return;
+    }
+    // V10.3.5: the old far field was world-fixed while the streamed corridor used course-relative coordinates.
+    // On video that made the skyline visibly slide sideways against the river whenever the route turned.
+    // Anchor the far field to a distant sample of the same spline. It deliberately follows less than the
+    // foreground so the shot keeps depth parallax without looking like two unrelated worlds.
+    const cityLike=this.stage.biome==="city"||this.stage.biome==="night";
+    const depth=cityLike?430:520;
+    const far=arcadeCourseRelativePose(this.stage,distance,depth);
+    this.backdrop.position.x=far.x*(cityLike?.72:.58);
+    this.backdrop.position.y=far.y*(cityLike?.46:.38);
+    this.backdrop.position.z=0;
+    this.backdrop.rotation.set(0,0,0);
+    this.backdrop.userData.arcadeBackdropDepthV1035=depth;
+    this.backdrop.userData.arcadeBackdropXFollowV1035=cityLike?.72:.58;
+    this.backdrop.userData.arcadeBackdropYFollowV1035=cityLike?.46:.38;
   }
 
   private makeCityRiverRibbon(width:number,name:string,material:THREE.Material,renderOrder:number):THREE.Mesh {
