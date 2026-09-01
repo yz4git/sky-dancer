@@ -351,6 +351,9 @@ export class SkyDancerArcadeProductPresentation {
 
   private updateProjectileTrails(snapshot: SkyDancerArcadeSnapshot, delta: number): void {
     this.activeIds.clear();
+    const playerMissileCount = snapshot.projectiles.reduce((count, projectile) => count + (projectile.owner === "player-missile" ? 1 : 0), 0);
+    // V9.7.1: preserve a bold single-missile plume while preventing 4-8 missile salvos from becoming a white screen wipe.
+    const salvoSmokeScale = THREE.MathUtils.clamp(1 / Math.sqrt(Math.max(1, playerMissileCount) * .55), .58, 1);
     for (const p of snapshot.projectiles) {
       if (p.owner === "player-gun") continue;
       this.activeIds.add(p.id);
@@ -364,15 +367,15 @@ export class SkyDancerArcadeProductPresentation {
         if (!anchor) {
           anchor = this.missilePoint.clone();
           this.missileSmokeLast.set(p.id, anchor);
-          this.missileSmoke.emit(this.missilePoint, 1.52);
+          this.missileSmoke.emit(this.missilePoint, 1.52 * salvoSmokeScale);
         } else {
           const movedSq = anchor.distanceToSquared(this.missilePoint);
           if (movedSq > .1) {
             if (movedSq > .64) {
               this.missileMidpoint.copy(anchor).lerp(this.missilePoint, .5);
-              this.missileSmoke.emit(this.missileMidpoint, 1.15);
+              this.missileSmoke.emit(this.missileMidpoint, 1.15 * salvoSmokeScale);
             }
-            this.missileSmoke.emit(this.missilePoint, 1.24);
+            this.missileSmoke.emit(this.missilePoint, 1.24 * salvoSmokeScale);
             anchor.copy(this.missilePoint);
           }
         }

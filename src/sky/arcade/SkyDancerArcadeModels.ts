@@ -1,5 +1,4 @@
 import * as THREE from "three";
-import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 import { createReferenceCarrier, createReferenceFighter } from "./SkyDancerArcadeReferenceAirframes";
 import type { SkyDancerArcadeEnemySnapshot, SkyDancerArcadeHazardSnapshot } from "./SkyDancerArcadeRuntime";
 import type { SkyDancerArcadeStageDefinition } from "./SkyDancerArcadeData";
@@ -72,39 +71,29 @@ export function createSkyDancerArcadeEnemy(
 export function createSkyDancerArcadeLockRing(color: number): THREE.Group {
   const group = new THREE.Group();
   group.name = "arcade-lock-ring";
-  const material = new THREE.MeshBasicMaterial({
-    color,
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute("position", new THREE.Float32BufferAttribute([0, 0, 0], 3));
+  const material = new THREE.ShaderMaterial({
+    uniforms: { tint: { value: new THREE.Color(color) } },
+    vertexShader: `void main(){gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);gl_PointSize=64.0;}`,
+    fragmentShader: `uniform vec3 tint;
+      void main(){vec2 p=gl_PointCoord*2.0-1.0;vec2 a=abs(p);
+        float h=step(.48,a.x)*step(a.x,.9)*step(.75,a.y)*step(a.y,.9);
+        float v=step(.75,a.x)*step(a.x,.9)*step(.48,a.y)*step(a.y,.9);
+        float d=1.0-smoothstep(.025,.065,abs(a.x+a.y-.25));
+        float alpha=max(max(h,v),d*.88);if(alpha<.03)discard;
+        gl_FragColor=vec4(tint*1.75,alpha*.98);}`,
     transparent: true,
-    opacity: .98,
     depthWrite: false,
     depthTest: false,
     blending: THREE.AdditiveBlending,
     toneMapped: false,
   });
-  const geometries: THREE.BufferGeometry[] = [];
-  const place = (geometry: THREE.BufferGeometry, x: number, y: number, z = 0) => {
-    geometry.translate(x, y, z);
-    geometries.push(geometry);
-  };
-  for (const x of [-1, 1]) {
-    for (const y of [-1, 1]) {
-      place(new THREE.BoxGeometry(.46, .072, .045), x * .93 - x * .19, y * .93, 0);
-      place(new THREE.BoxGeometry(.072, .46, .045), x * .93, y * .93 - y * .19, 0);
-    }
-  }
-  const diamond = new THREE.TorusGeometry(.34, .035, 4, 4);
-  diamond.rotateZ(Math.PI / 4);
-  geometries.push(diamond);
-  const merged = mergeGeometries(geometries, false);
-  geometries.forEach((geometry) => geometry.dispose());
-  if (merged) {
-    const mesh = new THREE.Mesh(merged, material);
-    mesh.name = "arcade-lock-ring-mesh";
-    mesh.renderOrder = 30;
-    group.add(mesh);
-  } else {
-    material.dispose();
-  }
+  const marker = new THREE.Points(geometry, material);
+  marker.name = "arcade-lock-ring-mesh";
+  marker.frustumCulled = false;
+  marker.renderOrder = 30;
+  group.add(marker);
   return group;
 }
 

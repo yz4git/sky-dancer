@@ -107,8 +107,6 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
   private readonly hazardGroups = new Map<number, THREE.Group>();
   private readonly engineGlows = this.player.getObjectsByProperty("name", "arcade-engine-glow");
   private readonly engineTrails = this.player.getObjectsByProperty("name", "arcade-engine-trail");
-  private readonly lockParentQuaternion = new THREE.Quaternion();
-  private readonly lockCameraQuaternion = new THREE.Quaternion();
   private readonly audio = new SkyDancerArcadeAudio();
   private readonly resizeObserver: ResizeObserver;
   private animationFrame = 0;
@@ -281,13 +279,8 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
         existingRing = group.getObjectByName("arcade-lock-ring");
       }
       if (enemy.locked && existingRing) {
-        // V9.7: keep lock brackets screen-readable and camera-facing instead of shrinking with a distant banked fighter.
-        const depthScale = THREE.MathUtils.clamp(1.75 + enemy.depth * .052, 2.15, enemy.boss ? 5.7 : 5.05);
-        const pulse = 1 + Math.sin(snapshot.runTimeSeconds * 12 + enemy.id) * .075;
-        existingRing.scale.setScalar(depthScale * pulse);
-        group.getWorldQuaternion(this.lockParentQuaternion);
-        this.camera.getWorldQuaternion(this.lockCameraQuaternion);
-        existingRing.quaternion.copy(this.lockParentQuaternion.invert().multiply(this.lockCameraQuaternion));
+        // V9.7.1: the point-sprite lock marker owns a fixed 64px footprint, so distance and aircraft bank cannot erase it.
+        existingRing.position.z = -0.08;
       }
       if (!enemy.locked && existingRing) {
         group.remove(existingRing);
@@ -601,7 +594,7 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
 
   private disposeObject(group: THREE.Object3D): void {
     group.traverse((object) => {
-      if (!(object instanceof THREE.Mesh)) return;
+      if (!(object instanceof THREE.Mesh) && !(object instanceof THREE.Points)) return;
       object.geometry.dispose();
       const materials = Array.isArray(object.material) ? object.material : [object.material];
       for (const material of materials) material.dispose();
