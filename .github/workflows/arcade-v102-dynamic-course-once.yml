@@ -9,6 +9,9 @@ on:
 permissions:
   contents: write
 
+env:
+  SKY_DANCER_V102_REVISION: "2"
+
 jobs:
   evolve-course:
     runs-on: ubuntu-24.04
@@ -29,7 +32,7 @@ jobs:
           p=Path('src/sky/arcade/SkyDancerArcadeCoursePath.ts')
           s=p.read_text()
           anchor='''const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));\n\nfunction courseCenter'''
-          insert='''const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));\n\nfunction smoothStep(edge0: number, edge1: number, value: number): number {\n  if (edge0 === edge1) return value < edge0 ? 0 : 1;\n  const t = clamp((value - edge0) / (edge1 - edge0), 0, 1);\n  return t * t * (3 - 2 * t);\n}\n\nfunction routeShift(progress: number, center: number, width: number): number {\n  return smoothStep(center - width, center + width, progress);\n}\n\n/**\n * V10.2: short authored heading changes create real S-turns instead of one broad sinusoid.\n * The four lane shifts sum back to zero before the boss arena so the climax remains readable.\n */\nfunction dynamicCourseDrama(stage: SkyDancerArcadeStageDefinition, progress: number): { x: number; y: number } {\n  const u = clamp(progress, 0, 1);\n  const direction = stage.order % 2 === 0 ? -1 : 1;\n  const lateral = 10.5 + stage.curveStrength * 18 + Math.min(5, stage.act * .65);\n  const vertical = 4.5 + stage.curveStrength * 8 + stage.turbulence * 7;\n  const first = routeShift(u, .105, .027);\n  const second = routeShift(u, .245, .032);\n  const third = routeShift(u, .385, .03);\n  const fourth = routeShift(u, .515, .034);\n  const x = direction * lateral * (first - 2.05 * second + 2.05 * third - fourth);\n  const dive = routeShift(u, .165, .035);\n  const recover = routeShift(u, .315, .04);\n  const climb = routeShift(u, .43, .035);\n  const settle = routeShift(u, .535, .03);\n  const y = vertical * (-dive + 1.65 * recover - 1.25 * climb + .6 * settle);\n  return { x, y };\n}\n\nfunction courseCenter'''
+          insert='''const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));\n\nfunction smoothStep(edge0: number, edge1: number, value: number): number {\n  if (edge0 === edge1) return value < edge0 ? 0 : 1;\n  const t = clamp((value - edge0) / (edge1 - edge0), 0, 1);\n  return t * t * (3 - 2 * t);\n}\n\nfunction routeShift(progress: number, center: number, width: number): number {\n  return smoothStep(center - width, center + width, progress);\n}\n\n/**\n * V10.2: authored lane transfers create real S-turns instead of one broad sinusoid.\n * They return to the baseline before the boss arena so the climax remains readable.\n */\nfunction dynamicCourseDrama(stage: SkyDancerArcadeStageDefinition, progress: number): { x: number; y: number } {\n  const u = clamp(progress, 0, 1);\n  const direction = stage.order % 2 === 0 ? -1 : 1;\n  const lateral = 13.5 + stage.curveStrength * 24 + Math.min(6.5, stage.act * .9);\n  const vertical = 6 + stage.curveStrength * 10 + stage.turbulence * 8;\n  const first = routeShift(u, .102, .03);\n  const second = routeShift(u, .225, .034);\n  const third = routeShift(u, .355, .032);\n  const fourth = routeShift(u, .495, .036);\n  const x = direction * lateral * (first - 2 * second + 2 * third - fourth);\n  const dive = routeShift(u, .145, .034);\n  const recover = routeShift(u, .275, .038);\n  const climb = routeShift(u, .405, .034);\n  const settle = routeShift(u, .525, .035);\n  const y = vertical * (-dive + 1.72 * recover - 1.32 * climb + .6 * settle);\n  return { x, y };\n}\n\nfunction courseCenter'''
           assert anchor in s
           s=s.replace(anchor,insert,1)
           old='''  const authoredU = clamp(u, 0, 1);\n'''
@@ -45,7 +48,8 @@ jobs:
           s=s.replace(old_bank,'''    bank: clamp(-yaw * limits.bank, -0.62, 0.62),''',1)
           p.write_text(s)
 
-          # 2) Make the streamed world visibly roll and pitch with the spline.
+          # 2) Make the streamed world visibly roll/pitch with the spline. Ice ribs blend a wider
+          # slope sample so a steep local step cannot make every guide rib appear parallel.
           p=Path('src/sky/arcade/SkyDancerArcadeReferenceWorld.ts')
           s=p.read_text()
           old='''      chunk.group.rotation.y=course.yaw*.94;\n      chunk.group.rotation.x=course.pitch*.72;\n      chunk.group.rotation.z=course.bank*.12;'''
@@ -53,7 +57,7 @@ jobs:
           assert old in s
           s=s.replace(old,new,1)
           old='''      cue.group.rotation.y=course.yaw*(cue.kind==="ice"?1.05:.98);\n      cue.group.rotation.x=course.pitch*(cue.kind==="ice"?2.15:.78);\n      cue.group.rotation.z=cue.kind==="orbit"\n        ? cue.phase+(distance+cue.depth)*.0068\n        : course.bank*(cue.kind==="ice"?.18:.08);'''
-          new='''      cue.group.rotation.y=course.yaw*(cue.kind==="ice"?1.18:1.1);\n      cue.group.rotation.x=course.pitch*(cue.kind==="ice"?2.28:1.02);\n      cue.group.rotation.z=cue.kind==="orbit"\n        ? cue.phase+(distance+cue.depth)*.0068+course.bank*.24\n        : course.bank*(cue.kind==="ice"?.34:.3);'''
+          new='''      const cueAhead=arcadeCourseRelativePose(this.stage,distance,cue.depth+24);\n      const cueSlope=Math.atan2(cueAhead.y-course.y,24);\n      cue.group.rotation.y=course.yaw*(cue.kind==="ice"?1.18:1.1);\n      cue.group.rotation.x=cue.kind==="ice" ? course.pitch*1.5+cueSlope*1.45 : course.pitch*1.02;\n      cue.group.rotation.z=cue.kind==="orbit"\n        ? cue.phase+(distance+cue.depth)*.0068+course.bank*.24\n        : course.bank*(cue.kind==="ice"?.34:.3);'''
           assert old in s
           s=s.replace(old,new,1)
           p.write_text(s)
@@ -66,7 +70,7 @@ jobs:
           assert old in s
           s=s.replace(old,new,1)
           old='''    const targetX = pose.x + shakeX - nearCourse.x * .018;\n    const targetY = pose.y + shakeY - nearCourse.y * (iceCourse ? 0 : .012);\n    this.camera.position.x += (targetX - this.camera.position.x) * Math.min(1, delta * 4.0);\n    this.camera.position.y += (targetY - this.camera.position.y) * Math.min(1, delta * 4.0);'''
-          new='''    // V10.2: the camera deliberately trails the local spline while looking into the next turn.\n    // Opposing position lag plus stronger look-ahead creates cornering parallax instead of a centered straight tunnel.\n    const targetX = pose.x + shakeX - nearCourse.x * .052 - course.yaw * 1.65;\n    const targetY = pose.y + shakeY - nearCourse.y * (iceCourse ? .008 : .028) + course.pitch * .9;\n    this.camera.position.x += (targetX - this.camera.position.x) * Math.min(1, delta * 3.35);\n    this.camera.position.y += (targetY - this.camera.position.y) * Math.min(1, delta * 3.5);'''
+          new='''    // V10.2: the camera trails the local spline while looking into the next turn.\n    // Opposing position lag plus stronger look-ahead creates cornering parallax instead of a centered straight tunnel.\n    const targetX = pose.x + shakeX - nearCourse.x * .052 - course.yaw * 1.65;\n    const targetY = pose.y + shakeY - nearCourse.y * (iceCourse ? .008 : .028) + course.pitch * .9;\n    this.camera.position.x += (targetX - this.camera.position.x) * Math.min(1, delta * 3.35);\n    this.camera.position.y += (targetY - this.camera.position.y) * Math.min(1, delta * 3.5);'''
           assert old in s
           s=s.replace(old,new,1)
           old='''    this.camera.lookAt(\n      pose.lookX + nearCourse.x * .055 + farCourse.x * .028,\n      pose.lookY + nearCourse.y * (iceCourse ? .006 : .07) + farCourse.y * (iceCourse ? 0 : .018),\n      pose.lookZ,\n    );\n    // Bank enough to sell the turn, but do not rotate the horizon so far that the bend disappears.\n    this.camera.rotateZ(pose.roll + course.bank * .32 + nearCourse.bank * .05);'''
@@ -75,16 +79,30 @@ jobs:
           s=s.replace(old,new,1)
           p.write_text(s)
 
-          # 4) Regression coverage: every route needs multiple heading reversals before its boss arena.
+          # 4) Regression coverage for the new course language.
           p=Path('tests/sky-arcade-reference.test.ts')
           s=p.read_text()
           imp='''import { arcadeCameraPose } from "../src/sky/arcade/SkyDancerArcadeCamera";'''
           assert imp in s
           s=s.replace(imp,imp+'\nimport { arcadeCoursePose, arcadeCourseRelativePose } from "../src/sky/arcade/SkyDancerArcadeCoursePath";',1)
           marker='''test("all eleven environments have bounded geometry and continuous streaming ownership", () => {'''
-          test='''test("V10.2 flight courses contain visible chicanes, vertical beats and bank reversals before the boss", () => {\n  for (const stage of SKY_DANCER_ARCADE_STAGES) {\n    const length = stage.durationSeconds * stage.courseSpeed;\n    const samples = Array.from({ length: 22 }, (_, i) => arcadeCoursePose(stage, length * (i / 21) * .54));\n    const yawRange = Math.max(...samples.map(p => p.yaw)) - Math.min(...samples.map(p => p.yaw));\n    const bankRange = Math.max(...samples.map(p => p.bank)) - Math.min(...samples.map(p => p.bank));\n    const verticalRange = Math.max(...samples.map(p => p.y)) - Math.min(...samples.map(p => p.y));\n    const signChanges = samples.slice(1).reduce((count, pose, i) => {\n      const before = samples[i].yaw;\n      return count + (Math.abs(before) > .035 && Math.abs(pose.yaw) > .035 && Math.sign(before) !== Math.sign(pose.yaw) ? 1 : 0);\n    }, 0);\n    assert.ok(yawRange > .24, `${stage.id} yaw range ${yawRange} must read as a real turn`);\n    assert.ok(bankRange > .28, `${stage.id} bank range ${bankRange} must visibly reverse`);\n    assert.ok(verticalRange > 4.5, `${stage.id} vertical range ${verticalRange} must climb/dive`);\n    assert.ok(signChanges >= 2, `${stage.id} needs at least two heading reversals, got ${signChanges}`);\n    const ahead = arcadeCourseRelativePose(stage, length * .31, 120);\n    assert.ok(Math.abs(ahead.x) > 3 || Math.abs(ahead.y) > 3, `${stage.id} 120m look-ahead must leave the screen centre`);\n  }\n});\n\n'''
+          test='''test("V10.2 flight courses contain visible chicanes, vertical beats and bank reversals before the boss", () => {\n  for (const stage of SKY_DANCER_ARCADE_STAGES) {\n    const length = stage.durationSeconds * stage.courseSpeed;\n    const samples = Array.from({ length: 64 }, (_, i) => arcadeCoursePose(stage, length * (i / 63) * .55));\n    const yawRange = Math.max(...samples.map(p => p.yaw)) - Math.min(...samples.map(p => p.yaw));\n    const bankRange = Math.max(...samples.map(p => p.bank)) - Math.min(...samples.map(p => p.bank));\n    const verticalRange = Math.max(...samples.map(p => p.y)) - Math.min(...samples.map(p => p.y));\n    const signs = samples.map(p => p.yaw).filter(value => Math.abs(value) >= .035).map(Math.sign);\n    const signChanges = signs.reduce((count, sign, i) => count + (i > 0 && sign !== signs[i - 1] ? 1 : 0), 0);\n    assert.ok(yawRange > .24, `${stage.id} yaw range ${yawRange} must read as a real turn`);\n    assert.ok(bankRange > .28, `${stage.id} bank range ${bankRange} must visibly reverse`);\n    assert.ok(verticalRange > 4.5, `${stage.id} vertical range ${verticalRange} must climb/dive`);\n    assert.ok(signChanges >= 2, `${stage.id} needs at least two heading reversals, got ${signChanges}`);\n    const ahead = arcadeCourseRelativePose(stage, length * .31, 120);\n    assert.ok(Math.abs(ahead.x) > 3 || Math.abs(ahead.y) > 3, `${stage.id} 120m look-ahead must leave the screen centre`);\n  }\n});\n\n'''
           assert marker in s
           s=s.replace(marker,test+marker,1)
+          p.write_text(s)
+
+          # 5) Supersede historical exact-coefficient source assertions with V10.2's stronger camera contract.
+          p=Path('tests/sky-arcade-run.test.ts')
+          s=p.read_text()
+          replacements={
+            '''assert.match(webglSource, /course\\.bank \\* \\.32 \\+ nearCourse\\.bank \\* \\.05/);''': '''assert.match(webglSource, /course\\.bank \\* \\.56 \\+ nearCourse\\.bank \\* \\.14/);''',
+            '''assert.match(webgl, /nearCourse\\.x \\* \\.055 \\+ farCourse\\.x \\* \\.028/);''': '''assert.match(webgl, /nearCourse\\.x \\* \\.14 \\+ farCourse\\.x \\* \\.06 \\+ course\\.yaw \\* 3\\.6/);''',
+            '''assert.match(webgl, /nearCourse\\.y \\* \\(iceCourse \\? \\.006 : \\.07\\)/);''': '''assert.match(webgl, /nearCourse\\.y \\* \\(iceCourse \\? \\.018 : \\.105\\)/);''',
+            '''assert.match(webgl, /farCourse\\.y \\* \\(iceCourse \\? 0 : \\.018\\)/);''': '''assert.match(webgl, /farCourse\\.y \\* \\(iceCourse \\? \\.006 : \\.032\\) \\+ course\\.pitch \\* 2\\.2/);''',
+          }
+          for old,new in replacements.items():
+            assert old in s, old
+            s=s.replace(old,new,1)
           p.write_text(s)
           PY
       - name: Arcade rules regression
@@ -101,6 +119,6 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git rm -f .github/workflows/arcade-v102-dynamic-course-once.yml
-          git add src/sky/arcade/SkyDancerArcadeCoursePath.ts src/sky/arcade/SkyDancerArcadeReferenceWorld.ts src/sky/arcade/SkyDancerArcadeWebGLDemo.ts tests/sky-arcade-reference.test.ts
+          git add src/sky/arcade/SkyDancerArcadeCoursePath.ts src/sky/arcade/SkyDancerArcadeReferenceWorld.ts src/sky/arcade/SkyDancerArcadeWebGLDemo.ts tests/sky-arcade-reference.test.ts tests/sky-arcade-run.test.ts
           git commit -m "Arcade Run V10.2: dynamic flight course choreography"
           git push
