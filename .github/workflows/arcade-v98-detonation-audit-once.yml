@@ -1,0 +1,74 @@
+name: Arcade V9.8 Detonation Visual Audit Once
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - ".github/workflows/arcade-v98-detonation-audit-once.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  audit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    env:
+      SKY_DANCER_CHROME_PATH: /usr/bin/google-chrome
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.13.0
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Install isolated browser controller
+        run: |
+          rm -rf .audit-runtime
+          mkdir -p .audit-runtime
+          printf '{"private":true,"type":"commonjs"}\n' > .audit-runtime/package.json
+          npm install --prefix .audit-runtime --no-package-lock --no-save --ignore-scripts --no-audit --no-fund playwright-core@1.55.0
+          google-chrome --version
+      - name: Inject audit-only detonation bridge
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('src/sky/arcade/SkyDancerArcadeWebGLDemo.ts')
+          text = path.read_text()
+          anchor = '    this.presentation = new SkyDancerArcadeProductPresentation(this.scene);\n    this.presentation.setStage();\n'
+          insert = anchor + '''    const auditWindow = window as Window & { __skyV98Audit?: { emit: (kind: string) => void; clear: () => void } };\n    auditWindow.__skyV98Audit = {\n      emit: (kind: string) => {\n        const position = new THREE.Vector3(0, 1.8, -18);\n        if (kind === "missile") this.presentation.emitMissileImpact(position, 1.25);\n        else if (kind === "small") this.presentation.emitSmallExplosion(position, true);\n        else if (kind === "heavy") this.presentation.emitHeavyExplosion(position, true);\n        else if (kind === "boss") this.presentation.emitBossExplosion(position, true);\n      },\n      clear: () => this.presentation.setStage(),\n    };\n'''
+          if anchor not in text:
+              raise SystemExit('audit bridge anchor missing')
+          path.write_text(text.replace(anchor, insert, 1))
+          PY
+      - name: Build Pages
+        run: npm run build:pages
+      - name: Start local Pages server
+        run: |
+          python3 -m http.server 4173 --bind 127.0.0.1 --directory out > /tmp/sky-v98-http.log 2>&1 &
+          for i in {1..30}; do
+            if curl -fsS http://127.0.0.1:4173/ >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          cat /tmp/sky-v98-http.log
+          exit 1
+      - name: Capture V9.8 detonation hierarchy
+        run: node scripts/webgl-arcade-v98-detonation-audit.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: sky-dancer-v98-detonation-${{ github.sha }}
+          path: artifacts/arcade-v98-detonation
+          if-no-files-found: error
+          retention-days: 14
+      - name: Remove temporary audit files
+        if: success()
+        run: |
+          git checkout -- src/sky/arcade/SkyDancerArcadeWebGLDemo.ts
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/arcade-v98-detonation-audit-once.yml scripts/webgl-arcade-v98-detonation-audit.mjs
+          git commit -m "Remove V9.8 temporary detonation visual audit files"
+          git push origin HEAD:main
