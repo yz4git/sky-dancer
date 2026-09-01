@@ -205,33 +205,47 @@ test("V10.3.4 Dawn City uses continuous riverbanks instead of rigid slabs on sha
   world.dispose();
 });
 
-test("V10.3.5 far-field skyline follows the same course without steering swim or city over-bank", () => {
+test("V10.3.6 keeps the horizon stable while every course-bound layer shares one spline frame", () => {
   const city=SKY_DANCER_ARCADE_STAGES.find(stage=>stage.biome==="city");
-  assert.ok(city);
+  const volcano=SKY_DANCER_ARCADE_STAGES.find(stage=>stage.biome==="volcano");
+  assert.ok(city && volcano);
   const scene=new THREE.Scene();
   const world=new SkyDancerArcadeReferenceWorld(scene);
   world.setStage(city);
   const backdrop=scene.getObjectByName("arcade-product-backdrop") as THREE.Group;
   assert.ok(backdrop instanceof THREE.Group);
-  assert.equal(backdrop.userData.arcadeBackdropCourseFollowV1035,true);
-  assert.equal(backdrop.userData.arcadeBackdropDepthV1035,430);
+  assert.equal(backdrop.userData.arcadeBackdropStableHorizonV1036,true);
   const length=city.durationSeconds*city.courseSpeed;
-  const xs:number[]=[],ys:number[]=[];
-  let maxChunkBank=0;
   for(const progress of [.06,.12,.18,.25,.32,.4]){
-    world.update(length*progress,0,0);
-    xs.push(backdrop.position.x);ys.push(backdrop.position.y);
+    const distance=length*progress;
+    world.update(distance,.8,-.6);
+    assert.ok(backdrop.position.length()<1e-12,"far horizon must not translate independently of the course");
+    assert.ok(Math.abs(backdrop.rotation.x)+Math.abs(backdrop.rotation.y)+Math.abs(backdrop.rotation.z)<1e-12,
+      "far horizon must stay in the world/camera frame instead of receiving a second course rotation");
     for(let i=0;i<8;i++){
-      const chunk=scene.getObjectByName(`arcade-course-chunk-${i}`);
-      assert.ok(chunk);maxChunkBank=Math.max(maxChunkBank,Math.abs(chunk.rotation.z));
+      const chunk=scene.getObjectByName(`arcade-course-chunk-${i}`) as THREE.Group;
+      assert.ok(chunk);
+      assert.equal(chunk.userData.arcadeUnifiedCourseFrameV1036,true);
+      const depth=-chunk.position.z;
+      const authored=arcadeCourseRelativePose(city,distance,depth);
+      assert.ok(Math.abs(chunk.rotation.y-authored.yaw)<1e-9,`chunk ${i} yaw must equal the shared course yaw`);
+      assert.ok(Math.abs(chunk.rotation.x-authored.pitch)<1e-9,`chunk ${i} pitch must equal the shared course pitch`);
+      assert.ok(Math.abs(chunk.rotation.z-authored.bank*.22)<1e-9,`chunk ${i} bank must match the city river/bank frame`);
     }
   }
-  const range=(values:number[])=>Math.max(...values)-Math.min(...values);
-  assert.ok(range(xs)>2||range(ys)>1.5,`far field must follow the authored route: x=${range(xs)} y=${range(ys)}`);
-  assert.ok(maxChunkBank<.3,`dense city chunks should not over-bank: ${maxChunkBank}`);
-  world.update(length*.25,1,.8);const steeredX=backdrop.position.x,steeredY=backdrop.position.y;
-  world.update(length*.25,-1,-.8);
-  assert.ok(Math.abs(backdrop.position.x-steeredX)<1e-9&&Math.abs(backdrop.position.y-steeredY)<1e-9,"far skyline must not swim with steering input");
+
+  world.setStage(volcano);
+  const volcanoDistance=volcano.durationSeconds*volcano.courseSpeed*.29;
+  world.update(volcanoDistance,-.7,.5);
+  const cues=scene.getObjectsByProperty("name","arcade-volcano-route-cue") as THREE.Group[];
+  assert.ok(cues.length>0);
+  for(const cue of cues){
+    const depth=Number(cue.userData.arcadeRouteDepth);
+    const authored=arcadeCourseRelativePose(volcano,volcanoDistance,depth);
+    assert.ok(Math.abs(cue.rotation.y-authored.yaw)<1e-9,"volcano marker yaw must use the same course frame");
+    assert.ok(Math.abs(cue.rotation.x-authored.pitch)<1e-9,"volcano marker pitch must use the same course frame");
+    assert.ok(Math.abs(cue.rotation.z-authored.bank*.28)<1e-9,"volcano marker bank must match the magma ribbon frame");
+  }
   world.dispose();
 });
 
