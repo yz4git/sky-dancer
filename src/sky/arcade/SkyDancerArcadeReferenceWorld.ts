@@ -655,11 +655,13 @@ export class SkyDancerArcadeReferenceWorld {
     switch(stage.biome){
       case "city":case "night":break;
       case "canyon":{
-        // V10.3.1 foreground safety: keep the knife-run walls dramatic without a near cliff swallowing half the phone.
+        // V10.3.9.1 phone playcheck: retain the knife-run silhouette but move the nearest authored wall
+        // outside the combat lane. The former x=34 / ~12m base radius could still cover a third of 852px.
         group.userData.arcadeCanyonV1031Clearance=true;
+        group.userData.arcadeCanyonV10391PhoneWallClearance=true;
         for(const side of [-1,1])for(let j=0;j<4;j++){
-          const h=17+r(j+side*15)*30;
-          const rock=mesh(group,new THREE.CylinderGeometry(3.5+r(j+3)*4.2,6.5+r(j+5)*5.5,h,7,3),j%2?primary:secondary,side*(34+j%2*30),-25+h/2,-42+j*27);
+          const h=15+r(j+side*15)*25;
+          const rock=mesh(group,new THREE.CylinderGeometry(3.2+r(j+3)*3.8,5.8+r(j+5)*4.8,h,7,3),j%2?primary:secondary,side*(ARCADE_NEAR_PASS_CLEARANCE_V1039.canyon+j%2*30),-25+h/2,-42+j*27);
           rock.rotation.y=r(j+19)*2;
         }
         break;

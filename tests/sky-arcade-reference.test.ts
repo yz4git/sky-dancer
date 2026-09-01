@@ -748,6 +748,9 @@ test("V10.3.9 preserves a phone-readable central corridor for visual-only near p
     const chunks = root?.children.filter(child => child.name.startsWith("arcade-course-chunk-")) ?? [];
     assert.equal(chunks.length, 8);
     assert.ok(chunks.every(chunk => chunk.userData.arcadeReadableFlightCorridorV1039 === true), `${id} readable corridor marker`);
+    if (id === "red-canyon") {
+      assert.ok(chunks.every(chunk => chunk.userData.arcadeCanyonV10391PhoneWallClearance === true), "red-canyon authored walls keep phone clearance");
+    }
   }
   world.dispose();
 });
