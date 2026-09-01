@@ -17,6 +17,8 @@ jobs:
   apply:
     runs-on: ubuntu-24.04
     timeout-minutes: 12
+    env:
+      SKY_DANCER_V98_REVISION: "2"
     steps:
       - uses: actions/checkout@v4
         with:
@@ -28,6 +30,8 @@ jobs:
       - run: npm ci --no-audit --no-fund
       - name: Apply V9.8 detonation hierarchy
         run: python3 scripts/apply-arcade-v98-detonation.py
+      - name: Retire impact telemetry as transient presentation mail
+        run: python3 scripts/fix-arcade-v98-impact-retirement.py
       - name: Arcade rules regression
         run: npm run test:rules
       - name: Arcade typecheck
@@ -41,6 +45,6 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add src/sky/arcade/SkyDancerArcadeRuntime.ts src/sky/arcade/SkyDancerArcadeProductPresentation.ts src/sky/arcade/SkyDancerArcadeWebGLDemo.ts tests/sky-arcade-reference.test.ts
-          git rm .github/workflows/arcade-v98-detonation-once.yml scripts/apply-arcade-v98-detonation.py
+          git rm .github/workflows/arcade-v98-detonation-once.yml scripts/apply-arcade-v98-detonation.py scripts/fix-arcade-v98-impact-retirement.py
           git commit -m "Arcade Run V9.8: detonation hierarchy and missile impact punch"
           git push origin HEAD:main
