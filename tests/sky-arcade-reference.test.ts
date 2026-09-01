@@ -5,7 +5,7 @@ import { normalizeArcadeStick } from "../src/sky/arcade/SkyDancerArcadeInput";
 import { arcadeCameraPose } from "../src/sky/arcade/SkyDancerArcadeCamera";
 import { arcadeCoursePose, arcadeCourseRelativePose } from "../src/sky/arcade/SkyDancerArcadeCoursePath";
 import { createReferenceFighter, createReferenceCarrier } from "../src/sky/arcade/SkyDancerArcadeReferenceAirframes";
-import { SkyDancerArcadeReferenceWorld } from "../src/sky/arcade/SkyDancerArcadeReferenceWorld";
+import { ARCADE_NEAR_PASS_CLEARANCE_V1039, SkyDancerArcadeReferenceWorld } from "../src/sky/arcade/SkyDancerArcadeReferenceWorld";
 import { createArcadeWaterMaterial, referenceAtmosphere } from "../src/sky/arcade/SkyDancerArcadeReferenceMaterials";
 import { ARCADE_EFFECT_BUDGET, SkyDancerArcadeProductPresentation } from "../src/sky/arcade/SkyDancerArcadeProductPresentation";
 import { SKY_DANCER_ARCADE_STAGES } from "../src/sky/arcade/SkyDancerArcadeData";
@@ -730,4 +730,24 @@ test("V10 Arcade Meta Layer defaults to migrated v2 career records and milestone
   assert.equal(progress.totalBossKills, 0);
   assert.equal(progress.totalArmorBreaks, 0);
   assert.equal(progress.bestChain, 0);
+});
+
+
+test("V10.3.9 preserves a phone-readable central corridor for visual-only near passes", async () => {
+  assert.ok(ARCADE_NEAR_PASS_CLEARANCE_V1039.city >= 30);
+  assert.ok(ARCADE_NEAR_PASS_CLEARANCE_V1039.night >= 39);
+  assert.ok(ARCADE_NEAR_PASS_CLEARANCE_V1039.canyon >= 42);
+  assert.ok(ARCADE_NEAR_PASS_CLEARANCE_V1039.volcano >= 44);
+  assert.ok(ARCADE_NEAR_PASS_CLEARANCE_V1039.orbit >= 42);
+  const scene = new THREE.Scene();
+  const world = new SkyDancerArcadeReferenceWorld(scene);
+  for (const id of ["red-canyon", "night-metro", "volcano-core", "orbital-ascent"] as const) {
+    const stage = SKY_DANCER_ARCADE_STAGES.find(candidate => candidate.id === id)!;
+    world.setStage(stage);
+    const root = scene.getObjectByName("arcade-course-environment");
+    const chunks = root?.children.filter(child => child.name.startsWith("arcade-course-chunk-")) ?? [];
+    assert.equal(chunks.length, 8);
+    assert.ok(chunks.every(chunk => chunk.userData.arcadeReadableFlightCorridorV1039 === true), `${id} readable corridor marker`);
+  }
+  world.dispose();
 });

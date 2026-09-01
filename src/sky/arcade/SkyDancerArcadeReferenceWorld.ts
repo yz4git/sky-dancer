@@ -13,6 +13,12 @@ const CHUNK_COUNT = 8;
 const WORLD_SPAN = CHUNK_LENGTH * CHUNK_COUNT;
 const SURFACE_CHUNK_DEPTH = CHUNK_LENGTH + 32; // V10.3.2: overlap pitched chunks so sky can never show through a terrain seam.
 const CITY_QUAY_DEPTH = CHUNK_LENGTH + 12; // V10.3.3: city banks overlap modestly; the river itself is now a continuous spline ribbon.
+
+// V10.3.9: phone playcheck clearance for visual-only near-pass scenery.
+// These values keep speed silhouettes at the edges without letting a sharp spline yaw wipe the central combat lane.
+export const ARCADE_NEAR_PASS_CLEARANCE_V1039 = {
+  city: 30, night: 39, canyon: 42, volcano: 44, ice: 35, cloud: 39, storm: 38, ruins: 43, orbit: 42, citadel: 36,
+} as const;
 const fract = (n: number) => n - Math.floor(n);
 const random = (seed: number) => fract(Math.sin(seed * 127.1 + 311.7) * 43758.5453);
 
@@ -826,12 +832,12 @@ export class SkyDancerArcadeReferenceWorld {
       }
       case "orbit":{
         // V8.3: avoid a stack of full concentric rings, which flattened the real corkscrew into a straight tunnel.
-        const frame=mesh(group,new THREE.TorusGeometry(33,1.35,7,42,Math.PI*1.12),primary,0,0,0);
+        const frame=mesh(group,new THREE.TorusGeometry(37.5,1.15,7,42,Math.PI*1.08),primary,0,0,0);
         frame.name="arcade-orbital-open-frame";frame.rotation.z=index*.71;
         for(const side of [-1,1]){
-          mesh(group,new THREE.BoxGeometry(4,24,10),secondary,side*36,0,-5);
-          mesh(group,new THREE.BoxGeometry(18,.2,32),dark,side*49,5,-5);
-          for(let j=0;j<5;j++)mesh(group,new THREE.BoxGeometry(.12,.25,31),glow,side*(42+j*3),5.2,-5);
+          mesh(group,new THREE.BoxGeometry(3.4,22,9),secondary,side*42,0,-5);
+          mesh(group,new THREE.BoxGeometry(16,.18,30),dark,side*55,5,-5);
+          for(let j=0;j<5;j++)mesh(group,new THREE.BoxGeometry(.11,.22,29),glow,side*(48+j*3),5.2,-5);
         }
         break;
       }
@@ -897,26 +903,29 @@ export class SkyDancerArcadeReferenceWorld {
     for(const side of [-1,1])for(let j=0;j<5;j++){
       const z=-51+j*24+r(j+41)*6;
       const x=side*(25+r(j+71)*8.5);
-      // V10.3.7: canyon fins need more screen-space clearance than city towers; sharp spline yaw otherwise lets a near fin wipe the phone display.
-      const canyonX=side*(34+r(j+71)*10);
-      const volcanoX=side*(37+r(j+71)*9);
-      const iceX=side*(35+r(j+71)*11.5);
+      // V10.3.9: all dense visual-only fly-by sets share an explicit phone-safe inner corridor.
+      const cityX=side*(ARCADE_NEAR_PASS_CLEARANCE_V1039.city+r(j+71)*9);
+      const canyonX=side*(ARCADE_NEAR_PASS_CLEARANCE_V1039.canyon+r(j+71)*11);
+      const volcanoX=side*(ARCADE_NEAR_PASS_CLEARANCE_V1039.volcano+r(j+71)*10);
+      const iceX=side*(ARCADE_NEAR_PASS_CLEARANCE_V1039.ice+r(j+71)*11.5);
+      const orbitX=side*(ARCADE_NEAR_PASS_CLEARANCE_V1039.orbit+r(j+71)*11);
+      group.userData.arcadeReadableFlightCorridorV1039=true;
       if(stage.biome==="city"){
         const h=25+r(j+11)*31;
         const w=2.2+r(j+19)*1.8;
         const d=4+r(j+23)*2.2;
-        const tower=mesh(group,new THREE.BoxGeometry(w,h,d),j%3===0?secondary:primary,x,-25+h/2,z);
+        const tower=mesh(group,new THREE.BoxGeometry(w,h,d),j%3===0?secondary:primary,cityX,-25+h/2,z);
         tower.rotation.y=(r(j+31)-.5)*.07;
-        mesh(group,new THREE.BoxGeometry(w*1.38,h*.22,d*1.18),dark,x,-25+h*.11,z);
-        mesh(group,new THREE.BoxGeometry(w*.72,1.15,d*.76),secondary,x,-24.42+h,z);
+        mesh(group,new THREE.BoxGeometry(w*1.38,h*.22,d*1.18),dark,cityX,-25+h*.11,z);
+        mesh(group,new THREE.BoxGeometry(w*.72,1.15,d*.76),secondary,cityX,-24.42+h,z);
         for(let band=0;band<3;band++){
-          mesh(group,new THREE.BoxGeometry(w*1.06,.13,d*1.03),glow,x,-25+h*(.34+band*.2),z);
+          mesh(group,new THREE.BoxGeometry(w*1.06,.13,d*1.03),glow,cityX,-25+h*(.34+band*.2),z);
         }
-        mesh(group,new THREE.BoxGeometry(.12,h*.62,d*1.04),glow,x-side*w*.34,-25+h*.54,z);
-        if(j%2===0) mesh(group,new THREE.BoxGeometry(.16,4+r(j+55)*5,.16),glow,x,-23.8+h+2.2,z);
+        mesh(group,new THREE.BoxGeometry(.12,h*.62,d*1.04),glow,cityX-side*w*.34,-25+h*.54,z);
+        if(j%2===0) mesh(group,new THREE.BoxGeometry(.16,4+r(j+55)*5,.16),glow,cityX,-23.8+h+2.2,z);
       } else if(stage.biome==="night"){
         // V9.1: close passes alternate station blades, signs and canopy fragments instead of ten more skyscrapers.
-        const metroX=side*(34+r(j+71)*10+(j%2)*3);
+        const metroX=side*(ARCADE_NEAR_PASS_CLEARANCE_V1039.night+r(j+71)*10+(j%2)*3);
         const y=-6+r(j+6)*15;
         if((j+index)%2===0){
           const blade=mesh(group,new THREE.BoxGeometry(1.1,16+r(j+5)*13,7+r(j+25)*5),secondary,metroX,y+7,z);
@@ -930,7 +939,7 @@ export class SkyDancerArcadeReferenceWorld {
           mast.rotation.z=side*.07;
         }
       } else if(stage.biome==="canyon" || stage.biome==="volcano"){
-        const h=stage.biome==="volcano"?20+r(j+9)*27:24+r(j+9)*36;
+        const h=stage.biome==="volcano"?18+r(j+9)*22:22+r(j+9)*29;
         const rockX=stage.biome==="volcano"?volcanoX:canyonX;
         const fin=mesh(group,new THREE.CylinderGeometry(1.8+r(j+7)*2.7,4.6+r(j+17)*3.3,h,5,2),j%2?secondary:primary,rockX,-26+h/2,z);
         fin.rotation.z=side*(.06+r(j+27)*.16);
@@ -1001,9 +1010,9 @@ export class SkyDancerArcadeReferenceWorld {
         }
       } else if(stage.biome==="orbit"){
         const y=-7+r(j+4)*18;
-        const pylon=mesh(group,new THREE.BoxGeometry(1.6,18+r(j+14)*14,5.5),j%2?secondary:primary,x,y,z);
-        pylon.rotation.z=side*(r(j+34)-.5)*.12;
-        mesh(group,new THREE.BoxGeometry(.2,15+r(j+54)*9,5.7),glow,x-side*1,y,z-.1);
+        const pylon=mesh(group,new THREE.BoxGeometry(1.5,16+r(j+14)*11,5),j%2?secondary:primary,orbitX,y,z);
+        pylon.rotation.z=side*(r(j+34)-.5)*.1;
+        mesh(group,new THREE.BoxGeometry(.18,13+r(j+54)*8,5.2),glow,orbitX-side*.9,y,z-.1);
       } else if(stage.biome==="citadel"){
         // V8.9: keep near-pass pressure at the outer walls and vary the side rhythm instead of
         // building a matched pair of giant prisms around every view.
@@ -1039,7 +1048,7 @@ export class SkyDancerArcadeReferenceWorld {
 
     for(const side of [-1,1]){
       const lead=side===leadSide;
-      const railX=side*(lead?19:31);
+      const railX=side*(lead?24:34);
       const railY=lead?leadY:farY;
       const deck=mesh(group,new THREE.BoxGeometry(lead?10:7,1.1,84),lead?secondary:dark,railX,railY,0);
       deck.rotation.z=side*(lead?.035:-.018);
@@ -1047,11 +1056,11 @@ export class SkyDancerArcadeReferenceWorld {
       mesh(group,new THREE.BoxGeometry(.28,.18,80),primary,railX+side*(lead?3.2:2.1),railY+.72,0);
 
       if(lead){
-        const canopy=mesh(group,new THREE.BoxGeometry(16,1.3,26),dark,side*26,6+tier*2,-14);
+        const canopy=mesh(group,new THREE.BoxGeometry(15,1.2,24),dark,side*30,6+tier*2,-14);
         canopy.rotation.z=side*.055;canopy.rotation.y=side*.025;
         mesh(group,new THREE.BoxGeometry(12,.28,23),glow,side*24.5,6.9+tier*2,-14);
         for(const z of [-23,-5]){
-          const support=mesh(group,new THREE.BoxGeometry(1.5,18,1.5),secondary,side*31,-2+tier*2,z);
+          const support=mesh(group,new THREE.BoxGeometry(1.4,17,1.4),secondary,side*35,-2+tier*2,z);
           support.rotation.z=side*.06;
         }
       }
@@ -1060,11 +1069,11 @@ export class SkyDancerArcadeReferenceWorld {
     // Split gantries mark speed beats without recreating a full-screen hoop/tunnel.
     if(index%2===1){
       for(const side of [-1,1]){
-        const post=mesh(group,new THREE.BoxGeometry(1.4,25,2),secondary,side*31,2,-32);
+        const post=mesh(group,new THREE.BoxGeometry(1.3,23,1.8),secondary,side*35,2,-32);
         post.rotation.z=side*.035;
-        const arm=mesh(group,new THREE.BoxGeometry(12,1.3,2),side===leadSide?primary:dark,side*25,14,-32);
+        const arm=mesh(group,new THREE.BoxGeometry(10,1.2,1.8),side===leadSide?primary:dark,side*29,14,-32);
         arm.rotation.z=side*(side===leadSide?-.04:.025);
-        mesh(group,new THREE.BoxGeometry(7,.3,2.2),glow,side*21.5,15,-32);
+        mesh(group,new THREE.BoxGeometry(6,.26,2),glow,side*26,15,-32);
       }
     }
   }
