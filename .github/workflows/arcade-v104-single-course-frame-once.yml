@@ -23,6 +23,8 @@ jobs:
       - run: npm ci --no-audit --no-fund
       - name: Apply V10.4 single course frame patch
         run: python scripts/apply-v104-single-course-frame.py
+      - name: Update V10.4 regression contracts
+        run: python scripts/fix-v104-single-frame-contracts.py
       - name: Arcade rules regression
         run: npm run test:rules
       - name: Arcade typecheck
@@ -35,10 +37,10 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add src/sky/arcade/SkyDancerArcadeCoursePath.ts src/sky/arcade/SkyDancerArcadeReferenceWorld.ts src/sky/arcade/SkyDancerArcadeWebGLDemo.ts tests/sky-arcade-reference.test.ts
+          git add src/sky/arcade/SkyDancerArcadeCoursePath.ts src/sky/arcade/SkyDancerArcadeReferenceWorld.ts src/sky/arcade/SkyDancerArcadeWebGLDemo.ts tests/sky-arcade-reference.test.ts tests/sky-arcade-run.test.ts
           git commit -m "Arcade Run V10.4: unify background course frame"
           git push origin HEAD:main
-          rm -f scripts/apply-v104-single-course-frame.py .github/workflows/arcade-v104-single-course-frame-once.yml
+          rm -f scripts/apply-v104-single-course-frame.py scripts/fix-v104-single-frame-contracts.py .github/workflows/arcade-v104-single-course-frame-once.yml
           git add -A
           git commit -m "Remove V10.4 single course frame work files"
           git push origin HEAD:main
