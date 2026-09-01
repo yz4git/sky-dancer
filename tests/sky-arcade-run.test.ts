@@ -534,13 +534,40 @@ test("V10.4.1 background chunk attitude has one owner", async () => {
 });
 
 
-test("V10.4.2 city hazards are grounded architecture instead of floating primitives", async () => {
+test("V10.5 city hazards remain grounded architecture and are phase-locked to the course world", async () => {
   const models = await readFile(new URL("../src/sky/arcade/SkyDancerArcadeModels.ts", import.meta.url), "utf8");
   const demo = await readFile(new URL("../src/sky/arcade/SkyDancerArcadeWebGLDemo.ts", import.meta.url), "utf8");
-  assert.match(models, /arcadeCityAnchoredHazardV1042 = true/);
-  assert.match(models, /arcadeCityHazardKindV1042 = "tower"/);
-  assert.match(models, /arcadeCityHazardKindV1042 = "gantry"/);
+  const runtime = await readFile(new URL("../src/sky/arcade/SkyDancerArcadeRuntime.ts", import.meta.url), "utf8");
+  assert.match(models, /arcadeWorldAnchoredHazardV105 = true/);
+  assert.match(models, /"city-pylon"/);
+  assert.match(models, /"city-gantry"/);
   assert.match(models, /new THREE\.BoxGeometry\(5\.8, 0\.72, 1\.0\)/);
   assert.match(demo, /arcadeSharedSceneryAttitudeV1041/);
+  assert.match(demo, /arcadeWorldAnchoredHazardV105 === true/);
   assert.match(demo, /group\.rotation\.set\(sceneryAttitude\.pitch, sceneryAttitude\.yaw, sceneryAttitude\.roll\)/);
+  assert.match(runtime, /hazard\.depth = hazard\.courseAnchorDistance - this\.distance/);
+});
+
+
+test("V10.5 world anchors keep structural hazards phase-locked to course scenery", () => {
+  const sourcePromise = readFile(new URL("../src/sky/arcade/SkyDancerArcadeRuntime.ts", import.meta.url), "utf8");
+  return sourcePromise.then((source) => {
+    assert.match(source, /courseAnchorDistance: number \| null/);
+    assert.match(source, /courseAnchored = kind === "tower" \|\| kind === "arch" \|\| kind === "rock"/);
+    assert.match(source, /hazard\.depth = hazard\.courseAnchorDistance - this\.distance/);
+  });
+});
+
+test("V10.5 reserves independent tumble for free hazards only", async () => {
+  const [models, webgl] = await Promise.all([
+    readFile(new URL("../src/sky/arcade/SkyDancerArcadeModels.ts", import.meta.url), "utf8"),
+    readFile(new URL("../src/sky/arcade/SkyDancerArcadeWebGLDemo.ts", import.meta.url), "utf8"),
+  ]);
+  assert.match(models, /arcadeWorldAnchoredHazardV105/);
+  assert.match(models, /canyon-rock-bridge/);
+  assert.match(models, /crystal-rib/);
+  assert.match(models, /ruin-portal/);
+  assert.match(models, /orbital-truss-ring/);
+  assert.match(models, /prism-blade-gate/);
+  assert.match(webgl, /Only genuinely free objects \(mine\/debris\) retain independent tumble/);
 });

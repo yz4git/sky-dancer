@@ -431,12 +431,15 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
       }
       const course = arcadeCourseRelativeVisualPose(snapshot.stage, snapshot.distance, hazard.depth);
       group.position.set(hazard.x * 8.4 + course.x, 1.2 + hazard.y * 4.9 + course.y, course.z);
-      if (group.userData.arcadeCityAnchoredHazardV1042 === true) {
-        // V10.4.2: city architecture shares the same world attitude as the skyline/background.
-        // It must never tumble independently like debris.
+      if (group.userData.arcadeWorldAnchoredHazardV105 === true) {
+        // V10.5: terrain and architecture are one part of the course world, never independent actors.
         const sceneryAttitude = arcadeSharedSceneryAttitudeV1041(snapshot.stage, snapshot.distance);
         group.rotation.set(sceneryAttitude.pitch, sceneryAttitude.yaw, sceneryAttitude.roll);
+      } else if (group.userData.arcadeAtmosphericHazardV105 === true) {
+        // Lightning translates with the weather hazard but does not tumble like a solid object.
+        group.rotation.set(0, 0, 0);
       } else {
+        // Only genuinely free objects (mine/debris) retain independent tumble.
         group.rotation.x += delta * 0.42;
         group.rotation.y += delta * 0.58;
       }

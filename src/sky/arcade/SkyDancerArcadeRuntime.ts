@@ -193,6 +193,9 @@ interface ArcadeProjectile extends SkyDancerArcadeProjectileSnapshot {
 interface ArcadeHazard extends SkyDancerArcadeHazardSnapshot {
   speed: number;
   nearMissChecked: boolean;
+  // V10.5: terrain/architecture hazards live at one absolute point on the course.
+  // Dynamic hazards leave this null and retain their independent closing speed.
+  courseAnchorDistance: number | null;
 }
 
 interface ArcadeInput {
@@ -731,15 +734,18 @@ export class SkyDancerArcadeRuntime {
     for (let index = 0; index < count; index += 1) {
       if ((kind === "tower" || kind === "rock" || kind === "arch") && index === safeLane) continue;
       const x = count <= 1 ? center : center + (index / (count - 1)) * 4.2 - 2.1;
+      const spawnDepth = 90 + this.random() * 18;
+      const courseAnchored = kind === "tower" || kind === "arch" || kind === "rock";
       this.hazards.push({
         id: this.nextEntityId++,
         kind,
         x: clamp(x + (this.random() - 0.5) * 0.2, -ENEMY_X_LIMIT, ENEMY_X_LIMIT),
         y: kind === "lightning" ? (this.random() - 0.5) * 2.8 : (this.random() - 0.5) * 1.8,
-        depth: 90 + this.random() * 18,
+        depth: spawnDepth,
         scale: kind === "mine" || kind === "debris" ? 0.62 : 0.88,
         speed: 11.5 + this.stage.courseSpeed * 0.035,
         nearMissChecked: false,
+        courseAnchorDistance: courseAnchored ? this.distance + spawnDepth : null,
       });
     }
   }
@@ -1101,11 +1107,19 @@ export class SkyDancerArcadeRuntime {
 
   private updateHazards(delta: number, turboActive: boolean): void {
     for (const hazard of this.hazards) {
-      hazard.depth -= hazard.speed * (turboActive ? 1.24 : 1) * delta;
+      if (hazard.courseAnchorDistance !== null) {
+        // V10.5: architecture/terrain advances only because the aircraft advances along the course.
+        // This keeps its position phase-locked with scenery at normal speed and under turbo.
+        hazard.depth = hazard.courseAnchorDistance - this.distance;
+      } else {
+        hazard.depth -= hazard.speed * (turboActive ? 1.24 : 1) * delta;
+      }
       if (hazard.depth > 2.4) continue;
       const radius = hazard.scale * (hazard.kind === "lightning" ? 0.55 : 0.42);
       const distance = Math.hypot(hazard.x - this.playerX, hazard.y - this.playerY);
       if (distance < radius) {
+        // A collided world anchor is retired instead of being recomputed on the next frame.
+        hazard.courseAnchorDistance = null;
         hazard.depth = -10;
         if (turboActive && (hazard.kind === "mine" || hazard.kind === "debris")) {
           this.addScore(700, true);
