@@ -1,0 +1,61 @@
+name: Arcade V10.4.1 Shared Attitude Visual Audit
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/arcade-v1041-shared-attitude-audit-once.yml'
+permissions:
+  contents: write
+env:
+  SKY_DANCER_CHROME_PATH: /usr/bin/google-chrome
+jobs:
+  audit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.13.0
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Install isolated browser controller
+        run: |
+          rm -rf .audit-runtime
+          mkdir -p .audit-runtime
+          printf '{"private":true,"type":"commonjs"}\n' > .audit-runtime/package.json
+          npm install --prefix .audit-runtime --no-package-lock --no-save --ignore-scripts --no-audit --no-fund playwright-core@1.55.0
+      - name: Inject V10.4.1 audit bridge
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('app/SkyDancerArcadeMode.tsx');s=p.read_text();needle='''        demoRef.current = demo;\n      }'''
+          insert='''        demoRef.current = demo;\n        const auditDemo = demo as SkyDancerArcadeWebGLDemo;\n        (globalThis as unknown as { __skyDancerV1041Audit?: { sample: (params: { stageId: string; progress: number; moveX: number; moveY: number; turbo: boolean; label: string; frame: number }) => unknown } }).__skyDancerV1041Audit = {\n          sample: ({ stageId, progress, moveX, moveY, turbo, label, frame }) => {\n            const target=auditDemo as unknown as Record<string,any>; cancelAnimationFrame(Number(target.animationFrame)||0);target.animationFrame=0;\n            const runtime=target.runtime as Record<string,any>;const stage=skyDancerArcadeStageById(stageId as any);\n            runtime.stage=stage;runtime.status="running";runtime.statusBeforePause="running";runtime.stageTime=stage.durationSeconds*progress;runtime.distance=runtime.stageTime*stage.courseSpeed;runtime.runTimeSeconds=runtime.stageTime;\n            runtime.playerHp=100;runtime.playerX=0;runtime.playerY=0;runtime.enemies=[];runtime.projectiles=[];runtime.hazards=[];runtime.impactEvents=[];runtime.setMove(moveX,moveY);runtime.setTurbo(turbo);runtime.setFire(false);runtime.setLock(false);\n            let snapshot=runtime.getSnapshot();target.previousSnapshot=snapshot;for(let i=0;i<18;i++){runtime.step(1/60);runtime.enemies=[];runtime.projectiles=[];runtime.hazards=[];runtime.impactEvents=[];runtime.playerHp=100;snapshot=runtime.getSnapshot();target.sync(snapshot,1/60);target.previousSnapshot=snapshot;}\n            target.camera.updateMatrixWorld();target.cinematic.render(target.scene,target.camera,snapshot.turboActive,target.presentationFx);target.onSnapshot(snapshot);\n            const root=target.scene.getObjectByName("arcade-course-environment");const backdrop=target.scene.getObjectByName("arcade-product-backdrop") as any;const chunks=root?root.children.filter((child:any)=>/^arcade-course-chunk-/.test(child.name)):[];\n            const b=backdrop?[backdrop.rotation.x,backdrop.rotation.y,backdrop.rotation.z]:[0,0,0];let maxAttitudeDelta=0;for(const chunk of chunks){maxAttitudeDelta=Math.max(maxAttitudeDelta,Math.abs(chunk.rotation.x-b[0]),Math.abs(chunk.rotation.y-b[1]),Math.abs(chunk.rotation.z-b[2]));}\n            const nums:number[]=[];for(const o of [backdrop,...chunks])if(o)nums.push(o.position.x,o.position.y,o.position.z,o.rotation.x,o.rotation.y,o.rotation.z);\n            return{label,frame,stageId:snapshot.stage.id,distance:snapshot.distance,chunkCount:chunks.length,shared:Boolean(backdrop?.userData?.arcadeSharedSceneryAttitudeV1041)&&chunks.every((c:any)=>c.userData.arcadeSharedSceneryAttitudeV1041===true),maxAttitudeDelta,finite:nums.every(Number.isFinite),backdropRotation:b,chunkRotations:chunks.map((c:any)=>[c.rotation.x,c.rotation.y,c.rotation.z])};\n          },\n        };\n      }'''
+          assert needle in s;p.write_text(s.replace(needle,insert,1))
+          PY
+      - run: npm run check:arcade
+      - run: npm run build:pages
+      - name: Start audit target
+        run: |
+          python3 -m http.server 4173 --bind 127.0.0.1 --directory out >/tmp/v1041-http.log 2>&1 &
+          for i in {1..30}; do if curl -fsS http://127.0.0.1:4173/ >/dev/null; then exit 0; fi; sleep 1; done
+          cat /tmp/v1041-http.log; exit 1
+      - name: Capture shared-attitude sequences
+        run: node scripts/webgl-arcade-v1041-shared-attitude-audit.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: sky-dancer-v1041-shared-attitude-${{ github.sha }}
+          path: artifacts/arcade-v1041-shared-attitude
+          if-no-files-found: error
+          retention-days: 14
+      - name: Cleanup audit files
+        if: success()
+        run: |
+          git checkout -- app/SkyDancerArcadeMode.tsx
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git rm -f scripts/webgl-arcade-v1041-shared-attitude-audit.mjs .github/workflows/arcade-v1041-shared-attitude-audit-once.yml
+          git commit -m 'Remove V10.4.1 shared attitude audit files'
+          git pull --rebase origin main
+          git push origin HEAD:main
