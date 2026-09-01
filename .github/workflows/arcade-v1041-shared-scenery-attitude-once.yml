@@ -1,0 +1,44 @@
+name: Arcade V10.4.1 Shared Scenery Attitude Once
+
+on:
+  push:
+    paths:
+      - '.github/workflows/arcade-v1041-shared-scenery-attitude-once.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Apply V10.4.1 shared scenery attitude patch
+        run: python scripts/apply-v1041-shared-scenery-attitude.py
+      - name: Arcade rules regression
+        run: npm run test:rules
+      - name: Arcade typecheck
+        run: npm run check:arcade
+      - name: Lint
+        run: npm run lint
+      - name: Pages production build
+        run: npm run build:pages
+      - name: Commit product and cleanup temporary files
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/sky/arcade/SkyDancerArcadeReferenceWorld.ts tests/sky-arcade-reference.test.ts tests/sky-arcade-run.test.ts
+          git commit -m "Arcade Run V10.4.1: share scenery attitude"
+          git push origin HEAD:main
+          rm -f scripts/apply-v1041-shared-scenery-attitude.py .github/workflows/arcade-v1041-shared-scenery-attitude-once.yml
+          git add -A
+          git commit -m "Remove V10.4.1 scenery attitude work files"
+          git push origin HEAD:main
