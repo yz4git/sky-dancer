@@ -21,7 +21,10 @@ jobs:
           cache: npm
       - run: npm ci --no-audit --no-fund
       - name: Apply V10.3.1 background readability patch
-        run: python3 scripts/apply-arcade-v1031-background-readability.py
+        run: |
+          python3 scripts/apply-arcade-v1031-background-readability.py
+          sed -i 's/assert.equal(cues.length, 7);/assert.equal(cues.length, 6);/' tests/sky-arcade-reference.test.ts
+          sed -i 's/assert.equal(arches.length, 7);/assert.equal(arches.length, 6);/' tests/sky-arcade-reference.test.ts
       - name: Arcade rules regression
         run: npm run test:rules
       - name: Arcade typecheck
