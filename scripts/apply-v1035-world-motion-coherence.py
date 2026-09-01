@@ -44,3 +44,11 @@ insert = '''  world.dispose();\n});\n\ntest("V10.3.5 far-field skyline follows t
 assert needle in s
 s = s.replace(needle, insert, 1)
 test.write_text(s)
+
+run_test = Path('tests/sky-arcade-run.test.ts')
+s = run_test.read_text()
+old = '''  assert.match(webglSource, /course\\.bank \\* \\.56 \\+ nearCourse\\.bank \\* \\.14/);'''
+new = '''  assert.match(webglSource, /denseSkyline = snapshot\\.stage\\.biome === "city" \\|\\| snapshot\\.stage\\.biome === "night"/);\n  assert.match(webglSource, /course\\.bank \\* \\(denseSkyline \\? \\.34 : \\.56\\)/);\n  assert.match(webglSource, /nearCourse\\.bank \\* \\(denseSkyline \\? \\.07 : \\.14\\)/);'''
+assert old in s
+s = s.replace(old, new, 1)
+run_test.write_text(s)
