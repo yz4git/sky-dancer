@@ -532,3 +532,15 @@ test("V10.4.1 background chunk attitude has one owner", async () => {
   assert.match(update,/this\.backdrop\.rotation\.set\(sceneryAttitude\.pitch,sceneryAttitude\.yaw,sceneryAttitude\.roll\)/);
   assert.doesNotMatch(update,/chunk\.group\.rotation\.y=course\.yaw|chunk\.group\.rotation\.x=course\.pitch|chunk\.group\.rotation\.z=course\.bank/);
 });
+
+
+test("V10.4.2 city hazards are grounded architecture instead of floating primitives", async () => {
+  const models = await readFile(new URL("../src/sky/arcade/SkyDancerArcadeModels.ts", import.meta.url), "utf8");
+  const demo = await readFile(new URL("../src/sky/arcade/SkyDancerArcadeWebGLDemo.ts", import.meta.url), "utf8");
+  assert.match(models, /arcadeCityAnchoredHazardV1042 = true/);
+  assert.match(models, /arcadeCityHazardKindV1042 = "tower"/);
+  assert.match(models, /arcadeCityHazardKindV1042 = "gantry"/);
+  assert.match(models, /new THREE\.BoxGeometry\(5\.8, 0\.72, 1\.0\)/);
+  assert.match(demo, /arcadeSharedSceneryAttitudeV1041/);
+  assert.match(demo, /group\.rotation\.set\(sceneryAttitude\.pitch, sceneryAttitude\.yaw, sceneryAttitude\.roll\)/);
+});

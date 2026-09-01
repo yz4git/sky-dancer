@@ -105,7 +105,49 @@ export function createSkyDancerArcadeHazard(
   group.name = `arcade-hazard-${hazard.id}`;
   const primary = flatMaterial(stage.palette.primary);
   const warning = flatMaterial(0xff704f, 0x5a1008);
-  if (hazard.kind === "mine") {
+  const cityLike = stage.biome === "city" || stage.biome === "night";
+
+  if (cityLike && hazard.kind === "tower") {
+    // V10.4.2: Dawn City / Night Metro towers are grounded route architecture,
+    // not free-spinning boxes. Keep the hazard origin unchanged so collision and visuals agree;
+    // only the model extends downward to visibly connect into the city below.
+    group.userData.arcadeCityAnchoredHazardV1042 = true;
+    group.userData.arcadeCityHazardKindV1042 = "tower";
+    const shaft = new THREE.Mesh(new THREE.BoxGeometry(1.4, 10.8, 1.4), primary);
+    shaft.position.y = -4.9;
+    group.add(shaft);
+    const shoulder = new THREE.Mesh(new THREE.BoxGeometry(2.9, 1.0, 2.1), warning);
+    shoulder.position.y = 0.65;
+    group.add(shoulder);
+    const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.22, 4.2, 6), primary);
+    mast.position.y = 3.1;
+    group.add(mast);
+    const beaconMaterial = flatMaterial(stage.palette.accent, stage.palette.accent);
+    const beacon = new THREE.Mesh(new THREE.SphereGeometry(0.42, 7, 6), beaconMaterial);
+    beacon.position.y = 5.35;
+    group.add(beacon);
+  } else if (cityLike && hazard.kind === "arch") {
+    // V10.4.2: replace the floating semicircle with a supported urban fly-through gate.
+    // Its supports extend below the gameplay origin, making it read as bridge/gantry structure.
+    group.userData.arcadeCityAnchoredHazardV1042 = true;
+    group.userData.arcadeCityHazardKindV1042 = "gantry";
+    const glow = flatMaterial(stage.palette.accent, stage.palette.accent);
+    for (const side of [-1, 1]) {
+      const support = new THREE.Mesh(new THREE.BoxGeometry(0.86, 7.8, 1.0), primary);
+      support.position.set(side * 2.25, -2.75, 0);
+      group.add(support);
+      const shoulder = new THREE.Mesh(new THREE.BoxGeometry(1.85, 0.7, 1.0), warning);
+      shoulder.position.set(side * 1.55, 1.15, 0);
+      shoulder.rotation.z = side * 0.38;
+      group.add(shoulder);
+    }
+    const span = new THREE.Mesh(new THREE.BoxGeometry(5.8, 0.72, 1.0), primary);
+    span.position.y = 1.95;
+    group.add(span);
+    const strip = new THREE.Mesh(new THREE.BoxGeometry(4.9, 0.16, 0.16), glow);
+    strip.position.set(0, 1.62, 0.54);
+    group.add(strip);
+  } else if (hazard.kind === "mine") {
     group.add(new THREE.Mesh(new THREE.IcosahedronGeometry(0.72, 0), warning));
     for (let index = 0; index < 6; index += 1) {
       const spike = new THREE.Mesh(new THREE.ConeGeometry(0.12, 0.65, 5), primary);

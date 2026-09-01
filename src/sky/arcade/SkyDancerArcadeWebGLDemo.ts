@@ -8,6 +8,7 @@ import { SkyDancerArcadePresentationDirector, type SkyDancerArcadePresentationFr
 import { arcadeCameraPose } from "./SkyDancerArcadeCamera";
 import { arcadeCoursePose, arcadeCourseRelativeVisualPose } from "./SkyDancerArcadeCoursePath";
 import { ARCADE_SUN_DIRECTION, referenceAtmosphere } from "./SkyDancerArcadeReferenceMaterials";
+import { arcadeSharedSceneryAttitudeV1041 } from "./SkyDancerArcadeReferenceWorld";
 import {
   createSkyDancerArcadeEnemy,
   createSkyDancerArcadeHazard,
@@ -430,8 +431,15 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
       }
       const course = arcadeCourseRelativeVisualPose(snapshot.stage, snapshot.distance, hazard.depth);
       group.position.set(hazard.x * 8.4 + course.x, 1.2 + hazard.y * 4.9 + course.y, course.z);
-      group.rotation.x += delta * 0.42;
-      group.rotation.y += delta * 0.58;
+      if (group.userData.arcadeCityAnchoredHazardV1042 === true) {
+        // V10.4.2: city architecture shares the same world attitude as the skyline/background.
+        // It must never tumble independently like debris.
+        const sceneryAttitude = arcadeSharedSceneryAttitudeV1041(snapshot.stage, snapshot.distance);
+        group.rotation.set(sceneryAttitude.pitch, sceneryAttitude.yaw, sceneryAttitude.roll);
+      } else {
+        group.rotation.x += delta * 0.42;
+        group.rotation.y += delta * 0.58;
+      }
     }
     for (const [id, group] of this.hazardGroups) {
       if (active.has(id)) continue;
