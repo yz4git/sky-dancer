@@ -1,0 +1,78 @@
+name: Arcade V10.4.2 City Hazard Visual Audit
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/arcade-v1042-city-hazard-audit-once.yml'
+
+permissions:
+  contents: write
+
+env:
+  SKY_DANCER_CHROME_PATH: /usr/bin/google-chrome
+
+jobs:
+  audit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.13.0
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Install isolated browser controller
+        run: |
+          rm -rf .audit-runtime
+          mkdir -p .audit-runtime
+          printf '{"private":true,"type":"commonjs"}\n' > .audit-runtime/package.json
+          npm install --prefix .audit-runtime --no-package-lock --no-save --ignore-scripts --no-audit --no-fund playwright-core@1.55.0
+          google-chrome --version
+      - name: Inject deterministic V10.4.2 city hazard audit bridge
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('app/SkyDancerArcadeMode.tsx')
+          s = p.read_text()
+          needle = '''        demoRef.current = demo;\n      }'''
+          insert = '''        demoRef.current = demo;\n        const auditDemo = demo as SkyDancerArcadeWebGLDemo;\n        (globalThis as unknown as { __skyDancerV1042HazardAudit?: { sample: (distance: number) => unknown } }).__skyDancerV1042HazardAudit = {\n          sample: (distance) => {\n            const target = auditDemo as unknown as Record<string, any>;\n            cancelAnimationFrame(Number(target.animationFrame) || 0); target.animationFrame = 0;\n            const runtime = target.runtime as Record<string, any>;\n            const stage = skyDancerArcadeStageById("dawn-city");\n            runtime.stage = stage; runtime.status = "running"; runtime.statusBeforePause = "running";\n            runtime.stageTime = distance / stage.courseSpeed; runtime.distance = distance; runtime.runTimeSeconds = runtime.stageTime;\n            runtime.playerHp = 100; runtime.playerX = 0; runtime.playerY = 0;\n            runtime.enemies = []; runtime.projectiles = []; runtime.impactEvents = [];\n            runtime.hazards = [\n              { id: 9101, kind: "tower", x: -.48, y: -.28, depth: 54, scale: 1.08 },\n              { id: 9102, kind: "arch", x: .42, y: -.18, depth: 82, scale: 1.1 },\n            ];\n            runtime.setMove(0,0); runtime.setTurbo(false); runtime.setFire(false); runtime.setLock(false);\n            const snapshot = runtime.getSnapshot();\n            target.previousSnapshot = snapshot;\n            target.environment.setStage(stage);\n            target.environment.update(snapshot.distance, snapshot.playerX, snapshot.playerY);\n            target.syncPlayer(snapshot, 1/60);\n            target.syncHazards(snapshot, 1/60);\n            const hazardRoot = target.hazardRoot as any;\n            const before = hazardRoot.children.map((child:any) => ({\n              name: child.name, anchored: child.userData.arcadeCityAnchoredHazardV1042 === true,\n              kind: child.userData.arcadeCityHazardKindV1042 ?? null,\n              position: [child.position.x, child.position.y, child.position.z],\n              rotation: [child.rotation.x, child.rotation.y, child.rotation.z],\n            }));\n            target.syncHazards(snapshot, 1/60);\n            const after = hazardRoot.children.map((child:any) => [child.rotation.x, child.rotation.y, child.rotation.z]);\n            target.updateCamera(snapshot, 1/60); target.camera.updateMatrixWorld();\n            target.cinematic.render(target.scene, target.camera, false, target.presentationFx);\n            return { stageId: snapshot.stage.id, distance: snapshot.distance, hazards: before.map((item:any,index:number)=>({ ...item, rotationBefore:item.rotation, rotationAfter:after[index] })) };\n          },\n        };\n      }'''
+          if needle not in s:
+              raise SystemExit('WebGL attachment block changed')
+          p.write_text(s.replace(needle, insert, 1))
+          PY
+      - name: Audit bridge typecheck
+        run: npm run check:arcade
+      - name: Build audit target
+        run: npm run build:pages
+      - name: Start local Pages target
+        run: |
+          python3 -m http.server 4173 --bind 127.0.0.1 --directory out > /tmp/sky-v1042-hazard-http.log 2>&1 &
+          for i in {1..30}; do
+            if curl -fsS http://127.0.0.1:4173/ >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          cat /tmp/sky-v1042-hazard-http.log
+          exit 1
+      - name: Capture Dawn City grounded hazards
+        run: node scripts/webgl-arcade-v1042-city-hazard-audit.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: sky-dancer-v1042-city-hazard-audit-${{ github.sha }}
+          path: artifacts/arcade-v1042-city-hazard-audit
+          if-no-files-found: error
+          retention-days: 14
+      - name: Cleanup audit files
+        if: success()
+        run: |
+          set -euo pipefail
+          git checkout -- app/SkyDancerArcadeMode.tsx
+          rm -rf .audit-runtime artifacts/arcade-v1042-city-hazard-audit
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git rm -f scripts/webgl-arcade-v1042-city-hazard-audit.mjs .github/workflows/arcade-v1042-city-hazard-audit-once.yml
+          git commit -m 'Remove V10.4.2 city hazard audit files'
+          git pull --rebase origin main
+          git push origin HEAD:main
