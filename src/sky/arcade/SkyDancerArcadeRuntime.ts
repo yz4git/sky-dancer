@@ -16,6 +16,7 @@ import {
   skyDancerArcadeArmorRatio,
   skyDancerArcadeBossPhase,
   skyDancerArcadeBossPhaseLabel,
+  skyDancerArcadeBossStartProgress,
   skyDancerArcadeBossWeakpointOpen,
   skyDancerArcadeEnemyRole,
   skyDancerArcadeStageEventCheckpoint,
@@ -380,7 +381,8 @@ export class SkyDancerArcadeRuntime {
     this.nextWaveAt = this.stageTime + (rewindTime > 0 ? 1.35 : 2.35);
     this.nextHazardAt = this.stageTime + (rewindTime > 0 ? 2.0 : 4.1);
     this.damageCooldown = 0;
-    const rewindCheckpoint = skyDancerArcadeStageEventCheckpoint(this.stageTime / this.stage.durationSeconds);
+    const finalStage = this.stage.id === SKY_DANCER_ARCADE_FINAL_STAGE;
+    const rewindCheckpoint = skyDancerArcadeStageEventCheckpoint(this.stageTime / this.stage.durationSeconds, finalStage);
     this.stageEventCheckpoint = rewindTime > 0 ? Math.max(this.stageEventCheckpoint, rewindCheckpoint) as 0 | 1 | 2 : 0;
     this.stageEventLabel = null;
     this.stageEventTimer = 0;
@@ -391,7 +393,7 @@ export class SkyDancerArcadeRuntime {
     this.stageStats.scoreAtStart = this.score;
     this.stageStats.damageAtStart = this.damageTaken;
     this.stageStats.killsAtStart = this.enemiesDefeated;
-    if (this.stageTime >= this.stage.durationSeconds * 0.52) this.spawnBoss();
+    if (this.stageTime >= this.stage.durationSeconds * skyDancerArcadeBossStartProgress(finalStage)) this.spawnBoss();
   }
 
   setMove(x: number, y: number): void {
@@ -555,7 +557,7 @@ export class SkyDancerArcadeRuntime {
 
   private updateStageEvolution(): void {
     const progress = clamp(this.stageTime / this.stage.durationSeconds, 0, 1);
-    const checkpoint = skyDancerArcadeStageEventCheckpoint(progress);
+    const checkpoint = skyDancerArcadeStageEventCheckpoint(progress, this.stage.id === SKY_DANCER_ARCADE_FINAL_STAGE);
     if (checkpoint <= this.stageEventCheckpoint) return;
     this.stageEventCheckpoint = checkpoint;
     const profile = skyDancerArcadeStageEvolutionProfile(this.stage.biome);
@@ -575,7 +577,7 @@ export class SkyDancerArcadeRuntime {
   }
 
   private updateDirector(): void {
-    const bossTime = this.stage.durationSeconds * (this.stage.id === SKY_DANCER_ARCADE_FINAL_STAGE ? 0.42 : 0.52);
+    const bossTime = this.stage.durationSeconds * skyDancerArcadeBossStartProgress(this.stage.id === SKY_DANCER_ARCADE_FINAL_STAGE);
     if (!this.bossSpawned && this.stageTime >= bossTime) this.spawnBoss();
     const enemyCap = this.options.difficulty === "hard" ? 15 : 11;
     if (!this.bossSpawned && this.stageTime >= this.nextWaveAt && this.enemies.filter((enemy) => enemy.alive).length < enemyCap) {
@@ -583,7 +585,7 @@ export class SkyDancerArcadeRuntime {
       const pressure = this.options.difficulty === "hard" ? 0.84 : 1;
       this.nextWaveAt += this.stage.waveIntervalSeconds * pressure * (0.84 + this.random() * 0.34);
     }
-    if (this.stageTime >= this.nextHazardAt && this.hazards.length < 8) {
+    if (!this.bossSpawned && this.stageTime >= this.nextHazardAt && this.hazards.length < 8) {
       this.spawnHazardPattern();
       this.nextHazardAt += (3.8 - this.stage.turbulence * 2.6) * (0.82 + this.random() * 0.42);
     }
@@ -672,6 +674,14 @@ export class SkyDancerArcadeRuntime {
   private spawnBoss(): void {
     if (this.bossSpawned) return;
     this.bossSpawned = true;
+    // V10.1: boss ingress owns the arena. Retire leftover wave pressure instead of stacking it under the climax target.
+    for (const enemy of this.enemies) {
+      if (enemy.boss) continue;
+      enemy.alive = false;
+      enemy.locked = false;
+    }
+    this.projectiles = this.projectiles.filter((projectile) => projectile.owner !== "enemy");
+    this.hazards = [];
     const final = this.stage.id === SKY_DANCER_ARCADE_FINAL_STAGE;
     // Climax targets must survive a full attack run instead of evaporating under one gun burst.
     const baseHp = final ? 1280 : 440 + this.stage.act * 110;

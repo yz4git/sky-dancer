@@ -13,6 +13,7 @@ import { SkyDancerArcadePresentationDirector } from "../src/sky/arcade/SkyDancer
 import {
   skyDancerArcadeArmorRatio,
   skyDancerArcadeBossPhase,
+  skyDancerArcadeBossStartProgress,
   skyDancerArcadeBossWeakpointOpen,
   skyDancerArcadeEnemyRole,
   skyDancerArcadeStageEvolutionProfile,
@@ -500,13 +501,17 @@ test("V10 Stage Evolution gives every biome two authored gameplay beats and boun
   }
   assert.equal(skyDancerArcadeStageEventCheckpoint(.1), 0);
   assert.equal(skyDancerArcadeStageEventCheckpoint(.2), 1);
-  assert.equal(skyDancerArcadeStageEventCheckpoint(.7), 2);
+  assert.equal(skyDancerArcadeStageEventCheckpoint(.45), 1, "route selection must finish before event #2");
+  assert.equal(skyDancerArcadeStageEventCheckpoint(.47), 2);
+  assert.equal(skyDancerArcadeStageEventCheckpoint(.35, true), 2, "finale advances its second beat before the early final boss");
+  assert.ok(skyDancerArcadeBossStartProgress(false) > .47, "normal bosses start after event #2");
+  assert.ok(skyDancerArcadeBossStartProgress(true) > .35, "final boss starts after the compressed final event #2");
   const runtime = new SkyDancerArcadeRuntime({ mode: "stage-practice", difficulty: "normal", seed: 1003 });
   runtime.triggerStageEvolutionForTests(.2);
   const first = runtime.getSnapshot();
   assert.equal(first.stageEventSerial, 1);
   assert.ok(first.stageEventLabel);
-  runtime.triggerStageEvolutionForTests(.7);
+  runtime.triggerStageEvolutionForTests(.47);
   const second = runtime.getSnapshot();
   assert.equal(second.stageEventSerial, 2);
   assert.notEqual(second.stageEventLabel, first.stageEventLabel);
@@ -527,6 +532,13 @@ test("V10 Cinematic Gameplay boosts camera language for stage, armor, formation 
   director.reset();
   const formation = director.update({ ...base, formationBreaks: 1 }, base, 1 / 60);
   assert.ok(formation.fovKick >= 1.8);
+});
+
+test("V10.1 boss ingress clears prior crossfire and suppresses generic boss hazards", async () => {
+  const source = await import("node:fs/promises").then(fs => fs.readFile(new URL("../src/sky/arcade/SkyDancerArcadeRuntime.ts", import.meta.url), "utf8"));
+  assert.match(source, /projectiles = this\.projectiles\.filter\(\(projectile\) => projectile\.owner !== "enemy"\)/);
+  assert.match(source, /this\.hazards = \[\]/);
+  assert.match(source, /if \(!this\.bossSpawned && this\.stageTime >= this\.nextHazardAt/);
 });
 
 test("V10 Arcade Meta Layer defaults to migrated v2 career records and milestone slots", () => {

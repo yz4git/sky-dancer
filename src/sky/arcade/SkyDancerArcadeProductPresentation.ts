@@ -652,12 +652,16 @@ export class SkyDancerArcadeProductPresentation {
     this.activeIds.clear();
     const playerMissileCount = snapshot.projectiles.reduce((count, projectile) => count + (projectile.owner === "player-missile" ? 1 : 0), 0);
     // V9.7.1: preserve a bold single-missile plume while preventing 4-8 missile salvos from becoming a white screen wipe.
-    const salvoSmokeScale = THREE.MathUtils.clamp(1 / Math.sqrt(Math.max(1, playerMissileCount) * .55), .58, 1);
+    const salvoSmokeScale = THREE.MathUtils.clamp(1 / Math.sqrt(Math.max(1, playerMissileCount) * .68), .5, 1);
     for (const p of snapshot.projectiles) {
       if (p.owner === "player-gun") continue;
       this.activeIds.add(p.id);
       const course = arcadeCourseRelativePose(snapshot.stage, snapshot.distance, p.depth);
       const x = p.x * 8.4 + course.x, y = 1.2 + p.y * 4.9 + course.y, z = -p.depth;
+      // V10.1: preserve a clear aiming cone. White exhaust stays bold off-axis but thins near the reticle where targets must remain readable.
+      const reticleDistance = Math.hypot(p.x - snapshot.playerX, p.y - snapshot.playerY);
+      const reticleSmokeScale = THREE.MathUtils.lerp(.64, 1, THREE.MathUtils.clamp(reticleDistance / .9, 0, 1));
+      const missileSmokeScale = salvoSmokeScale * reticleSmokeScale;
 
       // V9.6: a real missile silhouette needs a persistent white exhaust mass, not only a neon line.
       if (p.owner === "player-missile") {
@@ -666,15 +670,15 @@ export class SkyDancerArcadeProductPresentation {
         if (!anchor) {
           anchor = this.missilePoint.clone();
           this.missileSmokeLast.set(p.id, anchor);
-          this.missileSmoke.emit(this.missilePoint, 1.52 * salvoSmokeScale);
+          this.missileSmoke.emit(this.missilePoint, 1.52 * missileSmokeScale);
         } else {
           const movedSq = anchor.distanceToSquared(this.missilePoint);
           if (movedSq > .1) {
             if (movedSq > .64) {
               this.missileMidpoint.copy(anchor).lerp(this.missilePoint, .5);
-              this.missileSmoke.emit(this.missileMidpoint, 1.15 * salvoSmokeScale);
+              this.missileSmoke.emit(this.missileMidpoint, 1.15 * missileSmokeScale);
             }
-            this.missileSmoke.emit(this.missilePoint, 1.24 * salvoSmokeScale);
+            this.missileSmoke.emit(this.missilePoint, 1.24 * missileSmokeScale);
             anchor.copy(this.missilePoint);
           }
         }

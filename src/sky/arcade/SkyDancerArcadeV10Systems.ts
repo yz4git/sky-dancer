@@ -78,8 +78,15 @@ export function skyDancerArcadeStageEvolutionProfile(biome: SkyDancerArcadeBiome
   return STAGE_EVOLUTION[biome];
 }
 
-export function skyDancerArcadeStageEventCheckpoint(progress: number): 0 | 1 | 2 {
-  if (progress >= .62) return 2;
+export function skyDancerArcadeStageEventCheckpoint(progress: number, finalStage = false): 0 | 1 | 2 {
+  // V10.1: keep the second authored course beat out of route selection and out of the boss arena.
+  const secondBeat = finalStage ? .34 : .46;
+  if (progress >= secondBeat) return 2;
   if (progress >= .18) return 1;
   return 0;
+}
+
+export function skyDancerArcadeBossStartProgress(finalStage: boolean): number {
+  // Non-final sections get a clean recovery beat after event #2. The finale still reserves most of its back half for the boss.
+  return finalStage ? .44 : .58;
 }
