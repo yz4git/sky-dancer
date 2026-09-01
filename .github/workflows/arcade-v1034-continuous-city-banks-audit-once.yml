@@ -1,0 +1,69 @@
+name: Arcade V10.3.4 Continuous City Banks Visual Audit
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/arcade-v1034-continuous-city-banks-audit-once.yml"
+
+permissions:
+  contents: write
+
+env:
+  SKY_DANCER_CHROME_PATH: /usr/bin/google-chrome
+
+jobs:
+  visual-audit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.13.0
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Install isolated browser controller
+        run: |
+          rm -rf .audit-runtime
+          mkdir -p .audit-runtime
+          printf '{"private":true,"type":"commonjs"}\n' > .audit-runtime/package.json
+          npm install --prefix .audit-runtime --no-package-lock --no-save --ignore-scripts --no-audit --no-fund playwright-core@1.55.0
+          google-chrome --version
+      - name: Inject deterministic V10.3.4 city audit bridge
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('app/SkyDancerArcadeMode.tsx');s=p.read_text()
+          needle='''        demoRef.current = demo;\n      }'''
+          insert='''        demoRef.current = demo;\n        const auditDemo = demo as SkyDancerArcadeWebGLDemo;\n        (globalThis as unknown as { __skyDancerV1034CityAudit?: { setCourse: (progress: number) => unknown; resumeLive: () => void; snapshot: () => SkyDancerArcadeSnapshot } }).__skyDancerV1034CityAudit = {\n          setCourse: (progress) => {\n            const target = auditDemo as unknown as Record<string, any>;\n            const runtime = target.runtime as Record<string, any>;\n            const stage = skyDancerArcadeStageById("dawn-city");\n            const p = Math.max(0, Math.min(.72, progress));\n            runtime.stage = stage; runtime.status = "paused"; runtime.statusBeforePause = "running";\n            runtime.stageTime = stage.durationSeconds * p; runtime.distance = runtime.stageTime * stage.courseSpeed;\n            runtime.enemies = []; runtime.projectiles = []; runtime.hazards = []; runtime.impactEvents = []; runtime.playerHp = 100; runtime.playerX = 0; runtime.playerY = 0;\n            const snapshot = runtime.getSnapshot();\n            for (let i=0;i<90;i+=1){ target.sync(snapshot,1/60); target.previousSnapshot=snapshot; }\n            target.camera.updateMatrixWorld(); target.cinematic.render(target.scene,target.camera,snapshot.turboActive,target.presentationFx); target.onSnapshot(snapshot);\n            const root=target.scene.getObjectByName("arcade-course-environment");\n            const chunks=root?root.children.filter((child:any)=>/^arcade-course-chunk-/.test(child.name)):[];\n            const river=target.scene.getObjectsByProperty("name","arcade-city-river-ribbon-surface") as any[];\n            const bed=target.scene.getObjectsByProperty("name","arcade-city-river-ribbon-bed") as any[];\n            const banks=[target.scene.getObjectByName("arcade-city-bank-ribbon-left"),target.scene.getObjectByName("arcade-city-bank-ribbon-right")].filter(Boolean) as any[];\n            return { stageId:stage.id,progress:p,distance:runtime.distance,chunkCount:chunks.length,\n              rigidQuays:chunks.reduce((sum:number,chunk:any)=>sum+(Number(chunk.userData.arcadeCityRigidQuayCountV1034)||0),0),\n              bankRibbonCount:banks.length, riverSurfaceCount:river.length,riverBedCount:bed.length,\n              bankDoubleSided:banks.length===2&&banks.every((bank:any)=>bank.material?.side===2&&bank.material?.depthWrite===true&&bank.material?.depthTest===true),\n              riverDoubleSided:river.length===1&&river[0].material?.side===2&&river[0].material?.depthWrite===true&&river[0].material?.depthTest===true,\n              crossStreetClearance:chunks.length?Math.min(...chunks.map((chunk:any)=>Number(chunk.userData.arcadeCityCrossStreetInnerClearanceV1034)||0)):0,\n              camera:[target.camera.position.x,target.camera.position.y,target.camera.position.z] };\n          },\n          resumeLive: () => auditDemo.resume(), snapshot: () => auditDemo.getSnapshot(),\n        };\n      }'''
+          assert needle in s,'WebGL demo attachment block changed';p.write_text(s.replace(needle,insert,1))
+          PY
+      - name: Audit bridge typecheck
+        run: npm run check:arcade
+      - name: Build Pages audit target
+        run: npm run build:pages
+      - name: Start local Pages target
+        run: |
+          python3 -m http.server 4173 --bind 127.0.0.1 --directory out > /tmp/sky-dancer-v1034-city-http.log 2>&1 &
+          for i in {1..30}; do if curl -fsS http://127.0.0.1:4173/ >/dev/null; then exit 0; fi; sleep 1; done
+          cat /tmp/sky-dancer-v1034-city-http.log; exit 1
+      - name: Capture continuous Dawn City banks
+        run: node scripts/webgl-arcade-v1034-continuous-city-banks-audit.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: sky-dancer-v1034-continuous-city-banks-${{ github.sha }}
+          path: artifacts/arcade-v1034-continuous-city-banks
+          if-no-files-found: error
+          retention-days: 14
+      - name: Remove temporary V10.3.4 visual audit files
+        if: success()
+        run: |
+          set -euo pipefail
+          git checkout -- app/SkyDancerArcadeMode.tsx
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm -f scripts/webgl-arcade-v1034-continuous-city-banks-audit.mjs .github/workflows/arcade-v1034-continuous-city-banks-audit-once.yml
+          git commit -m "Remove V10.3.4 continuous city bank audit files"
+          git push
