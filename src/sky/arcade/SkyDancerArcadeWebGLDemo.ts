@@ -332,19 +332,6 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
     for (const [id, group] of this.enemyGroups) {
       if (active.has(id)) continue;
       this.enemyGroups.delete(id);
-      const previous = this.previousSnapshot.enemies.find(enemy => enemy.id === id);
-      if (snapshot.enemiesDefeated > this.previousSnapshot.enemiesDefeated && previous && previous.depth > 3) {
-        const heavyCraft = previous.kind === "bomber" || previous.kind === "missile-boat";
-        if (previous.boss) {
-          this.presentation.emitClimax(group.position, 1.5);
-        } else if (heavyCraft) {
-          this.presentation.emitBurst(group.position, .98);
-        } else {
-          this.presentation.emitBurst(group.position, .72);
-        }
-        this.cameraShake = Math.min(1.08, this.cameraShake + (previous.boss ? .68 : heavyCraft ? .14 : .1));
-        this.audio.tone(previous.boss ? 48 : 74, previous.boss ? .42 : .15, previous.boss ? .07 : .028, "sawtooth");
-      }
       this.entityRoot.remove(group);
       this.disposeObject(group);
     }
@@ -469,15 +456,37 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
   }
 
   private syncEffects(snapshot: SkyDancerArcadeSnapshot): void {
-    if (snapshot.hitSerial !== this.previousSnapshot.hitSerial) {
-      this.cameraShake = Math.min(.38, this.cameraShake + .075);
-      const target = snapshot.enemies.find(enemy => {
-        const old = this.previousSnapshot.enemies.find(previous => previous.id === enemy.id);
-        return old && enemy.hp < old.hp;
-      });
-      if (target) {
-        const course = arcadeCourseRelativePose(snapshot.stage, snapshot.distance, target.depth);
-        this.presentation.emitBurst(new THREE.Vector3(target.x * 8.4 + course.x, 1.2 + target.y * 4.9 + course.y, -target.depth), .52);
+    for (const impact of snapshot.impacts) {
+      if (impact.serial <= this.previousSnapshot.hitSerial) continue;
+      const course = arcadeCourseRelativePose(snapshot.stage, snapshot.distance, impact.depth);
+      const position = new THREE.Vector3(impact.x * 8.4 + course.x, 1.2 + impact.y * 4.9 + course.y, -impact.depth);
+      const heavyCraft = impact.kind === "bomber" || impact.kind === "missile-boat";
+      if (impact.destroyed) {
+        if (impact.boss) {
+          this.presentation.emitBossExplosion(position, impact.missile);
+          this.cameraShake = Math.min(1.2, this.cameraShake + .82);
+          this.audio.tone(42, .5, .075, "sawtooth");
+          this.audio.tone(84, .36, .045, "triangle");
+          this.audio.tone(214, .2, .025, "square");
+        } else if (heavyCraft) {
+          this.presentation.emitHeavyExplosion(position, impact.missile);
+          this.cameraShake = Math.min(.82, this.cameraShake + (impact.missile ? .34 : .27));
+          this.audio.tone(62, .25, .045, "sawtooth");
+          this.audio.tone(176, .13, .02, "triangle");
+        } else {
+          this.presentation.emitSmallExplosion(position, impact.missile);
+          this.cameraShake = Math.min(.54, this.cameraShake + (impact.missile ? .17 : .12));
+          this.audio.tone(112, .11, .022, "triangle");
+        }
+      } else if (impact.missile) {
+        const strength = impact.boss ? 1.55 : heavyCraft ? 1.22 : .96;
+        this.presentation.emitMissileImpact(position, strength);
+        this.cameraShake = Math.min(.48, this.cameraShake + .12 * strength);
+        this.audio.tone(126, .07, .018, "triangle");
+        this.audio.tone(610, .045, .009, "square");
+      } else {
+        this.presentation.emitBurst(position, impact.boss ? .62 : heavyCraft ? .52 : .42);
+        this.cameraShake = Math.min(.38, this.cameraShake + .055);
       }
     }
     if (snapshot.damageSerial !== this.previousSnapshot.damageSerial) {

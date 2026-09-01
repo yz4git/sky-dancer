@@ -54,6 +54,21 @@ export interface SkyDancerArcadeProjectileSnapshot {
   targetEnemyId: number | null;
 }
 
+export interface SkyDancerArcadeImpactSnapshot {
+  serial: number;
+  enemyId: number;
+  kind: SkyDancerArcadeEnemyKind | "boss";
+  x: number;
+  y: number;
+  depth: number;
+  hpBefore: number;
+  hpAfter: number;
+  maxHp: number;
+  boss: boolean;
+  missile: boolean;
+  destroyed: boolean;
+}
+
 export interface SkyDancerArcadeHazardSnapshot {
   id: number;
   kind: SkyDancerArcadeHazardKind;
@@ -107,6 +122,7 @@ export interface SkyDancerArcadeSnapshot {
   bossMaxHp: number;
   enemies: SkyDancerArcadeEnemySnapshot[];
   projectiles: SkyDancerArcadeProjectileSnapshot[];
+  impacts: SkyDancerArcadeImpactSnapshot[];
   hazards: SkyDancerArcadeHazardSnapshot[];
   resultTimer: number;
   lastClearedStageId: SkyDancerArcadeStageId | null;
@@ -265,6 +281,8 @@ export class SkyDancerArcadeRuntime {
   private continuesUsed = 0;
   private enemies: ArcadeEnemy[] = [];
   private projectiles: ArcadeProjectile[] = [];
+  private impactEvents: SkyDancerArcadeImpactSnapshot[] = [];
+  private readonly impactEventAges = new Map<number, number>();
   private hazards: ArcadeHazard[] = [];
   private nextEntityId = 1;
   private waveSerial = 0;
@@ -317,6 +335,8 @@ export class SkyDancerArcadeRuntime {
     this.distance = this.stageTime * this.stage.courseSpeed;
     this.enemies = [];
     this.projectiles = [];
+    this.impactEvents = [];
+    this.impactEventAges.clear();
     this.hazards = [];
     this.waveSerial = 0;
     // Give each section a readable establishing beat before the first pressure wave.
@@ -392,6 +412,21 @@ export class SkyDancerArcadeRuntime {
 
   step(deltaSeconds: number): void {
     const delta = clamp(deltaSeconds, 0, 0.05);
+    // Impact telemetry is presentation mail, not gameplay state. Keep it long enough for a render frame,
+    // then retire it even while stage-clear/paused so long sessions never retain combat history.
+    if (this.impactEvents.length > 0) {
+      const active: SkyDancerArcadeImpactSnapshot[] = [];
+      for (const impact of this.impactEvents) {
+        const age = (this.impactEventAges.get(impact.serial) ?? 0) + delta;
+        if (age <= .6) {
+          this.impactEventAges.set(impact.serial, age);
+          active.push(impact);
+        } else {
+          this.impactEventAges.delete(impact.serial);
+        }
+      }
+      this.impactEvents = active;
+    }
     if (this.status === "paused" || this.status === "continue" || this.status === "game-over" || this.status === "run-clear" || this.status === "practice-clear") return;
     if (this.status === "stage-clear") {
       this.resultTimer = Math.max(0, this.resultTimer - delta);
@@ -980,9 +1015,30 @@ export class SkyDancerArcadeRuntime {
 
   private damageEnemy(enemy: ArcadeEnemy, amount: number, missile: boolean): void {
     if (!enemy.alive) return;
+    const hpBefore = enemy.hp;
     enemy.hp = Math.max(0, enemy.hp - amount);
     this.hitSerial += 1;
-    if (enemy.hp > 0) return;
+    const destroyed = enemy.hp <= 0;
+    this.impactEvents.push({
+      serial: this.hitSerial,
+      enemyId: enemy.id,
+      kind: enemy.kind,
+      x: enemy.x,
+      y: enemy.y,
+      depth: enemy.depth,
+      hpBefore,
+      hpAfter: enemy.hp,
+      maxHp: enemy.maxHp,
+      boss: enemy.boss,
+      missile,
+      destroyed,
+    });
+    this.impactEventAges.set(this.hitSerial, 0);
+    if (this.impactEvents.length > 16) {
+      const retired = this.impactEvents.splice(0, this.impactEvents.length - 16);
+      for (const impact of retired) this.impactEventAges.delete(impact.serial);
+    }
+    if (!destroyed) return;
     enemy.alive = false;
     enemy.locked = false;
     this.enemiesDefeated += 1;
@@ -1157,6 +1213,7 @@ export class SkyDancerArcadeRuntime {
         depth: projectile.depth,
         targetEnemyId: projectile.targetEnemyId,
       })),
+      impacts: this.impactEvents.map((impact) => ({ ...impact })),
       hazards: this.hazards.map((hazard) => ({
         id: hazard.id,
         kind: hazard.kind,

@@ -150,6 +150,53 @@ test("missile trails and explosions keep a bounded mesh and buffer count under l
 });
 
 
+test("V9.8 detonation hierarchy differentiates small, heavy, boss and missile impacts without unbounded meshes", () => {
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(55, 16 / 9, .1, 1200);
+  camera.position.set(0, 5, 16); camera.lookAt(0, 0, -28); camera.updateMatrixWorld();
+  const presentation = new SkyDancerArcadeProductPresentation(scene);
+  const runtime = new SkyDancerArcadeRuntime({ mode: "arcade-run", difficulty: "normal", seed: 98 });
+  const snapshot = runtime.getSnapshot();
+  const position = new THREE.Vector3(0, 1.8, -24);
+  const rings = scene.getObjectByName("arcade-pooled-detonation-rings") as THREE.InstancedMesh;
+  const flashes = scene.getObjectByName("arcade-pooled-detonation-flashes") as THREE.InstancedMesh;
+  assert.ok(rings instanceof THREE.InstancedMesh);
+  assert.ok(flashes instanceof THREE.InstancedMesh);
+  assert.equal(rings.count, ARCADE_EFFECT_BUDGET.detonationPulses);
+  assert.equal(flashes.count, ARCADE_EFFECT_BUDGET.detonationPulses);
+  const active = () => Array.from((rings.geometry.getAttribute("lifeAlpha") as THREE.InstancedBufferAttribute).array)
+    .filter((value) => Number(value) > .02).length;
+
+  presentation.emitSmallExplosion(position, false);
+  presentation.update(snapshot, 1 / 60, camera);
+  const small = active();
+  assert.ok(small >= 1, "small craft must produce a local shock pulse");
+
+  presentation.setStage();
+  presentation.emitHeavyExplosion(position, true);
+  for (let i = 0; i < 9; i++) presentation.update(snapshot, 1 / 60, camera);
+  const heavy = active();
+  assert.ok(heavy > small, `heavy detonation ${heavy} must exceed small ${small}`);
+
+  presentation.setStage();
+  presentation.emitBossExplosion(position, true);
+  for (let i = 0; i < 12; i++) presentation.update(snapshot, 1 / 60, camera);
+  const boss = active();
+  assert.ok(boss > heavy, `boss detonation ${boss} must exceed heavy ${heavy}`);
+
+  presentation.setStage();
+  presentation.emitMissileImpact(position, 1.2);
+  presentation.update(snapshot, 1 / 60, camera);
+  assert.ok(active() >= 1, "missile impact must have a dedicated white-hot local pulse");
+  for (let i = 0; i < 180; i++) presentation.update(snapshot, 1 / 60, camera);
+  assert.equal(active(), 0, "detonation pulses must fully retire rather than accumulate");
+  assert.equal(scene.getObjectsByProperty("name", "arcade-pooled-detonation-rings").length, 1);
+  assert.equal(scene.getObjectsByProperty("name", "arcade-pooled-detonation-flashes").length, 1);
+  presentation.dispose();
+  assert.equal(scene.children.length, 0);
+});
+
+
 test("V8.8 ice cavern exposes its vertical canyon without repeated full-screen hoops", () => {
   const scene = new THREE.Scene();
   const world = new SkyDancerArcadeReferenceWorld(scene);

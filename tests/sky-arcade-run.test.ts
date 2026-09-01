@@ -68,7 +68,7 @@ test("environment density and destruction climax V5 stay authored and bounded", 
   assert.match(world, /PlaneGeometry\(260,114,48,30\)/);
   assert.match(presentation, /arcade-climax-flash-v5/);
   assert.match(presentation, /sparks: 240, smoke: 84/);
-  assert.match(webgl, /emitClimax\(group\.position/);
+  assert.match(webgl, /impact\.boss[\s\S]*emitBossExplosion\(position, impact\.missile\)/);
 });
 
 test("route graph references only authored stages and has one finale", () => {
@@ -241,10 +241,10 @@ test("V6.2 NORMAL opening pressure preserves reaction time and readable damage c
   ]);
   assert.match(runtimeSource, /damageCooldown = this\.options\.difficulty === "hard" \? \.28 : \.5/);
   assert.match(runtimeSource, /enemyCap = this\.options\.difficulty === "hard" \? 15 : 11/);
-  assert.match(webglSource, /const heavyCraft = previous\.kind === "bomber" \|\| previous\.kind === "missile-boat"/);
-  assert.match(webglSource, /if \(previous\.boss\)[\s\S]*emitClimax\(group\.position, 1\.5\)/);
-  assert.match(webglSource, /else if \(heavyCraft\)[\s\S]*emitBurst\(group\.position, \.98\)/);
-  assert.match(webglSource, /emitBurst\(group\.position, \.72\)/);
+  assert.match(webglSource, /const heavyCraft = impact\.kind === "bomber" \|\| impact\.kind === "missile-boat"/);
+  assert.match(webglSource, /if \(impact\.boss\)[\s\S]*emitBossExplosion\(position, impact\.missile\)/);
+  assert.match(webglSource, /else if \(heavyCraft\)[\s\S]*emitHeavyExplosion\(position, impact\.missile\)/);
+  assert.match(webglSource, /emitSmallExplosion\(position, impact\.missile\)/);
   assert.match(presentationSource, /addScaledVector\(this\.forward, 3\.8\)/);
   assert.match(webglSource, /course\.bank \* \.32 \+ nearCourse\.bank \* \.05/);
   assert.match(webglSource, /farCourse = arcadeCourseRelativePose\(snapshot\.stage, snapshot\.distance, 132\)/);
@@ -429,8 +429,8 @@ test("V8.1 playcheck keeps close dogfights readable and the Turbo airframe on-sc
     readFile(new URL("../src/sky/arcade/SkyDancerArcadeCamera.ts", import.meta.url), "utf8"),
   ]);
   assert.match(webgl, /extremeCloseClamp/);
-  assert.match(webgl, /if \(previous\.boss\)[\s\S]*emitClimax\(group\.position, 1\.5\)/);
-  assert.match(webgl, /heavyCraft[\s\S]*emitBurst\(group\.position, \.98\)/);
+  assert.match(webgl, /if \(impact\.boss\)[\s\S]*emitBossExplosion\(position, impact\.missile\)/);
+  assert.match(webgl, /heavyCraft[\s\S]*emitHeavyExplosion\(position, impact\.missile\)/);
   assert.match(presentation, /Math\.min\(\.2, \.018 \+ this\.climaxEnergy \* \.15\)/);
   assert.match(presentation, /Math\.min\(\.24, this\.climaxPulse \* \.27\)/);
   assert.match(camera, /turboFollow \* \.95/);
