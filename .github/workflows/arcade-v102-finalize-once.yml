@@ -33,14 +33,29 @@ jobs:
           script = textwrap.dedent(workflow[start:end])
           exec(compile(script, 'v102-revision3-embedded.py', 'exec'), {})
           PY
-      - name: Make Ice Cavern guide ribs read as a real climb and dive
+      - name: Add visible-range course rhythm and Ice Cavern guide wave
         run: |
           python3 - <<'PY'
           from pathlib import Path
+
+          # The broad authored transfers define stage composition. This shorter physical rhythm
+          # makes the next few hundred metres visibly bend/climb instead of reading as a straight tunnel.
+          p=Path('src/sky/arcade/SkyDancerArcadeCoursePath.ts')
+          s=p.read_text()
+          marker='''\nfunction courseCenter(stage: SkyDancerArcadeStageDefinition, distance: number): { x: number; y: number } {'''
+          insert='''\nfunction visibleRangeCourseRhythm(stage: SkyDancerArcadeStageDefinition, distance: number): { x: number; y: number } {\n  const wavelength = 520 + (stage.order % 3) * 45;\n  const phase = stage.order * .83 + stage.act * .11;\n  const t = distance / wavelength * TAU;\n  const lateral = 4.8 + stage.curveStrength * 5.5 + stage.turbulence * 4;\n  const vertical = 6 + stage.curveStrength * 5 + stage.turbulence * 5;\n  const x = lateral * (Math.sin(t + phase) - Math.sin(phase))\n    + lateral * .3 * (Math.sin(t * 1.7 + phase * .6 + 1.1) - Math.sin(phase * .6 + 1.1));\n  const y = vertical * (Math.sin(t * .83 + phase - .4) - Math.sin(phase - .4))\n    + vertical * .38 * (Math.sin(t * 1.67 + phase * .5 + .6) - Math.sin(phase * .5 + .6));\n  return { x, y };\n}\n\nfunction courseCenter(stage: SkyDancerArcadeStageDefinition, distance: number): { x: number; y: number } {'''
+          assert marker in s
+          s=s.replace(marker,insert,1)
+          old='''  const drama = dynamicCourseDrama(stage, authoredU);\n  x += drama.x;\n  y += drama.y;'''
+          new='''  const drama = dynamicCourseDrama(stage, authoredU);\n  x += drama.x;\n  y += drama.y;\n  const visibleRhythm = visibleRangeCourseRhythm(stage, distance);\n  x += visibleRhythm.x;\n  y += visibleRhythm.y;'''
+          assert old in s
+          p.write_text(s.replace(old,new,1))
+
+          # Ice Cavern's sparse ribs exaggerate that same vertical intent as anticipatory guidance.
           p=Path('src/sky/arcade/SkyDancerArcadeReferenceWorld.ts')
           s=p.read_text()
           old='''      const yScale=cue.kind==="ice"?2.4:1;\n      cue.group.position.set(course.x-playerX*.35,course.y*yScale-playerY*.16,-cue.depth);'''
-          new='''      const yScale=cue.kind==="ice"?2.05:1;\n      // V10.2: the open ice ribs alternate through a bounded climb/dive wave.\n      // This is route guidance, not camera fakery: the ribs show the next vertical lane before the craft reaches it.\n      const iceCueLift=cue.kind==="ice" ? Math.sin(cue.phase*Math.PI/(2*.64))*18 : 0;\n      cue.group.position.set(course.x-playerX*.35,course.y*yScale+iceCueLift-playerY*.16,-cue.depth);'''
+          new='''      const yScale=cue.kind==="ice"?2.05:1;\n      // V10.2: open ice ribs preview the next vertical lane before the craft reaches it.\n      const iceCueLift=cue.kind==="ice" ? Math.sin(cue.phase*Math.PI/(2*.64))*18 : 0;\n      cue.group.position.set(course.x-playerX*.35,course.y*yScale+iceCueLift-playerY*.16,-cue.depth);'''
           assert old in s
           p.write_text(s.replace(old,new,1))
           PY
