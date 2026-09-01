@@ -1,0 +1,112 @@
+name: Arcade V10.1 Natural Recheck Once
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - ".github/workflows/arcade-v101-natural-recheck-once.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  recheck:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      SKY_DANCER_CHROME_PATH: /usr/bin/google-chrome
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.13.0
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Install isolated browser controller
+        run: |
+          rm -rf .audit-runtime
+          mkdir -p .audit-runtime
+          printf '{"private":true,"type":"commonjs"}\n' > .audit-runtime/package.json
+          npm install --prefix .audit-runtime --no-package-lock --no-save --ignore-scripts --no-audit --no-fund playwright-core@1.55.0
+      - name: Inject natural-play bridge
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('src/sky/arcade/SkyDancerArcadeWebGLDemo.ts')
+          s=p.read_text()
+          old='''    this.lastFrame = performance.now();\n    this.animationFrame = requestAnimationFrame(this.frame);\n  }'''
+          new='''    this.lastFrame = performance.now();\n    this.animationFrame = requestAnimationFrame(this.frame);\n    if (typeof window !== "undefined" && window.location.search.includes("v101Natural=1")) {\n      cancelAnimationFrame(this.animationFrame);\n      this.animationFrame = 0;\n      (window as unknown as { __skyNaturalAudit?: (command: { frames?: number; x?: number; y?: number; fire?: boolean; lock?: boolean; turbo?: boolean }) => SkyDancerArcadeSnapshot }).__skyNaturalAudit = (command) => this.runV101NaturalAuditStep(command);\n    }\n  }'''
+          assert old in s
+          s=s.replace(old,new,1)
+          anchor='''  private sync(snapshot: SkyDancerArcadeSnapshot, delta: number): void {'''
+          method='''  private runV101NaturalAuditStep(command: { frames?: number; x?: number; y?: number; fire?: boolean; lock?: boolean; turbo?: boolean }): SkyDancerArcadeSnapshot {\n    this.runtime.setMove(command.x ?? 0, command.y ?? 0);\n    this.runtime.setFire(Boolean(command.fire));\n    this.runtime.setLock(Boolean(command.lock));\n    this.runtime.setTurbo(Boolean(command.turbo));\n    const frames = Math.max(1, Math.min(120, Math.floor(command.frames ?? 1)));\n    let snapshot = this.runtime.getSnapshot();\n    for (let index = 0; index < frames; index += 1) {\n      this.runtime.step(1 / 60);\n      snapshot = this.runtime.getSnapshot();\n      if (index % 6 === 5 || index === frames - 1) {\n        this.sync(snapshot, 1 / 60 * Math.min(6, index + 1));\n        this.previousSnapshot = snapshot;\n      }\n    }\n    this.cinematic.render(this.scene, this.camera, snapshot.turboActive, this.presentationFx);\n    this.onSnapshot(snapshot);\n    return snapshot;\n  }\n\n'''
+          assert anchor in s
+          s=s.replace(anchor,method+anchor,1)
+          p.write_text(s)
+          PY
+      - run: npm run check:arcade
+      - run: npm run build:pages
+      - name: Start local Pages server
+        run: |
+          python3 -m http.server 4173 --bind 127.0.0.1 --directory out >/tmp/v101-http.log 2>&1 &
+          for i in {1..30}; do curl -fsS http://127.0.0.1:4173/ >/dev/null && exit 0; sleep 1; done
+          cat /tmp/v101-http.log; exit 1
+      - name: Natural gameplay recheck
+        run: |
+          cat > /tmp/v101-recheck.mjs <<'JS'
+          import { mkdir, writeFile } from "node:fs/promises";
+          import { createRequire } from "node:module";
+          const require=createRequire(process.cwd()+"/audit-entry.cjs");
+          const { chromium }=require(process.cwd()+"/.audit-runtime/node_modules/playwright-core");
+          const out="artifacts/arcade-v101-natural-recheck"; await mkdir(out,{recursive:true});
+          const browser=await chromium.launch({headless:true,executablePath:process.env.SKY_DANCER_CHROME_PATH,args:["--use-angle=swiftshader","--enable-webgl","--enable-unsafe-swiftshader","--ignore-gpu-blocklist","--disable-dev-shm-usage"]});
+          const context=await browser.newContext({viewport:{width:844,height:390},deviceScaleFactor:2,isMobile:true,hasTouch:true});
+          const page=await context.newPage(); const consoleErrors=[],pageErrors=[];
+          page.on("console",m=>{if(m.type()==="error"&&!/404/i.test(m.text()))consoleErrors.push(m.text())}); page.on("pageerror",e=>pageErrors.push(String(e)));
+          await page.goto("http://127.0.0.1:4173/?menu=1&v101Natural=1",{waitUntil:"networkidle",timeout:60000});
+          const mode=page.locator("button").filter({hasText:/^\s*ARCADE RUN/i}).first(); if(await mode.count())await mode.click({force:true});
+          const start=page.locator("button").filter({hasText:/START ARCADE RUN/i}).first(); await start.click({force:true});
+          const canvas=page.locator('canvas[aria-label="Sky Dancer Arcade Run WebGL game view"]'); await canvas.waitFor({state:"visible",timeout:30000});
+          await page.waitForFunction(()=>typeof window.__skyNaturalAudit==="function",null,{timeout:30000});
+          const tick=c=>page.evaluate(x=>window.__skyNaturalAudit(x),c);
+          const shot=async name=>{try{await page.screenshot({path:`${out}/${name}.png`,fullPage:false,timeout:45000});}catch{await canvas.screenshot({path:`${out}/${name}-canvas.png`,timeout:45000});}};
+          let s=await tick({frames:1}); await shot("00-sortie"); let event1=0,event2=null,bossIntro=null,phase2=null,phase3=null,lockCycle=0,minHp=s.playerHp;
+          for(let chunk=0;chunk<250;chunk++){
+            const alive=(s.enemies||[]).filter(e=>e.hp>0); const target=alive.sort((a,b)=>(Number(b.boss)-Number(a.boss))||a.depth-b.depth)[0];
+            const t=s.runTimeSeconds||0, dx=target?target.x-s.playerX:Math.sin(t*1.3)*.3, dy=target?target.y-s.playerY:Math.sin(t*.9)*.2;
+            const x=Math.max(-1,Math.min(1,dx*.95+Math.sin(t*1.7)*.22)), y=Math.max(-1,Math.min(1,dy*.9+Math.cos(t*1.1)*.18));
+            lockCycle=(lockCycle+1)%5; const incoming=(s.projectiles||[]).filter(p=>p.owner==="enemy"&&p.depth<28&&p.depth>2).length;
+            s=await tick({frames:15,x,y,fire:true,lock:lockCycle!==4,turbo:incoming>=2||chunk%19===0}); minHp=Math.min(minHp,s.playerHp);
+            if(s.stageEventSerial>=1&&!event1)event1=s.stageEventSerial;
+            if(s.stageEventSerial>=2&&!event2){event2={time:s.stageTimeSeconds,progress:s.stageProgress,bossActive:s.bossActive,hp:s.playerHp,hazards:s.hazards.length,enemies:s.enemies.length};await shot("01-event2-preboss");}
+            if(s.bossActive&&!bossIntro){bossIntro={time:s.stageTimeSeconds,progress:s.stageProgress,hp:s.playerHp,hazards:s.hazards.length,regularEnemies:s.enemies.filter(e=>!e.boss).length,enemyProjectiles:s.projectiles.filter(p=>p.owner==="enemy").length};await shot("02-boss-clean-ingress");}
+            if(s.bossActive&&s.bossPhase===2&&!phase2){phase2={hp:s.playerHp,bossHp:s.bossHp,core:s.bossWeakpointOpen,projectiles:s.projectiles.length};await shot("03-boss-phase2");}
+            if(s.bossActive&&s.bossPhase===3&&!phase3){phase3={hp:s.playerHp,bossHp:s.bossHp,core:s.bossWeakpointOpen,projectiles:s.projectiles.length};await shot("04-boss-phase3");break;}
+            if(s.status==="continue"||s.status==="game-over")break;
+          }
+          const gl=await canvas.evaluate(el=>{const g=el.getContext("webgl2")||el.getContext("webgl");return{webgl:Boolean(g),width:el.clientWidth,height:el.clientHeight}});
+          const diagnostics={gl,event2,bossIntro,phase2,phase3,minHp,final:{status:s.status,hp:s.playerHp,kills:s.enemiesDefeated,score:s.score},consoleErrors,pageErrors};
+          await writeFile(`${out}/diagnostics.json`,JSON.stringify(diagnostics,null,2)); await browser.close();
+          if(!gl.webgl||gl.width<800||gl.height<360)throw new Error("invalid WebGL");
+          if(!event2||event2.bossActive)throw new Error(`event2 must finish before boss ${JSON.stringify(event2)}`);
+          if(!bossIntro||bossIntro.regularEnemies!==0||bossIntro.hazards!==0||bossIntro.enemyProjectiles!==0)throw new Error(`boss ingress not clean ${JSON.stringify(bossIntro)}`);
+          if(!phase2||!phase3)throw new Error(`boss phases missing ${JSON.stringify({phase2,phase3})}`);
+          if(consoleErrors.length||pageErrors.length)throw new Error(`runtime errors ${JSON.stringify({consoleErrors,pageErrors})}`);
+          JS
+          node /tmp/v101-recheck.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: sky-dancer-v101-natural-recheck-${{ github.sha }}
+          path: artifacts/arcade-v101-natural-recheck
+          if-no-files-found: error
+          retention-days: 14
+      - name: Remove temporary recheck workflow
+        if: always()
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm -f .github/workflows/arcade-v101-natural-recheck-once.yml
+          git commit -m "Remove V10.1 natural recheck workflow"
+          git push
