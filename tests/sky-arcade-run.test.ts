@@ -571,3 +571,38 @@ test("V10.5 reserves independent tumble for free hazards only", async () => {
   assert.match(models, /prism-blade-gate/);
   assert.match(webgl, /Only genuinely free objects \(mine\/debris\) retain independent tumble/);
 });
+
+test("V10.5.1 structural arch stays at one absolute course point while turbo advances the world", () => {
+  const runtime = new SkyDancerArcadeRuntime({ difficulty: "normal", mode: "stage-practice", startStageId: "dawn-city", seed: 0x1051 });
+  const debugRuntime = runtime as unknown as { spawnHazardPattern(kind: "arch"): void };
+  debugRuntime.spawnHazardPattern("arch");
+  const before = runtime.getSnapshot();
+  const arch = before.hazards.find((hazard) => hazard.kind === "arch");
+  assert.ok(arch, "forced city arch exists");
+  const anchorBefore = before.distance + arch.depth;
+  runtime.setTurbo(true);
+  for (let frame = 0; frame < 18; frame += 1) runtime.step(1 / 60);
+  const after = runtime.getSnapshot();
+  const movedArch = after.hazards.find((hazard) => hazard.id === arch.id);
+  assert.ok(movedArch, "arch remains ahead after moving sample");
+  assert.ok(after.distance > before.distance + 20, "turbo advances course distance during sample");
+  assert.ok(movedArch.depth < arch.depth - 20, "arch approaches because the aircraft advances");
+  const anchorAfter = after.distance + movedArch.depth;
+  assert.ok(Math.abs(anchorAfter - anchorBefore) < 1e-9, `world anchor drifted: ${anchorBefore} -> ${anchorAfter}`);
+});
+
+test("V10.5.1 dynamic debris keeps independent motion instead of masquerading as scenery", () => {
+  const runtime = new SkyDancerArcadeRuntime({ difficulty: "normal", mode: "stage-practice", startStageId: "cloud-fleet", seed: 0x1052 });
+  const debugRuntime = runtime as unknown as { spawnHazardPattern(kind: "debris"): void };
+  debugRuntime.spawnHazardPattern("debris");
+  const before = runtime.getSnapshot();
+  const debris = before.hazards.find((hazard) => hazard.kind === "debris");
+  assert.ok(debris, "forced debris exists");
+  const anchorBefore = before.distance + debris.depth;
+  for (let frame = 0; frame < 18; frame += 1) runtime.step(1 / 60);
+  const after = runtime.getSnapshot();
+  const moved = after.hazards.find((hazard) => hazard.id === debris.id);
+  assert.ok(moved, "debris remains during moving sample");
+  const anchorAfter = after.distance + moved.depth;
+  assert.ok(Math.abs(anchorAfter - anchorBefore) > 1, "dynamic debris retains motion independent from course scenery");
+});
