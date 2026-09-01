@@ -107,6 +107,8 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
   private readonly hazardGroups = new Map<number, THREE.Group>();
   private readonly engineGlows = this.player.getObjectsByProperty("name", "arcade-engine-glow");
   private readonly engineTrails = this.player.getObjectsByProperty("name", "arcade-engine-trail");
+  private readonly lockParentQuaternion = new THREE.Quaternion();
+  private readonly lockCameraQuaternion = new THREE.Quaternion();
   private readonly audio = new SkyDancerArcadeAudio();
   private readonly resizeObserver: ResizeObserver;
   private animationFrame = 0;
@@ -273,8 +275,20 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
       const targetBank = maneuverBank + course.bank * .46 + Math.sin(enemy.phase + snapshot.runTimeSeconds * 1.8) * (enemy.boss ? .025 : .08);
       group.rotation.x += (targetPitch - group.rotation.x) * Math.min(1, delta * 8);
       group.rotation.z += (targetBank - group.rotation.z) * Math.min(1, delta * 9);
-      const existingRing = group.getObjectByName("arcade-lock-ring");
-      if (enemy.locked && !existingRing) group.add(createSkyDancerArcadeLockRing(0xff4c58));
+      let existingRing = group.getObjectByName("arcade-lock-ring");
+      if (enemy.locked && !existingRing) {
+        group.add(createSkyDancerArcadeLockRing(0xff3970));
+        existingRing = group.getObjectByName("arcade-lock-ring");
+      }
+      if (enemy.locked && existingRing) {
+        // V9.7: keep lock brackets screen-readable and camera-facing instead of shrinking with a distant banked fighter.
+        const depthScale = THREE.MathUtils.clamp(1.75 + enemy.depth * .052, 2.15, enemy.boss ? 5.7 : 5.05);
+        const pulse = 1 + Math.sin(snapshot.runTimeSeconds * 12 + enemy.id) * .075;
+        existingRing.scale.setScalar(depthScale * pulse);
+        group.getWorldQuaternion(this.lockParentQuaternion);
+        this.camera.getWorldQuaternion(this.lockCameraQuaternion);
+        existingRing.quaternion.copy(this.lockParentQuaternion.invert().multiply(this.lockCameraQuaternion));
+      }
       if (!enemy.locked && existingRing) {
         group.remove(existingRing);
         this.disposeObject(existingRing);

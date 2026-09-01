@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 import { createReferenceCarrier, createReferenceFighter } from "./SkyDancerArcadeReferenceAirframes";
 import type { SkyDancerArcadeEnemySnapshot, SkyDancerArcadeHazardSnapshot } from "./SkyDancerArcadeRuntime";
 import type { SkyDancerArcadeStageDefinition } from "./SkyDancerArcadeData";
@@ -18,8 +19,39 @@ export function createSkyDancerArcadePlayer(): THREE.Group {
   return createReferenceFighter();
 }
 
+function createEnemyVisibilityBeacons(): THREE.Points<THREE.BufferGeometry, THREE.PointsMaterial> {
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute("position", new THREE.Float32BufferAttribute([
+    -3.62, .12, 1.28,
+    3.62, .12, 1.28,
+    0, .28, -2.82,
+  ], 3));
+  geometry.setAttribute("color", new THREE.Float32BufferAttribute([
+    1, .08, .34,
+    1, .08, .34,
+    1, .88, .72,
+  ], 3));
+  const material = new THREE.PointsMaterial({
+    size: 5.6,
+    sizeAttenuation: false,
+    vertexColors: true,
+    transparent: true,
+    opacity: .96,
+    depthWrite: false,
+    depthTest: true,
+    blending: THREE.AdditiveBlending,
+    toneMapped: false,
+  });
+  const points = new THREE.Points(geometry, material);
+  points.name = "arcade-enemy-visibility-beacons";
+  points.renderOrder = 7;
+  return points;
+}
+
 function createStandardEnemy(_stage: SkyDancerArcadeStageDefinition, enemy: SkyDancerArcadeEnemySnapshot): THREE.Group {
-  return createReferenceFighter(true, enemy.kind === "bomber" || enemy.kind === "missile-boat");
+  const fighter = createReferenceFighter(true, enemy.kind === "bomber" || enemy.kind === "missile-boat");
+  fighter.add(createEnemyVisibilityBeacons());
+  return fighter;
 }
 
 function createBoss(stage: SkyDancerArcadeStageDefinition): THREE.Group {
@@ -33,30 +65,46 @@ export function createSkyDancerArcadeEnemy(
 ): THREE.Group {
   const group = enemy.boss ? createBoss(stage) : createStandardEnemy(stage, enemy);
   group.name = `arcade-enemy-${enemy.id}`;
-  if (enemy.locked) group.add(createSkyDancerArcadeLockRing(stage.palette.accent));
+  if (enemy.locked) group.add(createSkyDancerArcadeLockRing(0xff3970));
   return group;
 }
 
 export function createSkyDancerArcadeLockRing(color: number): THREE.Group {
   const group = new THREE.Group();
   group.name = "arcade-lock-ring";
-  const material = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.94, depthWrite: false, toneMapped: false });
+  const material = new THREE.MeshBasicMaterial({
+    color,
+    transparent: true,
+    opacity: .98,
+    depthWrite: false,
+    depthTest: false,
+    blending: THREE.AdditiveBlending,
+    toneMapped: false,
+  });
+  const geometries: THREE.BufferGeometry[] = [];
+  const place = (geometry: THREE.BufferGeometry, x: number, y: number, z = 0) => {
+    geometry.translate(x, y, z);
+    geometries.push(geometry);
+  };
   for (const x of [-1, 1]) {
     for (const y of [-1, 1]) {
-      const corner = new THREE.Group();
-      corner.position.set(x * 0.68, y * 0.68, 0);
-      const horizontal = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.055, 0.035), material);
-      horizontal.position.x = -x * 0.14;
-      const vertical = new THREE.Mesh(new THREE.BoxGeometry(0.055, 0.34, 0.035), material);
-      vertical.position.y = -y * 0.14;
-      corner.add(horizontal, vertical);
-      group.add(corner);
+      place(new THREE.BoxGeometry(.46, .072, .045), x * .93 - x * .19, y * .93, 0);
+      place(new THREE.BoxGeometry(.072, .46, .045), x * .93, y * .93 - y * .19, 0);
     }
   }
-  const diamond = new THREE.Mesh(new THREE.TorusGeometry(0.27, 0.025, 4, 4), material);
-  diamond.name = "arcade-lock-ring-mesh";
-  diamond.rotation.z = Math.PI / 4;
-  group.add(diamond);
+  const diamond = new THREE.TorusGeometry(.34, .035, 4, 4);
+  diamond.rotateZ(Math.PI / 4);
+  geometries.push(diamond);
+  const merged = mergeGeometries(geometries, false);
+  geometries.forEach((geometry) => geometry.dispose());
+  if (merged) {
+    const mesh = new THREE.Mesh(merged, material);
+    mesh.name = "arcade-lock-ring-mesh";
+    mesh.renderOrder = 30;
+    group.add(mesh);
+  } else {
+    material.dispose();
+  }
   return group;
 }
 
