@@ -10,7 +10,7 @@ permissions:
   contents: write
 
 env:
-  SKY_DANCER_V102_REVISION: "2"
+  SKY_DANCER_V102_REVISION: "3"
 
 jobs:
   evolve-course:
@@ -56,6 +56,9 @@ jobs:
           new='''      chunk.group.rotation.y=course.yaw*1.08;\n      chunk.group.rotation.x=course.pitch*.94;\n      chunk.group.rotation.z=course.bank*.38;'''
           assert old in s
           s=s.replace(old,new,1)
+          old_y='''      const yScale=cue.kind==="ice"?1.85:1;'''
+          assert old_y in s
+          s=s.replace(old_y,'''      const yScale=cue.kind==="ice"?2.4:1;''',1)
           old='''      cue.group.rotation.y=course.yaw*(cue.kind==="ice"?1.05:.98);\n      cue.group.rotation.x=course.pitch*(cue.kind==="ice"?2.15:.78);\n      cue.group.rotation.z=cue.kind==="orbit"\n        ? cue.phase+(distance+cue.depth)*.0068\n        : course.bank*(cue.kind==="ice"?.18:.08);'''
           new='''      const cueAhead=arcadeCourseRelativePose(this.stage,distance,cue.depth+24);\n      const cueSlope=Math.atan2(cueAhead.y-course.y,24);\n      cue.group.rotation.y=course.yaw*(cue.kind==="ice"?1.18:1.1);\n      cue.group.rotation.x=cue.kind==="ice" ? course.pitch*1.5+cueSlope*1.45 : course.pitch*1.02;\n      cue.group.rotation.z=cue.kind==="orbit"\n        ? cue.phase+(distance+cue.depth)*.0068+course.bank*.24\n        : course.bank*(cue.kind==="ice"?.34:.3);'''
           assert old in s
