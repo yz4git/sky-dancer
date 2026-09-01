@@ -241,8 +241,8 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
     this.player.position.z = 2.8 + this.playerDamageKick * .32;
     const vx = delta > 0 ? (snapshot.playerX - this.previousSnapshot.playerX) / delta : 0;
     const vy = delta > 0 ? (snapshot.playerY - this.previousSnapshot.playerY) / delta : 0;
-    const targetRoll = THREE.MathUtils.clamp(-vx * .3, -.48, .48) - snapshot.playerX * .06 + course.bank * .82 + this.playerDamageSign * this.playerDamageKick * .22;
-    const targetPitch = THREE.MathUtils.clamp(vy * .08, -.12, .12) + course.pitch * .46 + this.playerDamageKick * .12;
+    const targetRoll = THREE.MathUtils.clamp(-vx * .3, -.48, .48) - snapshot.playerX * .06 + course.bank * 1.08 + this.playerDamageSign * this.playerDamageKick * .22;
+    const targetPitch = THREE.MathUtils.clamp(vy * .08, -.12, .12) + course.pitch * .66 + this.playerDamageKick * .12;
     this.player.rotation.z += (targetRoll - this.player.rotation.z) * Math.min(1, delta * 8);
     this.player.rotation.x += (targetPitch - this.player.rotation.x) * Math.min(1, delta * 7);
     for (const object of this.engineGlows) {
@@ -653,20 +653,22 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
     const shakeX = Math.sin(snapshot.runTimeSeconds * 79) * totalShake * .25;
     const shakeY = Math.cos(snapshot.runTimeSeconds * 91) * totalShake * .18;
     const iceCourse = snapshot.stage.biome === "ice";
-    const targetX = pose.x + shakeX - nearCourse.x * .018;
-    const targetY = pose.y + shakeY - nearCourse.y * (iceCourse ? 0 : .012);
-    this.camera.position.x += (targetX - this.camera.position.x) * Math.min(1, delta * 4.0);
-    this.camera.position.y += (targetY - this.camera.position.y) * Math.min(1, delta * 4.0);
+    // V10.2: the camera trails the local spline while looking into the next turn.
+    // Opposing position lag plus stronger look-ahead creates cornering parallax instead of a centered straight tunnel.
+    const targetX = pose.x + shakeX - nearCourse.x * .052 - course.yaw * 1.65;
+    const targetY = pose.y + shakeY - nearCourse.y * (iceCourse ? .008 : .028) + course.pitch * .9;
+    this.camera.position.x += (targetX - this.camera.position.x) * Math.min(1, delta * 3.35);
+    this.camera.position.y += (targetY - this.camera.position.y) * Math.min(1, delta * 3.5);
     this.camera.position.z += (pose.z + this.presentationFx.pullback + this.cameraImpactKick - this.camera.position.z) * Math.min(1, delta * 6.2);
     this.camera.fov += (pose.fov + this.presentationFx.fovKick - this.camera.fov) * Math.min(1, delta * 7.2);
     this.camera.updateProjectionMatrix();
     this.camera.lookAt(
-      pose.lookX + nearCourse.x * .055 + farCourse.x * .028,
-      pose.lookY + nearCourse.y * (iceCourse ? .006 : .07) + farCourse.y * (iceCourse ? 0 : .018),
+      pose.lookX + nearCourse.x * .14 + farCourse.x * .06 + course.yaw * 3.6,
+      pose.lookY + nearCourse.y * (iceCourse ? .018 : .105) + farCourse.y * (iceCourse ? .006 : .032) + course.pitch * 2.2,
       pose.lookZ,
     );
-    // Bank enough to sell the turn, but do not rotate the horizon so far that the bend disappears.
-    this.camera.rotateZ(pose.roll + course.bank * .32 + nearCourse.bank * .05);
+    // Stronger horizon roll makes the corridor visibly bank while remaining below motion-sickness territory.
+    this.camera.rotateZ(pose.roll + course.bank * .56 + nearCourse.bank * .14);
   }
 
   private resize(): void {

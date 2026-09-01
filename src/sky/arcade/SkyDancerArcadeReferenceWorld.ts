@@ -94,19 +94,23 @@ export class SkyDancerArcadeReferenceWorld {
       chunk.group.position.z=-depth;
       chunk.group.position.x=course.x-playerX*.35;
       chunk.group.position.y=course.y-playerY*.16;
-      chunk.group.rotation.y=course.yaw*.94;
-      chunk.group.rotation.x=course.pitch*.72;
-      chunk.group.rotation.z=course.bank*.12;
+      chunk.group.rotation.y=course.yaw*1.08;
+      chunk.group.rotation.x=course.pitch*.94;
+      chunk.group.rotation.z=course.bank*.38;
     }
     for(const cue of this.routeCues){
       const course=arcadeCourseRelativePose(this.stage,distance,cue.depth);
-      const yScale=cue.kind==="ice"?1.85:1;
-      cue.group.position.set(course.x-playerX*.35,course.y*yScale-playerY*.16,-cue.depth);
-      cue.group.rotation.y=course.yaw*(cue.kind==="ice"?1.05:.98);
-      cue.group.rotation.x=course.pitch*(cue.kind==="ice"?2.15:.78);
+      const yScale=cue.kind==="ice"?2.05:1;
+      // V10.2: open ice ribs preview the next vertical lane before the craft reaches it.
+      const iceCueLift=cue.kind==="ice" ? Math.sin(cue.phase*Math.PI/(2*.64))*18 : 0;
+      cue.group.position.set(course.x-playerX*.35,course.y*yScale+iceCueLift-playerY*.16,-cue.depth);
+      const cueAhead=arcadeCourseRelativePose(this.stage,distance,cue.depth+24);
+      const cueSlope=Math.atan2(cueAhead.y-course.y,24);
+      cue.group.rotation.y=course.yaw*(cue.kind==="ice"?1.18:1.1);
+      cue.group.rotation.x=cue.kind==="ice" ? course.pitch*1.5+cueSlope*1.45 : course.pitch*1.02;
       cue.group.rotation.z=cue.kind==="orbit"
-        ? cue.phase+(distance+cue.depth)*.0068
-        : course.bank*(cue.kind==="ice"?.18:.08);
+        ? cue.phase+(distance+cue.depth)*.0068+course.bank*.24
+        : course.bank*(cue.kind==="ice"?.34:.3);
     }
     if(this.iceRibbon)this.updateIceRibbon(distance,playerX,playerY);
     if(this.volcanoRibbon)this.updateVolcanoRibbon(distance,playerX,playerY);

@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import * as THREE from "three";
 import { normalizeArcadeStick } from "../src/sky/arcade/SkyDancerArcadeInput";
 import { arcadeCameraPose } from "../src/sky/arcade/SkyDancerArcadeCamera";
+import { arcadeCoursePose, arcadeCourseRelativePose } from "../src/sky/arcade/SkyDancerArcadeCoursePath";
 import { createReferenceFighter, createReferenceCarrier } from "../src/sky/arcade/SkyDancerArcadeReferenceAirframes";
 import { SkyDancerArcadeReferenceWorld } from "../src/sky/arcade/SkyDancerArcadeReferenceWorld";
 import { ARCADE_EFFECT_BUDGET, SkyDancerArcadeProductPresentation } from "../src/sky/arcade/SkyDancerArcadeProductPresentation";
@@ -86,6 +87,24 @@ test("actual airframe vertices fit landscape and portrait at all steering limits
         }
       });
     }
+  }
+});
+
+test("V10.2 flight courses contain visible chicanes, vertical beats and bank reversals before the boss", () => {
+  for (const stage of SKY_DANCER_ARCADE_STAGES) {
+    const length = stage.durationSeconds * stage.courseSpeed;
+    const samples = Array.from({ length: 64 }, (_, i) => arcadeCoursePose(stage, length * (i / 63) * .55));
+    const yawRange = Math.max(...samples.map(p => p.yaw)) - Math.min(...samples.map(p => p.yaw));
+    const bankRange = Math.max(...samples.map(p => p.bank)) - Math.min(...samples.map(p => p.bank));
+    const verticalRange = Math.max(...samples.map(p => p.y)) - Math.min(...samples.map(p => p.y));
+    const signs = samples.map(p => p.yaw).filter(value => Math.abs(value) >= .035).map(Math.sign);
+    const signChanges = signs.reduce((count, sign, i) => count + (i > 0 && sign !== signs[i - 1] ? 1 : 0), 0);
+    assert.ok(yawRange > .24, `${stage.id} yaw range ${yawRange} must read as a real turn`);
+    assert.ok(bankRange > .28, `${stage.id} bank range ${bankRange} must visibly reverse`);
+    assert.ok(verticalRange > 4.5, `${stage.id} vertical range ${verticalRange} must climb/dive`);
+    assert.ok(signChanges >= 2, `${stage.id} needs at least two heading reversals, got ${signChanges}`);
+    const ahead = arcadeCourseRelativePose(stage, length * .31, 120);
+    assert.ok(Math.abs(ahead.x) > 3 || Math.abs(ahead.y) > 3, `${stage.id} 120m look-ahead must leave the screen centre`);
   }
 });
 

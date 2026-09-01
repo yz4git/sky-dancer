@@ -32,6 +32,53 @@ const COURSE_PROFILES: Record<SkyDancerArcadeStageDefinition["biome"], CoursePro
 
 const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
 
+function smoothStep(edge0: number, edge1: number, value: number): number {
+  if (edge0 === edge1) return value < edge0 ? 0 : 1;
+  const t = clamp((value - edge0) / (edge1 - edge0), 0, 1);
+  return t * t * (3 - 2 * t);
+}
+
+function routeShift(progress: number, center: number, width: number): number {
+  return smoothStep(center - width, center + width, progress);
+}
+
+/**
+ * V10.2: authored lane transfers create real S-turns instead of one broad sinusoid.
+ * They return to the baseline before the boss arena so the climax remains readable.
+ */
+function dynamicCourseDrama(stage: SkyDancerArcadeStageDefinition, progress: number): { x: number; y: number } {
+  const u = clamp(progress, 0, 1);
+  const direction = stage.order % 2 === 0 ? -1 : 1;
+  const lateral = 13.5 + stage.curveStrength * 24 + Math.min(6.5, stage.act * .9);
+  const vertical = 6 + stage.curveStrength * 10 + stage.turbulence * 8;
+  const first = routeShift(u, .102, .03);
+  const second = routeShift(u, .225, .034);
+  const third = routeShift(u, .355, .032);
+  const fourth = routeShift(u, .495, .036);
+  const x = direction * lateral * (first - 2 * second + 2 * third - fourth);
+  const dive = routeShift(u, .145, .034);
+  const recover = routeShift(u, .275, .038);
+  const climb = routeShift(u, .405, .034);
+  const settle = routeShift(u, .525, .035);
+  const y = vertical * (-dive + 1.72 * recover - 1.32 * climb + .6 * settle);
+  return { x, y };
+}
+
+function visibleRangeCourseRhythm(stage: SkyDancerArcadeStageDefinition, distance: number): { x: number; y: number } {
+  const wavelength = 520 + (stage.order % 3) * 45;
+  const phase = stage.order * .83 + stage.act * .11;
+  const t = distance / wavelength * TAU;
+  const lateral = 4.8 + stage.curveStrength * 5.5 + stage.turbulence * 4;
+  const vertical = 6 + stage.curveStrength * 5 + stage.turbulence * 5;
+  const x = lateral * (Math.sin(t + phase) - Math.sin(phase))
+    + lateral * .3 * (Math.sin(t * 1.7 + phase * .6 + 1.1) - Math.sin(phase * .6 + 1.1));
+  const rawY = vertical * (Math.sin(t * .83 + phase - .4) - Math.sin(phase - .4))
+    + vertical * .38 * (Math.sin(t * 1.67 + phase * .5 + .6) - Math.sin(phase * .5 + .6));
+  // Orbital Ascent already owns a strong +66m corkscrew climb; keep its local bob without cancelling that trend.
+  const y = rawY * (stage.biome === "orbit" ? .16 : 1);
+  return { x, y };
+}
+
 function courseCenter(stage: SkyDancerArcadeStageDefinition, distance: number): { x: number; y: number } {
   const profile = COURSE_PROFILES[stage.biome];
   const stageLength = Math.max(1, stage.durationSeconds * stage.courseSpeed);
@@ -54,6 +101,12 @@ function courseCenter(stage: SkyDancerArcadeStageDefinition, distance: number): 
   );
 
   const authoredU = clamp(u, 0, 1);
+  const drama = dynamicCourseDrama(stage, authoredU);
+  x += drama.x;
+  y += drama.y;
+  const visibleRhythm = visibleRangeCourseRhythm(stage, distance);
+  x += visibleRhythm.x;
+  y += visibleRhythm.y;
   if (stage.biome === "cloud") y += Math.sin(authoredU * Math.PI) * 4.2;
   if (stage.biome === "ruins") y += Math.sin(authoredU * Math.PI * 2) * 3.2;
   if (stage.biome === "citadel") y += Math.sin(authoredU * Math.PI) * 5.2;
@@ -133,11 +186,13 @@ function courseCenter(stage: SkyDancerArcadeStageDefinition, distance: number): 
 
 function limitsFor(stage: SkyDancerArcadeStageDefinition) {
   switch (stage.biome) {
-    case "canyon": return { yaw: 0.48, pitch: 0.24, bank: 1.48 };
-    case "ice": return { yaw: 0.43, pitch: 0.33, bank: 1.38 };
-    case "volcano": return { yaw: 0.45, pitch: 0.29, bank: 1.44 };
-    case "orbit": return { yaw: 0.39, pitch: 0.34, bank: 1.34 };
-    default: return { yaw: 0.34, pitch: 0.19, bank: 1.28 };
+    case "canyon": return { yaw: 0.58, pitch: 0.31, bank: 1.7 };
+    case "ice": return { yaw: 0.54, pitch: 0.4, bank: 1.6 };
+    case "volcano": return { yaw: 0.56, pitch: 0.36, bank: 1.66 };
+    case "orbit": return { yaw: 0.5, pitch: 0.42, bank: 1.54 };
+    case "night": return { yaw: 0.57, pitch: 0.3, bank: 1.68 };
+    case "storm": return { yaw: 0.55, pitch: 0.34, bank: 1.64 };
+    default: return { yaw: 0.46, pitch: 0.28, bank: 1.56 };
   }
 }
 
@@ -156,7 +211,7 @@ export function arcadeCoursePose(stage: SkyDancerArcadeStageDefinition, distance
     y: center.y,
     yaw,
     pitch,
-    bank: clamp(-yaw * limits.bank, -0.46, 0.46),
+    bank: clamp(-yaw * limits.bank, -0.62, 0.62),
   };
 }
 

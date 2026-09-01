@@ -246,7 +246,7 @@ test("V6.2 NORMAL opening pressure preserves reaction time and readable damage c
   assert.match(webglSource, /else if \(heavyCraft\)[\s\S]*emitHeavyExplosion\(position, impact\.missile\)/);
   assert.match(webglSource, /emitSmallExplosion\(position, impact\.missile\)/);
   assert.match(presentationSource, /addScaledVector\(this\.forward, 3\.8\)/);
-  assert.match(webglSource, /course\.bank \* \.32 \+ nearCourse\.bank \* \.05/);
+  assert.match(webglSource, /course\.bank \* \.56 \+ nearCourse\.bank \* \.14/);
   assert.match(webglSource, /farCourse = arcadeCourseRelativePose\(snapshot\.stage, snapshot\.distance, 132\)/);
 });
 
@@ -364,11 +364,11 @@ test("V7.1 chase camera deliberately lags the shared course so bends remain visi
   const webgl = await readFile(new URL("../src/sky/arcade/SkyDancerArcadeWebGLDemo.ts", import.meta.url), "utf8");
   assert.match(webgl, /nearCourse = arcadeCourseRelativePose\(snapshot\.stage, snapshot\.distance, 42\)/);
   assert.match(webgl, /farCourse = arcadeCourseRelativePose\(snapshot\.stage, snapshot\.distance, 132\)/);
-  assert.match(webgl, /nearCourse\.x \* \.055 \+ farCourse\.x \* \.028/);
+  assert.match(webgl, /nearCourse\.x \* \.14 \+ farCourse\.x \* \.06 \+ course\.yaw \* 3\.6/);
   assert.doesNotMatch(webgl, /courseAim\.x \* \.16/);
   assert.match(webgl, /const iceCourse = snapshot\.stage\.biome === "ice"/);
-  assert.match(webgl, /nearCourse\.y \* \(iceCourse \? \.006 : \.07\)/);
-  assert.match(webgl, /farCourse\.y \* \(iceCourse \? 0 : \.018\)/);
+  assert.match(webgl, /nearCourse\.y \* \(iceCourse \? \.018 : \.105\)/);
+  assert.match(webgl, /farCourse\.y \* \(iceCourse \? \.006 : \.032\) \+ course\.pitch \* 2\.2/);
 });
 
 
