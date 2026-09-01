@@ -511,3 +511,16 @@ test("V9.5 presentation director stacks speed, near-miss, damage and boss peaks 
   assert.match(cinematic, /rushStrength/);
   assert.match(cinematic, /damageStrength/);
 });
+
+
+test("V10.3.8 camera position sightline and roll share one damped motion frame", async () => {
+  const webgl = await readFile(new URL("../src/sky/arcade/SkyDancerArcadeWebGLDemo.ts", import.meta.url), "utf8");
+  assert.match(webgl, /cameraLookTarget = new THREE\.Vector3\(0, \.8, -34\)/);
+  assert.match(webgl, /const lookAlpha = 1 - Math\.exp\(-delta \* 8\.8\)/);
+  assert.match(webgl, /const rollAlpha = 1 - Math\.exp\(-delta \* 9\.2\)/);
+  assert.match(webgl, /this\.cameraLookTarget\.x \+= \(desiredLookX - this\.cameraLookTarget\.x\) \* lookAlpha/);
+  assert.match(webgl, /this\.camera\.lookAt\(this\.cameraLookTarget\)/);
+  assert.match(webgl, /this\.cameraRoll \+= \(desiredRoll - this\.cameraRoll\) \* rollAlpha/);
+  assert.match(webgl, /this\.camera\.rotateZ\(this\.cameraRoll\)/);
+  assert.doesNotMatch(webgl, /this\.camera\.lookAt\(\s*pose\.lookX/);
+});

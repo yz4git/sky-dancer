@@ -128,6 +128,9 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
   private currentStageId: string;
   private cameraShake = 0;
   private cameraImpactKick = 0;
+  // V10.3.8: sightline and roll persist across stage handoffs so the camera has one coherent damped frame.
+  private readonly cameraLookTarget = new THREE.Vector3(0, .8, -34);
+  private cameraRoll = 0;
   private playerDamageKick = 0;
   private playerDamageSign = 1;
   private readonly enemyHitReactions = new Map<number, EnemyHitReaction>();
@@ -653,26 +656,39 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
     const shakeX = Math.sin(snapshot.runTimeSeconds * 79) * totalShake * .25;
     const shakeY = Math.cos(snapshot.runTimeSeconds * 91) * totalShake * .18;
     const iceCourse = snapshot.stage.biome === "ice";
-    // V10.2: the camera trails the local spline while looking into the next turn.
-    // Opposing position lag plus stronger look-ahead creates cornering parallax instead of a centered straight tunnel.
+    const denseSkyline = snapshot.stage.biome === "city" || snapshot.stage.biome === "night";
+
+    // V10.3.8: position, sightline, FOV and roll all use frame-rate-independent exponential damping.
+    // Previously position trailed the course while lookAt()/roll jumped directly to the new spline frame.
+    // That mismatch made an otherwise coherent world read as if the background snapped or rotated separately,
+    // especially on sharp turns and at stage handoffs where distance returns to zero.
+    const xAlpha = 1 - Math.exp(-delta * 3.45);
+    const yAlpha = 1 - Math.exp(-delta * 3.62);
+    const zAlpha = 1 - Math.exp(-delta * 6.42);
+    const fovAlpha = 1 - Math.exp(-delta * 7.45);
+    const lookAlpha = 1 - Math.exp(-delta * 8.8);
+    const rollAlpha = 1 - Math.exp(-delta * 9.2);
+
     const targetX = pose.x + shakeX - nearCourse.x * .052 - course.yaw * 1.65;
     const targetY = pose.y + shakeY - nearCourse.y * (iceCourse ? .008 : .028) + course.pitch * .9;
-    this.camera.position.x += (targetX - this.camera.position.x) * Math.min(1, delta * 3.35);
-    this.camera.position.y += (targetY - this.camera.position.y) * Math.min(1, delta * 3.5);
-    this.camera.position.z += (pose.z + this.presentationFx.pullback + this.cameraImpactKick - this.camera.position.z) * Math.min(1, delta * 6.2);
-    this.camera.fov += (pose.fov + this.presentationFx.fovKick - this.camera.fov) * Math.min(1, delta * 7.2);
+    this.camera.position.x += (targetX - this.camera.position.x) * xAlpha;
+    this.camera.position.y += (targetY - this.camera.position.y) * yAlpha;
+    this.camera.position.z += (pose.z + this.presentationFx.pullback + this.cameraImpactKick - this.camera.position.z) * zAlpha;
+    this.camera.fov += (pose.fov + this.presentationFx.fovKick - this.camera.fov) * fovAlpha;
     this.camera.updateProjectionMatrix();
-    this.camera.lookAt(
-      pose.lookX + nearCourse.x * .14 + farCourse.x * .06 + course.yaw * 3.6,
-      pose.lookY + nearCourse.y * (iceCourse ? .018 : .105) + farCourse.y * (iceCourse ? .006 : .032) + course.pitch * 2.2,
-      pose.lookZ,
-    );
-    // V10.3.5: dense city silhouettes amplify roll far more than open terrain.
-    // Keep the aircraft banking, but stabilize the city horizon so buildings do not appear to detach and orbit the camera.
-    const denseSkyline = snapshot.stage.biome === "city" || snapshot.stage.biome === "night";
-    this.camera.rotateZ(
-      pose.roll + course.bank * (denseSkyline ? .34 : .56) + nearCourse.bank * (denseSkyline ? .07 : .14),
-    );
+
+    const desiredLookX = pose.lookX + nearCourse.x * .14 + farCourse.x * .06 + course.yaw * 3.6;
+    const desiredLookY = pose.lookY + nearCourse.y * (iceCourse ? .018 : .105) + farCourse.y * (iceCourse ? .006 : .032) + course.pitch * 2.2;
+    const desiredLookZ = pose.lookZ;
+    this.cameraLookTarget.x += (desiredLookX - this.cameraLookTarget.x) * lookAlpha;
+    this.cameraLookTarget.y += (desiredLookY - this.cameraLookTarget.y) * lookAlpha;
+    this.cameraLookTarget.z += (desiredLookZ - this.cameraLookTarget.z) * lookAlpha;
+    this.camera.lookAt(this.cameraLookTarget);
+
+    // Dense city silhouettes still use the calmer bank authored in V10.3.5, but the roll itself no longer snaps.
+    const desiredRoll = pose.roll + course.bank * (denseSkyline ? .34 : .56) + nearCourse.bank * (denseSkyline ? .07 : .14);
+    this.cameraRoll += (desiredRoll - this.cameraRoll) * rollAlpha;
+    this.camera.rotateZ(this.cameraRoll);
   }
 
   private resize(): void {
