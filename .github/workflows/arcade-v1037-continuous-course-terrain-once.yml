@@ -22,6 +22,8 @@ jobs:
       - run: npm ci --no-audit --no-fund
       - name: Apply V10.3.7 continuous terrain patch
         run: python3 scripts/apply-v1037-continuous-course-terrain.py
+      - name: Update V10.3.7 regression contracts
+        run: python3 scripts/fix-v1037-patch-contract.py
       - name: Arcade rules regression
         run: npm run test:rules
       - name: Arcade typecheck
@@ -35,8 +37,8 @@ jobs:
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add src/sky/arcade/SkyDancerArcadeReferenceWorld.ts tests/sky-arcade-reference.test.ts
+          git add src/sky/arcade/SkyDancerArcadeReferenceWorld.ts tests/sky-arcade-reference.test.ts tests/sky-arcade-run.test.ts
           git commit -m "Arcade Run V10.3.7: make course terrain continuous"
-          git rm -f scripts/apply-v1037-continuous-course-terrain.py .github/workflows/arcade-v1037-continuous-course-terrain-once.yml
+          git rm -f scripts/apply-v1037-continuous-course-terrain.py scripts/fix-v1037-patch-contract.py .github/workflows/arcade-v1037-continuous-course-terrain-once.yml
           git commit -m "Remove V10.3.7 continuous terrain patch files"
           git push
