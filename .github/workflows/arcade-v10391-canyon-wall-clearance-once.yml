@@ -1,0 +1,34 @@
+name: Arcade V10.3.9.1 Canyon Wall Clearance Once
+on:
+  push:
+    paths:
+      - '.github/workflows/arcade-v10391-canyon-wall-clearance-once.yml'
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.13.0
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Apply V10.3.9.1 canyon clearance patch
+        run: python3 scripts/apply-v10391-canyon-wall-clearance.py
+      - run: npm run test:rules
+      - run: npm run check:arcade
+      - run: npm run lint
+      - run: npm run build:pages
+      - name: Commit product and cleanup temporary files
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/sky/arcade/SkyDancerArcadeReferenceWorld.ts tests/sky-arcade-reference.test.ts
+          git commit -m 'Arcade Run V10.3.9.1: widen Red Canyon authored walls'
+          rm -f scripts/apply-v10391-canyon-wall-clearance.py .github/workflows/arcade-v10391-canyon-wall-clearance-once.yml
+          git add -A
+          git commit -m 'Remove V10.3.9.1 canyon wall work files'
+          git pull --rebase origin main
+          git push origin HEAD:main
