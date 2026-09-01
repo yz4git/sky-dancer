@@ -48,7 +48,6 @@ const renderState = await canvas.evaluate((element) => {
   return { webgl: Boolean(gl), width: rect.width, height: rect.height, backingWidth: c.width, backingHeight: c.height, renderer: debug && gl ? gl.getParameter(debug.UNMASKED_RENDERER_WEBGL) : null };
 });
 
-// Real gameplay sequence: exercise course motion, evasive input, turbo and combat while scenery streams.
 await page.waitForTimeout(900); await captureCanvas("00-live-opening");
 await page.keyboard.down("ArrowRight"); await page.keyboard.down("ArrowUp"); await page.waitForTimeout(1000); await captureCanvas("01-live-right-climb");
 await page.keyboard.up("ArrowRight"); await page.keyboard.up("ArrowUp");
@@ -60,12 +59,12 @@ await page.keyboard.up("ArrowLeft"); await page.keyboard.up("ArrowDown"); await 
 const cases = [
   ["dawn-city", .18], ["dawn-city", .43],
   ["red-canyon", .19], ["red-canyon", .46],
-  ["cloud-sea", .20], ["cloud-sea", .44],
+  ["cloud-fleet", .20], ["cloud-fleet", .44],
   ["storm-carrier", .18], ["storm-carrier", .47],
   ["desert-fortress", .20], ["desert-fortress", .45],
   ["ice-cavern", .22], ["ice-cavern", .41],
   ["floating-ruins", .18], ["floating-ruins", .46],
-  ["neon-metro", .20], ["neon-metro", .43],
+  ["night-metro", .20], ["night-metro", .43],
   ["volcano-core", .19], ["volcano-core", .47],
   ["orbital-ascent", .21], ["orbital-ascent", .48],
   ["prism-citadel", .19], ["prism-citadel", .46],
