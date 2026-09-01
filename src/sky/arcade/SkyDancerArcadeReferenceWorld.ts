@@ -33,6 +33,20 @@ export function arcadeCourseVisualBankScaleV104(stage: SkyDancerArcadeStageDefin
   }
 }
 
+export function arcadeSharedSceneryAttitudeV1041(
+  stage: SkyDancerArcadeStageDefinition,
+  distance: number,
+): { pitch: number; yaw: number; roll: number } {
+  const here=arcadeCoursePose(stage,distance);
+  return {
+    // World-authored structures all receive the same inverse current flight attitude.
+    // Their centres can follow the curved route, but they never swivel independently by depth.
+    pitch:-here.pitch,
+    yaw:here.yaw,
+    roll:-here.bank*arcadeCourseVisualBankScaleV104(stage),
+  };
+}
+
 interface CourseChunk { group: THREE.Group; index: number }
 interface RouteCue { group: THREE.Group; depth: number; phase: number; kind: "ice" | "volcano" | "orbit" }
 
@@ -115,6 +129,7 @@ export class SkyDancerArcadeReferenceWorld {
 
   update(distance:number,playerX:number,playerY:number):void {
     if(!this.stage)return;
+    const sceneryAttitude=arcadeSharedSceneryAttitudeV1041(this.stage,distance);
     for(const chunk of this.chunks) {
       const local=((chunk.index*CHUNK_LENGTH-distance)%WORLD_SPAN+WORLD_SPAN)%WORLD_SPAN;
       // Stream each rigid chunk along the shared 3D course spline. Rotation turns the corridor itself,
@@ -122,22 +137,20 @@ export class SkyDancerArcadeReferenceWorld {
       const depth=local-140;
       const course=arcadeCourseRelativeVisualPose(this.stage,distance,depth);
       chunk.group.position.set(course.x-playerX*.35,course.y-playerY*.16,course.z);
-      const bankScale=arcadeCourseVisualBankScaleV104(this.stage);
-      // V10.3.6: every course-bound chunk now uses the exact same yaw/pitch frame as the spline ribbons.
-      // The former .82/.70 skyline factors made buildings rotate on a different frame than river/ground,
-      // which read as the background drifting or detaching during turns.
-      chunk.group.rotation.y=course.yaw;
-      chunk.group.rotation.x=course.pitch;
-      chunk.group.rotation.z=course.bank*bankScale;
+      // V10.4.1: rigid decorative scenery shares ONE attitude for the whole visible world.
+      // Before this, each 112m chunk used its own tangent and visibly swivelled like a separate card.
+      // Centres still follow the route; only genuine route geometry (terrain/ribbons/cues) bends by depth.
+      chunk.group.rotation.set(sceneryAttitude.pitch,sceneryAttitude.yaw,sceneryAttitude.roll);
       chunk.group.userData.arcadeUnifiedCourseFrameV1036=true;
       chunk.group.userData.arcadeSingleCourseFrameV104=true;
+      chunk.group.userData.arcadeSharedSceneryAttitudeV1041=true;
     }
     if(this.backdrop){
       const here=arcadeCoursePose(this.stage,distance);
-      const bankScale=arcadeCourseVisualBankScaleV104(this.stage);
       this.backdrop.position.set(-here.x*.16,-here.y*.10,0);
-      this.backdrop.rotation.set(-here.pitch,here.yaw,-here.bank*bankScale);
+      this.backdrop.rotation.set(sceneryAttitude.pitch,sceneryAttitude.yaw,sceneryAttitude.roll);
       this.backdrop.userData.arcadeUnifiedHorizonFrameV104=true;
+      this.backdrop.userData.arcadeSharedSceneryAttitudeV1041=true;
     }
     if(this.terrainRibbon)this.updateContinuousTerrain(distance,playerX,playerY);
     if(this.cityRiver)this.updateCityRiver(distance,playerX,playerY);

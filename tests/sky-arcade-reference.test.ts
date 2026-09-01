@@ -5,7 +5,7 @@ import { normalizeArcadeStick } from "../src/sky/arcade/SkyDancerArcadeInput";
 import { arcadeCameraPose } from "../src/sky/arcade/SkyDancerArcadeCamera";
 import { arcadeCoursePose, arcadeCourseRelativePose, arcadeCourseRelativeVisualPose } from "../src/sky/arcade/SkyDancerArcadeCoursePath";
 import { createReferenceFighter, createReferenceCarrier } from "../src/sky/arcade/SkyDancerArcadeReferenceAirframes";
-import { ARCADE_NEAR_PASS_CLEARANCE_V1039, arcadeCourseVisualBankScaleV104, SkyDancerArcadeReferenceWorld } from "../src/sky/arcade/SkyDancerArcadeReferenceWorld";
+import { ARCADE_NEAR_PASS_CLEARANCE_V1039, arcadeCourseVisualBankScaleV104, arcadeSharedSceneryAttitudeV1041, SkyDancerArcadeReferenceWorld } from "../src/sky/arcade/SkyDancerArcadeReferenceWorld";
 import { createArcadeWaterMaterial, referenceAtmosphere } from "../src/sky/arcade/SkyDancerArcadeReferenceMaterials";
 import { ARCADE_EFFECT_BUDGET, SkyDancerArcadeProductPresentation } from "../src/sky/arcade/SkyDancerArcadeProductPresentation";
 import { SKY_DANCER_ARCADE_STAGES } from "../src/sky/arcade/SkyDancerArcadeData";
@@ -244,7 +244,12 @@ test("V10.4 uses one player-local course frame for horizon, streamed scenery and
       assert.ok(Math.abs(chunk.position.x-(authored.x-.8*.35))<1e-8);
       assert.ok(Math.abs(chunk.position.y-(authored.y-(-.6)*.16))<1e-8);
       assert.ok(Math.abs(chunk.position.z-authored.z)<1e-8);
-      assert.ok(Math.abs(chunk.rotation.z-authored.bank*arcadeCourseVisualBankScaleV104(city))<1e-9);
+      const attitude=arcadeSharedSceneryAttitudeV1041(city,distance);
+      assert.ok(Math.abs(chunk.rotation.x-attitude.pitch)<1e-9);
+      assert.ok(Math.abs(chunk.rotation.y-attitude.yaw)<1e-9);
+      assert.ok(Math.abs(chunk.rotation.z-attitude.roll)<1e-9);
+      assert.equal(chunk.userData.arcadeSharedSceneryAttitudeV1041,true);
+      assert.ok(Math.abs(chunk.rotation.x-backdrop.rotation.x)<1e-9 && Math.abs(chunk.rotation.y-backdrop.rotation.y)<1e-9 && Math.abs(chunk.rotation.z-backdrop.rotation.z)<1e-9);
     }
   }
   world.setStage(volcano);
@@ -258,6 +263,28 @@ test("V10.4 uses one player-local course frame for horizon, streamed scenery and
     const authored=arcadeCourseRelativeVisualPose(volcano,volcanoDistance,depth);
     assert.ok(Math.abs(cue.position.z-authored.z)<1e-8);
     assert.ok(Math.abs(cue.rotation.z-authored.bank*arcadeCourseVisualBankScaleV104(volcano))<1e-9);
+  }
+  world.dispose();
+});
+
+test("V10.4.1 rigid background chunks rotate together instead of swivelling independently", () => {
+  const scene=new THREE.Scene();
+  const world=new SkyDancerArcadeReferenceWorld(scene);
+  for(const stage of SKY_DANCER_ARCADE_STAGES){
+    world.setStage(stage);
+    const distance=stage.durationSeconds*stage.courseSpeed*.347;
+    world.update(distance,.35,-.2);
+    const backdrop=scene.getObjectByName("arcade-product-backdrop") as THREE.Group;
+    const chunks=Array.from({length:8},(_,i)=>scene.getObjectByName(`arcade-course-chunk-${i}`) as THREE.Group);
+    assert.ok(backdrop && chunks.every(Boolean));
+    const attitude=arcadeSharedSceneryAttitudeV1041(stage,distance);
+    for(const chunk of chunks){
+      assert.equal(chunk.userData.arcadeSharedSceneryAttitudeV1041,true);
+      assert.ok(Math.abs(chunk.rotation.x-attitude.pitch)<1e-9);
+      assert.ok(Math.abs(chunk.rotation.y-attitude.yaw)<1e-9);
+      assert.ok(Math.abs(chunk.rotation.z-attitude.roll)<1e-9);
+      assert.ok(Math.abs(chunk.rotation.x-backdrop.rotation.x)+Math.abs(chunk.rotation.y-backdrop.rotation.y)+Math.abs(chunk.rotation.z-backdrop.rotation.z)<1e-9);
+    }
   }
   world.dispose();
 });

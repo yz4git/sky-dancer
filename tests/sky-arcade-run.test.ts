@@ -522,3 +522,13 @@ test("V10.3.8 camera position sightline and roll share one damped motion frame",
   assert.match(webgl, /this\.camera\.rotateZ\(this\.cameraRoll\)/);
   assert.doesNotMatch(webgl, /this\.camera\.lookAt\(\s*pose\.lookX/);
 });
+
+
+test("V10.4.1 background chunk attitude has one owner", async () => {
+  const source=await readFile(new URL("../src/sky/arcade/SkyDancerArcadeReferenceWorld.ts",import.meta.url),"utf8");
+  const update=source.slice(source.indexOf("update(distance:number"),source.indexOf("private buildContinuousTerrain"));
+  assert.match(update,/const sceneryAttitude=arcadeSharedSceneryAttitudeV1041/);
+  assert.match(update,/chunk\.group\.rotation\.set\(sceneryAttitude\.pitch,sceneryAttitude\.yaw,sceneryAttitude\.roll\)/);
+  assert.match(update,/this\.backdrop\.rotation\.set\(sceneryAttitude\.pitch,sceneryAttitude\.yaw,sceneryAttitude\.roll\)/);
+  assert.doesNotMatch(update,/chunk\.group\.rotation\.y=course\.yaw|chunk\.group\.rotation\.x=course\.pitch|chunk\.group\.rotation\.z=course\.bank/);
+});
