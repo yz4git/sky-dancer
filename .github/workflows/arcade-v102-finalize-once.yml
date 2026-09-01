@@ -1,0 +1,63 @@
+name: Arcade V10.2 Finalize Once
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - ".github/workflows/arcade-v102-finalize-once.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  finalize-course:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.13.0
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Apply V10.2 revision 3 patch
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import textwrap
+
+          workflow = Path('.github/workflows/arcade-v102-dynamic-course-once.yml').read_text()
+          marker = "          python3 - <<'PY'\n"
+          start = workflow.index(marker) + len(marker)
+          end = workflow.index("\n          PY", start)
+          script = textwrap.dedent(workflow[start:end])
+          exec(compile(script, 'v102-revision3-embedded.py', 'exec'), {})
+          PY
+      - name: Make Ice Cavern guide ribs read as a real climb and dive
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('src/sky/arcade/SkyDancerArcadeReferenceWorld.ts')
+          s=p.read_text()
+          old='''      const yScale=cue.kind==="ice"?2.4:1;\n      cue.group.position.set(course.x-playerX*.35,course.y*yScale-playerY*.16,-cue.depth);'''
+          new='''      const yScale=cue.kind==="ice"?2.05:1;\n      // V10.2: the open ice ribs alternate through a bounded climb/dive wave.\n      // This is route guidance, not camera fakery: the ribs show the next vertical lane before the craft reaches it.\n      const iceCueLift=cue.kind==="ice" ? Math.sin(cue.phase*Math.PI/(2*.64))*18 : 0;\n      cue.group.position.set(course.x-playerX*.35,course.y*yScale+iceCueLift-playerY*.16,-cue.depth);'''
+          assert old in s
+          p.write_text(s.replace(old,new,1))
+          PY
+      - name: Arcade rules regression
+        run: npm run test:rules
+      - name: Arcade typecheck
+        run: npm run check:arcade
+      - name: Lint
+        run: npm run lint
+      - name: Pages production build
+        run: npm run build:pages
+      - name: Commit V10.2 product changes
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm -f .github/workflows/arcade-v102-dynamic-course-once.yml .github/workflows/arcade-v102-finalize-once.yml
+          git add src/sky/arcade/SkyDancerArcadeCoursePath.ts src/sky/arcade/SkyDancerArcadeReferenceWorld.ts src/sky/arcade/SkyDancerArcadeWebGLDemo.ts tests/sky-arcade-reference.test.ts tests/sky-arcade-run.test.ts
+          git commit -m "Arcade Run V10.2: dynamic flight course choreography"
+          git push
