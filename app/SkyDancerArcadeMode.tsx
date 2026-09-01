@@ -195,7 +195,15 @@ export default function SkyDancerArcadeMode({ request, onReturnTitle }: SkyDance
   useEffect(() => {
     if (snapshot.status !== "run-clear" || recordedRunClearRef.current) return;
     recordedRunClearRef.current = true;
-    recordSkyDancerArcadeRunClear(snapshot.score, snapshot.rank, snapshot.continuesUsed);
+    recordSkyDancerArcadeRunClear(snapshot.score, snapshot.rank, snapshot.continuesUsed, {
+      route: snapshot.route,
+      kills: snapshot.enemiesDefeated,
+      nearMisses: snapshot.nearMisses,
+      bossKills: snapshot.bossKills,
+      armorBreaks: snapshot.armorBreaks,
+      formationBreaks: snapshot.formationBreaks,
+      bestChain: snapshot.bestChain,
+    });
   }, [snapshot.continuesUsed, snapshot.rank, snapshot.score, snapshot.status]);
 
   useEffect(() => {
@@ -334,6 +342,8 @@ export default function SkyDancerArcadeMode({ request, onReturnTitle }: SkyDance
     : Math.min(1, snapshot.runTimeSeconds / snapshot.runDurationSeconds);
   const hpPercent = Math.max(0, Math.round(snapshot.playerHp / snapshot.playerMaxHp * 100));
   const bossPercent = snapshot.bossMaxHp > 0 ? Math.round(snapshot.bossHp / snapshot.bossMaxHp * 100) : 0;
+  const bossEnemy = snapshot.enemies.find((enemy) => enemy.boss) ?? null;
+  const bossArmorPercent = bossEnemy && bossEnemy.maxArmor > 0 ? Math.round(bossEnemy.armor / bossEnemy.maxArmor * 100) : 0;
   const incomingMissiles = snapshot.projectiles.filter((projectile) => projectile.owner === "enemy"
     && projectile.depth > 2.2 && projectile.depth < 34
     && Math.hypot(projectile.x - snapshot.playerX, projectile.y - snapshot.playerY) < 1.9);
@@ -378,7 +388,7 @@ export default function SkyDancerArcadeMode({ request, onReturnTitle }: SkyDance
 
         {snapshot.bossActive && (
           <div className={styles.bossHud} aria-label="Climax target">
-            <div><small>CLIMAX TARGET</small><strong>{snapshot.bossName}</strong><span>{bossPercent}%</span></div>
+            <div><small>CLIMAX TARGET · PHASE {snapshot.bossPhase}{snapshot.bossWeakpointOpen ? " · CORE OPEN" : bossArmorPercent > 0 ? ` · ARMOR ${bossArmorPercent}%` : ""}</small><strong>{snapshot.bossName}</strong><span>{bossPercent}%</span></div>
             <i><b style={{ width: `${bossPercent}%` }} /></i>
           </div>
         )}
@@ -487,8 +497,8 @@ export default function SkyDancerArcadeMode({ request, onReturnTitle }: SkyDance
               <div className={styles.finalStats}>
                 <span><small>SCORE</small><b>{snapshot.score}</b></span>
                 <span><small>KILLS</small><b>{snapshot.enemiesDefeated}</b></span>
-                <span><small>SMASH</small><b>{snapshot.turboSmashes}</b></span>
-                <span><small>CONTINUE</small><b>{snapshot.continuesUsed}</b></span>
+                <span><small>BOSS</small><b>{snapshot.bossKills}</b></span>
+                <span><small>BEST CHAIN</small><b>×{snapshot.bestChain}</b></span>
               </div>
               <button onClick={restart}><strong>{snapshot.mode === "stage-practice" ? "RETRY STAGE" : "NEW ARCADE RUN"}</strong><span>FLY AGAIN</span></button>
               <button className={styles.secondaryButton} onClick={onReturnTitle}>BACK TO TITLE</button>

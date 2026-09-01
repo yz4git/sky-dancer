@@ -347,8 +347,13 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
         const baseScale = typeof group.userData.arcadeBaseScale === "number" ? group.userData.arcadeBaseScale : 1;
         group.scale.setScalar(baseScale * (1 + (reaction?.flash ?? 0) * .035));
         for (const weakPoint of group.getObjectsByProperty("name", "arcade-boss-weakpoint")) {
-          weakPoint.scale.setScalar(.86 + Math.sin(snapshot.runTimeSeconds * 12 + enemy.id) * .12 + (1 - hpRatio) * .1);
-          weakPoint.rotation.y += delta * 1.8;
+          const openPulse = enemy.weakpointOpen ? .42 : 0;
+          weakPoint.scale.setScalar(.86 + Math.sin(snapshot.runTimeSeconds * (enemy.weakpointOpen ? 18 : 12) + enemy.id) * .12 + (1 - hpRatio) * .1 + openPulse);
+          weakPoint.rotation.y += delta * (enemy.weakpointOpen ? 4.2 : 1.8);
+          if (weakPoint instanceof THREE.Mesh && weakPoint.material instanceof THREE.MeshStandardMaterial) {
+            weakPoint.material.emissive.setHex(enemy.weakpointOpen ? 0xff315e : 0x34121d);
+            weakPoint.material.emissiveIntensity = enemy.weakpointOpen ? 2.8 : .75;
+          }
         }
       }
     }
@@ -546,6 +551,31 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
         this.presentation.emitBurst(position, impact.boss ? .62 : heavyCraft ? .52 : .42);
         this.cameraShake = Math.min(.38, this.cameraShake + .055);
       }
+    }
+    if (snapshot.bossPhaseSerial !== this.previousSnapshot.bossPhaseSerial) {
+      this.presentation.emitRushAccent();
+      this.cameraImpactKick = Math.max(this.cameraImpactKick, .5);
+      this.cameraShake = Math.min(.9, this.cameraShake + .28);
+      this.audio.tone(74, .32, .05, "sawtooth");
+      this.audio.tone(296, .2, .018, "triangle");
+    }
+    if (snapshot.stageEventSerial !== this.previousSnapshot.stageEventSerial) {
+      this.presentation.emitRushAccent();
+      this.cameraImpactKick = Math.max(this.cameraImpactKick, .28);
+      this.cameraShake = Math.min(.65, this.cameraShake + .16);
+      this.audio.tone(196, .16, .022, "triangle");
+      this.audio.tone(392, .11, .012, "square");
+    }
+    if (snapshot.armorBreaks > this.previousSnapshot.armorBreaks) {
+      this.presentation.emitRushAccent();
+      this.cameraImpactKick = Math.max(this.cameraImpactKick, .22);
+      this.audio.tone(98, .12, .032, "sawtooth");
+      this.audio.tone(740, .07, .014, "square");
+    }
+    if (snapshot.formationBreaks > this.previousSnapshot.formationBreaks) {
+      this.presentation.emitRushAccent();
+      this.audio.tone(520, .1, .018, "triangle");
+      this.audio.tone(780, .08, .012, "triangle");
     }
     if (snapshot.damageSerial !== this.previousSnapshot.damageSerial) {
       this.playerDamageKick = 1;

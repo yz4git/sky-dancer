@@ -12,6 +12,18 @@ import {
   type SkyDancerArcadeStageId,
 } from "./SkyDancerArcadeData";
 import type { SkyDancerArcadeRank } from "./SkyDancerArcadeProgress";
+import {
+  skyDancerArcadeArmorRatio,
+  skyDancerArcadeBossPhase,
+  skyDancerArcadeBossPhaseLabel,
+  skyDancerArcadeBossWeakpointOpen,
+  skyDancerArcadeEnemyRole,
+  skyDancerArcadeStageEventCheckpoint,
+  skyDancerArcadeStageEvolutionProfile,
+  skyDancerArcadeTargetPriority,
+  type SkyDancerArcadeBossPhase,
+  type SkyDancerArcadeEnemyRole,
+} from "./SkyDancerArcadeV10Systems";
 
 export type SkyDancerArcadeStatus =
   | "running"
@@ -43,6 +55,12 @@ export interface SkyDancerArcadeEnemySnapshot {
   boss: boolean;
   phase: number;
   maneuver: SkyDancerArcadeEnemyManeuver;
+  role: SkyDancerArcadeEnemyRole;
+  armor: number;
+  maxArmor: number;
+  bossPhase: SkyDancerArcadeBossPhase;
+  weakpointOpen: boolean;
+  stagger: number;
 }
 
 export interface SkyDancerArcadeProjectileSnapshot {
@@ -111,6 +129,10 @@ export interface SkyDancerArcadeSnapshot {
   nearMisses: number;
   multiLockKills: number;
   turboSmashes: number;
+  bestChain: number;
+  armorBreaks: number;
+  formationBreaks: number;
+  bossKills: number;
   continuesRemaining: number;
   continuesUsed: number;
   branchActive: boolean;
@@ -120,6 +142,12 @@ export interface SkyDancerArcadeSnapshot {
   bossName: string;
   bossHp: number;
   bossMaxHp: number;
+  bossPhase: SkyDancerArcadeBossPhase;
+  bossWeakpointOpen: boolean;
+  bossPhaseSerial: number;
+  stageEventSerial: number;
+  stageEventLabel: string | null;
+  stageEventIntensity: number;
   enemies: SkyDancerArcadeEnemySnapshot[];
   projectiles: SkyDancerArcadeProjectileSnapshot[];
   impacts: SkyDancerArcadeImpactSnapshot[];
@@ -277,6 +305,10 @@ export class SkyDancerArcadeRuntime {
   private nearMisses = 0;
   private multiLockKills = 0;
   private turboSmashes = 0;
+  private bestChain = 0;
+  private armorBreaks = 0;
+  private formationBreaks = 0;
+  private bossKills = 0;
   private continuesRemaining = SKY_DANCER_ARCADE_MAX_CONTINUES;
   private continuesUsed = 0;
   private enemies: ArcadeEnemy[] = [];
@@ -294,6 +326,11 @@ export class SkyDancerArcadeRuntime {
   private branchWasResolved = false;
   private bossSpawned = false;
   private bossDefeated = false;
+  private bossPhaseSerial = 0;
+  private stageEventSerial = 0;
+  private stageEventCheckpoint: 0 | 1 | 2 = 0;
+  private stageEventLabel: string | null = null;
+  private stageEventTimer = 0;
   private resultTimer = 0;
   private lastClearedStageId: SkyDancerArcadeStageId | null = null;
   private lastStageScore = 0;
@@ -343,6 +380,10 @@ export class SkyDancerArcadeRuntime {
     this.nextWaveAt = this.stageTime + (rewindTime > 0 ? 1.35 : 2.35);
     this.nextHazardAt = this.stageTime + (rewindTime > 0 ? 2.0 : 4.1);
     this.damageCooldown = 0;
+    const rewindCheckpoint = skyDancerArcadeStageEventCheckpoint(this.stageTime / this.stage.durationSeconds);
+    this.stageEventCheckpoint = rewindTime > 0 ? Math.max(this.stageEventCheckpoint, rewindCheckpoint) as 0 | 1 | 2 : 0;
+    this.stageEventLabel = null;
+    this.stageEventTimer = 0;
     this.branchSelection = null;
     this.branchWasResolved = this.stageTime >= this.stage.durationSeconds * 0.45;
     this.bossSpawned = false;
@@ -440,9 +481,12 @@ export class SkyDancerArcadeRuntime {
     this.distance += this.stage.courseSpeed * (turboActive ? 1.44 : 1) * delta;
     this.messageTimer = Math.max(0, this.messageTimer - delta);
     this.damageCooldown = Math.max(0, this.damageCooldown - delta);
+    this.stageEventTimer = Math.max(0, this.stageEventTimer - delta);
+    if (this.stageEventTimer <= 0) this.stageEventLabel = null;
     if (this.messageTimer <= 0) this.message = null;
     this.updatePlayer(delta, turboActive);
     this.updateBranch();
+    this.updateStageEvolution();
     this.updateDirector();
     this.updateLocking(delta);
     this.updateWeapons(delta);
@@ -509,6 +553,27 @@ export class SkyDancerArcadeRuntime {
     }
   }
 
+  private updateStageEvolution(): void {
+    const progress = clamp(this.stageTime / this.stage.durationSeconds, 0, 1);
+    const checkpoint = skyDancerArcadeStageEventCheckpoint(progress);
+    if (checkpoint <= this.stageEventCheckpoint) return;
+    this.stageEventCheckpoint = checkpoint;
+    const profile = skyDancerArcadeStageEvolutionProfile(this.stage.biome);
+    const eventIndex = checkpoint - 1;
+    const label = profile.labels[eventIndex];
+    this.stageEventLabel = label;
+    this.stageEventTimer = 1.65;
+    this.stageEventSerial += 1;
+    this.message = `STAGE EVENT · ${label}`;
+    this.messageTimer = 1.45;
+    this.addScore(profile.scoreBonus, true);
+    this.turbo = Math.min(100, this.turbo + 5 + this.stage.act);
+    const bursts = profile.hazardBursts[eventIndex] + (this.options.difficulty === "hard" && checkpoint === 2 ? 1 : 0);
+    for (let index = 0; index < bursts && this.hazards.length < 10; index += 1) {
+      this.spawnHazardPattern(profile.eventHazards[eventIndex]);
+    }
+  }
+
   private updateDirector(): void {
     const bossTime = this.stage.durationSeconds * (this.stage.id === SKY_DANCER_ARCADE_FINAL_STAGE ? 0.42 : 0.52);
     if (!this.bossSpawned && this.stageTime >= bossTime) this.spawnBoss();
@@ -572,6 +637,7 @@ export class SkyDancerArcadeRuntime {
     maneuverSign = 1,
   ): void {
     const stats = enemyStats(kind, this.options.difficulty === "hard");
+    const maxArmor = Math.round(stats.hp * skyDancerArcadeArmorRatio(kind));
     this.enemies.push({
       id: this.nextEntityId++,
       kind,
@@ -584,6 +650,12 @@ export class SkyDancerArcadeRuntime {
       boss: false,
       phase: this.random() * Math.PI * 2,
       maneuver,
+      role: skyDancerArcadeEnemyRole(kind),
+      armor: maxArmor,
+      maxArmor,
+      bossPhase: 1,
+      weakpointOpen: false,
+      stagger: 0,
       age: 0,
       speed: stats.speed,
       baseX: x,
@@ -604,6 +676,7 @@ export class SkyDancerArcadeRuntime {
     // Climax targets must survive a full attack run instead of evaporating under one gun burst.
     const baseHp = final ? 1280 : 440 + this.stage.act * 110;
     const hp = Math.round(baseHp * (this.options.difficulty === "hard" ? 1.25 : 1));
+    const maxArmor = Math.round(hp * skyDancerArcadeArmorRatio("boss", true));
     this.enemies.push({
       id: this.nextEntityId++,
       kind: "boss",
@@ -616,6 +689,12 @@ export class SkyDancerArcadeRuntime {
       boss: true,
       phase: 0,
       maneuver: "approach",
+      role: "climax",
+      armor: maxArmor,
+      maxArmor,
+      bossPhase: 1,
+      weakpointOpen: false,
+      stagger: 0,
       age: 0,
       speed: 7.2,
       baseX: 0,
@@ -632,9 +711,11 @@ export class SkyDancerArcadeRuntime {
     this.stageSerial += 1;
   }
 
-  private spawnHazardPattern(): void {
-    const kind = this.stage.hazards[Math.floor(this.random() * this.stage.hazards.length)] ?? "debris";
-    const count = kind === "mine" || kind === "debris" ? 5 + Math.floor(this.random() * 3) : 4;
+  private spawnHazardPattern(forcedKind?: SkyDancerArcadeHazardKind): void {
+    const kind = forcedKind ?? this.stage.hazards[Math.floor(this.random() * this.stage.hazards.length)] ?? "debris";
+    const requestedCount = kind === "mine" || kind === "debris" ? 5 + Math.floor(this.random() * 3) : 4;
+    const count = Math.min(requestedCount, Math.max(0, 10 - this.hazards.length));
+    if (count <= 0) return;
     const safeLane = Math.floor(this.random() * count);
     const center = clamp(this.playerX * 0.28, -0.55, 0.55);
     for (let index = 0; index < count; index += 1) {
@@ -667,7 +748,7 @@ export class SkyDancerArcadeRuntime {
       const reticleDistance = Math.hypot(dx, dy);
       const threshold = enemy.boss ? 1.85 : 1.45;
       if (reticleDistance > threshold) continue;
-      const score = reticleDistance * 20 + enemy.depth * 0.05;
+      const score = reticleDistance * 20 + enemy.depth * 0.05 - skyDancerArcadeTargetPriority(enemy.role);
       if (score < best) {
         best = score;
         candidate = enemy;
@@ -713,7 +794,7 @@ export class SkyDancerArcadeRuntime {
       const dy = enemy.y - this.playerY;
       const cone = Math.hypot(dx, dy);
       if (cone > (enemy.boss ? 1.45 : 0.72)) continue;
-      const score = cone * 28 + enemy.depth * 0.04;
+      const score = cone * 28 + enemy.depth * 0.04 - skyDancerArcadeTargetPriority(enemy.role) * .45;
       if (score < best) {
         best = score;
         target = enemy;
@@ -758,11 +839,29 @@ export class SkyDancerArcadeRuntime {
     for (const enemy of this.enemies) {
       if (!enemy.alive) continue;
       enemy.age += delta;
+      enemy.stagger = Math.max(0, enemy.stagger - delta * (enemy.boss ? .82 : 1.35));
       if (enemy.boss) {
-        enemy.depth = moveToward(enemy.depth, 33, delta * 18);
-        const frequency = this.options.difficulty === "hard" ? 0.82 : 0.68;
-        enemy.x = clamp(this.playerX * 0.58 + Math.sin(enemy.age * frequency) * enemy.amplitude, -ENEMY_X_LIMIT, ENEMY_X_LIMIT);
-        enemy.y = clamp(this.playerY * 0.5 + enemy.baseY + Math.sin(enemy.age * 0.92 + 1.3) * 0.82, -ENEMY_Y_LIMIT, ENEMY_Y_LIMIT);
+        const nextPhase = skyDancerArcadeBossPhase(enemy.hp, enemy.maxHp);
+        if (nextPhase !== enemy.bossPhase) {
+          enemy.bossPhase = nextPhase;
+          this.bossPhaseSerial += 1;
+          this.message = `PHASE ${nextPhase} · ${skyDancerArcadeBossPhaseLabel(nextPhase)}`;
+          this.messageTimer = 1.5;
+          this.addScore(1000 + nextPhase * 650, true);
+          this.turbo = Math.min(100, this.turbo + 9);
+          const profile = skyDancerArcadeStageEvolutionProfile(this.stage.biome);
+          this.spawnHazardPattern(profile.eventHazards[nextPhase === 2 ? 0 : 1]);
+        }
+        enemy.weakpointOpen = skyDancerArcadeBossWeakpointOpen(enemy.bossPhase, enemy.age);
+        const phaseDepth = enemy.bossPhase === 1 ? 33 : enemy.bossPhase === 2 ? 29 : 25.5;
+        const phaseSpeed = enemy.bossPhase === 1 ? 18 : enemy.bossPhase === 2 ? 21 : 24;
+        enemy.depth = moveToward(enemy.depth, phaseDepth, delta * phaseSpeed);
+        const baseFrequency = this.options.difficulty === "hard" ? 0.82 : 0.68;
+        const frequency = baseFrequency * (1 + (enemy.bossPhase - 1) * .24);
+        const phaseAmplitude = enemy.amplitude * (1 + (enemy.bossPhase - 1) * .13);
+        const staggerSuppression = 1 - enemy.stagger * .16;
+        enemy.x = clamp((this.playerX * 0.58 + Math.sin(enemy.age * frequency) * phaseAmplitude) * staggerSuppression, -ENEMY_X_LIMIT, ENEMY_X_LIMIT);
+        enemy.y = clamp(this.playerY * 0.5 + enemy.baseY + Math.sin(enemy.age * (0.92 + enemy.bossPhase * .08) + 1.3) * (0.72 + enemy.bossPhase * .1), -ENEMY_Y_LIMIT, ENEMY_Y_LIMIT);
       } else {
         const frequency = enemy.kind === "interceptor" ? 2.35 : enemy.kind === "ace" ? 1.75 : 1.02;
         const pursuit = clamp((62 - enemy.depth) / 62, 0.12, enemy.kind === "ace" ? 0.84 : enemy.kind === "interceptor" ? 0.74 : 0.54);
@@ -859,8 +958,10 @@ export class SkyDancerArcadeRuntime {
       }
       enemy.fireCooldown -= delta;
       if (enemy.fireCooldown <= 0 && enemy.depth > 12 && enemy.depth < 72) {
+        // Stagger turns accurate pressure into a short offensive opening without hard-stopping the simulation.
+        if (enemy.stagger > .52) enemy.fireCooldown = .22 + enemy.stagger * .38;
         // Route selection should stay tense without becoming an unreadable missile wall.
-        if (this.branchActive && !enemy.boss) enemy.fireCooldown = .48 + this.random() * .36;
+        else if (this.branchActive && !enemy.boss) enemy.fireCooldown = .48 + this.random() * .36;
         else this.enemyFire(enemy);
       }
       if (enemy.depth > 3.3) continue;
@@ -889,7 +990,9 @@ export class SkyDancerArcadeRuntime {
     const hard = this.options.difficulty === "hard";
     const threatBudget = hard ? MAX_ENEMY_PROJECTILES_HARD : MAX_ENEMY_PROJECTILES_NORMAL;
     const activeThreats = this.projectiles.filter((projectile) => projectile.owner === "enemy" && projectile.life > 0).length;
-    const desiredSpread = enemy.boss ? (hard ? 4 : 3) : enemy.kind === "missile-boat" || enemy.kind === "bomber" ? 2 : enemy.kind === "ace" ? 2 : 1;
+    const desiredSpread = enemy.boss
+      ? Math.min(5, (hard ? 2 : 1) + enemy.bossPhase)
+      : enemy.kind === "missile-boat" || enemy.kind === "bomber" ? 2 : enemy.kind === "ace" ? 2 : 1;
     const spreadCount = Math.max(0, Math.min(desiredSpread, threatBudget - activeThreats));
     if (spreadCount <= 0) {
       enemy.fireCooldown = .38 + this.random() * .34;
@@ -897,7 +1000,7 @@ export class SkyDancerArcadeRuntime {
     }
     for (let index = 0; index < spreadCount; index += 1) {
       const centered = index - (spreadCount - 1) * 0.5;
-      const guidance = enemy.boss ? 1.34 : enemy.kind === "missile-boat" ? 1.52 : enemy.kind === "bomber" ? 1.26 : enemy.kind === "ace" ? 1.12 : 0.88;
+      const guidance = enemy.boss ? 1.02 + enemy.bossPhase * .2 : enemy.kind === "missile-boat" ? 1.52 : enemy.kind === "bomber" ? 1.26 : enemy.kind === "ace" ? 1.12 : 0.88;
       this.projectiles.push({
         id: this.nextEntityId++,
         owner: "enemy",
@@ -905,7 +1008,7 @@ export class SkyDancerArcadeRuntime {
         y: enemy.y,
         depth: enemy.depth,
         targetEnemyId: null,
-        speed: enemy.boss ? 17.5 : enemy.kind === "missile-boat" ? 15.5 : enemy.kind === "bomber" ? 14.5 : 13.2,
+        speed: enemy.boss ? 15.8 + enemy.bossPhase * 1.7 : enemy.kind === "missile-boat" ? 15.5 : enemy.kind === "bomber" ? 14.5 : 13.2,
         damage: enemy.boss ? (hard ? 18 : 11) : hard ? 13 : 8,
         life: 5.6,
         vx: (this.playerX - enemy.x) * 0.28 + centered * 0.2,
@@ -914,7 +1017,7 @@ export class SkyDancerArcadeRuntime {
         nearMissChecked: false,
       });
     }
-    const base = enemy.boss ? 1.38 : enemy.kind === "missile-boat" ? 1.68 : enemy.kind === "bomber" ? 1.9 : enemy.kind === "ace" ? 1.78 : 2.18;
+    const base = enemy.boss ? 1.68 - enemy.bossPhase * .18 : enemy.kind === "missile-boat" ? 1.68 : enemy.kind === "bomber" ? 1.9 : enemy.kind === "ace" ? 1.78 : 2.18;
     enemy.fireCooldown = base * (hard ? 0.8 : 1) * (0.84 + this.random() * 0.38);
   }
 
@@ -1016,7 +1119,23 @@ export class SkyDancerArcadeRuntime {
   private damageEnemy(enemy: ArcadeEnemy, amount: number, missile: boolean): void {
     if (!enemy.alive) return;
     const hpBefore = enemy.hp;
-    enemy.hp = Math.max(0, enemy.hp - amount);
+    const armorBefore = enemy.armor;
+    let hullDamage = amount;
+    if (enemy.armor > 0) {
+      const armorDamage = amount * (missile ? 1.35 : .7);
+      enemy.armor = Math.max(0, enemy.armor - armorDamage);
+      hullDamage *= missile ? .9 : .72;
+    }
+    if (enemy.boss && enemy.weakpointOpen) hullDamage *= missile ? 1.65 : 1.35;
+    enemy.hp = Math.max(0, enemy.hp - hullDamage);
+    enemy.stagger = clamp(enemy.stagger + hullDamage / Math.max(1, enemy.maxHp) * (missile ? 5.2 : 3.2), 0, 1);
+    if (armorBefore > 0 && enemy.armor <= 0) {
+      this.armorBreaks += 1;
+      this.addScore(enemy.boss ? 1800 : enemy.kind === "bomber" ? 900 : 650, true);
+      this.turbo = Math.min(100, this.turbo + (enemy.boss ? 11 : 6));
+      this.message = enemy.boss ? "BOSS ARMOR BREAK · CORE EXPOSED" : "ARMOR BREAK";
+      this.messageTimer = 1.05;
+    }
     this.hitSerial += 1;
     const destroyed = enemy.hp <= 0;
     this.impactEvents.push({
@@ -1043,13 +1162,22 @@ export class SkyDancerArcadeRuntime {
     enemy.locked = false;
     this.enemiesDefeated += 1;
     this.chain = Math.min(99, this.chain + 1);
+    this.bestChain = Math.max(this.bestChain, this.chain);
     this.chainTimer = 4.6;
     this.addScore(enemy.scoreValue, this.input.turbo);
+    if (!enemy.boss && this.chain > 0 && this.chain % 3 === 0) {
+      this.formationBreaks += 1;
+      this.addScore(850 + this.chain * 75, true);
+      this.turbo = Math.min(100, this.turbo + 8);
+      this.message = `FORMATION BREAK ×${this.chain}`;
+      this.messageTimer = .9;
+    }
     if (missile && this.projectiles.filter((projectile) => projectile.owner === "player-missile" && projectile.life > 0).length >= 2) {
       this.multiLockKills += 1;
       this.addScore(350, true);
     }
     if (!enemy.boss) return;
+    this.bossKills += 1;
     this.bossDefeated = true;
     this.message = this.stageTime >= this.stage.durationSeconds ? "CLIMAX TARGET DOWN" : "TARGET DOWN · EXIT COURSE";
     this.messageTimer = 2.4;
@@ -1183,6 +1311,10 @@ export class SkyDancerArcadeRuntime {
       nearMisses: this.nearMisses,
       multiLockKills: this.multiLockKills,
       turboSmashes: this.turboSmashes,
+      bestChain: this.bestChain,
+      armorBreaks: this.armorBreaks,
+      formationBreaks: this.formationBreaks,
+      bossKills: this.bossKills,
       continuesRemaining: this.continuesRemaining,
       continuesUsed: this.continuesUsed,
       branchActive: this.branchActive,
@@ -1192,6 +1324,12 @@ export class SkyDancerArcadeRuntime {
       bossName: this.stage.bossName,
       bossHp: boss?.hp ?? (this.bossDefeated ? 0 : 1),
       bossMaxHp: boss?.maxHp ?? (this.bossDefeated ? 1 : 1),
+      bossPhase: boss?.bossPhase ?? (this.bossDefeated ? 3 : 1),
+      bossWeakpointOpen: boss?.weakpointOpen ?? false,
+      bossPhaseSerial: this.bossPhaseSerial,
+      stageEventSerial: this.stageEventSerial,
+      stageEventLabel: this.stageEventLabel,
+      stageEventIntensity: this.stageEventTimer > 0 ? clamp(this.stageEventTimer / 1.65, 0, 1) : 0,
       enemies: this.enemies.filter((enemy) => enemy.alive).map((enemy) => ({
         id: enemy.id,
         kind: enemy.kind,
@@ -1204,6 +1342,12 @@ export class SkyDancerArcadeRuntime {
         boss: enemy.boss,
         phase: enemy.phase,
         maneuver: enemy.maneuver,
+        role: enemy.role,
+        armor: enemy.armor,
+        maxArmor: enemy.maxArmor,
+        bossPhase: enemy.bossPhase,
+        weakpointOpen: enemy.weakpointOpen,
+        stagger: enemy.stagger,
       })),
       projectiles: this.projectiles.filter((projectile) => projectile.life > 0).map((projectile) => ({
         id: projectile.id,
@@ -1235,6 +1379,21 @@ export class SkyDancerArcadeRuntime {
       stageSerial: this.stageSerial,
       resultSerial: this.resultSerial,
     };
+  }
+
+  /** Deterministic V10 hooks used by rule tests without adding alternate production gameplay paths. */
+  triggerStageEvolutionForTests(progress: number): void {
+    this.stageTime = this.stage.durationSeconds * clamp(progress, 0, 1);
+    this.distance = this.stageTime * this.stage.courseSpeed;
+    this.updateStageEvolution();
+  }
+
+  setBossHpRatioForTests(ratio: number): void {
+    if (!this.bossSpawned) this.spawnBoss();
+    const boss = this.enemies.find((enemy) => enemy.alive && enemy.boss);
+    if (!boss) return;
+    boss.hp = boss.maxHp * clamp(ratio, .01, 1);
+    this.updateEnemies(1 / 60, false);
   }
 
   /** Purely deterministic hook used by rule tests; production progression still requires defeating the boss. */

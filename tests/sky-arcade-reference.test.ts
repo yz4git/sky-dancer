@@ -8,6 +8,16 @@ import { SkyDancerArcadeReferenceWorld } from "../src/sky/arcade/SkyDancerArcade
 import { ARCADE_EFFECT_BUDGET, SkyDancerArcadeProductPresentation } from "../src/sky/arcade/SkyDancerArcadeProductPresentation";
 import { SKY_DANCER_ARCADE_STAGES } from "../src/sky/arcade/SkyDancerArcadeData";
 import { SkyDancerArcadeRuntime } from "../src/sky/arcade/SkyDancerArcadeRuntime";
+import { createDefaultSkyDancerArcadeProgress } from "../src/sky/arcade/SkyDancerArcadeProgress";
+import { SkyDancerArcadePresentationDirector } from "../src/sky/arcade/SkyDancerArcadePresentationDirector";
+import {
+  skyDancerArcadeArmorRatio,
+  skyDancerArcadeBossPhase,
+  skyDancerArcadeBossWeakpointOpen,
+  skyDancerArcadeEnemyRole,
+  skyDancerArcadeStageEvolutionProfile,
+  skyDancerArcadeStageEventCheckpoint,
+} from "../src/sky/arcade/SkyDancerArcadeV10Systems";
 
 test("stick maps from its visible center with radial dead zone and bounded diagonals", () => {
   assert.deepEqual(normalizeArcadeStick(0, 0, 50), { x: 0, y: 0 });
@@ -448,3 +458,84 @@ test("V9.9 WebGL combat feedback gives missiles stronger target recoil plus play
   assert.match(source, /cameraImpactKick/);
 });
 
+
+
+test("V10 Combat 2.0 assigns readable roles, meaningful armor and threat priorities", () => {
+  assert.equal(skyDancerArcadeEnemyRole("fighter"), "skirmisher");
+  assert.equal(skyDancerArcadeEnemyRole("interceptor"), "hunter");
+  assert.equal(skyDancerArcadeEnemyRole("missile-boat"), "artillery");
+  assert.equal(skyDancerArcadeEnemyRole("bomber"), "heavy");
+  assert.equal(skyDancerArcadeEnemyRole("ace"), "ace");
+  assert.equal(skyDancerArcadeEnemyRole("boss", true), "climax");
+  assert.equal(skyDancerArcadeArmorRatio("fighter"), 0, "ordinary fighters stay quick kills");
+  assert.ok(skyDancerArcadeArmorRatio("bomber") > skyDancerArcadeArmorRatio("missile-boat"));
+  assert.ok(skyDancerArcadeArmorRatio("boss", true) > 0);
+});
+
+test("V10 Boss Battle 2.0 has three HP phases and recurring core-open attack windows", () => {
+  assert.equal(skyDancerArcadeBossPhase(100, 100), 1);
+  assert.equal(skyDancerArcadeBossPhase(60, 100), 2);
+  assert.equal(skyDancerArcadeBossPhase(25, 100), 3);
+  assert.equal(skyDancerArcadeBossWeakpointOpen(1, 100), false);
+  assert.ok(Array.from({ length: 80 }, (_, i) => skyDancerArcadeBossWeakpointOpen(2, i / 20)).some(Boolean));
+  assert.ok(Array.from({ length: 80 }, (_, i) => skyDancerArcadeBossWeakpointOpen(3, i / 20)).some(Boolean));
+  const runtime = new SkyDancerArcadeRuntime({ mode: "stage-practice", difficulty: "normal", seed: 1002 });
+  runtime.setBossHpRatioForTests(.6);
+  const phase2 = runtime.getSnapshot();
+  assert.equal(phase2.bossPhase, 2);
+  assert.ok(phase2.bossPhaseSerial >= 1);
+  runtime.setBossHpRatioForTests(.24);
+  const phase3 = runtime.getSnapshot();
+  assert.equal(phase3.bossPhase, 3);
+  assert.ok(phase3.bossPhaseSerial > phase2.bossPhaseSerial);
+});
+
+test("V10 Stage Evolution gives every biome two authored gameplay beats and bounded checkpoints", () => {
+  for (const stage of SKY_DANCER_ARCADE_STAGES) {
+    const profile = skyDancerArcadeStageEvolutionProfile(stage.biome);
+    assert.equal(profile.labels.length, 2);
+    assert.equal(profile.eventHazards.length, 2);
+    assert.ok(profile.labels.every((label) => label.length >= 8));
+    assert.ok(profile.scoreBonus >= 900);
+  }
+  assert.equal(skyDancerArcadeStageEventCheckpoint(.1), 0);
+  assert.equal(skyDancerArcadeStageEventCheckpoint(.2), 1);
+  assert.equal(skyDancerArcadeStageEventCheckpoint(.7), 2);
+  const runtime = new SkyDancerArcadeRuntime({ mode: "stage-practice", difficulty: "normal", seed: 1003 });
+  runtime.triggerStageEvolutionForTests(.2);
+  const first = runtime.getSnapshot();
+  assert.equal(first.stageEventSerial, 1);
+  assert.ok(first.stageEventLabel);
+  runtime.triggerStageEvolutionForTests(.7);
+  const second = runtime.getSnapshot();
+  assert.equal(second.stageEventSerial, 2);
+  assert.notEqual(second.stageEventLabel, first.stageEventLabel);
+  assert.ok(second.hazards.length <= 10, "authored hazard beats remain bounded");
+});
+
+test("V10 Cinematic Gameplay boosts camera language for stage, armor, formation and boss beats without gameplay pause", () => {
+  const director = new SkyDancerArcadePresentationDirector();
+  const base = { turboActive: false, nearMisses: 0, enemiesDefeated: 0, bossActive: true, hitSerial: 0, damageSerial: 0, stageSerial: 1, resultSerial: 0, bossPhaseSerial: 0, stageEventSerial: 0, armorBreaks: 0, formationBreaks: 0 };
+  const boss = director.update({ ...base, bossPhaseSerial: 1 }, base, 1 / 60);
+  assert.ok(boss.fovKick >= 3.3 && boss.pullback >= .8);
+  director.reset();
+  const stage = director.update({ ...base, stageEventSerial: 1 }, base, 1 / 60);
+  assert.ok(stage.fovKick >= 2.6 && stage.cameraShake >= .09);
+  director.reset();
+  const armor = director.update({ ...base, armorBreaks: 1 }, base, 1 / 60);
+  assert.ok(armor.bloomBoost >= .12);
+  director.reset();
+  const formation = director.update({ ...base, formationBreaks: 1 }, base, 1 / 60);
+  assert.ok(formation.fovKick >= 1.8);
+});
+
+test("V10 Arcade Meta Layer defaults to migrated v2 career records and milestone slots", () => {
+  const progress = createDefaultSkyDancerArcadeProgress();
+  assert.equal(progress.version, 2);
+  assert.deepEqual(progress.unlockedPaintSchemes, ["default"]);
+  assert.deepEqual(progress.unlockedLoadouts, ["standard"]);
+  assert.deepEqual(progress.bestRoute, []);
+  assert.equal(progress.totalBossKills, 0);
+  assert.equal(progress.totalArmorBreaks, 0);
+  assert.equal(progress.bestChain, 0);
+});

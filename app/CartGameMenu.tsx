@@ -50,6 +50,7 @@ export default function CartGameMenu({ started, activeMode, onStart, onReturnTit
   const [selectedMode, setSelectedMode] = useState<SkyDancerGameMode>("arcade-run");
   const [practiceStageId, setPracticeStageId] = useState<SkyDancerArcadeStageId>("dawn-city");
   const [practiceStageIds, setPracticeStageIds] = useState<SkyDancerArcadeStageId[]>([]);
+  const [arcadeMeta, setArcadeMeta] = useState(() => loadSkyDancerArcadeProgress());
   const [hardSnapshot, setHardSnapshot] = useState<CartHardModeSnapshot | null>(null);
   const [cameraDistance, setCameraDistance] = useState(DEFAULT_CART_ROGUE_CONFIG.cameraDistance);
   const [vibrationEnabled, setVibrationEnabled] = useState(true);
@@ -121,6 +122,7 @@ export default function CartGameMenu({ started, activeMode, onStart, onReturnTit
     if (started) return;
     const timer = window.setTimeout(() => {
       const progress = loadSkyDancerArcadeProgress();
+      setArcadeMeta(progress);
       const cleared = SKY_DANCER_ARCADE_STAGES
         .filter((stage) => progress.clearedStageIds.includes(stage.id))
         .map((stage) => stage.id);
@@ -263,7 +265,7 @@ export default function CartGameMenu({ started, activeMode, onStart, onReturnTit
             {selectedMode === "turbo-hunt"
               ? `GAS = LIFE · RECOVERY CELLS RESTORE GAS · ZERO GAS = GAME OVER${hard ? " · HARD RAID HITS DEAL HEAVY LIFE DAMAGE" : ""}`
               : selectedMode === "arcade-run"
-                ? `2 CONTINUES · ROUTE GATES CHANGE THE RUN${hard ? " · ACE ENEMIES FIRE FASTER AND HIT HARDER" : ""}`
+                ? `2 CONTINUES · ROUTE GATES CHANGE THE RUN · BEST ${arcadeMeta.bestRunScore} ${arcadeMeta.bestRunRank} · BOSS ${arcadeMeta.totalBossKills} · CHAIN ×${arcadeMeta.bestChain} · UNLOCKS ${arcadeMeta.unlockedPaintSchemes.length + arcadeMeta.unlockedLoadouts.length}${hard ? " · ACE ENEMIES FIRE FASTER AND HIT HARDER" : ""}`
                 : `SINGLE STAGE · RECORD ATTACK${hard ? " · ACE DIFFICULTY" : ""}`}
           </div>
           <button className={`${styles.startButton} ${modeStyles.compactStart} ${hard ? styles.startButtonHard : ""}`} onClick={() => startGame()}>
