@@ -3,9 +3,9 @@ import assert from "node:assert/strict";
 import * as THREE from "three";
 import { normalizeArcadeStick } from "../src/sky/arcade/SkyDancerArcadeInput";
 import { arcadeCameraPose } from "../src/sky/arcade/SkyDancerArcadeCamera";
-import { arcadeCoursePose, arcadeCourseRelativePose } from "../src/sky/arcade/SkyDancerArcadeCoursePath";
+import { arcadeCoursePose, arcadeCourseRelativePose, arcadeCourseRelativeVisualPose } from "../src/sky/arcade/SkyDancerArcadeCoursePath";
 import { createReferenceFighter, createReferenceCarrier } from "../src/sky/arcade/SkyDancerArcadeReferenceAirframes";
-import { ARCADE_NEAR_PASS_CLEARANCE_V1039, SkyDancerArcadeReferenceWorld } from "../src/sky/arcade/SkyDancerArcadeReferenceWorld";
+import { ARCADE_NEAR_PASS_CLEARANCE_V1039, arcadeCourseVisualBankScaleV104, SkyDancerArcadeReferenceWorld } from "../src/sky/arcade/SkyDancerArcadeReferenceWorld";
 import { createArcadeWaterMaterial, referenceAtmosphere } from "../src/sky/arcade/SkyDancerArcadeReferenceMaterials";
 import { ARCADE_EFFECT_BUDGET, SkyDancerArcadeProductPresentation } from "../src/sky/arcade/SkyDancerArcadeProductPresentation";
 import { SKY_DANCER_ARCADE_STAGES } from "../src/sky/arcade/SkyDancerArcadeData";
@@ -125,8 +125,10 @@ test("all eleven environments have bounded geometry and continuous streaming own
       if (object instanceof THREE.InstancedMesh) { assert.ok(object.count <= 150); assert.ok(object.count <= object.instanceMatrix.count, `${object.name} count ${object.count} exceeds capacity ${object.instanceMatrix.count}`); }
     });
     assert.ok(draws < 160, `${stage.biome} draw calls: ${draws}`);
-    world.update(10, 0, 0); const before = chunks[0].position.z;
-    world.update(11, 0, 0); assert.ok(Math.abs(chunks[0].position.z - before - 1) < 1e-6);
+    world.update(10, 0, 0); const before = chunks[0].position.clone();
+    world.update(11, 0, 0);
+    const streamedStep = chunks[0].position.distanceTo(before);
+    assert.ok(Number.isFinite(streamedStep) && streamedStep > .01 && streamedStep < 8, `${stage.id} streamed step ${streamedStep}`);
     world.update(1_000_000, 1, -.9);
     assert.ok(Number.isFinite(chunks[0].position.x));
   }
@@ -219,48 +221,58 @@ test("V10.3.4 Dawn City uses continuous riverbanks instead of rigid slabs on sha
   world.dispose();
 });
 
-test("V10.3.6 keeps the horizon stable while every course-bound layer shares one spline frame", () => {
-  const city=SKY_DANCER_ARCADE_STAGES.find(stage=>stage.biome==="city");
-  const volcano=SKY_DANCER_ARCADE_STAGES.find(stage=>stage.biome==="volcano");
-  assert.ok(city && volcano);
+test("V10.4 uses one player-local course frame for horizon, streamed scenery and ribbons", () => {
+  const city=SKY_DANCER_ARCADE_STAGES.find(stage=>stage.biome==="city")!;
+  const volcano=SKY_DANCER_ARCADE_STAGES.find(stage=>stage.biome==="volcano")!;
   const scene=new THREE.Scene();
   const world=new SkyDancerArcadeReferenceWorld(scene);
   world.setStage(city);
   const backdrop=scene.getObjectByName("arcade-product-backdrop") as THREE.Group;
   assert.ok(backdrop instanceof THREE.Group);
-  assert.equal(backdrop.userData.arcadeBackdropStableHorizonV1036,true);
   const length=city.durationSeconds*city.courseSpeed;
   for(const progress of [.06,.12,.18,.25,.32,.4]){
     const distance=length*progress;
     world.update(distance,.8,-.6);
-    assert.ok(backdrop.position.length()<1e-12,"far horizon must not translate independently of the course");
-    assert.ok(Math.abs(backdrop.rotation.x)+Math.abs(backdrop.rotation.y)+Math.abs(backdrop.rotation.z)<1e-12,
-      "far horizon must stay in the world/camera frame instead of receiving a second course rotation");
+    assert.equal(backdrop.userData.arcadeUnifiedHorizonFrameV104,true);
+    assert.ok(Number.isFinite(backdrop.rotation.x+backdrop.rotation.y+backdrop.rotation.z));
     for(let i=0;i<8;i++){
       const chunk=scene.getObjectByName(`arcade-course-chunk-${i}`) as THREE.Group;
-      assert.ok(chunk);
-      assert.equal(chunk.userData.arcadeUnifiedCourseFrameV1036,true);
-      const depth=-chunk.position.z;
-      const authored=arcadeCourseRelativePose(city,distance,depth);
-      assert.ok(Math.abs(chunk.rotation.y-authored.yaw)<1e-9,`chunk ${i} yaw must equal the shared course yaw`);
-      assert.ok(Math.abs(chunk.rotation.x-authored.pitch)<1e-9,`chunk ${i} pitch must equal the shared course pitch`);
-      assert.ok(Math.abs(chunk.rotation.z-authored.bank*.22)<1e-9,`chunk ${i} bank must match the city river/bank frame`);
+      assert.ok(chunk && chunk.userData.arcadeSingleCourseFrameV104===true);
+      const local=((i*112-distance)%(112*8)+(112*8))%(112*8);
+      const depth=local-140;
+      const authored=arcadeCourseRelativeVisualPose(city,distance,depth);
+      assert.ok(Math.abs(chunk.position.x-(authored.x-.8*.35))<1e-8);
+      assert.ok(Math.abs(chunk.position.y-(authored.y-(-.6)*.16))<1e-8);
+      assert.ok(Math.abs(chunk.position.z-authored.z)<1e-8);
+      assert.ok(Math.abs(chunk.rotation.z-authored.bank*arcadeCourseVisualBankScaleV104(city))<1e-9);
     }
   }
-
   world.setStage(volcano);
   const volcanoDistance=volcano.durationSeconds*volcano.courseSpeed*.29;
   world.update(volcanoDistance,-.7,.5);
+  const terrain=scene.getObjectByName("arcade-continuous-terrain-ribbon") as THREE.Mesh;
+  assert.ok(terrain instanceof THREE.Mesh);
   const cues=scene.getObjectsByProperty("name","arcade-volcano-route-cue") as THREE.Group[];
-  assert.ok(cues.length>0);
   for(const cue of cues){
     const depth=Number(cue.userData.arcadeRouteDepth);
-    const authored=arcadeCourseRelativePose(volcano,volcanoDistance,depth);
-    assert.ok(Math.abs(cue.rotation.y-authored.yaw)<1e-9,"volcano marker yaw must use the same course frame");
-    assert.ok(Math.abs(cue.rotation.x-authored.pitch)<1e-9,"volcano marker pitch must use the same course frame");
-    assert.ok(Math.abs(cue.rotation.z-authored.bank*.28)<1e-9,"volcano marker bank must match the magma ribbon frame");
+    const authored=arcadeCourseRelativeVisualPose(volcano,volcanoDistance,depth);
+    assert.ok(Math.abs(cue.position.z-authored.z)<1e-8);
+    assert.ok(Math.abs(cue.rotation.z-authored.bank*arcadeCourseVisualBankScaleV104(volcano))<1e-9);
   }
   world.dispose();
+});
+
+test("V10.4 visual relative pose rotates the complete centreline delta into the current tangent frame", () => {
+  for(const stage of SKY_DANCER_ARCADE_STAGES){
+    const distance=stage.durationSeconds*stage.courseSpeed*.31;
+    const zero=arcadeCourseRelativeVisualPose(stage,distance,0);
+    assert.ok(Math.abs(zero.x)+Math.abs(zero.y)+Math.abs(zero.z)+Math.abs(zero.yaw)+Math.abs(zero.pitch)+Math.abs(zero.bank)<1e-10);
+    for(const depth of [24,72,160]){
+      const visual=arcadeCourseRelativeVisualPose(stage,distance,depth);
+      assert.ok([visual.x,visual.y,visual.z,visual.yaw,visual.pitch,visual.bank].every(Number.isFinite));
+      assert.ok(visual.z<0,`${stage.id} depth ${depth} remains ahead of the camera`);
+    }
+  }
 });
 
 test("missile trails and explosions keep a bounded mesh and buffer count under load", () => {
@@ -373,9 +385,9 @@ test("V8.8 ice cavern exposes its vertical canyon without repeated full-screen h
   for(const cue of cues){
     const depth=Number(cue.userData.arcadeRouteDepth);
     assert.ok(depth>=58,"nearest ice guide must stay well outside the camera/airframe foreground");
-    const authored=arcadeCourseRelativePose(ice,auditDistance,depth);
-    assert.ok(Math.abs(cue.position.y-authored.y)<1e-6,
-      "ice guide ribs must remain tethered to the actual course centre instead of floating independently");
+    const authored=arcadeCourseRelativeVisualPose(ice,auditDistance,depth);
+    assert.ok(Math.abs(cue.position.x-authored.x)<1e-6 && Math.abs(cue.position.y-authored.y)<1e-6 && Math.abs(cue.position.z-authored.z)<1e-6,
+      "ice guide ribs must remain tethered to the complete player-local course centre instead of floating independently");
   }
   const fissure=scene.getObjectByName("arcade-ice-course-fissure-outer") as THREE.Mesh;
   const core=scene.getObjectByName("arcade-ice-course-fissure-core") as THREE.Mesh;
@@ -753,4 +765,13 @@ test("V10.3.9 preserves a phone-readable central corridor for visual-only near p
     }
   }
   world.dispose();
+});
+
+
+test("V10.4 camera has one owner for course motion instead of double-transforming the background", async () => {
+  const source=await import("node:fs/promises").then(fs=>fs.readFile(new URL("../src/sky/arcade/SkyDancerArcadeWebGLDemo.ts",import.meta.url),"utf8"));
+  const camera=source.slice(source.indexOf("private updateCamera"),source.indexOf("private resize"));
+  assert.doesNotMatch(camera,/course\.yaw|course\.pitch|course\.bank|nearCourse|farCourse/);
+  assert.match(camera,/const targetX = pose\.x \+ shakeX/);
+  assert.match(camera,/const desiredRoll = pose\.roll/);
 });

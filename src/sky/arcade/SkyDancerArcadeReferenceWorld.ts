@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import type { SkyDancerArcadeStageDefinition } from "./SkyDancerArcadeData";
 import { bakeArcadeAirframe } from "./SkyDancerArcadeReferenceAirframes";
-import { arcadeCourseRelativePose } from "./SkyDancerArcadeCoursePath";
+import { arcadeCoursePose, arcadeCourseRelativeVisualPose } from "./SkyDancerArcadeCoursePath";
 import {
   ARCADE_FOG_FAR, ARCADE_FOG_NEAR, ARCADE_SUN_DIRECTION,
   createArcadeCloudMaterial, createArcadeFacadeMaterial, createArcadeSky,
@@ -21,6 +21,17 @@ export const ARCADE_NEAR_PASS_CLEARANCE_V1039 = {
 } as const;
 const fract = (n: number) => n - Math.floor(n);
 const random = (seed: number) => fract(Math.sin(seed * 127.1 + 311.7) * 43758.5453);
+
+export function arcadeCourseVisualBankScaleV104(stage: SkyDancerArcadeStageDefinition): number {
+  switch (stage.biome) {
+    case "city": case "night": return .22;
+    case "ice": return .26;
+    case "volcano": return .28;
+    case "desert": return .18;
+    case "canyon": return .24;
+    default: return .28;
+  }
+}
 
 interface CourseChunk { group: THREE.Group; index: number }
 interface RouteCue { group: THREE.Group; depth: number; phase: number; kind: "ice" | "volcano" | "orbit" }
@@ -84,7 +95,8 @@ export class SkyDancerArcadeReferenceWorld {
     this.backdrop=this.buildBackdrop(stage);
     // V10.3.6: the distant horizon is a camera/world reference, not another streamed course chunk.
     // Keeping it transform-stable prevents the whole skyline from sliding independently of the route.
-    this.backdrop.userData.arcadeBackdropStableHorizonV1036=true;
+    this.backdrop.userData.arcadeBackdropStableHorizonV1036=false;
+    this.backdrop.userData.arcadeUnifiedHorizonFrameV104=true;
     this.root.add(hemi,key,rim,createArcadeSky(stage),this.backdrop);
     this.water=createArcadeWaterMaterial(stage);
     const facade=createArcadeFacadeMaterial(palette.night);
@@ -108,12 +120,9 @@ export class SkyDancerArcadeReferenceWorld {
       // Stream each rigid chunk along the shared 3D course spline. Rotation turns the corridor itself,
       // rather than merely sliding straight scenery sideways.
       const depth=local-140;
-      const course=arcadeCourseRelativePose(this.stage,distance,depth);
-      chunk.group.position.z=-depth;
-      chunk.group.position.x=course.x-playerX*.35;
-      chunk.group.position.y=course.y-playerY*.16;
-      const skylineStage=this.stage.biome==="city"||this.stage.biome==="night";
-      const bankScale=skylineStage?.22:this.stage.biome==="ice"?.26:this.stage.biome==="volcano"?.28:.38;
+      const course=arcadeCourseRelativeVisualPose(this.stage,distance,depth);
+      chunk.group.position.set(course.x-playerX*.35,course.y-playerY*.16,course.z);
+      const bankScale=arcadeCourseVisualBankScaleV104(this.stage);
       // V10.3.6: every course-bound chunk now uses the exact same yaw/pitch frame as the spline ribbons.
       // The former .82/.70 skyline factors made buildings rotate on a different frame than river/ground,
       // which read as the background drifting or detaching during turns.
@@ -121,18 +130,26 @@ export class SkyDancerArcadeReferenceWorld {
       chunk.group.rotation.x=course.pitch;
       chunk.group.rotation.z=course.bank*bankScale;
       chunk.group.userData.arcadeUnifiedCourseFrameV1036=true;
+      chunk.group.userData.arcadeSingleCourseFrameV104=true;
+    }
+    if(this.backdrop){
+      const here=arcadeCoursePose(this.stage,distance);
+      const bankScale=arcadeCourseVisualBankScaleV104(this.stage);
+      this.backdrop.position.set(-here.x*.16,-here.y*.10,0);
+      this.backdrop.rotation.set(-here.pitch,here.yaw,-here.bank*bankScale);
+      this.backdrop.userData.arcadeUnifiedHorizonFrameV104=true;
     }
     if(this.terrainRibbon)this.updateContinuousTerrain(distance,playerX,playerY);
     if(this.cityRiver)this.updateCityRiver(distance,playerX,playerY);
     if(this.cityBanks)this.updateCityBanks(distance,playerX,playerY);
     for(const cue of this.routeCues){
-      const course=arcadeCourseRelativePose(this.stage,distance,cue.depth);
-      const cueAhead=arcadeCourseRelativePose(this.stage,distance,cue.depth+24);
+      const course=arcadeCourseRelativeVisualPose(this.stage,distance,cue.depth);
+      const cueAhead=arcadeCourseRelativeVisualPose(this.stage,distance,cue.depth+24);
       const cueSlope=Math.atan2(cueAhead.y-course.y,24);
       // V10.3 background integrity: ice guide ribs stay physically tethered to the authored spline.
       // The old independent +/-18m lift made ribs float through the cavern and read as broken geometry.
-      cue.group.position.set(course.x-playerX*.35,course.y-playerY*.16,-cue.depth);
-      const cueBankScale=cue.kind==="ice"?.26:cue.kind==="volcano"?.28:.38;
+      cue.group.position.set(course.x-playerX*.35,course.y-playerY*.16,course.z);
+      const cueBankScale=arcadeCourseVisualBankScaleV104(this.stage);
       // V10.3.6: route markers share the same yaw/pitch frame as the streamed course.
       // Only the authored ice slope correction and orbital spin remain as intentional local rotations.
       cue.group.rotation.y=course.yaw;
@@ -185,7 +202,7 @@ export class SkyDancerArcadeReferenceWorld {
       // Start slightly behind the player so the floor remains continuous, but construct every row directly on the spline.
       // No full-width rigid plane is ever yawed through the camera.
       const depth=-12+d*13.8;
-      const course=arcadeCourseRelativePose(this.stage,distance,depth);
+      const course=arcadeCourseRelativeVisualPose(this.stage,distance,depth);
       const cosYaw=Math.cos(course.yaw),sinYaw=Math.sin(course.yaw);
       const worldDepth=distance+depth;
       for(let l=0;l<lateralSamples;l++){
@@ -198,7 +215,7 @@ export class SkyDancerArcadeReferenceWorld {
         const i=(d*lateralSamples+l)*3;
         p[i]=course.x-playerX*.35+cosYaw*lateral;
         p[i+1]=course.y-playerY*.16+h+bankY;
-        p[i+2]=-depth-sinYaw*lateral;
+        p[i+2]=course.z-sinYaw*lateral;
         c.copy(low).lerp(high,Math.min(.9,Math.max(0,(h+29)/77)));
         cArray[i]=c.r;cArray[i+1]=c.g;cArray[i+2]=c.b;
       }
@@ -241,13 +258,13 @@ export class SkyDancerArcadeReferenceWorld {
       const samples=attribute.count/2;
       for(let i=0;i<samples;i++){
         const depth=8+i*13.6;
-        const course=arcadeCourseRelativePose(this.stage!,distance,depth);
+        const course=arcadeCourseRelativeVisualPose(this.stage!,distance,depth);
         const cx=course.x-playerX*.35-.4;
         const cy=course.y-playerY*.16-25.34+lift;
-        const cz=-depth;
+        const cz=course.z;
         const lateralX=Math.cos(course.yaw)*half;
         const lateralZ=-Math.sin(course.yaw)*half;
-        const bankY=course.bank*half*.22;
+        const bankY=course.bank*half*arcadeCourseVisualBankScaleV104(this.stage!);
         const left=i*6,right=left+3;
         array[left]=cx-lateralX;array[left+1]=cy-bankY;array[left+2]=cz-lateralZ;
         array[right]=cx+lateralX;array[right+1]=cy+bankY;array[right+2]=cz+lateralZ;
@@ -291,13 +308,13 @@ export class SkyDancerArcadeReferenceWorld {
       const inner=side*22,outer=side*116;
       for(let i=0;i<samples;i++){
         const depth=8+i*13.6;
-        const course=arcadeCourseRelativePose(this.stage!,distance,depth);
+        const course=arcadeCourseRelativeVisualPose(this.stage!,distance,depth);
         const cx=course.x-playerX*.35;
         const cy=course.y-playerY*.16-25.82;
-        const cz=-depth;
+        const cz=course.z;
         const write=(offset:number,base:number)=>{
           array[base]=cx+Math.cos(course.yaw)*offset;
-          array[base+1]=cy+course.bank*offset*.22;
+          array[base+1]=cy+course.bank*offset*arcadeCourseVisualBankScaleV104(this.stage!);
           array[base+2]=cz-Math.sin(course.yaw)*offset;
         };
         const base=i*6;write(inner,base);write(outer,base+3);
@@ -345,17 +362,17 @@ export class SkyDancerArcadeReferenceWorld {
       const samples=attribute.count/2;
       for(let i=0;i<samples;i++){
         const depth=42+i*14.4;
-        const course=arcadeCourseRelativePose(stage,distance,depth);
+        const course=arcadeCourseRelativeVisualPose(stage,distance,depth);
         const crackPhase=distance+depth;
         const jitter=Math.sin(crackPhase*.091)*1.35+Math.sin(crackPhase*.037+1.7)*.85;
         const widthScale=.38+.62*Math.abs(Math.sin(crackPhase*.061+i*.79));
         const localHalf=half*widthScale;
         const cx=course.x-playerX*.35+jitter;
         const cy=course.y-playerY*.16-24.6+lift;
-        const cz=-depth;
+        const cz=course.z;
         const lateralX=Math.cos(course.yaw)*localHalf;
         const lateralZ=-Math.sin(course.yaw)*localHalf;
-        const bankY=course.bank*localHalf*.08;
+        const bankY=course.bank*localHalf*arcadeCourseVisualBankScaleV104(stage);
         const left=i*6,right=left+3;
         array[left]=cx-lateralX;array[left+1]=cy-bankY;array[left+2]=cz-lateralZ;
         array[right]=cx+lateralX;array[right+1]=cy+bankY;array[right+2]=cz+lateralZ;
@@ -406,13 +423,13 @@ export class SkyDancerArcadeReferenceWorld {
       const samples=attribute.count/2;
       for(let i=0;i<samples;i++){
         const depth=16+i*13.2;
-        const course=arcadeCourseRelativePose(stage,distance,depth);
+        const course=arcadeCourseRelativeVisualPose(stage,distance,depth);
         const cx=course.x-playerX*.35;
         const cy=course.y-playerY*.16-24.05+lift;
-        const cz=-depth;
+        const cz=course.z;
         const lateralX=Math.cos(course.yaw)*half;
         const lateralZ=-Math.sin(course.yaw)*half;
-        const bankY=course.bank*half*.28;
+        const bankY=course.bank*half*arcadeCourseVisualBankScaleV104(stage);
         const left=i*6,right=left+3;
         array[left]=cx-lateralX;array[left+1]=cy-bankY;array[left+2]=cz-lateralZ;
         array[right]=cx+lateralX;array[right+1]=cy+bankY;array[right+2]=cz+lateralZ;

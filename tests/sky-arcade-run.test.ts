@@ -249,10 +249,10 @@ test("V6.2 NORMAL opening pressure preserves reaction time and readable damage c
   assert.match(webglSource, /else if \(heavyCraft\)[\s\S]*emitHeavyExplosion\(position, impact\.missile\)/);
   assert.match(webglSource, /emitSmallExplosion\(position, impact\.missile\)/);
   assert.match(presentationSource, /addScaledVector\(this\.forward, 3\.8\)/);
-  assert.match(webglSource, /denseSkyline = snapshot\.stage\.biome === "city" \|\| snapshot\.stage\.biome === "night"/);
-  assert.match(webglSource, /course\.bank \* \(denseSkyline \? \.34 : \.56\)/);
-  assert.match(webglSource, /nearCourse\.bank \* \(denseSkyline \? \.07 : \.14\)/);
-  assert.match(webglSource, /farCourse = arcadeCourseRelativePose\(snapshot\.stage, snapshot\.distance, 132\)/);
+  const cameraSource = webglSource.slice(webglSource.indexOf("private updateCamera"), webglSource.indexOf("private resize"));
+  assert.doesNotMatch(cameraSource, /denseSkyline|nearCourse|farCourse|course\.bank|course\.yaw|course\.pitch/);
+  assert.match(cameraSource, /const targetX = pose\.x \+ shakeX/);
+  assert.match(cameraSource, /const desiredRoll = pose\.roll/);
 });
 
 test("enemy missiles curve during guidance then commit to a dodgeable terminal path", async () => {
@@ -365,15 +365,13 @@ test("V7 signature stages have measurably distinct course geometry", () => {
 });
 
 
-test("V7.1 chase camera deliberately lags the shared course so bends remain visible", async () => {
+test("V10.4 chase camera stays player-relative while the shared visual course frame owns bends", async () => {
   const webgl = await readFile(new URL("../src/sky/arcade/SkyDancerArcadeWebGLDemo.ts", import.meta.url), "utf8");
-  assert.match(webgl, /nearCourse = arcadeCourseRelativePose\(snapshot\.stage, snapshot\.distance, 42\)/);
-  assert.match(webgl, /farCourse = arcadeCourseRelativePose\(snapshot\.stage, snapshot\.distance, 132\)/);
-  assert.match(webgl, /nearCourse\.x \* \.14 \+ farCourse\.x \* \.06 \+ course\.yaw \* 3\.6/);
-  assert.doesNotMatch(webgl, /courseAim\.x \* \.16/);
-  assert.match(webgl, /const iceCourse = snapshot\.stage\.biome === "ice"/);
-  assert.match(webgl, /nearCourse\.y \* \(iceCourse \? \.018 : \.105\)/);
-  assert.match(webgl, /farCourse\.y \* \(iceCourse \? \.006 : \.032\) \+ course\.pitch \* 2\.2/);
+  const camera = webgl.slice(webgl.indexOf("private updateCamera"), webgl.indexOf("private resize"));
+  assert.doesNotMatch(camera, /nearCourse|farCourse|course\.yaw|course\.pitch|course\.bank/);
+  assert.match(webgl, /arcadeCourseRelativeVisualPose\(snapshot\.stage, snapshot\.distance, enemy\.depth\)/);
+  assert.match(camera, /const desiredLookX = pose\.lookX/);
+  assert.match(camera, /const desiredLookY = pose\.lookY/);
 });
 
 

@@ -231,3 +231,46 @@ export function arcadeCourseRelativePose(
     bank: there.bank - here.bank,
   };
 }
+
+
+export interface SkyDancerArcadeVisualCoursePose extends SkyDancerArcadeCoursePose {
+  z: number;
+}
+
+/**
+ * V10.4: one visual course frame for scenery and combat presentation.
+ * The older relative pose subtracts course centres but leaves that delta in world axes.
+ * When the current tangent turns, rotating each child while leaving its centre in world axes
+ * makes neighbouring layers appear to slide independently.  This helper rotates the complete
+ * relative position into the player's current yaw/pitch frame before any renderer uses it.
+ */
+export function arcadeCourseRelativeVisualPose(
+  stage: SkyDancerArcadeStageDefinition,
+  distance: number,
+  depth: number,
+): SkyDancerArcadeVisualCoursePose {
+  const here = arcadeCoursePose(stage, distance);
+  const there = arcadeCoursePose(stage, distance + depth);
+  const dx = there.x - here.x;
+  const dy = there.y - here.y;
+  const dz = -depth;
+
+  // Heading is measured against forward -Z, so +here.yaw aligns the current tangent to -Z.
+  const cy = Math.cos(here.yaw), sy = Math.sin(here.yaw);
+  const x1 = dx * cy + dz * sy;
+  const z1 = -dx * sy + dz * cy;
+
+  // Remove the current climb/dive as one frame as well.  Bank is a visual roll, not path position.
+  const cp = Math.cos(here.pitch), sp = Math.sin(here.pitch);
+  const y1 = dy * cp + z1 * sp;
+  const z2 = -dy * sp + z1 * cp;
+
+  return {
+    x: x1,
+    y: y1,
+    z: z2,
+    yaw: there.yaw - here.yaw,
+    pitch: there.pitch - here.pitch,
+    bank: there.bank - here.bank,
+  };
+}

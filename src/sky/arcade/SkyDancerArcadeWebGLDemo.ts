@@ -6,7 +6,7 @@ import { SkyDancerArcadeProductPresentation } from "./SkyDancerArcadeProductPres
 import { SkyDancerArcadeCinematicRenderer } from "./SkyDancerArcadeCinematicRenderer";
 import { SkyDancerArcadePresentationDirector, type SkyDancerArcadePresentationFrame } from "./SkyDancerArcadePresentationDirector";
 import { arcadeCameraPose } from "./SkyDancerArcadeCamera";
-import { arcadeCoursePose, arcadeCourseRelativePose } from "./SkyDancerArcadeCoursePath";
+import { arcadeCoursePose, arcadeCourseRelativeVisualPose } from "./SkyDancerArcadeCoursePath";
 import { ARCADE_SUN_DIRECTION, referenceAtmosphere } from "./SkyDancerArcadeReferenceMaterials";
 import {
   createSkyDancerArcadeEnemy,
@@ -265,14 +265,14 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
       let group = this.enemyGroups.get(enemy.id);
       if (!group) {
         group = createSkyDancerArcadeEnemy(snapshot.stage, enemy);
-        const course = arcadeCourseRelativePose(snapshot.stage, snapshot.distance, enemy.depth);
+        const course = arcadeCourseRelativeVisualPose(snapshot.stage, snapshot.distance, enemy.depth);
         group.userData.arcadeCombatBaseScale = group.scale.x;
         group.rotation.y = enemy.maneuver === "overtake" ? course.yaw : Math.PI + course.yaw;
-        group.position.set(enemy.x * 8.4 + course.x, 1.2 + enemy.y * 4.9 + course.y, -enemy.depth);
+        group.position.set(enemy.x * 8.4 + course.x, 1.2 + enemy.y * 4.9 + course.y, course.z);
         this.enemyGroups.set(enemy.id, group);
         this.entityRoot.add(group);
       }
-      const course = arcadeCourseRelativePose(snapshot.stage, snapshot.distance, enemy.depth);
+      const course = arcadeCourseRelativeVisualPose(snapshot.stage, snapshot.distance, enemy.depth);
       const reaction = this.enemyHitReactions.get(enemy.id);
       if (reaction) {
         const damping = Math.exp(-delta * (reaction.missile ? 5.1 : 8.6));
@@ -282,7 +282,7 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
       }
       const targetX = enemy.x * 8.4 + course.x + (reaction?.x ?? 0);
       const targetY = 1.2 + enemy.y * 4.9 + course.y + (reaction?.y ?? 0);
-      const targetZ = -enemy.depth + (reaction?.z ?? 0);
+      const targetZ = course.z + (reaction?.z ?? 0);
       group.position.x += (targetX - group.position.x) * Math.min(1, delta * 13);
       group.position.y += (targetY - group.position.y) * Math.min(1, delta * 13);
       group.position.z += (targetZ - group.position.z) * Math.min(1, delta * 13);
@@ -398,8 +398,8 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
         this.projectileMeshes.set(projectile.id, mesh);
         this.projectileRoot.add(mesh);
       }
-      const course = arcadeCourseRelativePose(snapshot.stage, snapshot.distance, projectile.depth);
-      mesh.position.set(projectile.x * 8.4 + course.x, 1.2 + projectile.y * 4.9 + course.y, -projectile.depth);
+      const course = arcadeCourseRelativeVisualPose(snapshot.stage, snapshot.distance, projectile.depth);
+      mesh.position.set(projectile.x * 8.4 + course.x, 1.2 + projectile.y * 4.9 + course.y, course.z);
       mesh.rotation.y = course.yaw;
       mesh.rotation.x = course.pitch;
       const pulse = projectile.owner === "player-missile"
@@ -428,8 +428,8 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
         this.hazardGroups.set(hazard.id, group);
         this.hazardRoot.add(group);
       }
-      const course = arcadeCourseRelativePose(snapshot.stage, snapshot.distance, hazard.depth);
-      group.position.set(hazard.x * 8.4 + course.x, 1.2 + hazard.y * 4.9 + course.y, -hazard.depth);
+      const course = arcadeCourseRelativeVisualPose(snapshot.stage, snapshot.distance, hazard.depth);
+      group.position.set(hazard.x * 8.4 + course.x, 1.2 + hazard.y * 4.9 + course.y, course.z);
       group.rotation.x += delta * 0.42;
       group.rotation.y += delta * 0.58;
     }
@@ -475,10 +475,10 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
     this.branchRoot.visible = snapshot.branchActive;
     if (!snapshot.branchActive) return;
     const gateDepth = 82;
-    const course = arcadeCourseRelativePose(snapshot.stage, snapshot.distance, gateDepth);
+    const course = arcadeCourseRelativeVisualPose(snapshot.stage, snapshot.distance, gateDepth);
     this.branchRoot.children.forEach((child, index) => {
       const baseX = typeof child.userData.baseX === "number" ? child.userData.baseX : 0;
-      child.position.set(baseX + course.x, 1.2 + course.y, -gateDepth);
+      child.position.set(baseX + course.x, 1.2 + course.y, course.z);
       child.rotation.y = course.yaw;
       child.rotation.x = course.pitch;
       child.rotation.z += delta * (index % 2 === 0 ? 0.7 : -0.7);
@@ -519,8 +519,8 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
   private syncEffects(snapshot: SkyDancerArcadeSnapshot): void {
     for (const impact of snapshot.impacts) {
       if (impact.serial <= this.previousSnapshot.hitSerial) continue;
-      const course = arcadeCourseRelativePose(snapshot.stage, snapshot.distance, impact.depth);
-      const position = new THREE.Vector3(impact.x * 8.4 + course.x, 1.2 + impact.y * 4.9 + course.y, -impact.depth);
+      const course = arcadeCourseRelativeVisualPose(snapshot.stage, snapshot.distance, impact.depth);
+      const position = new THREE.Vector3(impact.x * 8.4 + course.x, 1.2 + impact.y * 4.9 + course.y, course.z);
       const heavyCraft = impact.kind === "bomber" || impact.kind === "missile-boat";
       this.applyEnemyHitReaction(impact, snapshot, heavyCraft);
       if (impact.destroyed) {
@@ -646,17 +646,11 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
     this.cameraShake = Math.max(0, this.cameraShake - delta * 2.5);
     this.cameraImpactKick = Math.max(0, this.cameraImpactKick - delta * 3.8);
     const pose = arcadeCameraPose(snapshot.playerX, snapshot.playerY, this.camera.aspect, snapshot.turboActive);
-    const course = arcadeCoursePose(snapshot.stage, snapshot.distance);
-    // V7.1: use two look-ahead samples but deliberately lag the spline. The near sample keeps
-    // the player aimed into the corridor while the far sample is weak enough that the next bend
-    // remains visibly off-centre instead of being camera-corrected into a straight tunnel.
-    const nearCourse = arcadeCourseRelativePose(snapshot.stage, snapshot.distance, 42);
-    const farCourse = arcadeCourseRelativePose(snapshot.stage, snapshot.distance, 132);
+    // V10.4: one owner for course motion.  Scenery/combat are already converted into the
+    // player-local course frame, so the chase camera must not yaw/pitch/translate by the path again.
     const totalShake = this.cameraShake + this.presentationFx.cameraShake;
     const shakeX = Math.sin(snapshot.runTimeSeconds * 79) * totalShake * .25;
     const shakeY = Math.cos(snapshot.runTimeSeconds * 91) * totalShake * .18;
-    const iceCourse = snapshot.stage.biome === "ice";
-    const denseSkyline = snapshot.stage.biome === "city" || snapshot.stage.biome === "night";
 
     // V10.3.8: position, sightline, FOV and roll all use frame-rate-independent exponential damping.
     // Previously position trailed the course while lookAt()/roll jumped directly to the new spline frame.
@@ -669,24 +663,24 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
     const lookAlpha = 1 - Math.exp(-delta * 8.8);
     const rollAlpha = 1 - Math.exp(-delta * 9.2);
 
-    const targetX = pose.x + shakeX - nearCourse.x * .052 - course.yaw * 1.65;
-    const targetY = pose.y + shakeY - nearCourse.y * (iceCourse ? .008 : .028) + course.pitch * .9;
+    const targetX = pose.x + shakeX;
+    const targetY = pose.y + shakeY;
     this.camera.position.x += (targetX - this.camera.position.x) * xAlpha;
     this.camera.position.y += (targetY - this.camera.position.y) * yAlpha;
     this.camera.position.z += (pose.z + this.presentationFx.pullback + this.cameraImpactKick - this.camera.position.z) * zAlpha;
     this.camera.fov += (pose.fov + this.presentationFx.fovKick - this.camera.fov) * fovAlpha;
     this.camera.updateProjectionMatrix();
 
-    const desiredLookX = pose.lookX + nearCourse.x * .14 + farCourse.x * .06 + course.yaw * 3.6;
-    const desiredLookY = pose.lookY + nearCourse.y * (iceCourse ? .018 : .105) + farCourse.y * (iceCourse ? .006 : .032) + course.pitch * 2.2;
+    const desiredLookX = pose.lookX;
+    const desiredLookY = pose.lookY;
     const desiredLookZ = pose.lookZ;
     this.cameraLookTarget.x += (desiredLookX - this.cameraLookTarget.x) * lookAlpha;
     this.cameraLookTarget.y += (desiredLookY - this.cameraLookTarget.y) * lookAlpha;
     this.cameraLookTarget.z += (desiredLookZ - this.cameraLookTarget.z) * lookAlpha;
     this.camera.lookAt(this.cameraLookTarget);
 
-    // Dense city silhouettes still use the calmer bank authored in V10.3.5, but the roll itself no longer snaps.
-    const desiredRoll = pose.roll + course.bank * (denseSkyline ? .34 : .56) + nearCourse.bank * (denseSkyline ? .07 : .14);
+    // Course roll is already expressed by the single local scenery frame and by aircraft attitude.
+    const desiredRoll = pose.roll;
     this.cameraRoll += (desiredRoll - this.cameraRoll) * rollAlpha;
     this.camera.rotateZ(this.cameraRoll);
   }
