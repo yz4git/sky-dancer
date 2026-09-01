@@ -1,0 +1,78 @@
+name: Arcade V10.3.8 Continuous Motion Audit
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/arcade-v1038-continuous-motion-audit-once.yml"
+
+permissions:
+  contents: write
+
+env:
+  SKY_DANCER_CHROME_PATH: /usr/bin/google-chrome
+
+jobs:
+  motion-audit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.13.0
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Install isolated browser controller
+        run: |
+          rm -rf .audit-runtime
+          mkdir -p .audit-runtime
+          printf '{"private":true,"type":"commonjs"}\n' > .audit-runtime/package.json
+          npm install --prefix .audit-runtime --no-package-lock --no-save --ignore-scripts --no-audit --no-fund playwright-core@1.55.0
+          google-chrome --version
+          ffmpeg -version | head -n 1
+      - name: Inject deterministic V10.3.8 motion audit bridge
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('app/SkyDancerArcadeMode.tsx');s=p.read_text()
+          needle='''        demoRef.current = demo;\n      }'''
+          insert='''        demoRef.current = demo;\n        const auditDemo = demo as SkyDancerArcadeWebGLDemo;\n        (globalThis as unknown as { __skyDancerV1038MotionAudit?: { reset: (params: { stageId: string; progress: number; label: string }) => unknown; step: (params: { moveX: number; moveY: number; turbo: boolean }) => unknown } }).__skyDancerV1038MotionAudit = {\n          reset: ({ stageId, progress }) => {\n            const target = auditDemo as unknown as Record<string, any>;\n            cancelAnimationFrame(Number(target.animationFrame) || 0); target.animationFrame = 0;\n            const runtime = target.runtime as Record<string, any>;\n            const stage = skyDancerArcadeStageById(stageId as any);\n            runtime.stage = stage; runtime.status = "running"; runtime.statusBeforePause = "running";\n            runtime.stageTime = stage.durationSeconds * progress; runtime.distance = runtime.stageTime * stage.courseSpeed; runtime.runTime = runtime.stageTime;\n            runtime.playerX = 0; runtime.playerY = 0; runtime.playerVX = 0; runtime.playerVY = 0; runtime.playerHp = 100; runtime.turbo = 100;\n            runtime.enemies = []; runtime.projectiles = []; runtime.hazards = []; runtime.impactEvents = []; runtime.nextWaveAt = 1e9; runtime.nextHazardAt = 1e9;\n            runtime.bossSpawned = true; runtime.bossDefeated = true; runtime.damageCooldown = 999; runtime.stageSerial = Number(runtime.stageSerial || 0) + 1;\n            runtime.setMove(0,0); runtime.setTurbo(false); runtime.setFire(false); runtime.setLock(false);\n            target.environment.setStage(stage); target.currentStageId = stage.id; target.clearEntityVisuals(); target.presentation.setStage();\n            target.camera.position.set(0,5.2,15.8); target.camera.lookAt(0,.8,-34); target.cameraShake = 0; target.cameraImpactKick = 0;\n            let snapshot = runtime.getSnapshot(); target.previousSnapshot = snapshot;\n            for (let i=0;i<60;i+=1) { target.sync(snapshot,1/60); target.previousSnapshot=snapshot; }\n            target.camera.updateMatrixWorld(); target.cinematic.render(target.scene,target.camera,snapshot.turboActive,target.presentationFx); target.onSnapshot(snapshot);\n            return { stageId: snapshot.stage.id };\n          },\n          step: ({ moveX, moveY, turbo }) => {\n            const target = auditDemo as unknown as Record<string, any>;\n            const runtime = target.runtime as Record<string, any>;\n            runtime.setMove(moveX,moveY); runtime.setTurbo(turbo); runtime.setFire(false); runtime.setLock(false);\n            runtime.step(1/60); runtime.enemies=[]; runtime.projectiles=[]; runtime.hazards=[]; runtime.impactEvents=[]; runtime.playerHp=100;\n            const snapshot = runtime.getSnapshot(); target.sync(snapshot,1/60); target.previousSnapshot=snapshot;\n            target.camera.updateMatrixWorld(); target.cinematic.render(target.scene,target.camera,snapshot.turboActive,target.presentationFx); target.onSnapshot(snapshot);\n            const playerWorld = target.player.position.clone(); target.player.getWorldPosition(playerWorld); const playerNdc = playerWorld.clone().project(target.camera);\n            const root = target.scene.getObjectByName("arcade-course-environment");\n            const backdrop = target.scene.getObjectByName("arcade-product-backdrop") as any;\n            const terrain = target.scene.getObjectByName("arcade-continuous-terrain-ribbon") as any;\n            const chunks = root ? root.children.filter((child:any)=>/^arcade-course-chunk-/.test(child.name)).map((child:any)=>{\n              const world=child.position.clone(); child.getWorldPosition(world); const cameraSpace=world.clone(); target.camera.worldToLocal(cameraSpace); const ndc=world.clone().project(target.camera);\n              return { name:child.name, ndc:[ndc.x,ndc.y,ndc.z], front:cameraSpace.z<-.1, onScreen:Math.abs(ndc.x)<=1.15&&Math.abs(ndc.y)<=1.15&&ndc.z>=-1.2&&ndc.z<=1.2 };\n            }) : [];\n            return {\n              stageId:snapshot.stage.id, distance:snapshot.distance,\n              cameraPosition:[target.camera.position.x,target.camera.position.y,target.camera.position.z],\n              cameraQuaternion:[target.camera.quaternion.x,target.camera.quaternion.y,target.camera.quaternion.z,target.camera.quaternion.w],\n              playerNdc:[playerNdc.x,playerNdc.y,playerNdc.z], chunks,\n              backdrop:backdrop?[backdrop.position.x,backdrop.position.y,backdrop.position.z,backdrop.rotation.x,backdrop.rotation.y,backdrop.rotation.z]:[99],\n              continuousTerrain:Boolean(terrain?.userData?.arcadeContinuousTerrainV1037),\n              legacyTerrainCount:target.scene.getObjectsByProperty("name","arcade-continuous-terrain").length,\n            };\n          },\n        };\n      }'''
+          assert needle in s,'WebGL demo attachment block changed';p.write_text(s.replace(needle,insert,1))
+          PY
+      - name: Audit bridge typecheck
+        run: npm run check:arcade
+      - name: Build audit target
+        run: npm run build:pages
+      - name: Start local Pages target
+        run: |
+          python3 -m http.server 4173 --bind 127.0.0.1 --directory out > /tmp/sky-dancer-v1038-motion-http.log 2>&1 &
+          for i in {1..30}; do if curl -fsS http://127.0.0.1:4173/ >/dev/null; then exit 0; fi; sleep 1; done
+          cat /tmp/sky-dancer-v1038-motion-http.log; exit 1
+      - name: Capture V10.3.8 continuous motion
+        run: node scripts/webgl-arcade-v1038-continuous-motion-audit.mjs
+      - name: Build motion contact sheets
+        if: always()
+        run: |
+          set -euo pipefail
+          for label in city canyon ice night volcano orbit; do
+            ffmpeg -y -framerate 1 -pattern_type glob -i "artifacts/arcade-v1038-continuous-motion-audit/${label}-*.png" -vf "scale=422:195,tile=4x3" -frames:v 1 "artifacts/arcade-v1038-continuous-motion-audit/${label}-sheet.png"
+          done
+          rm -f artifacts/arcade-v1038-continuous-motion-audit/{city,canyon,ice,night,volcano,orbit}-[0-9][0-9][0-9].png
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: sky-dancer-v1038-continuous-motion-audit-${{ github.sha }}
+          path: artifacts/arcade-v1038-continuous-motion-audit
+          if-no-files-found: error
+          retention-days: 14
+      - name: Remove temporary motion audit files
+        if: success()
+        run: |
+          set -euo pipefail
+          git checkout -- app/SkyDancerArcadeMode.tsx
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm -f scripts/webgl-arcade-v1038-continuous-motion-audit.mjs .github/workflows/arcade-v1038-continuous-motion-audit-once.yml
+          git commit -m "Remove V10.3.8 continuous motion audit files"
+          git push
