@@ -12,6 +12,7 @@ const CHUNK_LENGTH = 112;
 const CHUNK_COUNT = 8;
 const WORLD_SPAN = CHUNK_LENGTH * CHUNK_COUNT;
 const SURFACE_CHUNK_DEPTH = CHUNK_LENGTH + 32; // V10.3.2: overlap pitched chunks so sky can never show through a terrain seam.
+const CITY_QUAY_DEPTH = CHUNK_LENGTH + 12; // V10.3.3: city banks overlap modestly; the river itself is now a continuous spline ribbon.
 const fract = (n: number) => n - Math.floor(n);
 const random = (seed: number) => fract(Math.sin(seed * 127.1 + 311.7) * 43758.5453);
 
@@ -50,6 +51,7 @@ export class SkyDancerArcadeReferenceWorld {
   private readonly routeCues:RouteCue[]=[];
   private iceRibbon:{ outer:THREE.Mesh; core:THREE.Mesh }|null=null;
   private volcanoRibbon:{ outer:THREE.Mesh; core:THREE.Mesh }|null=null;
+  private cityRiver:{ surface:THREE.Mesh; bed:THREE.Mesh }|null=null;
   private stage:SkyDancerArcadeStageDefinition|null=null;
   private water:THREE.ShaderMaterial|null=null;
   private readonly matrixObject=new THREE.Object3D();
@@ -60,7 +62,7 @@ export class SkyDancerArcadeReferenceWorld {
 
   setStage(stage:SkyDancerArcadeStageDefinition):void {
     if(this.stage?.id===stage.id)return;
-    disposeTree(this.root);this.water?.dispose();this.chunks.length=0;this.routeCues.length=0;this.iceRibbon=null;this.volcanoRibbon=null;
+    disposeTree(this.root);this.water?.dispose();this.chunks.length=0;this.routeCues.length=0;this.iceRibbon=null;this.volcanoRibbon=null;this.cityRiver=null;
     this.stage=stage;
     const palette=referenceAtmosphere(stage);
     this.scene.background=palette.zenith;
@@ -78,6 +80,7 @@ export class SkyDancerArcadeReferenceWorld {
       const group=this.buildChunk(stage,i,facade,cloud);
       this.root.add(group);this.chunks.push({group,index:i});
     }
+    if(stage.biome==="city")this.buildCityRiver(stage);
     this.buildRouteCues(stage);
     if(stage.biome==="ice")this.buildIceRibbon(stage);
     if(stage.biome==="volcano")this.buildVolcanoRibbon(stage);
@@ -99,6 +102,7 @@ export class SkyDancerArcadeReferenceWorld {
       chunk.group.rotation.x=course.pitch*.94;
       chunk.group.rotation.z=course.bank*.38;
     }
+    if(this.cityRiver)this.updateCityRiver(distance,playerX,playerY);
     for(const cue of this.routeCues){
       const course=arcadeCourseRelativePose(this.stage,distance,cue.depth);
       const cueAhead=arcadeCourseRelativePose(this.stage,distance,cue.depth+24);
@@ -115,6 +119,58 @@ export class SkyDancerArcadeReferenceWorld {
     if(this.iceRibbon)this.updateIceRibbon(distance,playerX,playerY);
     if(this.volcanoRibbon)this.updateVolcanoRibbon(distance,playerX,playerY);
     if(this.water)this.water.uniforms.time.value=distance/this.stage.courseSpeed;
+  }
+
+  private makeCityRiverRibbon(width:number,name:string,material:THREE.Material,renderOrder:number):THREE.Mesh {
+    const samples=40;
+    const positions=new Float32Array(samples*2*3);
+    const indices:number[]=[];
+    for(let i=0;i<samples-1;i++){const a=i*2;indices.push(a,a+2,a+1,a+1,a+2,a+3);}
+    const geometry=new THREE.BufferGeometry();
+    const attribute=new THREE.BufferAttribute(positions,3);attribute.setUsage(THREE.DynamicDrawUsage);
+    geometry.setAttribute("position",attribute);geometry.setIndex(indices);
+    const ribbon=new THREE.Mesh(geometry,material);
+    ribbon.name=name;ribbon.frustumCulled=false;ribbon.renderOrder=renderOrder;this.root.add(ribbon);
+    ribbon.userData.arcadeCityCompositionV1033=true;
+    ribbon.userData.arcadeCityRiverWidth=width;
+    return ribbon;
+  }
+
+  private buildCityRiver(stage:SkyDancerArcadeStageDefinition):void {
+    if(!this.water)return;
+    const bedMaterial=new THREE.MeshBasicMaterial({
+      color:new THREE.Color(stage.palette.ground).multiplyScalar(.58),side:THREE.DoubleSide,depthWrite:true,depthTest:true,
+    });
+    this.cityRiver={
+      bed:this.makeCityRiverRibbon(43,"arcade-city-river-ribbon-bed",bedMaterial,0),
+      surface:this.makeCityRiverRibbon(40,"arcade-city-river-ribbon-surface",this.water,1),
+    };
+  }
+
+  private updateCityRiver(distance:number,playerX:number,playerY:number):void {
+    if(!this.stage || !this.cityRiver)return;
+    const update=(ribbon:THREE.Mesh,width:number,lift:number)=>{
+      const attribute=ribbon.geometry.getAttribute("position") as THREE.BufferAttribute;
+      const array=attribute.array as Float32Array;
+      const half=width*.5;
+      const samples=attribute.count/2;
+      for(let i=0;i<samples;i++){
+        const depth=8+i*13.6;
+        const course=arcadeCourseRelativePose(this.stage!,distance,depth);
+        const cx=course.x-playerX*.35-.4;
+        const cy=course.y-playerY*.16-25.34+lift;
+        const cz=-depth;
+        const lateralX=Math.cos(course.yaw)*half;
+        const lateralZ=-Math.sin(course.yaw)*half;
+        const bankY=course.bank*half*.22;
+        const left=i*6,right=left+3;
+        array[left]=cx-lateralX;array[left+1]=cy-bankY;array[left+2]=cz-lateralZ;
+        array[right]=cx+lateralX;array[right+1]=cy+bankY;array[right+2]=cz+lateralZ;
+      }
+      attribute.needsUpdate=true;
+    };
+    update(this.cityRiver.bed,43,-.48);
+    update(this.cityRiver.surface,40,0);
   }
 
   private makeIceRibbonMesh(stage:SkyDancerArcadeStageDefinition,width:number,name:string,opacity:number):THREE.Mesh {
@@ -903,7 +959,8 @@ export class SkyDancerArcadeReferenceWorld {
       const hero=lane>1 && random(seed+97)>.77; const h=lane===0 ? 9+random(seed+3)*14 : 15+random(seed+4)*45+(hero?22:0);
       const w=(hero?3.2:4.1)+random(seed+13)*(hero?3.4:5.1);
       const d=5+random(seed+29)*6.5;
-      const x=side*(31+lane*15+random(seed+7)*4.2);
+      // V10.3.3: preserve a real river/flight corridor instead of letting foreground towers collide with route surfaces.
+      const x=side*(38+lane*15+random(seed+7)*4.2);
       const z=-50+row*19+random(seed+61)*4.5;
       this.matrixObject.position.set(x,-25+h/2,z);
       this.matrixObject.scale.set(w,h,d);this.matrixObject.rotation.set(0,0,0);this.matrixObject.updateMatrix();
@@ -920,37 +977,42 @@ export class SkyDancerArcadeReferenceWorld {
     }
     towers.computeBoundingSphere();roofs.computeBoundingSphere();spires.count=a;spires.computeBoundingSphere();
     group.add(towers,roofs,spires);
-    // V10.3.2: rigid course chunks pitch independently. Give every ground/water slab generous longitudinal
-    // overlap, and place an opaque river bed under the shader surface so a seam can never reveal the sky.
+    // V10.3.3 composition cleanup: never rotate one full-width city slab through the camera.
+    // The river is a root-level spline ribbon; rigid chunks own only the two river-bank districts.
+    group.userData.arcadeCityCompositionV1033=true;
+    group.userData.arcadeCityQuayCountV1033=2;
     const cityFloor=paint(stage.biome==="night"?0x111d31:0x213746);
-    mesh(group,new THREE.BoxGeometry(250,1,SURFACE_CHUNK_DEPTH),cityFloor,0,-26);
-    if(this.water && stage.biome!=="night"){
-      mesh(group,new THREE.BoxGeometry(42,.72,SURFACE_CHUNK_DEPTH),cityFloor,-.4,-25.78,0);
-      const river=mesh(group,new THREE.PlaneGeometry(40,SURFACE_CHUNK_DEPTH,1,12),this.water,-.4,-25.34,0);
-      river.name="arcade-city-river-surface";river.rotation.x=-Math.PI/2;river.frustumCulled=false;river.renderOrder=1;
-      river.userData.arcadeTerrainSolidV1032=true;
+    for(const side of [-1,1]){
+      const quay=mesh(group,new THREE.BoxGeometry(96,1,CITY_QUAY_DEPTH),cityFloor,side*72,-26);
+      quay.userData.arcadeCityQuayV1033=true;
     }
     if(stage.biome==="night"){
       const metroBed=paint(0x080e20),metroGlow=paint(stage.palette.accent,stage.palette.accent);
-      mesh(group,new THREE.BoxGeometry(38,.32,SURFACE_CHUNK_DEPTH),metroBed,0,-25.2,0);
+      mesh(group,new THREE.BoxGeometry(38,.32,CITY_QUAY_DEPTH),metroBed,0,-25.2,0);
       for(const side of [-1,1]){
-        mesh(group,new THREE.BoxGeometry(.34,.14,SURFACE_CHUNK_DEPTH-2),metroGlow,side*10.5,-24.95,0);
-        mesh(group,new THREE.BoxGeometry(.18,.11,SURFACE_CHUNK_DEPTH-2),paint(stage.palette.secondary),side*15.5,-24.92,0);
+        mesh(group,new THREE.BoxGeometry(.34,.14,CITY_QUAY_DEPTH-2),metroGlow,side*10.5,-24.95,0);
+        mesh(group,new THREE.BoxGeometry(.18,.11,CITY_QUAY_DEPTH-2),paint(stage.palette.secondary),side*15.5,-24.92,0);
       }
     }
     const bank=paint(stage.biome==="night"?0x314559:0x506879),road=paint(0x132635),light=paint(0xffc06e,0xff963b);
     for(const side of [-1,1]){
-      mesh(group,new THREE.BoxGeometry(2.4,1.3,SURFACE_CHUNK_DEPTH),bank,side*21,-25.1);
-      mesh(group,new THREE.BoxGeometry(3.5,.12,SURFACE_CHUNK_DEPTH),road,side*24,-24.32);
-      mesh(group,new THREE.BoxGeometry(.07,.06,SURFACE_CHUNK_DEPTH-2),light,side*24,-24.22);
+      mesh(group,new THREE.BoxGeometry(2.4,1.3,CITY_QUAY_DEPTH),bank,side*21,-25.1);
+      mesh(group,new THREE.BoxGeometry(3.5,.12,CITY_QUAY_DEPTH),road,side*24,-24.32);
+      mesh(group,new THREE.BoxGeometry(.07,.06,CITY_QUAY_DEPTH-2),light,side*24,-24.22);
       for(let r=0;r<4;r++)mesh(group,new THREE.BoxGeometry(83,.14,2.2),road,side*66,-24.6,-53+r*28);
     }
     if(index%3===1){
-      mesh(group,new THREE.BoxGeometry(52,.9,4),bank,0,-18.5,0);
-      mesh(group,new THREE.BoxGeometry(51,.05,2.5),road,0,-18,0);
+      group.userData.arcadeCityBridgeDeckThicknessV1033=.26;
+      // V10.3.3: read as a bridge, not a giant opaque card when this chunk is pitched toward the camera.
+      const deck=mesh(group,new THREE.BoxGeometry(50,.26,3.2),road,0,-21.25,0);
+      deck.userData.arcadeCityBridgeDeckV1033=true;
+      for(const z of [-1.82,1.82]){
+        mesh(group,new THREE.BoxGeometry(50,.34,.24),bank,0,-20.88,z);
+        mesh(group,new THREE.BoxGeometry(49,.06,.1),light,0,-20.64,z);
+      }
       for(const side of [-1,1]){
-        mesh(group,new THREE.CylinderGeometry(.55,.7,9,8),bank,side*18,-21,0);
-        mesh(group,new THREE.BoxGeometry(52,.06,.08),light,0,-17.85,side*1.65);
+        mesh(group,new THREE.CylinderGeometry(.42,.58,5.4,8),bank,side*18,-23.4,0);
+        mesh(group,new THREE.BoxGeometry(1.1,4.1,3.7),bank,side*18,-22.1,0);
       }
     }
   }

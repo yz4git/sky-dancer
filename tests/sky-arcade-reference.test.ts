@@ -146,18 +146,18 @@ test("city renderer contains a river, instanced windows and cloud layers without
     if (object.material.customProgramCacheKey() === "arcade-city-facade-reference-v2") facades++;
     if (object.material instanceof THREE.ShaderMaterial && object.material.uniforms.time) rivers++;
   });
-  assert.equal(facades, 8); assert.equal(rivers, 8); world.dispose();
+  assert.equal(facades, 8); assert.equal(rivers, 1); world.dispose();
 });
 
 
 
-test("V10.3.2 pitched terrain and river surfaces stay solid instead of exposing the sky", () => {
+test("V10.3.3 Dawn City keeps the river continuous without intersecting giant rigid slabs", () => {
   const city = SKY_DANCER_ARCADE_STAGES.find(stage => stage.biome === "city");
   const canyon = SKY_DANCER_ARCADE_STAGES.find(stage => stage.biome === "canyon");
   assert.ok(city && canyon);
 
   const water = createArcadeWaterMaterial(city);
-  assert.equal(water.side, THREE.DoubleSide, "river shader must survive a view from below its local plane");
+  assert.equal(water.side, THREE.DoubleSide);
   assert.equal(water.depthWrite, true);
   assert.equal(water.depthTest, true);
   water.dispose();
@@ -167,22 +167,39 @@ test("V10.3.2 pitched terrain and river surfaces stay solid instead of exposing 
   world.setStage(city);
   const cityChunks = Array.from({ length: 8 }, (_, i) => scene.getObjectByName(`arcade-course-chunk-${i}`));
   assert.ok(cityChunks.every(Boolean));
-  assert.ok(cityChunks.every(chunk => Number(chunk!.userData.arcadeSurfaceChunkDepth) >= 140), "city slabs need substantial overlap across pitched seams");
-  const rivers = scene.getObjectsByProperty("name", "arcade-city-river-surface") as THREE.Mesh[];
-  assert.equal(rivers.length, 8);
-  for (const river of rivers) {
-    assert.ok(river.geometry instanceof THREE.PlaneGeometry);
-    assert.ok(river.geometry.parameters.height >= 140, `river depth ${river.geometry.parameters.height} must overlap adjacent chunks`);
-    assert.equal((river.material as THREE.Material).side, THREE.DoubleSide);
-    assert.equal(river.userData.arcadeTerrainSolidV1032, true);
-  }
+  assert.ok(cityChunks.every(chunk => chunk!.userData.arcadeCityCompositionV1033 === true));
+
+  const surface = scene.getObjectByName("arcade-city-river-ribbon-surface") as THREE.Mesh;
+  const bed = scene.getObjectByName("arcade-city-river-ribbon-bed") as THREE.Mesh;
+  assert.ok(surface instanceof THREE.Mesh && bed instanceof THREE.Mesh);
+  assert.equal(scene.getObjectsByProperty("name", "arcade-city-river-surface").length, 0, "per-chunk river planes must be gone");
+  assert.equal((surface.material as THREE.Material).side, THREE.DoubleSide);
+
+  let giantRigidCitySlabs = 0;
+  for (const chunk of cityChunks) chunk!.traverse(object => {
+    if (!(object instanceof THREE.Mesh) || !(object.geometry instanceof THREE.BoxGeometry)) return;
+    const p = object.geometry.parameters;
+    if (p.width >= 200 && p.depth >= 100) giantRigidCitySlabs++;
+  });
+  assert.equal(giantRigidCitySlabs, 0, "no full-width rigid slab may rotate across the flight corridor");
+  assert.ok(cityChunks.every(chunk => chunk!.userData.arcadeCityQuayCountV1033 === 2), "each streamed chunk owns two separated river banks before static batching");
+  const bridgeChunks = cityChunks.filter(chunk => Number(chunk!.userData.arcadeCityBridgeDeckThicknessV1033) > 0);
+  assert.ok(bridgeChunks.length >= 2);
+  assert.ok(bridgeChunks.every(chunk => Number(chunk!.userData.arcadeCityBridgeDeckThicknessV1033) <= .3), "crossings must be thin bridge decks, not opaque cards");
 
   const length = city.durationSeconds * city.courseSpeed;
   for (const progress of [.12, .18, .25, .29, .39, .43, .51]) {
     world.update(length * progress, 0, 0);
-    for (const river of rivers) {
-      river.updateMatrixWorld(true);
-      assert.ok(river.matrixWorld.elements.every(Number.isFinite), `river transform must stay finite at progress ${progress}`);
+    const position = surface.geometry.getAttribute("position") as THREE.BufferAttribute;
+    const centres: THREE.Vector3[] = [];
+    for (let i = 0; i < position.count; i += 2) {
+      const left = new THREE.Vector3().fromBufferAttribute(position, i);
+      const right = new THREE.Vector3().fromBufferAttribute(position, i + 1);
+      centres.push(left.add(right).multiplyScalar(.5));
+    }
+    assert.ok(Array.from(position.array).every(Number.isFinite));
+    for (let i = 1; i < centres.length; i++) {
+      assert.ok(centres[i].distanceTo(centres[i - 1]) < 32, `river must remain a continuous spline at progress ${progress}`);
     }
   }
 
@@ -193,7 +210,7 @@ test("V10.3.2 pitched terrain and river surfaces stay solid instead of exposing 
     assert.equal((terrain.material as THREE.Material).side, THREE.DoubleSide);
     assert.equal(terrain.userData.arcadeTerrainSolidV1032, true);
     const geometry = terrain.geometry as THREE.PlaneGeometry;
-    assert.ok(geometry.parameters.height >= 140, `terrain depth ${geometry.parameters.height} must overlap adjacent chunks`);
+    assert.ok(geometry.parameters.height >= 140);
   }
   world.dispose();
 });
