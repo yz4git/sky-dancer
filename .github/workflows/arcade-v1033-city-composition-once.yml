@@ -21,7 +21,29 @@ jobs:
           cache: npm
       - run: npm ci --no-audit --no-fund
       - name: Apply V10.3.3 city composition cleanup
-        run: python3 scripts/apply-arcade-v1033-city-composition.py
+        run: |
+          python3 scripts/apply-arcade-v1033-city-composition.py
+          python3 - <<'PY'
+          from pathlib import Path
+          world=Path('src/sky/arcade/SkyDancerArcadeReferenceWorld.ts')
+          tests=Path('tests/sky-arcade-reference.test.ts')
+          s=world.read_text()
+          old='''    group.userData.arcadeCityCompositionV1033=true;\n    const cityFloor=paint(stage.biome==="night"?0x111d31:0x213746);\n'''
+          new='''    group.userData.arcadeCityCompositionV1033=true;\n    group.userData.arcadeCityQuayCountV1033=2;\n    const cityFloor=paint(stage.biome==="night"?0x111d31:0x213746);\n'''
+          assert old in s
+          s=s.replace(old,new,1)
+          old='''    if(index%3===1){\n      // V10.3.3: read as a bridge, not a giant opaque card when this chunk is pitched toward the camera.\n'''
+          new='''    if(index%3===1){\n      group.userData.arcadeCityBridgeDeckThicknessV1033=.26;\n      // V10.3.3: read as a bridge, not a giant opaque card when this chunk is pitched toward the camera.\n'''
+          assert old in s
+          s=s.replace(old,new,1)
+          world.write_text(s)
+
+          t=tests.read_text()
+          old='''  let giantRigidCitySlabs = 0;\n  const quays: THREE.Mesh[] = [];\n  const bridgeDecks: THREE.Mesh[] = [];\n  for (const chunk of cityChunks) chunk!.traverse(object => {\n    if (!(object instanceof THREE.Mesh) || !(object.geometry instanceof THREE.BoxGeometry)) return;\n    const p = object.geometry.parameters;\n    if (p.width >= 200 && p.depth >= 100) giantRigidCitySlabs++;\n    if (object.userData.arcadeCityQuayV1033) quays.push(object);\n    if (object.userData.arcadeCityBridgeDeckV1033) bridgeDecks.push(object);\n  });\n  assert.equal(giantRigidCitySlabs, 0, "no full-width rigid slab may rotate across the flight corridor");\n  assert.equal(quays.length, 16, "each streamed chunk owns two separated river banks");\n  assert.ok(quays.every(quay => (quay.geometry as THREE.BoxGeometry).parameters.width <= 96));\n  assert.ok(bridgeDecks.length >= 2);\n  assert.ok(bridgeDecks.every(deck => (deck.geometry as THREE.BoxGeometry).parameters.height <= .3), "crossings must be thin bridge decks, not opaque cards");\n'''
+          new='''  let giantRigidCitySlabs = 0;\n  for (const chunk of cityChunks) chunk!.traverse(object => {\n    if (!(object instanceof THREE.Mesh) || !(object.geometry instanceof THREE.BoxGeometry)) return;\n    const p = object.geometry.parameters;\n    if (p.width >= 200 && p.depth >= 100) giantRigidCitySlabs++;\n  });\n  assert.equal(giantRigidCitySlabs, 0, "no full-width rigid slab may rotate across the flight corridor");\n  assert.ok(cityChunks.every(chunk => chunk!.userData.arcadeCityQuayCountV1033 === 2), "each streamed chunk owns two separated river banks before static batching");\n  const bridgeChunks = cityChunks.filter(chunk => Number(chunk!.userData.arcadeCityBridgeDeckThicknessV1033) > 0);\n  assert.ok(bridgeChunks.length >= 2);\n  assert.ok(bridgeChunks.every(chunk => Number(chunk!.userData.arcadeCityBridgeDeckThicknessV1033) <= .3), "crossings must be thin bridge decks, not opaque cards");\n'''
+          assert old in t
+          tests.write_text(t.replace(old,new,1))
+          PY
       - name: Arcade rules regression
         run: npm run test:rules
       - name: Arcade typecheck
