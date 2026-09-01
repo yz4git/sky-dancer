@@ -18,7 +18,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 12
     env:
-      SKY_DANCER_V98_REVISION: "2"
+      SKY_DANCER_V98_REVISION: "3"
     steps:
       - uses: actions/checkout@v4
         with:
@@ -32,6 +32,27 @@ jobs:
         run: python3 scripts/apply-arcade-v98-detonation.py
       - name: Retire impact telemetry as transient presentation mail
         run: python3 scripts/fix-arcade-v98-impact-retirement.py
+      - name: Refresh superseded explosion source contracts
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('tests/sky-arcade-run.test.ts')
+          text = path.read_text()
+          replacements = {
+            '  assert.match(webgl, /emitClimax\\(group\\.position/);': '  assert.match(webgl, /impact\\.boss[\\s\\S]*emitBossExplosion\\(position, impact\\.missile\\)/);',
+            '  assert.match(webglSource, /const heavyCraft = previous\\.kind === "bomber" \\|\\| previous\\.kind === "missile-boat"/);': '  assert.match(webglSource, /const heavyCraft = impact\\.kind === "bomber" \\|\\| impact\\.kind === "missile-boat"/);',
+            '  assert.match(webglSource, /if \\(previous\\.boss\\)[\\s\\S]*emitClimax\\(group\\.position, 1\\.5\\)/);': '  assert.match(webglSource, /if \\(impact\\.boss\\)[\\s\\S]*emitBossExplosion\\(position, impact\\.missile\\)/);',
+            '  assert.match(webglSource, /else if \\(heavyCraft\\)[\\s\\S]*emitBurst\\(group\\.position, \\.98\\)/);': '  assert.match(webglSource, /else if \\(heavyCraft\\)[\\s\\S]*emitHeavyExplosion\\(position, impact\\.missile\\)/);',
+            '  assert.match(webglSource, /emitBurst\\(group\\.position, \\.72\\)/);': '  assert.match(webglSource, /emitSmallExplosion\\(position, impact\\.missile\\)/);',
+            '  assert.match(webgl, /if \\(previous\\.boss\\)[\\s\\S]*emitClimax\\(group\\.position, 1\\.5\\)/);': '  assert.match(webgl, /if \\(impact\\.boss\\)[\\s\\S]*emitBossExplosion\\(position, impact\\.missile\\)/);',
+            '  assert.match(webgl, /heavyCraft[\\s\\S]*emitBurst\\(group\\.position, \\.98\\)/);': '  assert.match(webgl, /heavyCraft[\\s\\S]*emitHeavyExplosion\\(position, impact\\.missile\\)/);',
+          }
+          for old, new in replacements.items():
+              if old not in text:
+                  raise SystemExit(f'missing expected legacy contract: {old}')
+              text = text.replace(old, new, 1)
+          path.write_text(text)
+          PY
       - name: Arcade rules regression
         run: npm run test:rules
       - name: Arcade typecheck
@@ -44,7 +65,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add src/sky/arcade/SkyDancerArcadeRuntime.ts src/sky/arcade/SkyDancerArcadeProductPresentation.ts src/sky/arcade/SkyDancerArcadeWebGLDemo.ts tests/sky-arcade-reference.test.ts
+          git add src/sky/arcade/SkyDancerArcadeRuntime.ts src/sky/arcade/SkyDancerArcadeProductPresentation.ts src/sky/arcade/SkyDancerArcadeWebGLDemo.ts tests/sky-arcade-reference.test.ts tests/sky-arcade-run.test.ts
           git rm .github/workflows/arcade-v98-detonation-once.yml scripts/apply-arcade-v98-detonation.py scripts/fix-arcade-v98-impact-retirement.py
           git commit -m "Arcade Run V9.8: detonation hierarchy and missile impact punch"
           git push origin HEAD:main
