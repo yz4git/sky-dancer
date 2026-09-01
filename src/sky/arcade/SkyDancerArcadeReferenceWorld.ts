@@ -11,6 +11,7 @@ import {
 const CHUNK_LENGTH = 112;
 const CHUNK_COUNT = 8;
 const WORLD_SPAN = CHUNK_LENGTH * CHUNK_COUNT;
+const SURFACE_CHUNK_DEPTH = CHUNK_LENGTH + 32; // V10.3.2: overlap pitched chunks so sky can never show through a terrain seam.
 const fract = (n: number) => n - Math.floor(n);
 const random = (seed: number) => fract(Math.sin(seed * 127.1 + 311.7) * 43758.5453);
 
@@ -450,6 +451,7 @@ export class SkyDancerArcadeReferenceWorld {
 
   private buildChunk(stage:SkyDancerArcadeStageDefinition,index:number,facade:THREE.Material,cloud:THREE.Material):THREE.Group {
     const group=new THREE.Group();group.name="arcade-course-chunk-"+index;
+    group.userData.arcadeSurfaceChunkDepth=SURFACE_CHUNK_DEPTH;
     const primary=paint(stage.palette.primary);
     const secondary=paint(stage.palette.secondary);
     const dark=paint(stage.palette.ground);
@@ -460,7 +462,11 @@ export class SkyDancerArcadeReferenceWorld {
     } else if(!["cloud","storm","orbit","citadel","ruins"].includes(stage.biome)){
       const ground=this.buildTerrain(stage,index);
       const groundMaterial=primary.clone();groundMaterial.vertexColors=true;groundMaterial.color.setHex(0xffffff);
-      mesh(group,ground,groundMaterial).name="arcade-continuous-terrain";
+      // V10.3.2: steep course pitch/bank can expose the mathematical underside of the terrain plane.
+      // Keep it solid from either side, while the widened surface overlaps the neighbouring rigid chunk.
+      groundMaterial.side=THREE.DoubleSide;groundMaterial.depthWrite=true;groundMaterial.depthTest=true;
+      const terrain=mesh(group,ground,groundMaterial);terrain.name="arcade-continuous-terrain";
+      terrain.userData.arcadeTerrainSolidV1032=true;
     }
     if(!["orbit","citadel"].includes(stage.biome))this.addClouds(group,stage,index,cloud);
     const r=(i:number)=>random(index*37+stage.order*139+i*3.71);
@@ -914,23 +920,29 @@ export class SkyDancerArcadeReferenceWorld {
     }
     towers.computeBoundingSphere();roofs.computeBoundingSphere();spires.count=a;spires.computeBoundingSphere();
     group.add(towers,roofs,spires);
-    mesh(group,new THREE.BoxGeometry(250,1,114),paint(stage.biome==="night"?0x111d31:0x213746),0,-26);
+    // V10.3.2: rigid course chunks pitch independently. Give every ground/water slab generous longitudinal
+    // overlap, and place an opaque river bed under the shader surface so a seam can never reveal the sky.
+    const cityFloor=paint(stage.biome==="night"?0x111d31:0x213746);
+    mesh(group,new THREE.BoxGeometry(250,1,SURFACE_CHUNK_DEPTH),cityFloor,0,-26);
     if(this.water && stage.biome!=="night"){
-      const river=mesh(group,new THREE.PlaneGeometry(40,114),this.water,-.4,-25.35);river.rotation.x=-Math.PI/2;
+      mesh(group,new THREE.BoxGeometry(42,.72,SURFACE_CHUNK_DEPTH),cityFloor,-.4,-25.78,0);
+      const river=mesh(group,new THREE.PlaneGeometry(40,SURFACE_CHUNK_DEPTH,1,12),this.water,-.4,-25.34,0);
+      river.name="arcade-city-river-surface";river.rotation.x=-Math.PI/2;river.frustumCulled=false;river.renderOrder=1;
+      river.userData.arcadeTerrainSolidV1032=true;
     }
     if(stage.biome==="night"){
       const metroBed=paint(0x080e20),metroGlow=paint(stage.palette.accent,stage.palette.accent);
-      mesh(group,new THREE.BoxGeometry(38,.32,114),metroBed,0,-25.2,0);
+      mesh(group,new THREE.BoxGeometry(38,.32,SURFACE_CHUNK_DEPTH),metroBed,0,-25.2,0);
       for(const side of [-1,1]){
-        mesh(group,new THREE.BoxGeometry(.34,.14,112),metroGlow,side*10.5,-24.95,0);
-        mesh(group,new THREE.BoxGeometry(.18,.11,112),paint(stage.palette.secondary),side*15.5,-24.92,0);
+        mesh(group,new THREE.BoxGeometry(.34,.14,SURFACE_CHUNK_DEPTH-2),metroGlow,side*10.5,-24.95,0);
+        mesh(group,new THREE.BoxGeometry(.18,.11,SURFACE_CHUNK_DEPTH-2),paint(stage.palette.secondary),side*15.5,-24.92,0);
       }
     }
     const bank=paint(stage.biome==="night"?0x314559:0x506879),road=paint(0x132635),light=paint(0xffc06e,0xff963b);
     for(const side of [-1,1]){
-      mesh(group,new THREE.BoxGeometry(2.4,1.3,114),bank,side*21,-25.1);
-      mesh(group,new THREE.BoxGeometry(3.5,.12,114),road,side*24,-24.32);
-      mesh(group,new THREE.BoxGeometry(.07,.06,112),light,side*24,-24.22);
+      mesh(group,new THREE.BoxGeometry(2.4,1.3,SURFACE_CHUNK_DEPTH),bank,side*21,-25.1);
+      mesh(group,new THREE.BoxGeometry(3.5,.12,SURFACE_CHUNK_DEPTH),road,side*24,-24.32);
+      mesh(group,new THREE.BoxGeometry(.07,.06,SURFACE_CHUNK_DEPTH-2),light,side*24,-24.22);
       for(let r=0;r<4;r++)mesh(group,new THREE.BoxGeometry(83,.14,2.2),road,side*66,-24.6,-53+r*28);
     }
     if(index%3===1){
@@ -963,7 +975,8 @@ export class SkyDancerArcadeReferenceWorld {
   }
 
   private buildTerrain(stage:SkyDancerArcadeStageDefinition,index:number):THREE.BufferGeometry {
-    const g=new THREE.PlaneGeometry(260,114,48,30);g.rotateX(-Math.PI/2);
+    // V10.3.2: 32m of extra depth overlaps neighbouring pitched/banked chunks instead of leaving a slit.
+    const g=new THREE.PlaneGeometry(260,SURFACE_CHUNK_DEPTH,48,36);g.rotateX(-Math.PI/2);
     const position=g.getAttribute("position") as THREE.BufferAttribute;
     const color=new Float32Array(position.count*3);
     const low=new THREE.Color(stage.palette.ground),high=new THREE.Color(stage.palette.secondary),c=new THREE.Color();

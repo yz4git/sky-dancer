@@ -179,5 +179,8 @@ export function createArcadeWaterMaterial(stage: SkyDancerArcadeStageDefinition)
         water=mix(water,fogColor,smoothstep(105.0,560.0,vDepth));
         gl_FragColor=vec4(water,1.0);
       }`,
+    // V10.3.2: the river follows pitched course chunks. Rendering only FrontSide made the surface
+    // disappear whenever the camera crossed the local plane normal on a climb/dive.
+    side:THREE.DoubleSide,depthWrite:true,depthTest:true,transparent:false,
   });
 }

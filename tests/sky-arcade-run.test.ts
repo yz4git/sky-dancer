@@ -65,7 +65,8 @@ test("environment density and destruction climax V5 stay authored and bounded", 
   ]);
   assert.match(world, /arcade-near-pass-setpieces-v5/);
   assert.match(world, /const count=72/);
-  assert.match(world, /PlaneGeometry\(260,114,48,30\)/);
+  assert.match(world, /SURFACE_CHUNK_DEPTH = CHUNK_LENGTH \+ 32/);
+  assert.match(world, /PlaneGeometry\(260,SURFACE_CHUNK_DEPTH,48,36\)/);
   assert.match(presentation, /arcade-climax-flash-v5/);
   assert.match(presentation, /sparks: 240, smoke: 84/);
   assert.match(webgl, /impact\.boss[\s\S]*emitBossExplosion\(position, impact\.missile\)/);

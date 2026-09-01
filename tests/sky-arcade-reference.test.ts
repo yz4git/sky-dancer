@@ -6,7 +6,7 @@ import { arcadeCameraPose } from "../src/sky/arcade/SkyDancerArcadeCamera";
 import { arcadeCoursePose, arcadeCourseRelativePose } from "../src/sky/arcade/SkyDancerArcadeCoursePath";
 import { createReferenceFighter, createReferenceCarrier } from "../src/sky/arcade/SkyDancerArcadeReferenceAirframes";
 import { SkyDancerArcadeReferenceWorld } from "../src/sky/arcade/SkyDancerArcadeReferenceWorld";
-import { referenceAtmosphere } from "../src/sky/arcade/SkyDancerArcadeReferenceMaterials";
+import { createArcadeWaterMaterial, referenceAtmosphere } from "../src/sky/arcade/SkyDancerArcadeReferenceMaterials";
 import { ARCADE_EFFECT_BUDGET, SkyDancerArcadeProductPresentation } from "../src/sky/arcade/SkyDancerArcadeProductPresentation";
 import { SKY_DANCER_ARCADE_STAGES } from "../src/sky/arcade/SkyDancerArcadeData";
 import { SkyDancerArcadeRuntime } from "../src/sky/arcade/SkyDancerArcadeRuntime";
@@ -147,6 +147,55 @@ test("city renderer contains a river, instanced windows and cloud layers without
     if (object.material instanceof THREE.ShaderMaterial && object.material.uniforms.time) rivers++;
   });
   assert.equal(facades, 8); assert.equal(rivers, 8); world.dispose();
+});
+
+
+
+test("V10.3.2 pitched terrain and river surfaces stay solid instead of exposing the sky", () => {
+  const city = SKY_DANCER_ARCADE_STAGES.find(stage => stage.biome === "city");
+  const canyon = SKY_DANCER_ARCADE_STAGES.find(stage => stage.biome === "canyon");
+  assert.ok(city && canyon);
+
+  const water = createArcadeWaterMaterial(city);
+  assert.equal(water.side, THREE.DoubleSide, "river shader must survive a view from below its local plane");
+  assert.equal(water.depthWrite, true);
+  assert.equal(water.depthTest, true);
+  water.dispose();
+
+  const scene = new THREE.Scene();
+  const world = new SkyDancerArcadeReferenceWorld(scene);
+  world.setStage(city);
+  const cityChunks = Array.from({ length: 8 }, (_, i) => scene.getObjectByName(`arcade-course-chunk-${i}`));
+  assert.ok(cityChunks.every(Boolean));
+  assert.ok(cityChunks.every(chunk => Number(chunk!.userData.arcadeSurfaceChunkDepth) >= 140), "city slabs need substantial overlap across pitched seams");
+  const rivers = scene.getObjectsByProperty("name", "arcade-city-river-surface") as THREE.Mesh[];
+  assert.equal(rivers.length, 8);
+  for (const river of rivers) {
+    assert.ok(river.geometry instanceof THREE.PlaneGeometry);
+    assert.ok(river.geometry.parameters.height >= 140, `river depth ${river.geometry.parameters.height} must overlap adjacent chunks`);
+    assert.equal((river.material as THREE.Material).side, THREE.DoubleSide);
+    assert.equal(river.userData.arcadeTerrainSolidV1032, true);
+  }
+
+  const length = city.durationSeconds * city.courseSpeed;
+  for (const progress of [.12, .18, .25, .29, .39, .43, .51]) {
+    world.update(length * progress, 0, 0);
+    for (const river of rivers) {
+      river.updateMatrixWorld(true);
+      assert.ok(river.matrixWorld.elements.every(Number.isFinite), `river transform must stay finite at progress ${progress}`);
+    }
+  }
+
+  world.setStage(canyon);
+  const terrains = scene.getObjectsByProperty("name", "arcade-continuous-terrain") as THREE.Mesh[];
+  assert.equal(terrains.length, 8);
+  for (const terrain of terrains) {
+    assert.equal((terrain.material as THREE.Material).side, THREE.DoubleSide);
+    assert.equal(terrain.userData.arcadeTerrainSolidV1032, true);
+    const geometry = terrain.geometry as THREE.PlaneGeometry;
+    assert.ok(geometry.parameters.height >= 140, `terrain depth ${geometry.parameters.height} must overlap adjacent chunks`);
+  }
+  world.dispose();
 });
 
 test("missile trails and explosions keep a bounded mesh and buffer count under load", () => {
