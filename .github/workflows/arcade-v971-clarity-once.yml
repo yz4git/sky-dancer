@@ -1,0 +1,46 @@
+name: Arcade V9.7.1 Clarity Once
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - ".github/workflows/arcade-v971-clarity-once.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: arcade-v971-clarity-once
+  cancel-in-progress: true
+
+jobs:
+  apply:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.13.0
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Apply V9.7.1 clarity polish
+        run: python3 scripts/apply-arcade-v971-clarity.py
+      - name: Arcade rules regression
+        run: npm run test:rules
+      - name: Arcade typecheck
+        run: npm run check:arcade
+      - name: Lint
+        run: npm run lint
+      - name: Pages production build
+        run: npm run build:pages
+      - name: Commit V9.7.1 product code and remove temporary files
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/sky/arcade/SkyDancerArcadeModels.ts src/sky/arcade/SkyDancerArcadeWebGLDemo.ts src/sky/arcade/SkyDancerArcadeProductPresentation.ts
+          git rm .github/workflows/arcade-v971-clarity-once.yml scripts/apply-arcade-v971-clarity.py
+          git commit -m "Arcade Run V9.7.1: clarify locks and multi-missile salvos"
+          git push origin HEAD:main
