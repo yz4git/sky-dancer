@@ -1,0 +1,232 @@
+name: Arcade V10.4.2 Grounded City Hazards Once
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/arcade-v1042-city-hazard-grounding-once.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.13.0
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Apply V10.4.2 grounded city hazard patch
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          models_path = Path('src/sky/arcade/SkyDancerArcadeModels.ts')
+          models = models_path.read_text()
+          old = '''export function createSkyDancerArcadeHazard(
+            stage: SkyDancerArcadeStageDefinition,
+            hazard: SkyDancerArcadeHazardSnapshot,
+          ): THREE.Group {
+            const group = new THREE.Group();
+            group.name = `arcade-hazard-${hazard.id}`;
+            const primary = flatMaterial(stage.palette.primary);
+            const warning = flatMaterial(0xff704f, 0x5a1008);
+            if (hazard.kind === "mine") {
+              group.add(new THREE.Mesh(new THREE.IcosahedronGeometry(0.72, 0), warning));
+              for (let index = 0; index < 6; index += 1) {
+                const spike = new THREE.Mesh(new THREE.ConeGeometry(0.12, 0.65, 5), primary);
+                spike.rotation.z = (index / 6) * Math.PI * 2;
+                spike.position.set(Math.sin(spike.rotation.z) * 0.78, Math.cos(spike.rotation.z) * 0.78, 0);
+                group.add(spike);
+              }
+            } else if (hazard.kind === "lightning") {
+              const bolt = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.24, 8, 5), warning);
+              bolt.rotation.z = 0.12;
+              group.add(bolt);
+            } else if (hazard.kind === "arch") {
+              if (stage.biome === "citadel") {
+                // V8.9: Citadel arches are split sovereign blades, not another circular tunnel motif.
+                for (const side of [-1, 1]) {
+                  const blade = new THREE.Mesh(new THREE.BoxGeometry(0.48, 4.9, 0.6), primary);
+                  blade.position.set(side * 1.55, 0.1, 0);
+                  blade.rotation.z = side * 0.42;
+                  group.add(blade);
+                }
+                const crown = new THREE.Mesh(new THREE.BoxGeometry(2.8, 0.22, 0.52), warning);
+                crown.position.y = 2.15;
+                group.add(crown);
+              } else {
+                const arch = new THREE.Mesh(new THREE.TorusGeometry(2.25, 0.28, 7, 24, Math.PI), primary);
+                arch.rotation.z = Math.PI;
+                group.add(arch);
+              }
+            } else if (hazard.kind === "tower") {
+              const tower = new THREE.Mesh(new THREE.BoxGeometry(1.25, 7, 1.25), primary);
+              tower.position.y = -2.4;
+              group.add(tower);
+            } else {
+              const rock = new THREE.Mesh(new THREE.DodecahedronGeometry(hazard.kind === "rock" ? 1.35 : 0.72, 0), primary);
+              rock.scale.set(0.8, 1.35, 0.72);
+              group.add(rock);
+            }
+            group.scale.setScalar(hazard.scale);
+            return group;
+          }'''
+          new = '''export function createSkyDancerArcadeHazard(
+            stage: SkyDancerArcadeStageDefinition,
+            hazard: SkyDancerArcadeHazardSnapshot,
+          ): THREE.Group {
+            const group = new THREE.Group();
+            group.name = `arcade-hazard-${hazard.id}`;
+            const primary = flatMaterial(stage.palette.primary);
+            const warning = flatMaterial(0xff704f, 0x5a1008);
+            const cityLike = stage.biome === "city" || stage.biome === "night";
+
+            if (cityLike && hazard.kind === "tower") {
+              // V10.4.2: Dawn City / Night Metro towers are grounded route architecture,
+              // not free-spinning boxes. Keep the hazard origin unchanged so collision and visuals agree;
+              // only the model extends downward to visibly connect into the city below.
+              group.userData.arcadeCityAnchoredHazardV1042 = true;
+              group.userData.arcadeCityHazardKindV1042 = "tower";
+              const shaft = new THREE.Mesh(new THREE.BoxGeometry(1.4, 10.8, 1.4), primary);
+              shaft.position.y = -4.9;
+              group.add(shaft);
+              const shoulder = new THREE.Mesh(new THREE.BoxGeometry(2.9, 1.0, 2.1), warning);
+              shoulder.position.y = 0.65;
+              group.add(shoulder);
+              const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.22, 4.2, 6), primary);
+              mast.position.y = 3.1;
+              group.add(mast);
+              const beaconMaterial = flatMaterial(stage.palette.accent, stage.palette.accent);
+              const beacon = new THREE.Mesh(new THREE.SphereGeometry(0.42, 7, 6), beaconMaterial);
+              beacon.position.y = 5.35;
+              group.add(beacon);
+            } else if (cityLike && hazard.kind === "arch") {
+              // V10.4.2: replace the floating semicircle with a supported urban fly-through gate.
+              // Its supports extend below the gameplay origin, making it read as bridge/gantry structure.
+              group.userData.arcadeCityAnchoredHazardV1042 = true;
+              group.userData.arcadeCityHazardKindV1042 = "gantry";
+              const glow = flatMaterial(stage.palette.accent, stage.palette.accent);
+              for (const side of [-1, 1]) {
+                const support = new THREE.Mesh(new THREE.BoxGeometry(0.86, 7.8, 1.0), primary);
+                support.position.set(side * 2.25, -2.75, 0);
+                group.add(support);
+                const shoulder = new THREE.Mesh(new THREE.BoxGeometry(1.85, 0.7, 1.0), warning);
+                shoulder.position.set(side * 1.55, 1.15, 0);
+                shoulder.rotation.z = side * 0.38;
+                group.add(shoulder);
+              }
+              const span = new THREE.Mesh(new THREE.BoxGeometry(5.8, 0.72, 1.0), primary);
+              span.position.y = 1.95;
+              group.add(span);
+              const strip = new THREE.Mesh(new THREE.BoxGeometry(4.9, 0.16, 0.16), glow);
+              strip.position.set(0, 1.62, 0.54);
+              group.add(strip);
+            } else if (hazard.kind === "mine") {
+              group.add(new THREE.Mesh(new THREE.IcosahedronGeometry(0.72, 0), warning));
+              for (let index = 0; index < 6; index += 1) {
+                const spike = new THREE.Mesh(new THREE.ConeGeometry(0.12, 0.65, 5), primary);
+                spike.rotation.z = (index / 6) * Math.PI * 2;
+                spike.position.set(Math.sin(spike.rotation.z) * 0.78, Math.cos(spike.rotation.z) * 0.78, 0);
+                group.add(spike);
+              }
+            } else if (hazard.kind === "lightning") {
+              const bolt = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.24, 8, 5), warning);
+              bolt.rotation.z = 0.12;
+              group.add(bolt);
+            } else if (hazard.kind === "arch") {
+              if (stage.biome === "citadel") {
+                // V8.9: Citadel arches are split sovereign blades, not another circular tunnel motif.
+                for (const side of [-1, 1]) {
+                  const blade = new THREE.Mesh(new THREE.BoxGeometry(0.48, 4.9, 0.6), primary);
+                  blade.position.set(side * 1.55, 0.1, 0);
+                  blade.rotation.z = side * 0.42;
+                  group.add(blade);
+                }
+                const crown = new THREE.Mesh(new THREE.BoxGeometry(2.8, 0.22, 0.52), warning);
+                crown.position.y = 2.15;
+                group.add(crown);
+              } else {
+                const arch = new THREE.Mesh(new THREE.TorusGeometry(2.25, 0.28, 7, 24, Math.PI), primary);
+                arch.rotation.z = Math.PI;
+                group.add(arch);
+              }
+            } else if (hazard.kind === "tower") {
+              const tower = new THREE.Mesh(new THREE.BoxGeometry(1.25, 7, 1.25), primary);
+              tower.position.y = -2.4;
+              group.add(tower);
+            } else {
+              const rock = new THREE.Mesh(new THREE.DodecahedronGeometry(hazard.kind === "rock" ? 1.35 : 0.72, 0), primary);
+              rock.scale.set(0.8, 1.35, 0.72);
+              group.add(rock);
+            }
+            group.scale.setScalar(hazard.scale);
+            return group;
+          }'''
+          if old not in models:
+              raise SystemExit('hazard model function changed; refusing unsafe patch')
+          models_path.write_text(models.replace(old, new, 1))
+
+          demo_path = Path('src/sky/arcade/SkyDancerArcadeWebGLDemo.ts')
+          demo = demo_path.read_text()
+          import_needle = 'import { ARCADE_SUN_DIRECTION, referenceAtmosphere } from "./SkyDancerArcadeReferenceMaterials";\n'
+          import_replacement = import_needle + 'import { arcadeSharedSceneryAttitudeV1041 } from "./SkyDancerArcadeReferenceWorld";\n'
+          if 'arcadeSharedSceneryAttitudeV1041' not in demo:
+              if import_needle not in demo:
+                  raise SystemExit('reference materials import changed')
+              demo = demo.replace(import_needle, import_replacement, 1)
+
+          old_sync = '''      const course = arcadeCourseRelativeVisualPose(snapshot.stage, snapshot.distance, hazard.depth);
+                group.position.set(hazard.x * 8.4 + course.x, 1.2 + hazard.y * 4.9 + course.y, course.z);
+                group.rotation.x += delta * 0.42;
+                group.rotation.y += delta * 0.58;'''
+          new_sync = '''      const course = arcadeCourseRelativeVisualPose(snapshot.stage, snapshot.distance, hazard.depth);
+                group.position.set(hazard.x * 8.4 + course.x, 1.2 + hazard.y * 4.9 + course.y, course.z);
+                if (group.userData.arcadeCityAnchoredHazardV1042 === true) {
+                  // V10.4.2: city architecture shares the same world attitude as the skyline/background.
+                  // It must never tumble independently like debris.
+                  const sceneryAttitude = arcadeSharedSceneryAttitudeV1041(snapshot.stage, snapshot.distance);
+                  group.rotation.set(sceneryAttitude.pitch, sceneryAttitude.yaw, sceneryAttitude.roll);
+                } else {
+                  group.rotation.x += delta * 0.42;
+                  group.rotation.y += delta * 0.58;
+                }'''
+          if old_sync not in demo:
+              raise SystemExit('hazard sync block changed; refusing unsafe patch')
+          demo_path.write_text(demo.replace(old_sync, new_sync, 1))
+
+          test_path = Path('tests/sky-arcade-run.test.ts')
+          tests = test_path.read_text()
+          marker = 'V10.4.2 city hazards are grounded architecture'
+          if marker not in tests:
+              tests += '''\n\ntest("V10.4.2 city hazards are grounded architecture instead of floating primitives", async () => {\n  const models = await readFile(new URL("../src/sky/arcade/SkyDancerArcadeModels.ts", import.meta.url), "utf8");\n  const demo = await readFile(new URL("../src/sky/arcade/SkyDancerArcadeWebGLDemo.ts", import.meta.url), "utf8");\n  assert.match(models, /arcadeCityAnchoredHazardV1042 = true/);\n  assert.match(models, /arcadeCityHazardKindV1042 = "tower"/);\n  assert.match(models, /arcadeCityHazardKindV1042 = "gantry"/);\n  assert.match(models, /new THREE\\.BoxGeometry\\(5\\.8, 0\\.72, 1\\.0\\)/);\n  assert.match(demo, /arcadeSharedSceneryAttitudeV1041/);\n  assert.match(demo, /group\\.rotation\\.set\\(sceneryAttitude\\.pitch, sceneryAttitude\\.yaw, sceneryAttitude\\.roll\\)/);\n});\n'''
+              test_path.write_text(tests)
+
+          note_path = Path('docs/CHATGPT_REPO_WORKFLOW.md')
+          note_path.write_text('''# ChatGPT repository workflow\n\n## Direct implementation path\n\nFor `yz4git/sky-dancer`, ChatGPT can write implementation changes to `main` through a temporary one-shot GitHub Actions workflow. Do not claim that direct repository work is unavailable when the GitHub connector can create workflow files.\n\nPreferred pattern:\n\n1. Create `.github/workflows/<task>-once.yml` with `permissions: contents: write`.\n2. In the workflow, patch the checked-out source, run the relevant regression tests, typecheck, lint, and production Pages build.\n3. Commit the product code to `main`, then remove the temporary workflow/patch files in a cleanup commit.\n4. Because bot-originated pushes may not cascade into another Pages workflow, make a subsequent user-authored connector commit/audit trigger when the deployed Pages version must include the bot product commit.\n5. Verify the resulting Pages build/deploy and, for visual gameplay changes, run an actual WebGL/Playwright visual audit when practical.\n\nThis is the established smartphone-only development path for this repository.\n''')
+          PY
+      - name: Arcade rules regression
+        run: npm run test:rules
+      - name: Arcade typecheck
+        run: npm run check:arcade
+      - name: Lint
+        run: npm run lint
+      - name: Pages production build
+        run: npm run build:pages
+      - name: Commit product and cleanup temporary workflow
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/sky/arcade/SkyDancerArcadeModels.ts src/sky/arcade/SkyDancerArcadeWebGLDemo.ts tests/sky-arcade-run.test.ts docs/CHATGPT_REPO_WORKFLOW.md
+          git commit -m 'Arcade Run V10.4.2: ground city hazards'
+          git pull --rebase origin main
+          git push origin HEAD:main
+          git rm -f .github/workflows/arcade-v1042-city-hazard-grounding-once.yml
+          git commit -m 'Remove V10.4.2 city hazard work file'
+          git pull --rebase origin main
+          git push origin HEAD:main
