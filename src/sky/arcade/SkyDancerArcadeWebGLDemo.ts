@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import type { SkyDancerArcadeRuntimeOptions } from "./SkyDancerArcadeRuntime";
-import { SkyDancerArcadeRuntime, type SkyDancerArcadeSnapshot } from "./SkyDancerArcadeRuntime";
+import { SkyDancerArcadeRuntime, type SkyDancerArcadeImpactSnapshot, type SkyDancerArcadeSnapshot } from "./SkyDancerArcadeRuntime";
 import { SkyDancerArcadeEnvironment } from "./SkyDancerArcadeEnvironment";
 import { SkyDancerArcadeProductPresentation } from "./SkyDancerArcadeProductPresentation";
 import { SkyDancerArcadeCinematicRenderer } from "./SkyDancerArcadeCinematicRenderer";
@@ -29,6 +29,16 @@ export interface SkyDancerArcadeDemoHandle {
 }
 
 type SnapshotHandler = (snapshot: SkyDancerArcadeSnapshot) => void;
+
+interface EnemyHitReaction {
+  x: number;
+  y: number;
+  z: number;
+  pitch: number;
+  roll: number;
+  flash: number;
+  missile: boolean;
+}
 
 class SkyDancerArcadeAudio {
   private context: AudioContext | null = null;
@@ -117,6 +127,10 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
   private previousSnapshot: SkyDancerArcadeSnapshot;
   private currentStageId: string;
   private cameraShake = 0;
+  private cameraImpactKick = 0;
+  private playerDamageKick = 0;
+  private playerDamageSign = 1;
+  private readonly enemyHitReactions = new Map<number, EnemyHitReaction>();
   private readonly presentationDirector = new SkyDancerArcadePresentationDirector();
   private presentationFx: SkyDancerArcadePresentationFrame = { rush: 0, turboKick: 0, nearMiss: 0, impact: 0, damage: 0, kill: 0, boss: 0, transition: 0, fovKick: 0, cameraShake: 0, pullback: 0, bloomBoost: 0, exposureBoost: 0 };
 
@@ -219,15 +233,16 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
 
   private syncPlayer(snapshot: SkyDancerArcadeSnapshot, delta: number): void {
     const course = arcadeCoursePose(snapshot.stage, snapshot.distance);
-    const targetX = snapshot.playerX * 7.8;
-    const targetY = 1.1 + snapshot.playerY * 4.25;
+    this.playerDamageKick *= Math.exp(-delta * 7.4);
+    const targetX = snapshot.playerX * 7.8 + this.playerDamageSign * this.playerDamageKick * .42;
+    const targetY = 1.1 + snapshot.playerY * 4.25 + this.playerDamageKick * .16;
     this.player.position.x += (targetX - this.player.position.x) * Math.min(1, delta * 12);
     this.player.position.y += (targetY - this.player.position.y) * Math.min(1, delta * 12);
-    this.player.position.z = 2.8;
+    this.player.position.z = 2.8 + this.playerDamageKick * .32;
     const vx = delta > 0 ? (snapshot.playerX - this.previousSnapshot.playerX) / delta : 0;
     const vy = delta > 0 ? (snapshot.playerY - this.previousSnapshot.playerY) / delta : 0;
-    const targetRoll = THREE.MathUtils.clamp(-vx * .3, -.48, .48) - snapshot.playerX * .06 + course.bank * .82;
-    const targetPitch = THREE.MathUtils.clamp(vy * .08, -.12, .12) + course.pitch * .46;
+    const targetRoll = THREE.MathUtils.clamp(-vx * .3, -.48, .48) - snapshot.playerX * .06 + course.bank * .82 + this.playerDamageSign * this.playerDamageKick * .22;
+    const targetPitch = THREE.MathUtils.clamp(vy * .08, -.12, .12) + course.pitch * .46 + this.playerDamageKick * .12;
     this.player.rotation.z += (targetRoll - this.player.rotation.z) * Math.min(1, delta * 8);
     this.player.rotation.x += (targetPitch - this.player.rotation.x) * Math.min(1, delta * 7);
     for (const object of this.engineGlows) {
@@ -255,9 +270,16 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
         this.entityRoot.add(group);
       }
       const course = arcadeCourseRelativePose(snapshot.stage, snapshot.distance, enemy.depth);
-      const targetX = enemy.x * 8.4 + course.x;
-      const targetY = 1.2 + enemy.y * 4.9 + course.y;
-      const targetZ = -enemy.depth;
+      const reaction = this.enemyHitReactions.get(enemy.id);
+      if (reaction) {
+        const damping = Math.exp(-delta * (reaction.missile ? 5.1 : 8.6));
+        reaction.x *= damping; reaction.y *= damping; reaction.z *= damping;
+        reaction.pitch *= damping; reaction.roll *= damping; reaction.flash = Math.max(0, reaction.flash - delta * 5.6);
+        if (Math.abs(reaction.x) + Math.abs(reaction.y) + Math.abs(reaction.z) + Math.abs(reaction.roll) + reaction.flash < .018) this.enemyHitReactions.delete(enemy.id);
+      }
+      const targetX = enemy.x * 8.4 + course.x + (reaction?.x ?? 0);
+      const targetY = 1.2 + enemy.y * 4.9 + course.y + (reaction?.y ?? 0);
+      const targetZ = -enemy.depth + (reaction?.z ?? 0);
       group.position.x += (targetX - group.position.x) * Math.min(1, delta * 13);
       group.position.y += (targetY - group.position.y) * Math.min(1, delta * 13);
       group.position.z += (targetZ - group.position.z) * Math.min(1, delta * 13);
@@ -268,9 +290,9 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
       const targetHeading = enemy.maneuver === "overtake" ? course.yaw : Math.PI + course.yaw;
       const headingDelta = Math.atan2(Math.sin(targetHeading - group.rotation.y), Math.cos(targetHeading - group.rotation.y));
       group.rotation.y += headingDelta * Math.min(1, delta * (enemy.maneuver === "overtake" ? 7.5 : 5.8));
-      const targetPitch = course.pitch * .72 + THREE.MathUtils.clamp(verticalVelocity * .035, -.2, .2);
+      const targetPitch = course.pitch * .72 + THREE.MathUtils.clamp(verticalVelocity * .035, -.2, .2) + (reaction?.pitch ?? 0);
       const maneuverBank = THREE.MathUtils.clamp(-lateralVelocity * .095, -.64, .64);
-      const targetBank = maneuverBank + course.bank * .46 + Math.sin(enemy.phase + snapshot.runTimeSeconds * 1.8) * (enemy.boss ? .025 : .08);
+      const targetBank = maneuverBank + course.bank * .46 + Math.sin(enemy.phase + snapshot.runTimeSeconds * 1.8) * (enemy.boss ? .025 : .08) + (reaction?.roll ?? 0);
       group.rotation.x += (targetPitch - group.rotation.x) * Math.min(1, delta * 8);
       group.rotation.z += (targetBank - group.rotation.z) * Math.min(1, delta * 9);
       let existingRing = group.getObjectByName("arcade-lock-ring");
@@ -317,12 +339,13 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
         const baseScale = typeof group.userData.arcadeCombatBaseScale === "number" ? group.userData.arcadeCombatBaseScale : group.scale.x;
         const extremeCloseClamp = 1 - THREE.MathUtils.clamp((18 - enemy.depth) / 15, 0, 1) * .18;
         const maneuverPresence = enemy.maneuver === "parallel" || enemy.maneuver === "close-bank" ? 1.035 : 1;
-        group.scale.setScalar(baseScale * maneuverPresence * extremeCloseClamp);
+        const impactPulse = 1 + (reaction?.flash ?? 0) * .055;
+        group.scale.setScalar(baseScale * maneuverPresence * extremeCloseClamp * impactPulse);
       }
       if (enemy.boss) {
         const hpRatio = enemy.maxHp > 0 ? enemy.hp / enemy.maxHp : 0;
         const baseScale = typeof group.userData.arcadeBaseScale === "number" ? group.userData.arcadeBaseScale : 1;
-        group.scale.setScalar(baseScale);
+        group.scale.setScalar(baseScale * (1 + (reaction?.flash ?? 0) * .035));
         for (const weakPoint of group.getObjectsByProperty("name", "arcade-boss-weakpoint")) {
           weakPoint.scale.setScalar(.86 + Math.sin(snapshot.runTimeSeconds * 12 + enemy.id) * .12 + (1 - hpRatio) * .1);
           weakPoint.rotation.y += delta * 1.8;
@@ -332,6 +355,7 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
     for (const [id, group] of this.enemyGroups) {
       if (active.has(id)) continue;
       this.enemyGroups.delete(id);
+      this.enemyHitReactions.delete(id);
       this.entityRoot.remove(group);
       this.disposeObject(group);
     }
@@ -455,33 +479,67 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
     });
   }
 
+  private applyEnemyHitReaction(impact: SkyDancerArcadeImpactSnapshot, snapshot: SkyDancerArcadeSnapshot, heavyCraft: boolean): void {
+    if (impact.destroyed) return;
+    const current = this.enemyHitReactions.get(impact.enemyId);
+    const sideDelta = impact.x - snapshot.playerX;
+    const verticalDelta = impact.y - snapshot.playerY;
+    const side = Math.abs(sideDelta) > .04 ? Math.sign(sideDelta) : (impact.serial % 2 === 0 ? 1 : -1);
+    const vertical = Math.abs(verticalDelta) > .04 ? Math.sign(verticalDelta) : (impact.serial % 3 === 0 ? -1 : 1);
+    const mass = impact.boss ? .46 : heavyCraft ? .7 : 1;
+    const missilePower = impact.missile ? 1 : .28;
+    const impulse = {
+      x: side * .28 * missilePower * mass,
+      y: vertical * .17 * missilePower * mass,
+      z: -(impact.missile ? 1.32 : .3) * mass,
+      pitch: vertical * (impact.missile ? .16 : .045) * mass,
+      roll: -side * (impact.missile ? .34 : .1) * mass,
+      flash: impact.missile ? 1 : .72,
+      missile: impact.missile,
+    };
+    if (current) {
+      current.x = THREE.MathUtils.clamp(current.x + impulse.x, -.62, .62);
+      current.y = THREE.MathUtils.clamp(current.y + impulse.y, -.42, .42);
+      current.z = THREE.MathUtils.clamp(current.z + impulse.z, -1.7, .1);
+      current.pitch = THREE.MathUtils.clamp(current.pitch + impulse.pitch, -.3, .3);
+      current.roll = THREE.MathUtils.clamp(current.roll + impulse.roll, -.58, .58);
+      current.flash = Math.max(current.flash, impulse.flash);
+      current.missile = current.missile || impact.missile;
+    } else this.enemyHitReactions.set(impact.enemyId, impulse);
+  }
+
   private syncEffects(snapshot: SkyDancerArcadeSnapshot): void {
     for (const impact of snapshot.impacts) {
       if (impact.serial <= this.previousSnapshot.hitSerial) continue;
       const course = arcadeCourseRelativePose(snapshot.stage, snapshot.distance, impact.depth);
       const position = new THREE.Vector3(impact.x * 8.4 + course.x, 1.2 + impact.y * 4.9 + course.y, -impact.depth);
       const heavyCraft = impact.kind === "bomber" || impact.kind === "missile-boat";
+      this.applyEnemyHitReaction(impact, snapshot, heavyCraft);
       if (impact.destroyed) {
         if (impact.boss) {
           this.presentation.emitBossExplosion(position, impact.missile);
+          this.cameraImpactKick = Math.max(this.cameraImpactKick, .62);
           this.cameraShake = Math.min(1.2, this.cameraShake + .82);
           this.audio.tone(42, .5, .075, "sawtooth");
           this.audio.tone(84, .36, .045, "triangle");
           this.audio.tone(214, .2, .025, "square");
         } else if (heavyCraft) {
           this.presentation.emitHeavyExplosion(position, impact.missile);
+          this.cameraImpactKick = Math.max(this.cameraImpactKick, impact.missile ? .4 : .28);
           this.cameraShake = Math.min(.82, this.cameraShake + (impact.missile ? .34 : .27));
           this.audio.tone(62, .25, .045, "sawtooth");
           this.audio.tone(176, .13, .02, "triangle");
         } else {
           this.presentation.emitSmallExplosion(position, impact.missile);
+          this.cameraImpactKick = Math.max(this.cameraImpactKick, impact.missile ? .25 : .14);
           this.cameraShake = Math.min(.54, this.cameraShake + (impact.missile ? .17 : .12));
           this.audio.tone(112, .11, .022, "triangle");
         }
       } else if (impact.missile) {
         const strength = impact.boss ? 1.55 : heavyCraft ? 1.22 : .96;
         this.presentation.emitMissileImpact(position, strength);
-        this.cameraShake = Math.min(.48, this.cameraShake + .12 * strength);
+        this.cameraImpactKick = Math.max(this.cameraImpactKick, .16 * strength);
+        this.cameraShake = Math.min(.48, this.cameraShake + .15 * strength);
         this.audio.tone(126, .07, .018, "triangle");
         this.audio.tone(610, .045, .009, "square");
       } else {
@@ -490,6 +548,9 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
       }
     }
     if (snapshot.damageSerial !== this.previousSnapshot.damageSerial) {
+      this.playerDamageKick = 1;
+      this.playerDamageSign = snapshot.damageSerial % 2 === 0 ? 1 : -1;
+      this.cameraImpactKick = Math.max(this.cameraImpactKick, .3);
       this.cameraShake = Math.min(.8, this.cameraShake + .4);
       this.presentation.emitBurst(this.player.position, .45);
     }
@@ -550,6 +611,7 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
 
   private updateCamera(snapshot: SkyDancerArcadeSnapshot, delta: number): void {
     this.cameraShake = Math.max(0, this.cameraShake - delta * 2.5);
+    this.cameraImpactKick = Math.max(0, this.cameraImpactKick - delta * 3.8);
     const pose = arcadeCameraPose(snapshot.playerX, snapshot.playerY, this.camera.aspect, snapshot.turboActive);
     const course = arcadeCoursePose(snapshot.stage, snapshot.distance);
     // V7.1: use two look-ahead samples but deliberately lag the spline. The near sample keeps
@@ -565,7 +627,7 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
     const targetY = pose.y + shakeY - nearCourse.y * (iceCourse ? 0 : .012);
     this.camera.position.x += (targetX - this.camera.position.x) * Math.min(1, delta * 4.0);
     this.camera.position.y += (targetY - this.camera.position.y) * Math.min(1, delta * 4.0);
-    this.camera.position.z += (pose.z + this.presentationFx.pullback - this.camera.position.z) * Math.min(1, delta * 4.5);
+    this.camera.position.z += (pose.z + this.presentationFx.pullback + this.cameraImpactKick - this.camera.position.z) * Math.min(1, delta * 6.2);
     this.camera.fov += (pose.fov + this.presentationFx.fovKick - this.camera.fov) * Math.min(1, delta * 7.2);
     this.camera.updateProjectionMatrix();
     this.camera.lookAt(

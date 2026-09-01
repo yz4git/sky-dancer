@@ -395,3 +395,56 @@ test("V8.4 continuous volcano ribbon and orbital helix expose the real course sh
   assert.equal(scene.getObjectsByProperty("name", "arcade-orbit-helix-arc").length, 10);
   world.dispose();
 });
+
+test("V9.9 combat feel keeps tumbling kill debris bounded and fully retires it", () => {
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(55, 16 / 9, .1, 1200);
+  camera.position.set(0, 5, 16); camera.lookAt(0, 0, -28); camera.updateMatrixWorld();
+  const presentation = new SkyDancerArcadeProductPresentation(scene);
+  const runtime = new SkyDancerArcadeRuntime({ mode: "arcade-run", difficulty: "normal", seed: 99 });
+  const snapshot = runtime.getSnapshot();
+  const debris = scene.getObjectByName("arcade-pooled-airframe-debris") as THREE.InstancedMesh;
+  assert.ok(debris instanceof THREE.InstancedMesh);
+  assert.equal(debris.count, ARCADE_EFFECT_BUDGET.debris);
+  const matrix = new THREE.Matrix4();
+  const activeDebris = () => {
+    let active = 0;
+    for (let i = 0; i < debris.count; i++) {
+      debris.getMatrixAt(i, matrix);
+      if (Math.abs(matrix.determinant()) > 1e-8) active++;
+    }
+    return active;
+  };
+
+  presentation.emitSmallExplosion(new THREE.Vector3(0, 2, -24), false);
+  presentation.update(snapshot, 1 / 60, camera);
+  const small = activeDebris();
+  assert.ok(small >= 8, `small kill debris should be visible, got ${small}`);
+
+  presentation.setStage();
+  presentation.emitHeavyExplosion(new THREE.Vector3(0, 2, -24), true);
+  presentation.update(snapshot, 1 / 60, camera);
+  const heavy = activeDebris();
+  assert.ok(heavy > small, `heavy kill debris ${heavy} should exceed small ${small}`);
+
+  presentation.setStage();
+  presentation.emitBossExplosion(new THREE.Vector3(0, 2, -24), true);
+  presentation.update(snapshot, 1 / 60, camera);
+  const boss = activeDebris();
+  assert.ok(boss > heavy, `boss kill debris ${boss} should exceed heavy ${heavy}`);
+
+  for (let i = 0; i < 260; i++) presentation.update(snapshot, 1 / 60, camera);
+  assert.equal(activeDebris(), 0, "airframe debris must fully retire instead of accumulating");
+  assert.equal(scene.getObjectsByProperty("name", "arcade-pooled-airframe-debris").length, 1);
+  presentation.dispose();
+});
+
+test("V9.9 WebGL combat feedback gives missiles stronger target recoil plus player and camera hit kick", async () => {
+  const source = await import("node:fs/promises").then(fs => fs.readFile(new URL("../src/sky/arcade/SkyDancerArcadeWebGLDemo.ts", import.meta.url), "utf8"));
+  assert.match(source, /enemyHitReactions/);
+  assert.match(source, /impact\.missile \? 1\.32 : \.3/);
+  assert.match(source, /reaction\.roll/);
+  assert.match(source, /playerDamageKick = 1/);
+  assert.match(source, /cameraImpactKick/);
+});
+

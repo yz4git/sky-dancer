@@ -3,7 +3,7 @@ import type { SkyDancerArcadeSnapshot } from "./SkyDancerArcadeRuntime";
 import { arcadeCourseRelativePose } from "./SkyDancerArcadeCoursePath";
 import type { SkyDancerArcadePresentationFrame } from "./SkyDancerArcadePresentationDirector";
 
-export const ARCADE_EFFECT_BUDGET = { trails: 48, trailSamples: 18, sparks: 240, smoke: 84, missileSmoke: 160, detonationPulses: 24 } as const;
+export const ARCADE_EFFECT_BUDGET = { trails: 48, trailSamples: 18, sparks: 240, smoke: 84, missileSmoke: 160, detonationPulses: 24, debris: 96 } as const;
 const SPEED_STREAK_COUNT = 52;
 const RETIRE_SECONDS = .32;
 const fract = (n: number) => n - Math.floor(n);
@@ -41,6 +41,16 @@ interface DetonationPulse {
 interface PendingBurst {
   position: THREE.Vector3;
   delay: number;
+  size: number;
+}
+
+interface DebrisParticle {
+  position: THREE.Vector3;
+  velocity: THREE.Vector3;
+  rotation: THREE.Euler;
+  spin: THREE.Vector3;
+  age: number;
+  duration: number;
   size: number;
 }
 
@@ -314,6 +324,91 @@ class DetonationPulsePool {
   }
 }
 
+/** V9.9: pooled tumbling airframe shards keep a kill physically present after the enemy mesh is retired. */
+class DebrisPool {
+  readonly mesh: THREE.InstancedMesh<THREE.TetrahedronGeometry, THREE.MeshStandardMaterial>;
+  private readonly particles: DebrisParticle[];
+  private readonly dummy = new THREE.Object3D();
+  private readonly hot = new THREE.Color(0xb84a24);
+  private readonly cold = new THREE.Color(0x211b1c);
+  private readonly color = new THREE.Color();
+  private cursor = 0;
+  private serial = 0;
+
+  constructor(count: number) {
+    const geometry = new THREE.TetrahedronGeometry(1, 0);
+    const material = new THREE.MeshStandardMaterial({ color: 0x4b3530, roughness: .48, metalness: .52 });
+    this.mesh = new THREE.InstancedMesh(geometry, material, count);
+    this.mesh.name = "arcade-pooled-airframe-debris";
+    this.mesh.frustumCulled = false;
+    this.mesh.renderOrder = 7;
+    this.mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    this.particles = Array.from({ length: count }, () => ({
+      position: new THREE.Vector3(), velocity: new THREE.Vector3(), rotation: new THREE.Euler(), spin: new THREE.Vector3(),
+      age: 1, duration: 0, size: 0,
+    }));
+    this.dummy.scale.setScalar(0); this.dummy.updateMatrix();
+    for (let i = 0; i < count; i++) this.mesh.setMatrixAt(i, this.dummy.matrix);
+  }
+
+  emit(position: THREE.Vector3, scale: number, requestedCount: number, forwardKick = .7): void {
+    const count = Math.min(requestedCount, this.particles.length);
+    for (let i = 0; i < count; i++) {
+      const index = this.cursor++ % this.particles.length;
+      const p = this.particles[index];
+      const seed = ++this.serial * 13.71;
+      p.position.copy(position);
+      p.position.x += (noise(seed + 1) - .5) * scale * .7;
+      p.position.y += (noise(seed + 2) - .5) * scale * .5;
+      const radial = new THREE.Vector3(noise(seed + 3) - .5, noise(seed + 4) - .42, noise(seed + 5) - .5).normalize();
+      p.velocity.copy(radial).multiplyScalar((3.5 + noise(seed + 6) * 7.5) * scale);
+      p.velocity.z -= (4.5 + noise(seed + 7) * 6.5) * scale * forwardKick;
+      p.age = 0;
+      p.duration = 1.05 + noise(seed + 8) * 1.35 + scale * .18;
+      p.size = (.11 + noise(seed + 9) * .34) * scale;
+      p.rotation.set(noise(seed + 10) * Math.PI, noise(seed + 11) * Math.PI, noise(seed + 12) * Math.PI);
+      p.spin.set((noise(seed + 13) - .5) * 12, (noise(seed + 14) - .5) * 12, (noise(seed + 15) - .5) * 12);
+      this.color.copy(this.cold).lerp(this.hot, .08 + noise(seed + 16) * .42);
+      this.mesh.setColorAt(index, this.color);
+    }
+    if (this.mesh.instanceColor) this.mesh.instanceColor.needsUpdate = true;
+  }
+
+  update(delta: number): void {
+    for (let i = 0; i < this.particles.length; i++) {
+      const p = this.particles[i];
+      p.age += delta;
+      const t = p.duration > 0 ? p.age / p.duration : 1;
+      if (t >= 1) {
+        this.dummy.scale.setScalar(0);
+      } else {
+        p.position.addScaledVector(p.velocity, delta);
+        p.velocity.multiplyScalar(Math.exp(-delta * 1.15));
+        p.velocity.y -= delta * 4.8;
+        p.rotation.x += p.spin.x * delta;
+        p.rotation.y += p.spin.y * delta;
+        p.rotation.z += p.spin.z * delta;
+        this.dummy.position.copy(p.position);
+        this.dummy.rotation.copy(p.rotation);
+        const lifeScale = p.size * (.92 - t * .36);
+        this.dummy.scale.set(lifeScale * 1.8, lifeScale * .58, lifeScale * .82);
+      }
+      this.dummy.updateMatrix();
+      this.mesh.setMatrixAt(i, this.dummy.matrix);
+    }
+    this.mesh.instanceMatrix.needsUpdate = true;
+  }
+
+  clear(): void {
+    for (const p of this.particles) { p.age = 1; p.duration = 0; }
+    this.dummy.scale.setScalar(0); this.dummy.updateMatrix();
+    for (let i = 0; i < this.particles.length; i++) this.mesh.setMatrixAt(i, this.dummy.matrix);
+    this.mesh.instanceMatrix.needsUpdate = true;
+  }
+
+  dispose(): void { this.mesh.dispose(); this.mesh.geometry.dispose(); this.mesh.material.dispose(); }
+}
+
 function createRibbon(enemy: boolean, playerMissile: boolean): SmokeRibbon {
   const samples = ARCADE_EFFECT_BUDGET.trailSamples;
   const positions = new Float32Array(samples * 2 * 3);
@@ -366,6 +461,7 @@ export class SkyDancerArcadeProductPresentation {
   private readonly smoke = new BurstPool(ARCADE_EFFECT_BUDGET.smoke, true);
   private readonly missileSmoke = new MissileSmokePool(ARCADE_EFFECT_BUDGET.missileSmoke);
   private readonly detonation = new DetonationPulsePool(ARCADE_EFFECT_BUDGET.detonationPulses);
+  private readonly debris = new DebrisPool(ARCADE_EFFECT_BUDGET.debris);
   private readonly pendingBursts: PendingBurst[] = [];
   private readonly missileSmokeLast = new Map<number, THREE.Vector3>();
   private readonly missilePoint = new THREE.Vector3();
@@ -398,11 +494,11 @@ export class SkyDancerArcadeProductPresentation {
     this.climaxRing.name = "arcade-climax-shock-ring-v51";
     this.climaxRing.visible = false;
     this.climaxRing.renderOrder = 998;
-    this.root.add(streaks, this.missileSmoke.mesh, this.smoke.mesh, this.sparks.mesh, this.detonation.flash, this.detonation.ring, this.climaxFlash, this.climaxRing); scene.add(this.root);
+    this.root.add(streaks, this.missileSmoke.mesh, this.smoke.mesh, this.sparks.mesh, this.debris.mesh, this.detonation.flash, this.detonation.ring, this.climaxFlash, this.climaxRing); scene.add(this.root);
   }
 
   setStage(): void {
-    this.clearTrails(); this.missileSmokeLast.clear(); this.missileSmoke.clear(); this.smoke.clear(); this.sparks.clear(); this.detonation.clear();
+    this.clearTrails(); this.missileSmokeLast.clear(); this.missileSmoke.clear(); this.smoke.clear(); this.sparks.clear(); this.debris.clear(); this.detonation.clear();
     this.pendingBursts.length = 0;
     this.climaxEnergy = 0; this.climaxPulse = 0; this.rushAccent = 0; this.bossArrival = 0;
     this.climaxFlash.visible = false; this.climaxMaterial.opacity = 0;
@@ -417,12 +513,14 @@ export class SkyDancerArcadeProductPresentation {
     const power = THREE.MathUtils.clamp(strength, .55, 1.8);
     this.sparks.emit(position, .48 + power * .28);
     this.smoke.emit(position, .22 + power * .2);
+    this.debris.emit(position, .26 + power * .08, 3, 1.35);
     this.detonation.emit(position, .62 + power * .38, 0, .22 + power * .055, .98);
     this.climaxEnergy = Math.max(this.climaxEnergy, .12 + power * .08);
   }
 
   emitSmallExplosion(position: THREE.Vector3, missileKill = false): void {
     this.emitBurst(position, missileKill ? .82 : .7);
+    this.debris.emit(position, missileKill ? .88 : .72, missileKill ? 13 : 9, missileKill ? 1.35 : .78);
     this.detonation.emit(position, missileKill ? 1.22 : 1.02, 0, .32, missileKill ? .96 : .68);
     if (missileKill) this.detonation.emit(position, .68, .045, .24, 1);
     this.climaxEnergy = Math.max(this.climaxEnergy, missileKill ? .34 : .24);
@@ -431,6 +529,7 @@ export class SkyDancerArcadeProductPresentation {
 
   emitHeavyExplosion(position: THREE.Vector3, missileKill = false): void {
     this.emitBurst(position, missileKill ? 1.24 : 1.08);
+    this.debris.emit(position, missileKill ? 1.28 : 1.12, missileKill ? 22 : 18, missileKill ? 1.42 : .9);
     this.detonation.emit(position, missileKill ? 1.9 : 1.62, 0, .42, missileKill ? .98 : .78);
     for (let i = 0; i < 2; i++) {
       const angle = i * 2.7 + .85;
@@ -447,6 +546,7 @@ export class SkyDancerArcadeProductPresentation {
 
   emitBossExplosion(position: THREE.Vector3, missileKill = false): void {
     this.emitBurst(position, missileKill ? 2.35 : 2.12);
+    this.debris.emit(position, missileKill ? 1.92 : 1.72, missileKill ? 38 : 32, missileKill ? 1.5 : 1.02);
     this.detonation.emit(position, missileKill ? 3.45 : 3.08, 0, .58, .98);
     for (let i = 0; i < 6; i++) {
       const angle = i * 2.399963 + .45;
@@ -501,6 +601,7 @@ export class SkyDancerArcadeProductPresentation {
     this.updateProjectileTrails(snapshot, delta);
     this.updatePendingBursts(delta);
     this.detonation.update(delta, camera);
+    this.debris.update(delta);
     this.updateClimax(delta, camera);
     this.missileSmoke.update(delta, camera);
     this.smoke.update(delta, camera); this.sparks.update(delta, camera);
@@ -635,7 +736,7 @@ export class SkyDancerArcadeProductPresentation {
   }
   dispose(): void {
     this.clearTrails(); this.missileSmokeLast.clear(); this.speedGeometry.dispose(); this.speedMaterial.dispose();
-    this.missileSmoke.dispose(); this.smoke.dispose(); this.sparks.dispose(); this.detonation.dispose(); this.climaxMaterial.dispose();
+    this.missileSmoke.dispose(); this.smoke.dispose(); this.sparks.dispose(); this.debris.dispose(); this.detonation.dispose(); this.climaxMaterial.dispose();
     this.climaxRing.geometry.dispose(); this.climaxRingMaterial.dispose();
     this.root.clear(); this.scene.remove(this.root);
   }
