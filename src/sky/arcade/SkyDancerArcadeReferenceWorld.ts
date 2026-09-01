@@ -100,17 +100,16 @@ export class SkyDancerArcadeReferenceWorld {
     }
     for(const cue of this.routeCues){
       const course=arcadeCourseRelativePose(this.stage,distance,cue.depth);
-      const yScale=cue.kind==="ice"?2.05:1;
-      // V10.2: open ice ribs preview the next vertical lane before the craft reaches it.
-      const iceCueLift=cue.kind==="ice" ? Math.sin(cue.phase*Math.PI/(2*.64))*18 : 0;
-      cue.group.position.set(course.x-playerX*.35,course.y*yScale+iceCueLift-playerY*.16,-cue.depth);
       const cueAhead=arcadeCourseRelativePose(this.stage,distance,cue.depth+24);
       const cueSlope=Math.atan2(cueAhead.y-course.y,24);
-      cue.group.rotation.y=course.yaw*(cue.kind==="ice"?1.18:1.1);
-      cue.group.rotation.x=cue.kind==="ice" ? course.pitch*1.5+cueSlope*1.45 : course.pitch*1.02;
+      // V10.3 background integrity: ice guide ribs stay physically tethered to the authored spline.
+      // The old independent +/-18m lift made ribs float through the cavern and read as broken geometry.
+      cue.group.position.set(course.x-playerX*.35,course.y-playerY*.16,-cue.depth);
+      cue.group.rotation.y=course.yaw*1.1;
+      cue.group.rotation.x=cue.kind==="ice" ? course.pitch*1.05+cueSlope*.9 : course.pitch*1.02;
       cue.group.rotation.z=cue.kind==="orbit"
         ? cue.phase+(distance+cue.depth)*.0068+course.bank*.24
-        : course.bank*(cue.kind==="ice"?.34:.3);
+        : course.bank*(cue.kind==="ice"?.26:.3);
     }
     if(this.iceRibbon)this.updateIceRibbon(distance,playerX,playerY);
     if(this.volcanoRibbon)this.updateVolcanoRibbon(distance,playerX,playerY);
@@ -139,8 +138,9 @@ export class SkyDancerArcadeReferenceWorld {
 
   private buildIceRibbon(stage:SkyDancerArcadeStageDefinition):void {
     this.iceRibbon={
-      outer:this.makeIceRibbonMesh(stage,16,"arcade-ice-course-fissure-outer",.34),
-      core:this.makeIceRibbonMesh(stage,3.2,"arcade-ice-course-fissure-core",.92),
+      // V10.3: a floor fissure, not a luminous road filling the foreground.
+      outer:this.makeIceRibbonMesh(stage,10.5,"arcade-ice-course-fissure-outer",.18),
+      core:this.makeIceRibbonMesh(stage,1.6,"arcade-ice-course-fissure-core",.62),
     };
   }
 
@@ -153,22 +153,22 @@ export class SkyDancerArcadeReferenceWorld {
       const half=width*.5;
       const samples=attribute.count/2;
       for(let i=0;i<samples;i++){
-        const depth=14+i*14.2;
+        const depth=30+i*13.8;
         const course=arcadeCourseRelativePose(stage,distance,depth);
         const cx=course.x-playerX*.35;
-        const cy=course.y-playerY*.16-20.6+lift;
+        const cy=course.y-playerY*.16-23.2+lift;
         const cz=-depth;
         const lateralX=Math.cos(course.yaw)*half;
         const lateralZ=-Math.sin(course.yaw)*half;
-        const bankY=course.bank*half*.2;
+        const bankY=course.bank*half*.12;
         const left=i*6,right=left+3;
         array[left]=cx-lateralX;array[left+1]=cy-bankY;array[left+2]=cz-lateralZ;
         array[right]=cx+lateralX;array[right+1]=cy+bankY;array[right+2]=cz+lateralZ;
       }
       attribute.needsUpdate=true;
     };
-    update(this.iceRibbon.outer,16,0);
-    update(this.iceRibbon.core,3.2,.09);
+    update(this.iceRibbon.outer,10.5,0);
+    update(this.iceRibbon.core,1.6,.07);
   }
 
   private makeVolcanoRibbonMesh(stage:SkyDancerArcadeStageDefinition,width:number,name:string,opacity:number):THREE.Mesh {
@@ -234,26 +234,27 @@ export class SkyDancerArcadeReferenceWorld {
     const primary=paint(stage.palette.primary);
     const secondary=paint(stage.palette.secondary);
     const glow=new THREE.MeshBasicMaterial({
-      color:stage.palette.accent,transparent:true,opacity:kind==="volcano"?.88:kind==="ice"?.76:.84,
+      color:stage.palette.accent,transparent:true,opacity:kind==="volcano"?.88:kind==="ice"?.5:.84,
       blending:THREE.AdditiveBlending,depthWrite:false,
     });
     const dark=paint(stage.palette.ground);
     const count=kind==="ice"?7:10;
     for(let i=0;i<count;i++){
       const cue=new THREE.Group();
-      const depth=kind==="ice"?26+i*52:26+i*43;
+      const depth=kind==="ice"?42+i*58:26+i*43;
       const phase=i*.64;
+      cue.userData.arcadeRouteDepth=depth;
       if(kind==="ice"){
         cue.name="arcade-ice-wave-cue";
         // V8.8: use broken, alternating ribs rather than seven complete hoops. The route stays readable,
         // but the player sees the canyon climb/dive instead of a repeated tunnel silhouette.
-        const radius=21+(i%3===0?-2.2:i%3===1?1.6:3.2);
-        const arc=Math.PI*(i%3===0?.56:i%3===1?.64:.5);
+        const radius=18+(i%3===0?-1.5:i%3===1?1.2:2.1);
+        const arc=Math.PI*(i%3===0?.44:i%3===1?.54:.48);
         const arch=mesh(cue,new THREE.TorusGeometry(radius,1.02,6,28,arc),i%2?secondary:primary,(i%2?1:-1)*3.8,-10.5,0);
         arch.name="arcade-ice-wave-arch";
         arch.rotation.z=(i%2?Math.PI*.12:Math.PI*.88)+(i%3-1)*.045;
         arch.rotation.y=(i%2?1:-1)*.06;
-        const inner=mesh(cue,new THREE.TorusGeometry(radius*.9,.34,5,24,arc*.78),glow,(i%2?1:-1)*3.2,-10.1,.18);
+        const inner=mesh(cue,new THREE.TorusGeometry(radius*.9,.24,5,24,arc*.72),glow,(i%2?1:-1)*3.2,-10.1,.18);
         inner.rotation.z=arch.rotation.z+(i%2?-.05:.05);
         for(const side of [-1,1]){
           const fang=mesh(cue,new THREE.ConeGeometry(1.05,6.2+(i%3)*.9,5),i%2?primary:secondary,side*(radius*.6+3),6.2+(i%2)*1.2,1);
@@ -586,10 +587,10 @@ export class SkyDancerArcadeReferenceWorld {
         }
         for(const side of [-1,1]){
           // Keep shoulders unnamed so the static geometry baker can merge them by material.
-          const shelf=mesh(group,new THREE.BoxGeometry(24,2.4,24),side<0?primary:secondary,side*34,13+(index%3-1)*3.5,-4);
+          const shelf=mesh(group,new THREE.BoxGeometry(18,1.8,18),side<0?primary:secondary,side*40,9+(index%3-1)*2.8,-6);
           shelf.rotation.z=side*(.08+(index%3)*.018);
           shelf.rotation.y=side*.04;
-          mesh(group,new THREE.BoxGeometry(21,.26,22),glow,side*34,11.9+(index%3-1)*3.5,-4);
+          mesh(group,new THREE.BoxGeometry(14.5,.2,16),glow,side*40,8.15+(index%3-1)*2.8,-6);
         }
         break;
       }

@@ -239,7 +239,7 @@ test("V8.8 ice cavern exposes its vertical canyon without repeated full-screen h
   assert.equal(arches.length, 7);
   for(const arch of arches){
     const parameters=(arch.geometry as THREE.TorusGeometry).parameters;
-    assert.ok(parameters.arc < Math.PI*.7, "ice guide ribs must stay broken/open rather than recreate a hoop tunnel");
+    assert.ok(parameters.arc < Math.PI*.58, "ice guide ribs must stay short/open rather than recreate a hoop tunnel");
   }
   const chunks=scene.children[0].children.filter((object)=>object.name.startsWith("arcade-course-chunk-"));
   assert.equal(chunks.length,8);
@@ -248,12 +248,20 @@ test("V8.8 ice cavern exposes its vertical canyon without repeated full-screen h
   const ys = cues.map((cue) => cue.position.y);
   const pitches = cues.map((cue) => cue.rotation.x);
   const xs = cues.map((cue) => cue.position.x);
-  assert.ok(Math.max(...ys)-Math.min(...ys)>28,
-    "ice tunnel ribs must visibly climb and dive through the cavern");
+  assert.ok(Math.max(...ys)-Math.min(...ys)>11,
+    "ice guide ribs must reveal the real authored climb/dive without an artificial floating wave");
   assert.ok(Math.max(...pitches)-Math.min(...pitches)>.28,
-    "ice tunnel ribs must rotate with the course pitch, not form a flat straight tube");
+    "ice tunnel ribs must rotate with the course slope, not form a flat straight tube");
   assert.ok(Math.max(...xs)-Math.min(...xs)>25,
-    "ice tunnel keeps its horizontal slalom while adding the vertical wave");
+    "ice tunnel keeps its horizontal slalom while following the real vertical course");
+  const auditDistance=ice.courseSpeed*10;
+  for(const cue of cues){
+    const depth=Number(cue.userData.arcadeRouteDepth);
+    assert.ok(depth>=42,"nearest ice guide must stay out of the camera/airframe foreground");
+    const authored=arcadeCourseRelativePose(ice,auditDistance,depth);
+    assert.ok(Math.abs(cue.position.y-authored.y)<1e-6,
+      "ice guide ribs must remain tethered to the actual course centre instead of floating independently");
+  }
   const fissure=scene.getObjectByName("arcade-ice-course-fissure-outer") as THREE.Mesh;
   const core=scene.getObjectByName("arcade-ice-course-fissure-core") as THREE.Mesh;
   assert.ok(fissure instanceof THREE.Mesh && core instanceof THREE.Mesh);
@@ -263,6 +271,15 @@ test("V8.8 ice cavern exposes its vertical canyon without repeated full-screen h
   for(let i=0;i<fissurePosition.count;i+=2)fissureY.push((fissurePosition.getY(i)+fissurePosition.getY(i+1))*.5);
   assert.ok(Math.max(...fissureY)-Math.min(...fissureY)>12,
     "continuous glacial fissure must reveal the upcoming climb/dive");
+  assert.ok(Number(fissure.userData.arcadeIceRibbonWidth)<=11,
+    "glacial fissure must stay narrow enough to read as a floor crack, not a luminous road");
+  const fissureMaterial=fissure.material as THREE.MeshBasicMaterial;
+  const coreMaterial=core.material as THREE.MeshBasicMaterial;
+  assert.ok(fissureMaterial.opacity<=.2 && coreMaterial.opacity<=.65,
+    "ice fissure glow must not wash out the foreground");
+  const firstCenterZ=(fissurePosition.getZ(0)+fissurePosition.getZ(1))*.5;
+  assert.ok(firstCenterZ<=-26,
+    "continuous fissure must begin far enough ahead to avoid clipping into the camera/airframe");
   world.dispose();
 });
 
