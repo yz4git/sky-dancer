@@ -1,0 +1,79 @@
+name: Arcade V11.4 Mastery Visual Audit
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/arcade-v114-mastery-audit-once.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.13.0
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Install isolated browser controller
+        run: |
+          rm -rf .audit-runtime
+          mkdir -p .audit-runtime
+          printf '{"private":true,"type":"commonjs"}\n' > .audit-runtime/package.json
+          npm install --prefix .audit-runtime --no-package-lock --no-save --ignore-scripts --no-audit --no-fund playwright-core@1.55.0
+      - name: Inject temporary audit bridge
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('src/sky/arcade/SkyDancerArcadeWebGLDemo.ts')
+          s = p.read_text()
+          needle = '    this.runtime = new SkyDancerArcadeRuntime(options);\n'
+          if needle not in s:
+              raise SystemExit('bridge hook missing')
+          p.write_text(s.replace(needle, needle + '    Object.assign(window, { __skyDancerV114AuditDemo: this });\n', 1))
+          PY
+      - name: Build audit target
+        run: npm run build:pages
+      - name: Start audit target
+        run: |
+          python3 -m http.server 4173 --bind 127.0.0.1 --directory out > /tmp/v114-http.log 2>&1 &
+          for i in {1..30}; do
+            if curl -fsS http://127.0.0.1:4173/ >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          cat /tmp/v114-http.log
+          exit 1
+      - name: Run V11.4 mastery audit
+        id: webgl
+        continue-on-error: true
+        env:
+          SKY_DANCER_CHROME_PATH: /usr/bin/google-chrome
+        run: node scripts/webgl-arcade-v114-mastery-audit.mjs
+      - name: Upload V11.4 audit
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sky-dancer-v114-mastery-${{ github.sha }}
+          path: artifacts/v114-mastery
+          if-no-files-found: warn
+          retention-days: 14
+      - name: Cleanup audit files
+        if: always()
+        run: |
+          git restore src/sky/arcade/SkyDancerArcadeWebGLDemo.ts || true
+          rm -rf .audit-runtime artifacts/v114-mastery
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git rm -f .github/workflows/arcade-v114-mastery-audit-once.yml scripts/webgl-arcade-v114-mastery-audit.mjs
+          git commit -m 'Remove V11.4 mastery audit files'
+          git push origin HEAD:main
+      - name: Enforce audit result
+        if: steps.webgl.outcome != 'success'
+        run: exit 1
