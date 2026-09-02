@@ -22,9 +22,11 @@ import { SkyDancerV50ColorScriptAtmospherePass } from "./SkyDancerV50ColorScript
 import { SkyDancerV51AircraftSilhouettePass } from "./SkyDancerV51AircraftSilhouettePass";
 import { SkyDancerV52CombatFxSpeedPass } from "./SkyDancerV52CombatFxSpeedPass";
 import { SkyDancerV53SetpieceEnvironmentDensityPass } from "./SkyDancerV53SetpieceEnvironmentDensityPass";
+import { finalizeSkyRaidReferencePresentation } from "../SkyDancerSkyRaidPresentationGuard";
 
 /** Stable modern presentation pipeline. */
 export class SkyDancerPresentationPipeline {
+  private readonly runtime: SkyDancerFxRuntime;
   private readonly v30: SkyDancerV30PresentationPass;
   private readonly v31: SkyDancerV31PresentationPass;
   private readonly v32: SkyDancerV32PresentationPass;
@@ -47,6 +49,7 @@ export class SkyDancerPresentationPipeline {
   private readonly v53: SkyDancerV53SetpieceEnvironmentDensityPass;
 
   constructor(runtime: SkyDancerFxRuntime) {
+    this.runtime = runtime;
     this.v30 = new SkyDancerV30PresentationPass(runtime);
     this.v31 = new SkyDancerV31PresentationPass(runtime);
     this.v32 = new SkyDancerV32PresentationPass(runtime);
@@ -92,5 +95,6 @@ export class SkyDancerPresentationPipeline {
     this.v51.update(snapshot);
     this.v52.update(snapshot);
     this.v53.update(snapshot);
+    finalizeSkyRaidReferencePresentation(this.runtime);
   }
 }

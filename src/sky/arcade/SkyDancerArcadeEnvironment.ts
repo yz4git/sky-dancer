@@ -17,6 +17,10 @@ export class SkyDancerArcadeEnvironment extends SkyDancerArcadeReferenceWorld {
     super(liveScene);
   }
 
+  setWorldFrame(x: number, y: number, z: number, yaw: number): void {
+    super.setWorldFrame(x, y, z, yaw);
+  }
+
   override setStage(stage: SkyDancerArcadeStageDefinition): void {
     super.setStage(stage);
     const carrier = this.liveScene.getObjectByName(REFERENCE_CARRIER_NAME);

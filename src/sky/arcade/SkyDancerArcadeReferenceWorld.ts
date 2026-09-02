@@ -120,6 +120,12 @@ export class SkyDancerArcadeReferenceWorld {
     this.root.name="arcade-course-environment";scene.add(this.root);
   }
 
+  setWorldFrame(x:number,y:number,z:number,yaw:number):void {
+    this.root.position.set(x,y,z);
+    this.root.rotation.set(0,yaw,0);
+    this.root.userData.skyRaidReferenceFrame=true;
+  }
+
   setStage(stage:SkyDancerArcadeStageDefinition):void {
     if(this.stage?.id===stage.id)return;
     disposeTree(this.root);this.water?.dispose();this.chunks.length=0;this.routeCues.length=0;this.iceRibbon=null;this.volcanoRibbon=null;this.cityRiver=null;this.cityBanks=null;this.terrainRibbon=null;this.backdrop=null;

@@ -82,9 +82,13 @@ export class SkyDancerWebGLDemo extends CartRogueWebGLDemo {
       object.visible = false;
     }
 
+    const legacyEnvironmentBefore = new Set(runtime.scene.children);
     this.buildTerrain150m(runtime.scene);
     this.buildCloudDeck(runtime.scene);
     this.buildAirspaceGuides(runtime.scene);
+    for (const object of runtime.scene.children) {
+      if (!legacyEnvironmentBefore.has(object)) object.userData.skyDancerLegacyEnvironment = true;
+    }
     this.replacePlayerWithFighter(runtime);
     this.replaceEnemiesWithFighters(runtime);
     this.missileRoot.name = "sky-dancer-missile-root";

@@ -483,7 +483,7 @@ function updateRaidVisuals(demo: RaidWebGLDemo, delta: number): void {
   visual.root.visible = false;
   visual.legacyLayers.forEach((layer) => { layer.visible = false; });
   const flight = applySkyRaidFlight(demo, delta);
-  visual.arcadeWorld.update(raid.actId, base.x, base.z, flight.altitude, raid.elapsedSeconds);
+  visual.arcadeWorld.update(raid.actId, base.x, base.z, base.heading, flight.altitude, raid.elapsedSeconds, delta);
 
   visual.speedFx.visible = base.boostActive || raid.rushActive;
   visual.speedFx.position.set(base.x, 1.8 + flight.altitude, base.z);
