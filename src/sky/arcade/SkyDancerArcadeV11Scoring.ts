@@ -15,10 +15,13 @@ export interface SkyDancerArcadeV11StagePerformance {
   noDamage: boolean;
 }
 
-export interface SkyDancerArcadeV11MedalResult {
+export interface SkyDancerArcadeV11MedalGoal {
   id: SkyDancerArcadeV11MedalId;
   label: string;
   description: string;
+}
+
+export interface SkyDancerArcadeV11MedalResult extends SkyDancerArcadeV11MedalGoal {
   earned: boolean;
   reward: number;
 }
@@ -53,6 +56,15 @@ const DEFINITIONS: Record<SkyDancerArcadeStageId, MedalDefinition> = {
   "orbital-ascent": { scoreTarget:19500, scoreLabel:"ORBIT ACE", signatureLabel:"SALVO MASTER", signatureDescription:"2 MULTI-LOCK KILLS", signature:p=>p.multiLockKills>=2 },
   "prism-citadel": { scoreTarget:24000, scoreLabel:"PRISM ACE", signatureLabel:"SOVEREIGN BREAKER", signatureDescription:"ARMOR BREAK + CHAIN ×4", signature:p=>p.armorBreaks>=1&&p.bestChain>=4 },
 };
+
+export function skyDancerArcadeV11StageMedalGoals(stageId: SkyDancerArcadeStageId): readonly SkyDancerArcadeV11MedalGoal[] {
+  const definition = DEFINITIONS[stageId];
+  return [
+    { id: "score", label: definition.scoreLabel, description: `COMBAT SCORE ${definition.scoreTarget.toLocaleString()}+` },
+    { id: "signature", label: definition.signatureLabel, description: definition.signatureDescription },
+    { id: "no-damage", label: "PERFECT SKY", description: "NO DAMAGE" },
+  ];
+}
 
 export function skyDancerArcadeV11StageMedals(stageId: SkyDancerArcadeStageId, performance: SkyDancerArcadeV11StagePerformance): readonly SkyDancerArcadeV11MedalResult[] {
   const definition = DEFINITIONS[stageId];

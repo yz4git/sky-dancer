@@ -210,3 +210,91 @@
 .v11Medals b,.v11Medals small{display:block}.v11Medals b{font-size:6px;letter-spacing:.07em;color:#ffe47c}.v11Medals small{margin-top:2px;font-size:5px;letter-spacing:.07em;color:rgba(255,255,255,.55)}
 .v11RouteHistory{margin:7px 0 10px;padding:7px;border:1px solid rgba(111,226,255,.18);border-radius:7px;background:rgba(5,17,34,.45)}.v11RouteHistory small,.v11RouteHistory strong{display:block}.v11RouteHistory small{font-size:5px;letter-spacing:.18em;color:#72e8ff}.v11RouteHistory strong{margin-top:3px;font-size:7px;letter-spacing:.08em;color:rgba(255,255,255,.82)}
 @media(max-height:480px){.v11ScoreBreakdown{margin:4px 0!important}.v11Medals{margin:3px 0 4px!important}.v11Medals span{padding:3px}.v11Medals small{display:none}}
+
+
+/* V11.4 — Practice Mastery Result */
+.v114PracticeMastery {
+  width: min(620px, 82vw);
+  display: grid;
+  grid-template-columns: .8fr 2.2fr 1fr;
+  gap: 7px;
+  margin: 7px auto 9px;
+}
+
+.v114PracticeMastery > div {
+  min-width: 0;
+  padding: 7px 8px;
+  border: 1px solid rgba(255,255,255,.13);
+  border-radius: 9px;
+  background: rgba(4,17,29,.72);
+  text-align: left;
+}
+
+.v114PracticeMastery > div:first-child small,
+.v114NextTarget small {
+  display: block;
+  color: #7fe6ff;
+  font-size: 6px;
+  font-weight: 1000;
+  letter-spacing: .16em;
+}
+
+.v114PracticeMastery > div:first-child strong,
+.v114NextTarget strong {
+  display: block;
+  margin-top: 2px;
+  color: white;
+  font-size: 15px;
+  line-height: 1;
+}
+
+.v114PracticeMastery > div:first-child span,
+.v114NextTarget span {
+  display: block;
+  margin-top: 3px;
+  color: rgba(255,255,255,.52);
+  font-size: 6px;
+  letter-spacing: .06em;
+}
+
+.v114PracticeGoals {
+  display: grid;
+  grid-template-columns: repeat(3,minmax(0,1fr));
+  gap: 4px;
+}
+
+.v114PracticeGoals > span {
+  min-width: 0;
+  padding: 5px 6px;
+  border: 1px solid rgba(255,255,255,.09);
+  border-radius: 7px;
+  opacity: .5;
+}
+
+.v114PracticeGoals > span[data-earned="true"] {
+  border-color: rgba(255,215,106,.4);
+  background: rgba(155,103,18,.2);
+  opacity: 1;
+}
+
+.v114PracticeGoals b,
+.v114PracticeGoals small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.v114PracticeGoals b { color: #fff0ac; font-size: 7px; }
+.v114PracticeGoals small { margin-top: 2px; color: rgba(255,255,255,.5); font-size: 6px; }
+.v114NextTarget { border-color: rgba(255,215,106,.26) !important; background: rgba(112,77,13,.2) !important; }
+.v114NextTarget[data-complete="true"] { border-color: rgba(111,255,200,.28) !important; background: rgba(23,102,76,.2) !important; }
+
+@media (max-height: 430px) {
+  .v114PracticeMastery { margin: 4px auto 5px; gap: 4px; }
+  .v114PracticeMastery > div { padding: 4px 5px; }
+  .v114PracticeGoals > span { padding: 3px 4px; }
+  .v114PracticeGoals small,
+  .v114PracticeMastery > div:first-child span,
+  .v114NextTarget span { display: none; }
+}

@@ -18,6 +18,7 @@ import {
 } from "../src/sky/arcade/SkyDancerArcadeRuntime";
 import { arcadeCoursePose } from "../src/sky/arcade/SkyDancerArcadeCoursePath";
 import { SkyDancerArcadePresentationDirector } from "../src/sky/arcade/SkyDancerArcadePresentationDirector";
+import { skyDancerArcadeV11StageMedalGoals } from "../src/sky/arcade/SkyDancerArcadeV11Scoring";
 
 test("arcade mode authors eleven distinct compact product sections", () => {
   assert.equal(SKY_DANCER_ARCADE_STAGES.length, 11);
@@ -605,4 +606,31 @@ test("V10.5.1 dynamic debris keeps independent motion instead of masquerading as
   assert.ok(moved, "debris remains during moving sample");
   const anchorAfter = after.distance + moved.depth;
   assert.ok(Math.abs(anchorAfter - anchorBefore) > 1, "dynamic debris retains motion independent from course scenery");
+});
+
+
+test("V11.4 exposes three persistent mastery goals for every practice stage", () => {
+  for (const stage of SKY_DANCER_ARCADE_STAGES) {
+    const goals = skyDancerArcadeV11StageMedalGoals(stage.id);
+    assert.equal(goals.length, 3, stage.id);
+    assert.deepEqual(goals.map((goal) => goal.id), ["score", "signature", "no-damage"]);
+    assert.equal(new Set(goals.map((goal) => goal.label)).size, 3, stage.id);
+    assert.ok(goals.every((goal) => goal.description.length > 0), stage.id);
+  }
+});
+
+test("V11.4 stage practice UI closes the mastery retry loop", async () => {
+  const [menu, mode, menuCss, productCss] = await Promise.all([
+    readFile(new URL("../app/CartGameMenu.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/SkyDancerArcadeMode.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/CartGameMenuModes.module.css", import.meta.url), "utf8"),
+    readFile(new URL("../app/SkyDancerArcadeProduct.module.css", import.meta.url), "utf8"),
+  ]);
+  assert.match(menu, /STAGE MASTERY/);
+  assert.match(menu, /NEXT TARGET/);
+  assert.match(menu, /practiceMedals/);
+  assert.match(mode, /v114PracticeMastery/);
+  assert.match(mode, /CHASE \${practiceNextTarget\.label}/);
+  assert.match(menuCss, /practiceMastery/);
+  assert.match(productCss, /v114PracticeGoals/);
 });

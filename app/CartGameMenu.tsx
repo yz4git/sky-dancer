@@ -22,6 +22,7 @@ import {
   type SkyDancerStartRequest,
 } from "../src/sky/arcade/SkyDancerArcadeData";
 import { loadSkyDancerArcadeProgress } from "../src/sky/arcade/SkyDancerArcadeProgress";
+import { skyDancerArcadeV11StageMedalGoals } from "../src/sky/arcade/SkyDancerArcadeV11Scoring";
 import styles from "./CartGameMenu.module.css";
 import modeStyles from "./CartGameMenuModes.module.css";
 import configStyles from "./CartGameMenuConfig.module.css";
@@ -178,12 +179,16 @@ export default function CartGameMenu({ started, activeMode, onStart, onReturnTit
     const hard = difficulty === "hard";
     const practiceAvailable = practiceStageIds.length > 0;
     const selectedStage = SKY_DANCER_ARCADE_STAGES.find((stage) => stage.id === practiceStageId);
+    const selectedStageRecord = selectedStage ? arcadeMeta.records[selectedStage.id] : undefined;
+    const selectedStageGoals = selectedStage ? skyDancerArcadeV11StageMedalGoals(selectedStage.id) : [];
+    const selectedMasteryCount = selectedStageGoals.filter((goal) => selectedStageRecord?.medals.includes(goal.id)).length;
+    const selectedNextGoal = selectedStageGoals.find((goal) => !selectedStageRecord?.medals.includes(goal.id));
     const modeSummary = selectedMode === "arcade-run"
       ? "BRANCHING FIXED COURSE · 7 SECTIONS · ABOUT 4 MINUTES"
       : selectedMode === "turbo-hunt"
         ? "HUNT THE RAID. BREAK THE LINE. KEEP MOVING."
         : selectedStage
-          ? `${selectedStage.name} · SCORE ATTACK PRACTICE`
+          ? `${selectedStage.name} · SCORE ATTACK · MASTERY ${selectedMasteryCount}/3`
           : "CLEAR AN ARCADE STAGE TO UNLOCK PRACTICE";
     const startLabel = selectedMode === "arcade-run"
       ? "START ARCADE RUN"
@@ -238,8 +243,29 @@ export default function CartGameMenu({ started, activeMode, onStart, onReturnTit
                   >
                     <small>{String(stage.order).padStart(2, "0")}</small>
                     <strong>{stage.shortName}</strong>
+                    <span className={modeStyles.practiceMedals} aria-label={`${arcadeMeta.records[stage.id]?.medals.length ?? 0} of 3 medals`}>
+                      {"◆".repeat(arcadeMeta.records[stage.id]?.medals.length ?? 0)}{"◇".repeat(3 - (arcadeMeta.records[stage.id]?.medals.length ?? 0))}
+                    </span>
                   </button>
                 ))}
+              </div>
+              <div className={modeStyles.practiceMastery} aria-label="Selected stage mastery">
+                <div className={modeStyles.practiceRecord}>
+                  <span>STAGE MASTERY</span>
+                  <strong>{selectedMasteryCount}/3 · BEST {selectedStageRecord?.bestRank ?? "-"}</strong>
+                  <small>{selectedStageRecord ? `SCORE ${selectedStageRecord.bestScore.toLocaleString()} · CLEAR ×${selectedStageRecord.clears}` : "NO RECORD"}</small>
+                </div>
+                <div className={modeStyles.practiceGoals}>
+                  {selectedStageGoals.map((goal) => {
+                    const earned = selectedStageRecord?.medals.includes(goal.id) ?? false;
+                    return <span key={goal.id} data-earned={earned}><b>{earned ? "◆" : "◇"} {goal.label}</b><small>{goal.description}</small></span>;
+                  })}
+                </div>
+                <div className={modeStyles.practiceNextTarget} data-complete={!selectedNextGoal}>
+                  <span>{selectedNextGoal ? "NEXT TARGET" : "STAGE MASTERED"}</span>
+                  <strong>{selectedNextGoal?.label ?? "ALL 3 MEDALS COMPLETE"}</strong>
+                  <small>{selectedNextGoal?.description ?? "PUSH THE BEST SCORE HIGHER"}</small>
+                </div>
               </div>
             </div>
           )}
@@ -266,7 +292,7 @@ export default function CartGameMenu({ started, activeMode, onStart, onReturnTit
               ? `GAS = LIFE · RECOVERY CELLS RESTORE GAS · ZERO GAS = GAME OVER${hard ? " · HARD RAID HITS DEAL HEAVY LIFE DAMAGE" : ""}`
               : selectedMode === "arcade-run"
                 ? `2 CONTINUES · ROUTE GATES CHANGE THE RUN · BEST ${arcadeMeta.bestRunScore} ${arcadeMeta.bestRunRank} · BOSS ${arcadeMeta.totalBossKills} · CHAIN ×${arcadeMeta.bestChain} · UNLOCKS ${arcadeMeta.unlockedPaintSchemes.length + arcadeMeta.unlockedLoadouts.length}${hard ? " · ACE ENEMIES FIRE FASTER AND HIT HARDER" : ""}`
-                : `SINGLE STAGE · RECORD ATTACK${hard ? " · ACE DIFFICULTY" : ""}`}
+                : `SINGLE STAGE · BEST ${selectedStageRecord?.bestScore ?? 0} ${selectedStageRecord?.bestRank ?? "D"} · MASTERY ${selectedMasteryCount}/3${selectedNextGoal ? ` · NEXT ${selectedNextGoal.label}` : " · MASTERED"}${hard ? " · ACE DIFFICULTY" : ""}`}
           </div>
           <button className={`${styles.startButton} ${modeStyles.compactStart} ${hard ? styles.startButtonHard : ""}`} onClick={() => startGame()}>
             <strong>{startLabel}</strong>

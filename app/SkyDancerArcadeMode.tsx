@@ -14,6 +14,7 @@ import { skyDancerArcadeStageById } from "../src/sky/arcade/SkyDancerArcadeData"
 import { normalizeArcadeStick } from "../src/sky/arcade/SkyDancerArcadeInput";
 import { SkyDancerArcadeCanvasDemo } from "../src/sky/arcade/SkyDancerArcadeCanvasDemo";
 import {
+  loadSkyDancerArcadeProgress,
   recordSkyDancerArcadeRunClear,
   recordSkyDancerArcadeStageClear,
 } from "../src/sky/arcade/SkyDancerArcadeProgress";
@@ -352,6 +353,11 @@ export default function SkyDancerArcadeMode({ request, onReturnTitle }: SkyDance
   const missileDanger = incomingMissiles.some((projectile) => projectile.depth < 17);
   const controlsVisible = snapshot.status === "running";
   const finalOverlay = snapshot.status === "run-clear" || snapshot.status === "practice-clear" || snapshot.status === "game-over";
+  const persistedPracticeMedals = runtimeOptions.mode === "stage-practice" && runtimeOptions.startStageId
+    ? loadSkyDancerArcadeProgress().records[runtimeOptions.startStageId]?.medals ?? []
+    : [];
+  const practiceMasteryCount = snapshot.lastStageMedals.filter((medal) => persistedPracticeMedals.includes(medal.id) || medal.earned).length;
+  const practiceNextTarget = snapshot.lastStageMedals.find((medal) => !persistedPracticeMedals.includes(medal.id) && !medal.earned);
 
   return (
     <main className={`${styles.shell} ${productStyles.productShell}`} onContextMenu={(event) => event.preventDefault()}>
@@ -469,7 +475,7 @@ export default function SkyDancerArcadeMode({ request, onReturnTitle }: SkyDance
           </>
         )}
 
-        <span className={productStyles.rendererBadge}>{rendererName === "WEBGL" ? "3D FLIGHT · V11 ARCADE EVOLUTION" : "COMPATIBILITY · CANVAS · V11"}</span>
+        <span className={productStyles.rendererBadge}>{rendererName === "WEBGL" ? "3D FLIGHT · V11.4 MASTERY LOOP" : "COMPATIBILITY · CANVAS · V11.4"}</span>
         {runtimeMessage && <div className={styles.runtimeMessage}>{runtimeMessage}</div>}
 
         {snapshot.status === "stage-clear" && (
@@ -519,7 +525,19 @@ export default function SkyDancerArcadeMode({ request, onReturnTitle }: SkyDance
                 <span><small>BEST CHAIN</small><b>×{snapshot.bestChain}</b></span>
               </div>
               {snapshot.route.length > 1 && <div className={productStyles.v11RouteHistory}><small>FLIGHT ROUTE</small><strong>{snapshot.route.map(id => skyDancerArcadeStageById(id).shortName).join(" → ")}</strong></div>}
-              <button onClick={restart}><strong>{snapshot.mode === "stage-practice" ? "RETRY STAGE" : "NEW ARCADE RUN"}</strong><span>FLY AGAIN</span></button>
+              {snapshot.mode === "stage-practice" && snapshot.status === "practice-clear" && snapshot.lastStageMedals.length > 0 && (
+                <div className={productStyles.v114PracticeMastery} aria-label="Stage mastery result">
+                  <div><small>STAGE MASTERY</small><strong>{practiceMasteryCount}/3</strong><span>{practiceMasteryCount === 3 ? "MASTERED" : "KEEP FLYING"}</span></div>
+                  <div className={productStyles.v114PracticeGoals}>
+                    {snapshot.lastStageMedals.map((medal) => {
+                      const mastered = persistedPracticeMedals.includes(medal.id) || medal.earned;
+                      return <span key={medal.id} data-earned={mastered}><b>{mastered ? "◆" : "◇"} {medal.label}</b><small>{medal.description}</small></span>;
+                    })}
+                  </div>
+                  <div className={productStyles.v114NextTarget} data-complete={!practiceNextTarget}><small>{practiceNextTarget ? "NEXT TARGET" : "STAGE MASTERED"}</small><strong>{practiceNextTarget?.label ?? "ALL MEDALS COMPLETE"}</strong><span>{practiceNextTarget?.description ?? "CHASE A NEW HIGH SCORE"}</span></div>
+                </div>
+              )}
+              <button onClick={restart}><strong>{snapshot.mode === "stage-practice" ? "RETRY STAGE" : "NEW ARCADE RUN"}</strong><span>{snapshot.mode === "stage-practice" && practiceNextTarget ? `CHASE ${practiceNextTarget.label}` : "FLY AGAIN"}</span></button>
               <button className={styles.secondaryButton} onClick={onReturnTitle}>BACK TO TITLE</button>
             </div>
           </div>

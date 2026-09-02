@@ -237,3 +237,125 @@
     flex-direction: row;
   }
 }
+
+
+/* V11.4 — Stage Mastery Loop */
+.practiceMedals {
+  display: block;
+  margin-top: 2px;
+  color: #ffd76a;
+  font-size: 7px;
+  letter-spacing: .08em;
+  white-space: nowrap;
+}
+
+.practiceMastery {
+  display: grid;
+  grid-template-columns: 1fr 2.25fr 1.15fr;
+  gap: 7px;
+  margin-top: 7px;
+  padding-top: 7px;
+  border-top: 1px solid rgba(116, 225, 255, .14);
+  text-align: left;
+}
+
+.practiceRecord,
+.practiceNextTarget {
+  min-width: 0;
+  padding: 7px 8px;
+  border: 1px solid rgba(255,255,255,.12);
+  border-radius: 9px;
+  background: rgba(255,255,255,.035);
+}
+
+.practiceRecord span,
+.practiceNextTarget span {
+  display: block;
+  color: #7fe5ff;
+  font-size: 6px;
+  font-weight: 1000;
+  letter-spacing: .15em;
+}
+
+.practiceRecord strong,
+.practiceNextTarget strong {
+  display: block;
+  margin-top: 3px;
+  overflow: hidden;
+  color: #fff;
+  font-size: 8px;
+  letter-spacing: .05em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.practiceRecord small,
+.practiceNextTarget small {
+  display: block;
+  margin-top: 2px;
+  color: rgba(255,255,255,.52);
+  font-size: 6px;
+  line-height: 1.25;
+}
+
+.practiceGoals {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0,1fr));
+  gap: 5px;
+}
+
+.practiceGoals > span {
+  min-width: 0;
+  padding: 6px 7px;
+  border: 1px solid rgba(255,255,255,.1);
+  border-radius: 8px;
+  background: rgba(3,14,24,.42);
+  opacity: .56;
+}
+
+.practiceGoals > span[data-earned="true"] {
+  border-color: rgba(255,215,106,.42);
+  background: rgba(157,105,22,.2);
+  opacity: 1;
+}
+
+.practiceGoals b,
+.practiceGoals small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.practiceGoals b {
+  color: #fff1b0;
+  font-size: 7px;
+  letter-spacing: .04em;
+}
+
+.practiceGoals small {
+  margin-top: 3px;
+  color: rgba(255,255,255,.54);
+  font-size: 6px;
+}
+
+.practiceNextTarget {
+  border-color: rgba(255,215,106,.25);
+  background: linear-gradient(145deg, rgba(116,80,13,.18), rgba(3,14,24,.36));
+}
+
+.practiceNextTarget[data-complete="true"] {
+  border-color: rgba(111,255,200,.28);
+  background: rgba(24,105,78,.18);
+}
+
+@media (max-height: 560px) {
+  .practiceMastery { gap: 5px; margin-top: 5px; padding-top: 5px; }
+  .practiceRecord, .practiceNextTarget { padding: 4px 6px; }
+  .practiceGoals > span { padding: 4px 5px; }
+  .practiceRecord small, .practiceNextTarget small, .practiceGoals small { display: none; }
+}
+
+@media (orientation: portrait) {
+  .practiceMastery { grid-template-columns: 1fr; }
+}
