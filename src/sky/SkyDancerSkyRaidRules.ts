@@ -79,8 +79,8 @@ export function skyDancerSkyRaidKillScore(chain: number, turbo: boolean, rush: b
   const safeChain = Math.max(1, Math.floor(chain));
   const chainMultiplier = 1 + Math.min(9, safeChain - 1) * 0.15;
   const turboMultiplier = turbo ? 1.35 : 1;
-  const rushMultiplier = rush ? 2 : 1;
-  return Math.round(100 * chainMultiplier * turboMultiplier * rushMultiplier);
+  const resolvedKillScore = Math.round(100 * chainMultiplier * turboMultiplier);
+  return rush ? resolvedKillScore * 2 : resolvedKillScore;
 }
 
 export function skyDancerSkyRaidMultiplier(chain: number, rush: boolean): number {
