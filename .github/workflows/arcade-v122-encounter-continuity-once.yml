@@ -21,7 +21,9 @@ jobs:
       - name: Install dependencies
         run: npm ci --no-audit --no-fund
       - name: Apply V12.2 continuity patch
-        run: python3 scripts/patch-arcade-v122-encounter-continuity.py
+        run: |
+          python3 scripts/patch-arcade-v122-encounter-continuity.py
+          python3 scripts/patch-arcade-v122-continuity-lane-fix.py
       - name: Run arcade rule regression
         run: npm run test:rules
       - name: Run arcade contract checks
@@ -39,6 +41,6 @@ jobs:
           git push origin HEAD:main
       - name: Cleanup one-shot implementation files
         run: |
-          git rm -f scripts/patch-arcade-v122-encounter-continuity.py .github/workflows/arcade-v122-encounter-continuity-once.yml
+          git rm -f scripts/patch-arcade-v122-encounter-continuity.py scripts/patch-arcade-v122-continuity-lane-fix.py .github/workflows/arcade-v122-encounter-continuity-once.yml
           git commit -m 'Remove V12.2 implementation files'
           git push origin HEAD:main
