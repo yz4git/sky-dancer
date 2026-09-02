@@ -25,6 +25,63 @@ jobs:
       - run: npm ci
       - name: Apply V11.4 mastery loop
         run: python .github/v114_apply.py
+      - name: Make mastery state lint-safe
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('app/SkyDancerArcadeMode.tsx')
+          t = p.read_text()
+          def rep(old, new):
+              global t
+              if old not in t:
+                  raise SystemExit('missing lint fix anchor: ' + old[:80])
+              t = t.replace(old, new, 1)
+          rep('import type { SkyDancerArcadeV11MedalId } from "../src/sky/arcade/SkyDancerArcadeV11Scoring";\n', '')
+          rep('  const [stick, setStick] = useState({ x: 0, y: 0 });\n  const [masteredMedals, setMasteredMedals] = useState<SkyDancerArcadeV11MedalId[]>([]);\n', '  const [stick, setStick] = useState({ x: 0, y: 0 });\n')
+          rep('''    setRendererName("WEBGL");
+    setRuntimeMessage(null);
+    if (runtimeOptions.mode === "stage-practice" && runtimeOptions.startStageId) {
+      setMasteredMedals(loadSkyDancerArcadeProgress().records[runtimeOptions.startStageId]?.medals ?? []);
+    } else {
+      setMasteredMedals([]);
+    }
+    mount.replaceChildren();
+''', '''    setRendererName("WEBGL");
+    setRuntimeMessage(null);
+    mount.replaceChildren();
+''')
+          rep('''    const progress = recordSkyDancerArcadeStageClear(
+      snapshot.lastClearedStageId,
+      snapshot.lastStageScore,
+      snapshot.lastStageRank,
+      snapshot.lastStageNoDamage,
+      snapshot.lastStageMedals.filter(medal => medal.earned).map(medal => medal.id),
+    );
+    setMasteredMedals(progress.records[snapshot.lastClearedStageId]?.medals ?? []);
+''', '''    recordSkyDancerArcadeStageClear(
+      snapshot.lastClearedStageId,
+      snapshot.lastStageScore,
+      snapshot.lastStageRank,
+      snapshot.lastStageNoDamage,
+      snapshot.lastStageMedals.filter(medal => medal.earned).map(medal => medal.id),
+    );
+''')
+          rep('''  const controlsVisible = snapshot.status === "running";
+  const finalOverlay = snapshot.status === "run-clear" || snapshot.status === "practice-clear" || snapshot.status === "game-over";
+  const practiceMasteryCount = snapshot.lastStageMedals.filter((medal) => masteredMedals.includes(medal.id) || medal.earned).length;
+  const practiceNextTarget = snapshot.lastStageMedals.find((medal) => !masteredMedals.includes(medal.id) && !medal.earned);
+''', '''  const controlsVisible = snapshot.status === "running";
+  const finalOverlay = snapshot.status === "run-clear" || snapshot.status === "practice-clear" || snapshot.status === "game-over";
+  const persistedPracticeMedals = runtimeOptions.mode === "stage-practice" && runtimeOptions.startStageId
+    ? loadSkyDancerArcadeProgress().records[runtimeOptions.startStageId]?.medals ?? []
+    : [];
+  const practiceMasteryCount = snapshot.lastStageMedals.filter((medal) => persistedPracticeMedals.includes(medal.id) || medal.earned).length;
+  const practiceNextTarget = snapshot.lastStageMedals.find((medal) => !persistedPracticeMedals.includes(medal.id) && !medal.earned);
+''')
+          t = t.replace('masteredMedals.includes(medal.id) || medal.earned', 'persistedPracticeMedals.includes(medal.id) || medal.earned')
+          p.write_text(t)
+          PY
       - name: Regression tests
         run: npm run test:rules
       - name: Arcade checks
@@ -38,6 +95,6 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add src/sky/arcade/SkyDancerArcadeV11Scoring.ts app/CartGameMenu.tsx app/CartGameMenuModes.module.css app/SkyDancerArcadeMode.tsx app/SkyDancerArcadeProduct.module.css tests/sky-arcade-run.test.ts
-          git rm -f .github/v114_apply.py .github/v114-trigger.txt .github/workflows/arcade-v114-execute.yml .github/workflows/arcade-v114-mastery-loop-once.yml
+          git rm -f .github/v114_apply.py .github/v114-trigger.txt .github/workflows/arcade-v114-execute.yml .github/workflows/arcade-v114-execute-v2.yml .github/workflows/arcade-v114-mastery-loop-once.yml
           git commit -m "Arcade Run V11.4: close the stage mastery loop"
           git push origin HEAD:main
