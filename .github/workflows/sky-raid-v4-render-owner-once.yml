@@ -1,0 +1,168 @@
+name: SKY RAID V4 single Arcade render owner
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/sky-raid-v4-render-owner-once.yml'
+permissions:
+  contents: write
+jobs:
+  implement:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.13.0
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Make Arcade environment the only SKY RAID world owner
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          p = Path('src/sky/presentation/SkyDancerPresentationPipeline.ts')
+          s = p.read_text()
+          marker = '  update(snapshot: CartArenaSessionSnapshot): void {\n'
+          if marker not in s:
+              raise SystemExit('pipeline update marker missing')
+          start = s.index(marker)
+          end = s.index('\n  }\n}', start) + len('\n  }')
+          replacement = '''  update(snapshot: CartArenaSessionSnapshot): void {
+    const skyRaid = typeof document !== "undefined" && document.documentElement.dataset.skyDancerMode === "sky-raid";
+    if (skyRaid) {
+      // SKY RAID owns its environment through the real Arcade Run renderer.
+      // Keep only aircraft/combat/readability passes here. Environment passes
+      // used to re-enable the old green terrain and pale V36 city every frame.
+      this.v37.update(snapshot);
+      this.v42.update(snapshot);
+      this.v43.update(snapshot);
+      this.v44.update(snapshot);
+      this.v45.update(snapshot);
+      this.v48.update(snapshot);
+      this.v51.update(snapshot);
+      this.v52.update(snapshot);
+      finalizeSkyRaidReferencePresentation(this.runtime);
+      return;
+    }
+    this.v30.update(snapshot);
+    this.v31.update(snapshot);
+    this.v32.update(snapshot);
+    this.v34.update(snapshot);
+    this.v35.update(snapshot);
+    this.v36.update(snapshot);
+    this.v37.update(snapshot);
+    this.v38.update(snapshot);
+    this.v40.update(snapshot);
+    this.v41Terrain.update(snapshot);
+    this.v42.update(snapshot);
+    this.v43.update(snapshot);
+    this.v44.update(snapshot);
+    this.v45.update(snapshot);
+    this.v47.update(snapshot);
+    this.v48.update(snapshot);
+    this.v50.update(snapshot);
+    this.v51.update(snapshot);
+    this.v52.update(snapshot);
+    this.v53.update(snapshot);
+  }'''
+          p.write_text(s[:start] + replacement + s[end:])
+
+          p = Path('src/sky/SkyDancerWebGLDemo.ts')
+          s = p.read_text()
+          old = '''    const legacyEnvironmentBefore = new Set(runtime.scene.children);
+    this.buildTerrain150m(runtime.scene);
+    this.buildCloudDeck(runtime.scene);
+    this.buildAirspaceGuides(runtime.scene);
+    for (const object of runtime.scene.children) {
+      if (!legacyEnvironmentBefore.has(object)) object.userData.skyDancerLegacyEnvironment = true;
+    }
+    this.replacePlayerWithFighter(runtime);'''
+          new = '''    const skyRaidMode = typeof document !== "undefined" && document.documentElement.dataset.skyDancerMode === "sky-raid";
+    if (!skyRaidMode) {
+      const legacyEnvironmentBefore = new Set(runtime.scene.children);
+      this.buildTerrain150m(runtime.scene);
+      this.buildCloudDeck(runtime.scene);
+      this.buildAirspaceGuides(runtime.scene);
+      for (const object of runtime.scene.children) {
+        if (!legacyEnvironmentBefore.has(object)) object.userData.skyDancerLegacyEnvironment = true;
+      }
+    } else {
+      const arcadeRoot = runtime.scene.getObjectByName("arcade-course-environment");
+      if (arcadeRoot) arcadeRoot.visible = true;
+      runtime.scene.userData.skyRaidSkippedLegacyThemeWorld = true;
+    }
+    this.replacePlayerWithFighter(runtime);'''
+          if old not in s:
+              raise SystemExit('theme world block marker missing')
+          p.write_text(s.replace(old, new, 1))
+
+          p = Path('src/sky/SkyDancerSkyRaidPresentationGuard.ts')
+          s = p.read_text()
+          old = '''    const scene = runtime.scene;
+    const arcadeRoot = scene.getObjectByName("arcade-course-environment");
+    if (!arcadeRoot) return;'''
+          new = '''    const scene = runtime.scene;
+    const arcadeRoot = scene.getObjectByName("arcade-course-environment");
+    if (typeof document !== "undefined") {
+      document.documentElement.dataset.skyRaidReferenceGuard = arcadeRoot ? "active" : "missing-root";
+    }
+    if (!arcadeRoot) return;'''
+          if old not in s:
+              raise SystemExit('guard root marker missing')
+          s = s.replace(old, new, 1)
+          old = '    scene.userData.skyRaidReferencePresentationFinalized = true;'
+          new = '''    scene.userData.skyRaidReferencePresentationFinalized = true;
+    if (typeof document !== "undefined") {
+      document.documentElement.dataset.skyRaidReferenceFinalized = "true";
+    }'''
+          if old not in s:
+              raise SystemExit('guard finalized marker missing')
+          p.write_text(s.replace(old, new, 1))
+
+          p = Path('app/CartRogueGame.module.css')
+          s = p.read_text()
+          rule = ''':global(html[data-sky-dancer-mode="sky-raid"]) .topHud,
+:global(html[data-sky-dancer-mode="sky-raid"]) .bottomHud,
+:global(html[data-sky-dancer-mode="sky-raid"]) .rendererBadge{display:none!important}
+'''
+          if 'data-sky-dancer-mode="sky-raid"' not in s:
+              p.write_text(rule + s)
+          PY
+      - name: Add regression checks
+        run: |
+          cat > tests/sky-sky-raid-render-owner.test.ts <<'EOF'
+          import assert from "node:assert/strict";
+          import test from "node:test";
+          import { readFile } from "node:fs/promises";
+          test("SKY RAID skips legacy environment pass updates", async () => {
+            const source = await readFile(new URL("../src/sky/presentation/SkyDancerPresentationPipeline.ts", import.meta.url), "utf8");
+            const branch = source.slice(source.indexOf("if (skyRaid)"), source.indexOf("return;", source.indexOf("if (skyRaid)")));
+            assert.doesNotMatch(branch, /v36\.update|v41Terrain\.update|v47\.update|v50\.update|v53\.update/);
+            assert.match(branch, /v37\.update/);
+            assert.match(branch, /v52\.update/);
+            assert.match(branch, /finalizeSkyRaidReferencePresentation/);
+          });
+          test("SKY RAID does not build the old theme terrain", async () => {
+            const source = await readFile(new URL("../src/sky/SkyDancerWebGLDemo.ts", import.meta.url), "utf8");
+            assert.match(source, /if \(!skyRaidMode\)/);
+            assert.match(source, /skyRaidSkippedLegacyThemeWorld/);
+          });
+          EOF
+          node --import tsx --test tests/sky-sky-raid-render-owner.test.ts tests/sky-sky-raid-reference-world.test.ts tests/sky-sky-raid-flight.test.ts
+          npm run test:fast
+          npm run lint
+          npm run build:pages
+      - name: Commit and self-delete
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add src app tests
+          git commit -m "Make Arcade Run the sole SKY RAID world renderer"
+          git push origin main
+          git rm .github/workflows/sky-raid-v4-render-owner-once.yml
+          git commit -m "Remove SKY RAID V4 one-shot workflow"
+          git push origin main
