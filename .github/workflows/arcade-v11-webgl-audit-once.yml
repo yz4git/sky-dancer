@@ -1,0 +1,67 @@
+name: Arcade V11 WebGL Audit Once
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/arcade-v11-webgl-audit-once.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.13.0
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Install isolated browser controller
+        run: |
+          rm -rf .audit-runtime
+          mkdir -p .audit-runtime
+          printf '{"private":true,"type":"commonjs"}\n' > .audit-runtime/package.json
+          npm install --prefix .audit-runtime --no-package-lock --no-save --ignore-scripts --no-audit --no-fund playwright-core@1.55.0
+      - name: Inject temporary V11 audit bridge
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('src/sky/arcade/SkyDancerArcadeWebGLDemo.ts')
+          s=p.read_text(); n='    this.runtime = new SkyDancerArcadeRuntime(options);\n'
+          if n not in s: raise SystemExit('bridge hook missing')
+          p.write_text(s.replace(n,n+'    Object.assign(window, { __skyDancerV11AuditDemo: this });\n',1))
+          PY
+      - run: npm run build:pages
+      - name: Start audit target
+        run: |
+          python3 -m http.server 4173 --bind 127.0.0.1 --directory out > /tmp/v11-http.log 2>&1 &
+          for i in {1..30}; do if curl -fsS http://127.0.0.1:4173/ >/dev/null; then exit 0; fi; sleep 1; done
+          cat /tmp/v11-http.log; exit 1
+      - name: Verify V11 course beats and signature setpieces
+        env:
+          SKY_DANCER_CHROME_PATH: /usr/bin/google-chrome
+        run: node scripts/webgl-arcade-v11-audit.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: sky-dancer-v11-webgl-${{ github.sha }}
+          path: artifacts/v11-webgl
+          if-no-files-found: warn
+          retention-days: 14
+      - name: Cleanup audit files
+        if: always()
+        shell: bash
+        run: |
+          git restore src/sky/arcade/SkyDancerArcadeWebGLDemo.ts || true
+          rm -rf .audit-runtime artifacts/v11-webgl
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git rm .github/workflows/arcade-v11-webgl-audit-once.yml scripts/webgl-arcade-v11-audit.mjs
+          git commit -m 'Remove V11 WebGL audit files'
+          git push origin HEAD:main
