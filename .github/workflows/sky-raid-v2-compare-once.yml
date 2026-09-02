@@ -1,4 +1,4 @@
-# V3 post-integration visual recheck
+# V4 single-world-owner visual recheck
 name: SKY RAID V2 visual compare
 on:
   push:
