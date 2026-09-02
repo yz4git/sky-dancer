@@ -21,6 +21,8 @@ import {
   type SkyDancerSkyRaidPalette,
 } from "./SkyDancerSkyRaidRules";
 import type { RallyInputState } from "../rally/RallyTypes";
+import { SkyDancerSkyRaidFlightController, type SkyDancerSkyRaidFlightSnapshot } from "./SkyDancerSkyRaidFlight";
+import { SkyDancerSkyRaidArcadeWorld } from "./SkyDancerSkyRaidArcadeWorld";
 
 export interface SkyDancerSkyRaidSnapshot {
   gameMode: "sky-raid";
@@ -78,8 +80,12 @@ interface RaidState {
 interface RaidWebGLDemo {
   session: CartArenaSession;
   scene: THREE.Scene;
+  camera: THREE.PerspectiveCamera;
+  playerVisual: THREE.Group;
+  steer: number;
   buildWorld(): void;
   updateVisuals(delta: number): void;
+  setVertical?(value: number): void;
 }
 
 interface RaidCanvasDemo {
@@ -93,6 +99,8 @@ interface RaidVisualState {
   root: THREE.Group;
   actGroups: THREE.Group[];
   speedFx: THREE.Group;
+  arcadeWorld: SkyDancerSkyRaidArcadeWorld;
+  legacyLayers: THREE.Object3D[];
   lastActIndex: number;
   anchorX: number;
   anchorZ: number;
@@ -101,6 +109,7 @@ interface RaidVisualState {
 
 const raidStateBySession = new WeakMap<object, RaidState>();
 const raidVisualByDemo = new WeakMap<object, RaidVisualState>();
+const raidFlightByDemo = new WeakMap<object, SkyDancerSkyRaidFlightController>();
 let latestSkyRaidSnapshot: SkyDancerSkyRaidSnapshot | null = null;
 
 export const SKY_DANCER_SKY_RAID_SNAPSHOT_EVENT = "sky-dancer-sky-raid-snapshot";
@@ -117,6 +126,48 @@ function publishSkyRaidWorldStyle(snapshot: SkyDancerSkyRaidSnapshot): void {
   if (typeof document === "undefined") return;
   document.documentElement.dataset.skyRaidAct = snapshot.actId;
   document.documentElement.dataset.skyRaidWorldStyle = skyDancerSkyRaidWorldStyle(snapshot.actId);
+}
+
+function flightControllerFor(demo: RaidWebGLDemo): SkyDancerSkyRaidFlightController {
+  const key = demo as unknown as object;
+  const current = raidFlightByDemo.get(key);
+  if (current) return current;
+  const controller = new SkyDancerSkyRaidFlightController();
+  raidFlightByDemo.set(key, controller);
+  return controller;
+}
+
+const LEGACY_SKY_RAID_GRAPHIC_PREFIXES = [
+  "sky-dancer-v35-",
+  "sky-dancer-v38-",
+  "sky-dancer-v47-",
+  "sky-dancer-v53-",
+] as const;
+
+function collectLegacyRaidLayers(scene: THREE.Scene): THREE.Object3D[] {
+  const layers: THREE.Object3D[] = [];
+  scene.traverse((object) => {
+    const sphereRadius = object instanceof THREE.Mesh && object.geometry instanceof THREE.SphereGeometry
+      ? object.geometry.parameters.radius
+      : 0;
+    const legacySkySphere = sphereRadius >= 250 && sphereRadius < 900 && object.name !== "sky-raid-arcade-product-sky";
+    if (legacySkySphere || object.name === "sky-dancer-v50-color-script-sky" || LEGACY_SKY_RAID_GRAPHIC_PREFIXES.some((prefix) => object.name.startsWith(prefix))) layers.push(object);
+  });
+  return layers;
+}
+
+function applySkyRaidFlight(demo: RaidWebGLDemo, delta: number): SkyDancerSkyRaidFlightSnapshot {
+  const base = demo.session.snapshot();
+  const flight = flightControllerFor(demo).step(delta, base.heading, demo.steer, base.boostActive);
+  demo.playerVisual.position.y = 0.62 + flight.altitude;
+  demo.playerVisual.rotation.x = flight.pitch;
+  demo.playerVisual.rotation.z = flight.bank;
+  demo.camera.position.y += flight.altitude * 0.72;
+  demo.camera.rotation.z += flight.bank * 0.055;
+  demo.scene.userData.skyRaidPlayerAltitude = flight.altitude;
+  demo.scene.userData.skyRaidPlayerVerticalSpeed = flight.verticalSpeed;
+  demo.scene.userData.skyRaidPlayerBank = flight.bank;
+  return flight;
 }
 
 function suppressTurboHuntBackdrop(scene: THREE.Scene): void {
@@ -389,10 +440,15 @@ function buildRaidVisuals(demo: RaidWebGLDemo): void {
   const speedFx = buildSpeedFx();
   speedFx.name = "sky-raid-speed-fx";
   demo.scene.add(root, speedFx);
+  const arcadeWorld = new SkyDancerSkyRaidArcadeWorld(demo.scene);
+  const legacyLayers = collectLegacyRaidLayers(demo.scene);
+  root.visible = false;
   raidVisualByDemo.set(demo as unknown as object, {
     root,
     actGroups,
     speedFx,
+    arcadeWorld,
+    legacyLayers,
     lastActIndex: -1,
     anchorX: Number.NaN,
     anchorZ: Number.NaN,
@@ -423,15 +479,14 @@ function updateRaidVisuals(demo: RaidWebGLDemo, delta: number): void {
     visual.root.rotation.y = base.heading;
     visual.lastActIndex = raid.actIndex;
   }
-  visual.actGroups.forEach((group, index) => { group.visible = index === raid.actIndex; });
-  visual.root.visible = true;
-
-  const palette = raid.palette;
-  if (demo.scene.background instanceof THREE.Color) demo.scene.background.lerp(new THREE.Color(palette.sky), clamp(delta * 2.2, 0, 1));
-  if (demo.scene.fog) demo.scene.fog.color.lerp(new THREE.Color(palette.fog), clamp(delta * 2.2, 0, 1));
+  visual.actGroups.forEach((group) => { group.visible = false; });
+  visual.root.visible = false;
+  visual.legacyLayers.forEach((layer) => { layer.visible = false; });
+  const flight = applySkyRaidFlight(demo, delta);
+  visual.arcadeWorld.update(raid.actId, base.x, base.z, flight.altitude, raid.elapsedSeconds);
 
   visual.speedFx.visible = base.boostActive || raid.rushActive;
-  visual.speedFx.position.set(base.x, 1.8, base.z);
+  visual.speedFx.position.set(base.x, 1.8 + flight.altitude, base.z);
   visual.speedFx.rotation.y = base.heading;
   visual.speedFx.children.forEach((line, index) => {
     line.position.z -= delta * (base.boostActive ? 68 : 42);
@@ -459,6 +514,9 @@ export function installSkyDancerSkyRaid(): void {
   };
 
   const webglPrototype = CartRogueWebGLDemo.prototype as unknown as RaidWebGLDemo;
+  webglPrototype.setVertical = function skyRaidSetVertical(this: RaidWebGLDemo, value: number): void {
+    flightControllerFor(this).setVerticalInput(value);
+  };
   const previousBuildWorld = webglPrototype.buildWorld;
   webglPrototype.buildWorld = function skyRaidBuildWorld(this: RaidWebGLDemo): void {
     previousBuildWorld.call(this);

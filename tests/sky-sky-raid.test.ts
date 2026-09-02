@@ -8,7 +8,6 @@ import {
   skyDancerSkyRaidPressure,
   skyDancerSkyRaidRushActive,
   skyDancerSkyRaidWorldStyle,
-  skyDancerSkyRaidWorldStyle,
 } from "../src/sky/SkyDancerSkyRaidRules";
 
 test("SKY RAID spans five arcade acts across the free-flight run", () => {

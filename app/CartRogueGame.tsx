@@ -6,6 +6,7 @@ import type { CartArenaSessionSnapshot } from "../src/cart/CartArenaSession";
 import { SkyDancerCanvasPreview } from "../src/sky/SkyDancerCanvasPreview";
 import type { CartRogueDemoHandle } from "../src/cart/CartRogueDemo";
 import { SkyDancerWebGLDemo } from "../src/sky/SkyDancerWebGLDemo";
+import { normalizeArcadeStick } from "../src/sky/arcade/SkyDancerArcadeInput";
 import {
   applyCartRunUpgrade,
   cartRunUpgradeRank,
@@ -142,6 +143,7 @@ export default function SkyDancerGame() {
   const demoRef = useRef<CartRogueDemoHandle | null>(null);
   const steerPointerRef = useRef<number | null>(null);
   const steerOriginRef = useRef(0);
+  const steerOriginYRef = useRef(0);
   const boostPointersRef = useRef(new Set<number>());
   const brakePointersRef = useRef(new Set<number>());
   const previousSnapshotRef = useRef<CartArenaSessionSnapshot>(INITIAL);
@@ -285,13 +287,22 @@ export default function SkyDancerGame() {
     const sync = () => {
       const left = keys.has("a") || keys.has("arrowleft");
       const right = keys.has("d") || keys.has("arrowright");
+      const skyRaid = document.documentElement.dataset.skyDancerMode === "sky-raid";
       demoRef.current?.setSteering(left === right ? 0 : left ? -1 : 1);
-      demoRef.current?.setBrake(keys.has("s") || keys.has("arrowdown"));
+      if (skyRaid) {
+        const climb = keys.has("w") || keys.has("arrowup");
+        const dive = keys.has("s") || keys.has("arrowdown");
+        demoRef.current?.setVertical?.(climb === dive ? 0 : climb ? 1 : -1);
+        demoRef.current?.setBrake(false);
+      } else {
+        demoRef.current?.setVertical?.(0);
+        demoRef.current?.setBrake(keys.has("s") || keys.has("arrowdown"));
+      }
       demoRef.current?.setBoost(keys.has(" ") || keys.has("shift"));
     };
     const down = (event: KeyboardEvent) => {
       keys.add(event.key.toLowerCase());
-      if (["ArrowLeft", "ArrowRight", "ArrowDown", " "].includes(event.key)) event.preventDefault();
+      if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", " "].includes(event.key)) event.preventDefault();
       sync();
     };
     const up = (event: KeyboardEvent) => {
@@ -311,15 +322,23 @@ export default function SkyDancerGame() {
     if (steerPointerRef.current !== null) return;
     steerPointerRef.current = event.pointerId;
     steerOriginRef.current = event.clientX;
+    steerOriginYRef.current = event.clientY;
     event.currentTarget.setPointerCapture(event.pointerId);
     demoRef.current?.setSteering(0);
+    demoRef.current?.setVertical?.(0);
   };
 
   const moveSteer = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (steerPointerRef.current !== event.pointerId) return;
     event.preventDefault();
     const steeringSensitivity = getCartRunModifiers().steeringSensitivity;
-    demoRef.current?.setSteering(Math.max(-1, Math.min(1, ((event.clientX - steerOriginRef.current) / 44) * steeringSensitivity)));
+    if (document.documentElement.dataset.skyDancerMode === "sky-raid") {
+      const stick = normalizeArcadeStick(event.clientX - steerOriginRef.current, event.clientY - steerOriginYRef.current, 58, 0.10);
+      demoRef.current?.setSteering(Math.max(-1, Math.min(1, stick.x * steeringSensitivity)));
+      demoRef.current?.setVertical?.(stick.y);
+    } else {
+      demoRef.current?.setSteering(Math.max(-1, Math.min(1, ((event.clientX - steerOriginRef.current) / 44) * steeringSensitivity)));
+    }
   };
 
   const releaseSteer = (event: ReactPointerEvent<HTMLDivElement>) => {
@@ -327,6 +346,7 @@ export default function SkyDancerGame() {
     event.preventDefault();
     steerPointerRef.current = null;
     demoRef.current?.setSteering(0);
+    demoRef.current?.setVertical?.(0);
     if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
   };
 
@@ -477,7 +497,7 @@ export default function SkyDancerGame() {
           onPointerCancel={releaseSteer}
           onLostPointerCapture={releaseSteer}
         >
-          <span>ARCADE TURN · BUILD ×{getCartRunModifiers().steeringSensitivity.toFixed(2)}</span>
+          <span>{typeof document !== "undefined" && document.documentElement.dataset.skyDancerMode === "sky-raid" ? "FLIGHT STICK · TURN / CLIMB" : `ARCADE TURN · BUILD ×${getCartRunModifiers().steeringSensitivity.toFixed(2)}`}</span>
         </div>
 
         <div className={styles.actions}>

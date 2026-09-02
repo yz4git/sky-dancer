@@ -49,11 +49,11 @@ function worldHeight(x: number, z: number, style: SkyRaidSurfaceStyle): number {
 function terrainColor(height: number, x: number, z: number, style: SkyRaidSurfaceStyle): THREE.Color {
   const normalized = THREE.MathUtils.clamp((height - (GROUND_Y - 10)) / 18.0, 0, 1);
   const palettes: Record<SkyRaidSurfaceStyle, readonly [number, number]> = {
-    city: [0x3f6946, 0x718451],
-    mountains: [0x5b2f24, 0xb2673f],
-    clouds: [0xb9dce8, 0xf1f7f5],
-    storm: [0x1e2939, 0x46566a],
-    citadel: [0x241d3f, 0x685683],
+    city: [0x28485b, 0xf2b77a],
+    mountains: [0x6f2f2b, 0xd98245],
+    clouds: [0x6fafd0, 0xe8f4f8],
+    storm: [0x14364c, 0x778da2],
+    citadel: [0x17122f, 0xb69cf4],
   };
   const [lowHex, highHex] = palettes[style];
   const color = new THREE.Color(lowHex).lerp(new THREE.Color(highHex), normalized);
