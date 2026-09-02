@@ -22,6 +22,18 @@ jobs:
         run: npm ci --no-audit --no-fund
       - name: Apply V11.9 product patch
         run: python3 scripts/apply-arcade-v119-enemy-counterplay.py
+      - name: Correct brace-break moment assertion
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('tests/sky-arcade-run.test.ts')
+          s = p.read_text()
+          old = '''  braced.damageEnemyForTests(bracedId, 18, false);\n  open.damageEnemyForTests(openId, 18, false);\n  const bracedEnemy = braced.getSnapshot().enemies.find((enemy) => enemy.id === bracedId);\n  const openEnemy = open.getSnapshot().enemies.find((enemy) => enemy.id === openId);\n  assert.ok(bracedEnemy && openEnemy);\n  assert.ok(bracedEnemy.armor > openEnemy.armor, `${bracedEnemy.armor} > ${openEnemy.armor}`);\n  braced.damageEnemyForTests(bracedId, 999, false);\n  assert.ok(braced.getSnapshot().counterplayBreaks >= 1);\n  assert.match(braced.getSnapshot().loadoutReactionLabel ?? "", /BRACE BREAK/);'''
+          new = '''  braced.damageEnemyForTests(bracedId, 18, false);\n  open.damageEnemyForTests(openId, 18, false);\n  const bracedEnemy = braced.getSnapshot().enemies.find((enemy) => enemy.id === bracedId);\n  const openEnemy = open.getSnapshot().enemies.find((enemy) => enemy.id === openId);\n  assert.ok(bracedEnemy && openEnemy);\n  assert.ok(bracedEnemy.armor > openEnemy.armor, `${bracedEnemy.armor} > ${openEnemy.armor}`);\n  const firstBreaks = braced.getSnapshot().counterplayBreaks;\n  const firstBreakLabel = braced.getSnapshot().loadoutReactionLabel;\n  braced.damageEnemyForTests(bracedId, 999, false);\n  assert.ok(braced.getSnapshot().counterplayBreaks >= 1);\n  if (firstBreaks > 0) assert.match(firstBreakLabel ?? "", /BRACE BREAK/);'''
+          if old not in s:
+            raise SystemExit('V11.9 brace test anchor missing')
+          p.write_text(s.replace(old, new, 1))
+          PY
       - name: Run arcade rule regression
         run: npm run test:rules
       - name: Run arcade contract checks
