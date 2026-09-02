@@ -7,6 +7,7 @@ import {
   skyDancerSkyRaidKillScore,
   skyDancerSkyRaidPressure,
   skyDancerSkyRaidRushActive,
+  skyDancerSkyRaidWorldStyle,
 } from "../src/sky/SkyDancerSkyRaidRules";
 
 test("SKY RAID spans five arcade acts across the free-flight run", () => {
@@ -37,4 +38,14 @@ test("SKY RAID pressure rises and every normal act contains a rush window", () =
     assert.equal(skyDancerSkyRaidRushActive(act.startSeconds + 8, act), true);
     assert.equal(skyDancerSkyRaidRushActive(act.startSeconds + 2, act), false);
   }
+});
+
+
+test("SKY RAID routes every act into a distinct mature background owner", () => {
+  assert.equal(skyDancerSkyRaidWorldStyle("dawn-city"), "city");
+  assert.equal(skyDancerSkyRaidWorldStyle("red-canyon"), "mountains");
+  assert.equal(skyDancerSkyRaidWorldStyle("cloud-fleet"), "clouds");
+  assert.equal(skyDancerSkyRaidWorldStyle("storm-carrier"), "storm");
+  assert.equal(skyDancerSkyRaidWorldStyle("prism-citadel"), "citadel");
+  assert.equal(new Set(SKY_DANCER_SKY_RAID_ACTS.map((act) => skyDancerSkyRaidWorldStyle(act.id))).size, 5);
 });

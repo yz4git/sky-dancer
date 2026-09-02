@@ -53,6 +53,18 @@ export const SKY_DANCER_SKY_RAID_ACTS: readonly SkyDancerSkyRaidAct[] = [
 export const SKY_DANCER_SKY_RAID_BOSS_TRIGGER_SECONDS = 104;
 export const SKY_DANCER_SKY_RAID_TARGET_SECONDS = 120;
 
+export type SkyDancerSkyRaidWorldStyle = "city" | "mountains" | "clouds" | "storm" | "citadel";
+
+export function skyDancerSkyRaidWorldStyle(actId: SkyDancerSkyRaidActId): SkyDancerSkyRaidWorldStyle {
+  switch (actId) {
+    case "dawn-city": return "city";
+    case "red-canyon": return "mountains";
+    case "cloud-fleet": return "clouds";
+    case "storm-carrier": return "storm";
+    case "prism-citadel": return "citadel";
+  }
+}
+
 export function skyDancerSkyRaidActFor(elapsedSeconds: number): SkyDancerSkyRaidAct {
   const elapsed = Math.max(0, elapsedSeconds);
   return SKY_DANCER_SKY_RAID_ACTS.find((act) => elapsed < act.endSeconds) ?? SKY_DANCER_SKY_RAID_ACTS[SKY_DANCER_SKY_RAID_ACTS.length - 1];

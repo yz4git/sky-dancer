@@ -96,6 +96,12 @@ function color(value: number): THREE.Color {
   return new THREE.Color(value);
 }
 
+function skyRaidWorldStyle(): SkyDancerMissionWorldStyleV49 | null {
+  if (typeof document === "undefined" || document.documentElement.dataset.skyDancerMode !== "sky-raid") return null;
+  const style = document.documentElement.dataset.skyRaidWorldStyle;
+  return style === "mountains" || style === "clouds" || style === "storm" || style === "citadel" ? style : "city";
+}
+
 export class SkyDancerV50ColorScriptAtmospherePass {
   private readonly sky: THREE.Mesh<THREE.SphereGeometry, THREE.ShaderMaterial>;
   private readonly keyLight = new THREE.DirectionalLight(0xffffff, 1.2);
@@ -169,7 +175,7 @@ export class SkyDancerV50ColorScriptAtmospherePass {
     this.sky.visible = true;
 
     const campaign = getLatestSkyDancerCampaignSnapshotV49();
-    this.activeStyle = campaign?.worldStyle ?? "city";
+    this.activeStyle = skyRaidWorldStyle() ?? campaign?.worldStyle ?? "city";
     const target = PALETTES[this.activeStyle];
     if (!this.initialized) {
       this.currentTop.copy(color(target.top));

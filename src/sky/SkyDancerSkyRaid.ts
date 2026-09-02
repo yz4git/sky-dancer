@@ -16,6 +16,7 @@ import {
   skyDancerSkyRaidMultiplier,
   skyDancerSkyRaidPressure,
   skyDancerSkyRaidRushActive,
+  skyDancerSkyRaidWorldStyle,
   type SkyDancerSkyRaidAct,
   type SkyDancerSkyRaidPalette,
 } from "./SkyDancerSkyRaidRules";
@@ -110,6 +111,21 @@ function isSkyRaidMode(): boolean {
 
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
+}
+
+function publishSkyRaidWorldStyle(snapshot: SkyDancerSkyRaidSnapshot): void {
+  if (typeof document === "undefined") return;
+  document.documentElement.dataset.skyRaidAct = snapshot.actId;
+  document.documentElement.dataset.skyRaidWorldStyle = skyDancerSkyRaidWorldStyle(snapshot.actId);
+}
+
+function suppressTurboHuntBackdrop(scene: THREE.Scene): void {
+  // Phase67 owns a 360m fixed blue sky sphere plus a pastel test field. Because
+  // that sphere sits inside the later V38/V50 sky domes, it completely masks
+  // their color-script changes. SKY RAID has its own world owners, so remove
+  // only this legacy decorative root while keeping enemies/pickups/combat.
+  const turboBackdrop = scene.getObjectByName("phase67-turbo-hunt-world");
+  if (turboBackdrop) turboBackdrop.visible = false;
 }
 
 function stateFor(session: RaidSession, hunt: CartTurboHuntSnapshot): RaidState {
@@ -395,6 +411,8 @@ function updateRaidVisuals(demo: RaidWebGLDemo, delta: number): void {
   const hunt = getCartTurboHuntSnapshot(demo.session);
   if (!hunt) return;
   const raid = updateRaid(demo.session as unknown as RaidSession, hunt, 0);
+  publishSkyRaidWorldStyle(raid);
+  suppressTurboHuntBackdrop(demo.scene);
   const base = demo.session.snapshot();
   const movedFar = !Number.isFinite(visual.anchorX) || Math.hypot(base.x - visual.anchorX, base.z - visual.anchorZ) > 105;
   if (raid.actIndex !== visual.lastActIndex || movedFar) {
@@ -431,6 +449,7 @@ export function installSkyDancerSkyRaid(): void {
     if (!hunt) return;
     const delta = clamp(fixedDelta, 0, 0.05);
     const snapshot = updateRaid(this, hunt, delta);
+    publishSkyRaidWorldStyle(snapshot);
     const state = stateFor(this, hunt);
     state.broadcastClock += delta;
     if (state.broadcastClock >= 0.1 || snapshot.actElapsedSeconds < 0.12 || snapshot.clear) {

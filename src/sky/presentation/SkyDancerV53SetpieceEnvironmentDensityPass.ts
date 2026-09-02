@@ -13,6 +13,12 @@ interface RouteSetpiece {
 const REANCHOR_DISTANCE = 164;
 const STYLES: readonly SkyDancerMissionWorldStyleV49[] = ["city", "clouds", "mountains", "facility", "storm", "citadel"];
 
+function skyRaidWorldStyle(): SkyDancerMissionWorldStyleV49 | null {
+  if (typeof document === "undefined" || document.documentElement.dataset.skyDancerMode !== "sky-raid") return null;
+  const style = document.documentElement.dataset.skyRaidWorldStyle;
+  return style === "mountains" || style === "clouds" || style === "storm" || style === "citadel" ? style : "city";
+}
+
 function solid(color: number, roughness = 0.72, metalness = 0.08): THREE.MeshStandardMaterial {
   return new THREE.MeshStandardMaterial({ color, roughness, metalness, flatShading: true });
 }
@@ -45,7 +51,7 @@ export class SkyDancerV53SetpieceEnvironmentDensityPass {
 
   update(snapshot: CartArenaSessionSnapshot): void {
     this.elapsed += 1 / 60;
-    const style = getLatestSkyDancerCampaignSnapshotV49()?.worldStyle ?? "city";
+    const style = skyRaidWorldStyle() ?? getLatestSkyDancerCampaignSnapshotV49()?.worldStyle ?? "city";
     if (style !== this.activeStyle) {
       this.activeStyle = style;
       for (const [candidate, route] of this.routes) route.root.visible = candidate === style;

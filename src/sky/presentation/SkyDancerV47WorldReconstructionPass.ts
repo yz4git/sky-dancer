@@ -12,6 +12,12 @@ interface WorldZone {
 const ANCHOR_RESET_DISTANCE = 178;
 const WORLD_STYLES: readonly SkyDancerMissionWorldStyleV49[] = ["city", "clouds", "mountains", "facility", "storm", "citadel"];
 
+function skyRaidWorldStyle(): SkyDancerMissionWorldStyleV49 | null {
+  if (typeof document === "undefined" || document.documentElement.dataset.skyDancerMode !== "sky-raid") return null;
+  const style = document.documentElement.dataset.skyRaidWorldStyle;
+  return style === "mountains" || style === "clouds" || style === "storm" || style === "citadel" ? style : "city";
+}
+
 function seeded(index: number, salt: number): number {
   const value = Math.sin(index * 12.9898 + salt * 78.233) * 43758.5453;
   return value - Math.floor(value);
@@ -49,7 +55,7 @@ export class SkyDancerV47WorldReconstructionPass {
 
   update(snapshot: CartArenaSessionSnapshot): void {
     const campaign = getLatestSkyDancerCampaignSnapshotV49();
-    const style = campaign?.worldStyle ?? "city";
+    const style = skyRaidWorldStyle() ?? campaign?.worldStyle ?? "city";
     if (style !== this.activeStyle) {
       this.activeStyle = style;
       for (const [candidate, zone] of this.zones) zone.root.visible = candidate === style;
