@@ -429,6 +429,7 @@ function buildSpeedFx(): THREE.Group {
 
 function buildRaidVisuals(demo: RaidWebGLDemo): void {
   if (!isSkyRaidMode()) return;
+  if (raidVisualByDemo.has(demo as unknown as object)) return;
   const root = new THREE.Group();
   root.name = "sky-raid-arcade-setpieces";
   const actGroups = SKY_DANCER_SKY_RAID_ACTS.map((act, index) => {
@@ -457,7 +458,11 @@ function buildRaidVisuals(demo: RaidWebGLDemo): void {
 }
 
 function updateRaidVisuals(demo: RaidWebGLDemo, delta: number): void {
-  const visual = raidVisualByDemo.get(demo as unknown as object);
+  let visual = raidVisualByDemo.get(demo as unknown as object);
+  if (!visual && isSkyRaidMode()) {
+    buildRaidVisuals(demo);
+    visual = raidVisualByDemo.get(demo as unknown as object);
+  }
   if (!visual) return;
   if (!isSkyRaidMode()) {
     visual.root.visible = false;
