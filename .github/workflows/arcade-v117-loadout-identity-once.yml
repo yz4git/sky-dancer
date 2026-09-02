@@ -1,0 +1,46 @@
+name: Arcade V11.7 Loadout Identity Once
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/arcade-v117-loadout-identity-once.yml
+
+permissions:
+  contents: write
+
+jobs:
+  implement:
+    runs-on: ubuntu-24.04
+    env:
+      ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: true
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.13.0
+          cache: npm
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Apply V11.7 patch
+        run: python3 scripts/apply-arcade-v117-loadout-identity.py
+      - name: Rules regression
+        run: npm run test:rules
+      - name: Arcade contract
+        run: npm run check:arcade
+      - name: Lint
+        run: npm run lint
+      - name: Pages product build
+        run: npm run build:pages
+      - name: Commit product and cleanup
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/sky/arcade/SkyDancerArcadeRuntime.ts src/sky/arcade/SkyDancerArcadeWebGLDemo.ts app/CartGameMenu.tsx app/SkyDancerArcadeMode.tsx app/SkyDancerArcadeProduct.module.css tests/sky-arcade-run.test.ts
+          git commit -m 'Arcade Run V11.7: differentiate loadout playstyles'
+          git push origin HEAD:main
+          git rm -f .github/workflows/arcade-v117-loadout-identity-once.yml scripts/apply-arcade-v117-loadout-identity.py
+          git commit -m 'Remove V11.7 loadout identity work files'
+          git push origin HEAD:main
