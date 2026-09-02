@@ -1,0 +1,65 @@
+name: SKY RAID legacy scenery isolation
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/sky-raid-legacy-city-fix-once.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Isolate legacy city scenery from later SKY RAID acts
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          p = Path('src/sky/presentation/SkyDancerV35ReferencePass.ts')
+          s = p.read_text()
+          marker = 'const FOCUS_CITY_LOCAL_CENTER_Z = 145;\n'
+          helper = '''const FOCUS_CITY_LOCAL_CENTER_Z = 145;\n\nfunction skyRaidShowsReferenceCity(): boolean {\n  if (typeof document === "undefined" || document.documentElement.dataset.skyDancerMode !== "sky-raid") return true;\n  return (document.documentElement.dataset.skyRaidWorldStyle ?? "city") === "city";\n}\n'''
+          if marker not in s: raise SystemExit('V35 marker missing')
+          s = s.replace(marker, helper, 1)
+          old = '''  private restoreOwnPresentation(): void {\n    this.focusRoot.visible = true;\n    this.focusBuildings.visible = true;\n    this.focusStreets.visible = true;\n    this.focusRiver.visible = true;\n    this.frontMountainsFar.visible = true;\n    this.frontMountainsNear.visible = true;\n    this.frontClouds.visible = true;\n  }\n'''
+          new = '''  private restoreOwnPresentation(): void {\n    const showCity = skyRaidShowsReferenceCity();\n    this.focusRoot.visible = showCity;\n    this.focusBuildings.visible = showCity;\n    this.focusStreets.visible = showCity;\n    this.focusRiver.visible = showCity;\n    this.frontMountainsFar.visible = showCity;\n    this.frontMountainsNear.visible = showCity;\n    this.frontClouds.visible = showCity;\n  }\n'''
+          if old not in s: raise SystemExit('V35 restore block missing')
+          s = s.replace(old, new, 1)
+          p.write_text(s)
+
+          p = Path('src/sky/presentation/SkyDancerV38AtmospherePass.ts')
+          s = p.read_text()
+          marker = 'const CLOUD_INSTANCES = CLOUD_CLUSTERS * PUFFS_PER_CLUSTER;\n'
+          helper = '''const CLOUD_INSTANCES = CLOUD_CLUSTERS * PUFFS_PER_CLUSTER;\n\ntype SkyRaidAtmosphereStyle = "city" | "mountains" | "clouds" | "storm" | "citadel";\n\nfunction skyRaidAtmosphereStyle(): SkyRaidAtmosphereStyle | null {\n  if (typeof document === "undefined" || document.documentElement.dataset.skyDancerMode !== "sky-raid") return null;\n  const style = document.documentElement.dataset.skyRaidWorldStyle;\n  return style === "mountains" || style === "clouds" || style === "storm" || style === "citadel" ? style : "city";\n}\n'''
+          if marker not in s: raise SystemExit('V38 marker missing')
+          s = s.replace(marker, helper, 1)
+          old = '''    this.sky.visible = true;\n    this.ridgeRoot.visible = true;\n    this.farRidge.visible = true;\n    this.nearRidge.visible = true;\n    this.cloudRoot.visible = true;\n    this.cloudMain.visible = true;\n    this.cloudShade.visible = true;\n    this.sky.position.set(snapshot.x, 0, snapshot.z);\n'''
+          new = '''    const raidStyle = skyRaidAtmosphereStyle();\n    const showRidges = raidStyle === null || raidStyle === "city" || raidStyle === "mountains";\n    const showCloudDeck = raidStyle === null || raidStyle === "city" || raidStyle === "clouds" || raidStyle === "storm";\n    this.sky.visible = true;\n    this.ridgeRoot.visible = showRidges;\n    this.farRidge.visible = showRidges;\n    this.nearRidge.visible = showRidges;\n    this.cloudRoot.visible = showCloudDeck;\n    this.cloudMain.visible = showCloudDeck;\n    this.cloudShade.visible = showCloudDeck;\n    if (this.cloudMain.material instanceof THREE.MeshBasicMaterial) {\n      this.cloudMain.material.color.setHex(raidStyle === "storm" ? 0x59697a : raidStyle === "clouds" ? 0xf4fbff : 0xf7fbfc);\n      this.cloudMain.material.opacity = raidStyle === "clouds" ? 0.34 : raidStyle === "storm" ? 0.22 : 0.24;\n    }\n    if (this.cloudShade.material instanceof THREE.MeshBasicMaterial) {\n      this.cloudShade.material.color.setHex(raidStyle === "storm" ? 0x273246 : 0x9fb5be);\n      this.cloudShade.material.opacity = raidStyle === "storm" ? 0.18 : raidStyle === "clouds" ? 0.12 : 0.10;\n    }\n    this.sky.position.set(snapshot.x, 0, snapshot.z);\n'''
+          if old not in s: raise SystemExit('V38 visibility block missing')
+          s = s.replace(old, new, 1)
+          p.write_text(s)
+          PY
+      - name: Validate
+        run: |
+          npm run test:fast
+          npm run lint
+          npm run build:pages
+      - name: Commit and self-delete
+        run: |
+          rm .github/workflows/sky-raid-legacy-city-fix-once.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Isolate SKY RAID act scenery layers"
+          git push origin main
