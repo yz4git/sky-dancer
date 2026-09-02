@@ -37,6 +37,14 @@ async function captureCanvas(page, canvas, path) {
   await page.screenshot({ path, clip: box });
 }
 
+async function readLegacyVisualOwners(page) {
+  return page.evaluate(() => ({
+    v35: typeof window.__skyDancerGetReferenceVisualV35 === "function" ? window.__skyDancerGetReferenceVisualV35() : null,
+    v36: typeof window.__skyDancerGetV36WorldDebug === "function" ? window.__skyDancerGetV36WorldDebug() : null,
+    v39: typeof window.__skyDancerGetReferenceVisualV39 === "function" ? window.__skyDancerGetReferenceVisualV39() : null,
+  }));
+}
+
 const report = {};
 {
   const { context, page, canvas, errors } = await startMode("ARCADE RUN", "Sky Dancer Arcade Run WebGL game view");
@@ -56,6 +64,7 @@ const report = {};
   await page.waitForTimeout(1500);
   await captureCanvas(page, canvas, `${outputDir}/raid-00-opening.png`);
   const opening = await page.evaluate(() => ({ mode: document.documentElement.dataset.skyDancerMode, act: document.documentElement.dataset.skyRaidAct, style: document.documentElement.dataset.skyRaidWorldStyle }));
+  const legacyOwners = await readLegacyVisualOwners(page);
   await page.keyboard.down("ArrowRight"); await page.keyboard.down("ArrowUp");
   await page.waitForTimeout(1300);
   await captureCanvas(page, canvas, `${outputDir}/raid-01-maneuver.png`);
@@ -63,7 +72,8 @@ const report = {};
   await page.waitForTimeout(22500);
   await captureCanvas(page, canvas, `${outputDir}/raid-02-act2.png`);
   const act2 = await page.evaluate(() => ({ mode: document.documentElement.dataset.skyDancerMode, act: document.documentElement.dataset.skyRaidAct, style: document.documentElement.dataset.skyRaidWorldStyle }));
-  report.raid = { opening, act2, errors, body: (await page.locator("body").innerText()).slice(0, 2000) };
+  const legacyOwnersLate = await readLegacyVisualOwners(page);
+  report.raid = { opening, legacyOwners, act2, legacyOwnersLate, errors, body: (await page.locator("body").innerText()).slice(0, 2000) };
   await context.close();
 }
 await writeFile(`${outputDir}/report.json`, JSON.stringify(report, null, 2));
