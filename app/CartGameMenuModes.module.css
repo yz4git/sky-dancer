@@ -359,3 +359,110 @@
 @media (orientation: portrait) {
   .practiceMastery { grid-template-columns: 1fr; }
 }
+
+/* V11.4.1 — 393px landscape fit */
+@media (max-height: 430px) and (orientation: landscape) {
+  .modeTitlePanel {
+    padding-top: 2px;
+    padding-bottom: 7px;
+  }
+
+  .compactEyebrow {
+    font-size: 7px;
+  }
+
+  .modeTitlePanel h1 {
+    font-size: clamp(34px, 6.2vw, 50px);
+  }
+
+  .compactMode {
+    margin-top: 2px;
+    padding-top: 2px;
+    padding-bottom: 3px;
+    font-size: 9px;
+  }
+
+  .modeTitlePanel p {
+    margin: 3px 0 4px;
+    font-size: 7px;
+  }
+
+  .modeSelect {
+    gap: 6px;
+    margin-bottom: 4px;
+  }
+
+  .modeButton {
+    padding-top: 4px;
+    padding-bottom: 3px;
+  }
+
+  .modeButton small {
+    margin-top: 2px;
+  }
+
+  .practiceSelect {
+    margin-bottom: 3px;
+    padding-top: 4px;
+    padding-bottom: 4px;
+  }
+
+  .practiceSelect > span {
+    margin-bottom: 3px;
+  }
+
+  .practiceGrid {
+    gap: 4px;
+  }
+
+  .practiceGrid button {
+    padding-top: 2px;
+    padding-bottom: 2px;
+  }
+
+  .practiceMedals {
+    margin-top: 0;
+    font-size: 6px;
+  }
+
+  .practiceMastery {
+    gap: 4px;
+    margin-top: 3px;
+    padding-top: 3px;
+  }
+
+  .practiceRecord,
+  .practiceNextTarget,
+  .practiceGoals > span {
+    padding-top: 3px;
+    padding-bottom: 3px;
+  }
+
+  .compactDifficulty {
+    margin-bottom: 2px;
+  }
+
+  .compactWarning {
+    margin-bottom: 2px;
+    padding-top: 2px;
+    padding-bottom: 2px;
+  }
+
+  .compactStart {
+    padding-top: 5px;
+    padding-bottom: 4px;
+    border-radius: 13px;
+  }
+
+  .compactStart strong {
+    font-size: 15px;
+  }
+
+  .compactStart small {
+    display: none;
+  }
+
+  .compactControls {
+    display: none;
+  }
+}
