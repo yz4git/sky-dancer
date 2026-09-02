@@ -1,2 +1,0 @@
-SKY RAID background transition validation
-Implementation parent: e5b6ed18e3186e49461afd480b9efb811929d638
