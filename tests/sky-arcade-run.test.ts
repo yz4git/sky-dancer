@@ -21,6 +21,7 @@ import { SkyDancerArcadePresentationDirector } from "../src/sky/arcade/SkyDancer
 import { skyDancerArcadeV11StageMedalGoals } from "../src/sky/arcade/SkyDancerArcadeV11Scoring";
 import { skyDancerArcadeV12CombatPlan } from "../src/sky/arcade/SkyDancerArcadeV12Director";
 import { skyDancerArcadeV121EncounterGrammar } from "../src/sky/arcade/SkyDancerArcadeV121EncounterGrammar";
+import { skyDancerArcadeV122EncounterContinuity } from "../src/sky/arcade/SkyDancerArcadeV122EncounterContinuity";
 import {
   SKY_DANCER_ARCADE_MASTERY_REWARDS,
   SKY_DANCER_ARCADE_MAX_MEDALS,
@@ -755,7 +756,7 @@ test("V11.7 loadout doctrine is visible in hangar controls and projectile presen
   assert.match(menuSource, /RAPID MULTI/);
   assert.match(menuSource, /TWIN BURST/);
   assert.match(modeSource, /data-loadout=\{snapshot\.loadout\}/);
-  assert.match(modeSource, /V(?:11\.(?:8|9)|12\.[01])/);
+  assert.match(modeSource, /V(?:11\.(?:8|9)|12\.[012])/);
   assert.match(webglSource, /arcadeLoadoutV117/);
   assert.match(webglSource, /snapshot\.loadout === "gun-focus" \? 0xffdf72/);
   assert.match(cssSource, /data-loadout="gun-focus"/);
@@ -822,7 +823,7 @@ test("V11.8 tactical doctrine is visible in HUD, hangar and WebGL enemy reaction
     readFile(new URL("../app/SkyDancerArcadeProduct.module.css", import.meta.url), "utf8"),
     readFile(new URL("../src/sky/arcade/SkyDancerArcadeRuntime.ts", import.meta.url), "utf8"),
   ]);
-  assert.match(modeSource, /V(?:11\.(?:8|9)|12\.[01])/);
+  assert.match(modeSource, /V(?:11\.(?:8|9)|12\.[012])/);
   assert.match(modeSource, /TACTICAL BONUS \+\{snapshot\.loadoutBonusScore\}/);
   assert.match(menuSource, /ARMOR SHRED · CANNON STAGGER/);
   assert.match(menuSource, /RIPPLE SHOCK · ARMOR CRUSH/);
@@ -894,7 +895,7 @@ test("V11.9 enemy counterplay is surfaced in HUD, hangar, runtime and WebGL pres
     readFile(new URL("../app/SkyDancerArcadeProduct.module.css", import.meta.url), "utf8"),
     readFile(new URL("../src/sky/arcade/SkyDancerArcadeRuntime.ts", import.meta.url), "utf8"),
   ]);
-  assert.match(modeSource, /V(?:11\.9|12\.[01])/);
+  assert.match(modeSource, /V(?:11\.9|12\.[012])/);
   assert.match(modeSource, /ENEMY COUNTER/);
   assert.match(menuSource, /BREAK JAMMERS/);
   assert.match(menuSource, /PUNISH EVASION/);
@@ -951,7 +952,7 @@ test("V12.0 adaptive encounter state is surfaced in the compact HUD and version 
     readFile(new URL("../src/sky/arcade/SkyDancerArcadeRuntime.ts", import.meta.url), "utf8"),
     readFile(new URL("../src/sky/arcade/SkyDancerArcadeV12Director.ts", import.meta.url), "utf8"),
   ]);
-  assert.match(modeSource, /V12\.1/);
+  assert.match(modeSource, /V12\.[12]/);
   assert.match(modeSource, /COMBAT DIRECTOR/);
   assert.match(modeSource, /combatDirectorIntent/);
   assert.match(cssSource, /v12DirectorLine/);
@@ -1014,7 +1015,7 @@ test("V12.1 encounter identity is stage-specific and surfaced in the compact HUD
     readFile(new URL("../src/sky/arcade/SkyDancerArcadeRuntime.ts", import.meta.url), "utf8"),
     readFile(new URL("../src/sky/arcade/SkyDancerArcadeV121EncounterGrammar.ts", import.meta.url), "utf8"),
   ]);
-  assert.match(modeSource, /V12\.1/);
+  assert.match(modeSource, /V12\.[12]/);
   assert.match(modeSource, /ENCOUNTER · \{snapshot\.encounterGrammarLabel\}/);
   assert.match(cssSource, /v121GrammarLine/);
   assert.match(runtimeSource, /encounterPhaseQueue/);
@@ -1022,4 +1023,53 @@ test("V12.1 encounter identity is stage-specific and surfaced in the compact HUD
   assert.match(grammarSource, /DECK CROSS/);
   assert.match(grammarSource, /NEON CROSS/);
   assert.match(grammarSource, /PRISM GAUNTLET/);
+});
+
+
+test("V12.2 continuity blocks the player break lane and fills the empty side", () => {
+  const rightBreak = skyDancerArcadeV122EncounterContinuity({ playerX: .3, playerVX: 1.2, survivorXs: [-.4, .2], phaseIndex: 1 });
+  assert.equal(rightBreak.breakSign, 1);
+  assert.equal(rightBreak.entrySign, 1);
+  assert.ok(rightBreak.lateralBias > 0);
+  assert.match(rightBreak.label, /BLOCK R/);
+
+  const fillLeft = skyDancerArcadeV122EncounterContinuity({ playerX: 0, playerVX: 0, survivorXs: [.8, 1.2], phaseIndex: 1 });
+  assert.equal(fillLeft.breakSign, 0);
+  assert.equal(fillLeft.entrySign, -1);
+  assert.ok(fillLeft.lateralBias < 0);
+  assert.match(fillLeft.label, /FILL L/);
+});
+
+test("V12.2 Encounter Continuity carries survivor IDs and steers each reinforcement phase", () => {
+  const runtime = new SkyDancerArcadeRuntime({ mode: "stage-practice", difficulty: "normal", startStageId: "dawn-city", seed: 122 });
+  runtime.setV12DirectorSignalsForTests(.1, 1.8, .1);
+  runtime.setV122PlayerFlowForTests(1.1, 1.35);
+  runtime.spawnV12EncounterForTests();
+  const first = runtime.getSnapshot();
+  assert.equal(first.combatDirectorMode, "hunter-sweep");
+  const firstIds = new Set(first.enemies.map((enemy) => enemy.id));
+  assert.ok(firstIds.size > 0);
+
+  assert.equal(runtime.advanceV121EncounterForTests(), true);
+  const second = runtime.getSnapshot();
+  assert.equal(second.encounterGrammarPhaseIndex, 2);
+  assert.equal(second.encounterContinuityBreakSign, 1);
+  assert.equal(second.encounterContinuityEntrySign, 1);
+  assert.ok(second.encounterContinuitySurvivors >= firstIds.size);
+  assert.ok([...firstIds].every((id) => second.enemies.some((enemy) => enemy.id === id)), "phase-one enemies must survive into phase two");
+  const secondReinforcements = second.enemies.filter((enemy) => !firstIds.has(enemy.id));
+  assert.ok(secondReinforcements.length > 0);
+  assert.ok(secondReinforcements.reduce((sum, enemy) => sum + enemy.x, 0) / secondReinforcements.length > .05, "right break should bias the cut to the right lane");
+
+  const secondIds = new Set(second.enemies.map((enemy) => enemy.id));
+  runtime.setV122PlayerFlowForTests(-1.1, -1.35);
+  assert.equal(runtime.advanceV121EncounterForTests(), true);
+  const third = runtime.getSnapshot();
+  assert.equal(third.encounterGrammarPhaseIndex, 3);
+  assert.equal(third.encounterContinuityBreakSign, -1);
+  assert.equal(third.encounterContinuityEntrySign, -1);
+  assert.ok([...secondIds].every((id) => third.enemies.some((enemy) => enemy.id === id)), "phase-two enemies must carry into the finishing phase");
+  const thirdReinforcements = third.enemies.filter((enemy) => !secondIds.has(enemy.id));
+  assert.ok(thirdReinforcements.length > 0);
+  assert.ok(thirdReinforcements.reduce((sum, enemy) => sum + enemy.x, 0) / thirdReinforcements.length < -.05, "left break should pull the finishing cut into the left lane");
 });

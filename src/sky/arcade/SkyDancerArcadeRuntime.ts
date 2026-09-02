@@ -53,6 +53,10 @@ import {
   type SkyDancerArcadeV121EncounterGrammar,
   type SkyDancerArcadeV121EncounterPhase,
 } from "./SkyDancerArcadeV121EncounterGrammar";
+import {
+  skyDancerArcadeV122EncounterContinuity,
+  type SkyDancerArcadeV122FlowSign,
+} from "./SkyDancerArcadeV122EncounterContinuity";
 
 export type SkyDancerArcadeStatus =
   | "running"
@@ -197,6 +201,12 @@ export interface SkyDancerArcadeSnapshot {
   encounterGrammarPhaseIndex: number;
   encounterGrammarPhaseCount: number;
   encounterGrammarSerial: number;
+  encounterContinuityLabel: string;
+  encounterContinuityBreakSign: SkyDancerArcadeV122FlowSign;
+  encounterContinuityEntrySign: SkyDancerArcadeV122FlowSign;
+  encounterContinuitySurvivors: number;
+  encounterContinuityLateralBias: number;
+  encounterContinuitySerial: number;
   bossKills: number;
   continuesRemaining: number;
   continuesUsed: number;
@@ -529,6 +539,12 @@ export class SkyDancerArcadeRuntime {
   private encounterGrammarPhaseCount = 1;
   private encounterGrammarSerial = 0;
   private encounterGrammarCadenceScale = 1;
+  private encounterContinuityLabel = "FLOW HOLD · CARRY 0";
+  private encounterContinuityBreakSign: SkyDancerArcadeV122FlowSign = 0;
+  private encounterContinuityEntrySign: SkyDancerArcadeV122FlowSign = 0;
+  private encounterContinuitySurvivors = 0;
+  private encounterContinuityLateralBias = 0;
+  private encounterContinuitySerial = 0;
   private encounterPhaseQueue: ArcadeV121QueuedPhase[] = [];
   private stageSerial = 1;
   private resultSerial = 0;
@@ -594,6 +610,12 @@ export class SkyDancerArcadeRuntime {
     this.encounterGrammarPhaseIndex = 0;
     this.encounterGrammarPhaseCount = 1;
     this.encounterGrammarCadenceScale = 1;
+    this.encounterContinuityLabel = "FLOW HOLD · CARRY 0";
+    this.encounterContinuityBreakSign = 0;
+    this.encounterContinuityEntrySign = 0;
+    this.encounterContinuitySurvivors = 0;
+    this.encounterContinuityLateralBias = 0;
+    this.encounterContinuitySerial = 0;
     this.encounterPhaseQueue = [];
     const finalStage = this.stage.id === SKY_DANCER_ARCADE_FINAL_STAGE;
     const rewindCheckpoint = skyDancerArcadeStageEventCheckpoint(this.stageTime / this.stage.durationSeconds, finalStage);
@@ -942,6 +964,19 @@ export class SkyDancerArcadeRuntime {
     this.encounterGrammarPhaseLabel = phase.label;
     this.encounterGrammarPhaseIndex = phaseIndex + 1;
     this.encounterGrammarPhaseCount = grammar.phases.length;
+    const carryoverEnemies = this.enemies.filter((enemy) => enemy.alive && !enemy.boss);
+    const continuity = skyDancerArcadeV122EncounterContinuity({
+      playerX: this.playerX,
+      playerVX: this.playerVX,
+      survivorXs: carryoverEnemies.map((enemy) => enemy.x),
+      phaseIndex,
+    });
+    this.encounterContinuityLabel = continuity.label;
+    this.encounterContinuityBreakSign = continuity.breakSign;
+    this.encounterContinuityEntrySign = continuity.entrySign;
+    this.encounterContinuitySurvivors = continuity.survivorCount;
+    this.encounterContinuityLateralBias = continuity.lateralBias;
+    this.encounterContinuitySerial += 1;
 
     const progress = clamp(this.stageTime / this.stage.durationSeconds, 0, 1);
     const beat = skyDancerArcadeV11Beat(this.stage.id, progress);
@@ -977,12 +1012,21 @@ export class SkyDancerArcadeRuntime {
       const maneuver: SkyDancerArcadeEnemyManeuver = index === 0 || (index + phaseIndex) % 3 !== 0
         ? phase.maneuver
         : phase.secondaryManeuver;
-      const sign = Math.abs(formationX) > 0.18 ? Math.sign(formationX) : (index + phaseIndex) % 2 === 0 ? 1 : -1;
+      const formationSign = Math.abs(formationX) > 0.18 ? Math.sign(formationX) : (index + phaseIndex) % 2 === 0 ? 1 : -1;
+      const sign = maneuver === "overtake" && phaseIndex > 0 && continuity.entrySign !== 0
+        ? continuity.entrySign
+        : formationSign;
+      const flowActive = phaseIndex > 0 && maneuver !== "overtake" && continuity.entrySign !== 0;
+      const flowBias = flowActive ? continuity.lateralBias : 0;
+      // Continuity does not discard the authored formation: it compresses its width,
+      // then recenters it into the lane the player is trying to escape through.
+      // This also guarantees a one-ship reinforcement can actually occupy that lane.
+      const flowFormationX = flowActive ? formationX * .45 : formationX;
       const x = maneuver === "overtake"
         ? sign * 1.9
         : maneuver === "cross-pass"
-          ? clamp(formationX + sign * .18, -ENEMY_X_LIMIT, ENEMY_X_LIMIT)
-          : formationX;
+          ? clamp(flowFormationX + sign * .18 + flowBias, -ENEMY_X_LIMIT, ENEMY_X_LIMIT)
+          : clamp(flowFormationX + flowBias, -ENEMY_X_LIMIT, ENEMY_X_LIMIT);
       const y = maneuver === "overtake" ? clamp(formationY * .34, -.62, .62) : formationY;
       const depthBase = maneuver === "overtake" ? -6.4 : maneuver === "cross-pass" ? 44 : maneuver === "parallel" ? 48 : maneuver === "close-bank" ? 50 : 56;
       const depth = maneuver === "overtake" ? depthBase : depthBase + phase.depthOffset + index * 3.1 + this.random() * 6;
@@ -1988,6 +2032,12 @@ export class SkyDancerArcadeRuntime {
       encounterGrammarPhaseIndex: this.encounterGrammarPhaseIndex,
       encounterGrammarPhaseCount: this.encounterGrammarPhaseCount,
       encounterGrammarSerial: this.encounterGrammarSerial,
+      encounterContinuityLabel: this.encounterContinuityLabel,
+      encounterContinuityBreakSign: this.encounterContinuityBreakSign,
+      encounterContinuityEntrySign: this.encounterContinuityEntrySign,
+      encounterContinuitySurvivors: this.encounterContinuitySurvivors,
+      encounterContinuityLateralBias: this.encounterContinuityLateralBias,
+      encounterContinuitySerial: this.encounterContinuitySerial,
       bossKills: this.bossKills,
       continuesRemaining: this.continuesRemaining,
       continuesUsed: this.continuesUsed,
@@ -2093,6 +2143,11 @@ export class SkyDancerArcadeRuntime {
     this.distance = this.stageTime * this.stage.courseSpeed;
     this.updateV121EncounterQueue();
     return true;
+  }
+
+  setV122PlayerFlowForTests(x: number, vx: number): void {
+    this.playerX = clamp(x, -PLAYER_X_LIMIT, PLAYER_X_LIMIT);
+    this.playerVX = clamp(vx, -PLAYER_TURBO_SPEED_X, PLAYER_TURBO_SPEED_X);
   }
 
   /** Deterministic V11.8 hooks for loadout combat regression tests. */
