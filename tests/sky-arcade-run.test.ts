@@ -744,13 +744,86 @@ test("V11.7 loadout doctrine is visible in hangar controls and projectile presen
     readFile(new URL("../src/sky/arcade/SkyDancerArcadeWebGLDemo.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/SkyDancerArcadeProduct.module.css", import.meta.url), "utf8"),
   ]);
-  assert.match(menuSource, /FUSION LINK · TURBO BOOSTS FIRE \+ LOCK/);
-  assert.match(menuSource, /RAPID MULTI · WIDE LOCK · TWIN RIPPLE/);
-  assert.match(menuSource, /TWIN BURST · DUAL CANNON · HIGH RATE/);
+  assert.match(menuSource, /FUSION LINK/);
+  assert.match(menuSource, /RAPID MULTI/);
+  assert.match(menuSource, /TWIN BURST/);
   assert.match(modeSource, /data-loadout=\{snapshot\.loadout\}/);
-  assert.match(modeSource, /V11\.7/);
+  assert.match(modeSource, /V11\.8/);
   assert.match(webglSource, /arcadeLoadoutV117/);
   assert.match(webglSource, /snapshot\.loadout === "gun-focus" \? 0xffdf72/);
   assert.match(cssSource, /data-loadout="gun-focus"/);
   assert.match(cssSource, /data-fusion="true"/);
+});
+
+
+
+test("V11.8 Gun Focus converts twin-cannon hits into armor shred and tactical rewards", () => {
+  const standard = new SkyDancerArcadeRuntime({ difficulty: "normal", mode: "stage-practice", startStageId: "dawn-city", loadout: "standard", seed: 0x1181 });
+  const gun = new SkyDancerArcadeRuntime({ difficulty: "normal", mode: "stage-practice", startStageId: "dawn-city", loadout: "gun-focus", seed: 0x1181 });
+  const standardId = standard.spawnEnemyForTests("bomber", 0, 0, 30);
+  const gunId = gun.spawnEnemyForTests("bomber", 0, 0, 30);
+  standard.damageEnemyForTests(standardId, 18, false);
+  gun.damageEnemyForTests(gunId, 18, false);
+  const standardEnemy = standard.getSnapshot().enemies.find((enemy) => enemy.id === standardId);
+  const gunEnemy = gun.getSnapshot().enemies.find((enemy) => enemy.id === gunId);
+  assert.ok(standardEnemy && gunEnemy);
+  assert.ok(gunEnemy.armor < standardEnemy.armor, `${gunEnemy.armor} < ${standardEnemy.armor}`);
+  assert.ok(gunEnemy.stagger > standardEnemy.stagger, `${gunEnemy.stagger} > ${standardEnemy.stagger}`);
+  assert.equal(gun.getSnapshot().impacts.at(-1)?.reaction, "twin-cannon");
+  gun.damageEnemyForTests(gunId, 999, false);
+  assert.ok(gun.getSnapshot().loadoutBonusScore > 0);
+  assert.ok(gun.getSnapshot().loadoutReactionSerial > 0);
+});
+
+test("V11.8 Missile Focus creates a stronger ripple shock reaction than a standard missile", () => {
+  const standard = new SkyDancerArcadeRuntime({ difficulty: "normal", mode: "stage-practice", startStageId: "dawn-city", loadout: "standard", seed: 0x1182 });
+  const missile = new SkyDancerArcadeRuntime({ difficulty: "normal", mode: "stage-practice", startStageId: "dawn-city", loadout: "missile-focus", seed: 0x1182 });
+  const standardId = standard.spawnEnemyForTests("bomber", 0, 0, 30);
+  const missileId = missile.spawnEnemyForTests("bomber", 0, 0, 30);
+  standard.damageEnemyForTests(standardId, 16, true);
+  missile.damageEnemyForTests(missileId, 16, true);
+  const standardEnemy = standard.getSnapshot().enemies.find((enemy) => enemy.id === standardId);
+  const rippleEnemy = missile.getSnapshot().enemies.find((enemy) => enemy.id === missileId);
+  assert.ok(standardEnemy && rippleEnemy);
+  assert.ok(rippleEnemy.armor < standardEnemy.armor, `${rippleEnemy.armor} < ${standardEnemy.armor}`);
+  assert.ok(rippleEnemy.stagger > standardEnemy.stagger, `${rippleEnemy.stagger} > ${standardEnemy.stagger}`);
+  assert.equal(missile.getSnapshot().impacts.at(-1)?.reaction, "ripple-shock");
+  missile.damageEnemyForTests(missileId, 999, true);
+  assert.ok(missile.getSnapshot().loadoutBonusScore > 0);
+});
+
+test("V11.8 Standard only earns Fusion tactical finish rewards while Turbo Link is active", () => {
+  const idle = new SkyDancerArcadeRuntime({ difficulty: "normal", mode: "stage-practice", startStageId: "dawn-city", loadout: "standard", seed: 0x1183 });
+  const linked = new SkyDancerArcadeRuntime({ difficulty: "normal", mode: "stage-practice", startStageId: "dawn-city", loadout: "standard", seed: 0x1183 });
+  const idleId = idle.spawnEnemyForTests("fighter", 0, 0, 30);
+  const linkedId = linked.spawnEnemyForTests("fighter", 0, 0, 30);
+  linked.setTurbo(true);
+  idle.damageEnemyForTests(idleId, 999, false);
+  linked.damageEnemyForTests(linkedId, 999, false);
+  assert.equal(idle.getSnapshot().impacts.at(-1)?.reaction, "none");
+  assert.equal(idle.getSnapshot().loadoutBonusScore, 0);
+  assert.equal(linked.getSnapshot().impacts.at(-1)?.reaction, "fusion-link");
+  assert.ok(linked.getSnapshot().loadoutBonusScore > 0);
+  assert.match(linked.getSnapshot().loadoutReactionLabel ?? "", /FUSION/);
+});
+
+test("V11.8 tactical doctrine is visible in HUD, hangar and WebGL enemy reaction code", async () => {
+  const [modeSource, menuSource, webglSource, cssSource, runtimeSource] = await Promise.all([
+    readFile(new URL("../app/SkyDancerArcadeMode.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/CartGameMenu.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../src/sky/arcade/SkyDancerArcadeWebGLDemo.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/SkyDancerArcadeProduct.module.css", import.meta.url), "utf8"),
+    readFile(new URL("../src/sky/arcade/SkyDancerArcadeRuntime.ts", import.meta.url), "utf8"),
+  ]);
+  assert.match(modeSource, /V11\.8/);
+  assert.match(modeSource, /TACTICAL BONUS \+\{snapshot\.loadoutBonusScore\}/);
+  assert.match(menuSource, /ARMOR SHRED · CANNON STAGGER/);
+  assert.match(menuSource, /RIPPLE SHOCK · ARMOR CRUSH/);
+  assert.match(menuSource, /TURBO FINISH · SCORE \+ REFUND/);
+  assert.match(webglSource, /impact\.reaction === "ripple-shock"/);
+  assert.match(webglSource, /snapshot\.loadoutReactionSerial/);
+  assert.match(cssSource, /v118LoadoutStatus/);
+  assert.match(runtimeSource, /TWIN CANNON SHRED/);
+  assert.match(runtimeSource, /RIPPLE ARMOR CRUSH/);
+  assert.match(runtimeSource, /FUSION LINK FINISH/);
 });

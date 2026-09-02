@@ -528,14 +528,15 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
     const side = Math.abs(sideDelta) > .04 ? Math.sign(sideDelta) : (impact.serial % 2 === 0 ? 1 : -1);
     const vertical = Math.abs(verticalDelta) > .04 ? Math.sign(verticalDelta) : (impact.serial % 3 === 0 ? -1 : 1);
     const mass = impact.boss ? .46 : heavyCraft ? .7 : 1;
-    const missilePower = impact.missile ? 1 : .28;
+    const doctrinePower = impact.reaction === "ripple-shock" ? 1.34 : impact.reaction === "twin-cannon" ? 1.2 : impact.reaction === "fusion-link" ? 1.28 : 1;
+    const missilePower = (impact.missile ? 1 : .28) * doctrinePower;
     const impulse = {
       x: side * .28 * missilePower * mass,
       y: vertical * .17 * missilePower * mass,
-      z: -(impact.missile ? 1.32 : .3) * mass,
-      pitch: vertical * (impact.missile ? .16 : .045) * mass,
-      roll: -side * (impact.missile ? .34 : .1) * mass,
-      flash: impact.missile ? 1 : .72,
+      z: -(impact.missile ? 1.32 : .3) * mass * doctrinePower,
+      pitch: vertical * (impact.missile ? .16 : .045) * mass * doctrinePower,
+      roll: -side * (impact.missile ? .34 : .1) * mass * doctrinePower,
+      flash: (impact.missile ? 1 : .72) * Math.min(1.25, doctrinePower),
       missile: impact.missile,
     };
     if (current) {
@@ -556,6 +557,10 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
       const position = new THREE.Vector3(impact.x * 8.4 + course.x, 1.2 + impact.y * 4.9 + course.y, course.z);
       const heavyCraft = impact.kind === "bomber" || impact.kind === "missile-boat";
       this.applyEnemyHitReaction(impact, snapshot, heavyCraft);
+      if (impact.armorBreak && impact.reaction !== "none") {
+        this.presentation.emitRushAccent();
+        this.cameraImpactKick = Math.max(this.cameraImpactKick, impact.reaction === "ripple-shock" ? .34 : .28);
+      }
       if (impact.destroyed) {
         if (impact.boss) {
           this.presentation.emitBossExplosion(position, impact.missile);
@@ -668,6 +673,11 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
     if (snapshot.turboActive && !this.previousSnapshot.turboActive) this.audio.tone(132, .2, .035, "sawtooth");
     if (snapshot.nearMisses > this.previousSnapshot.nearMisses) this.audio.tone(1180, .075, .018, "triangle");
     if (snapshot.enemiesDefeated > this.previousSnapshot.enemiesDefeated) this.audio.tone(236, .08, .018, "triangle");
+    if (snapshot.loadoutReactionSerial !== this.previousSnapshot.loadoutReactionSerial) {
+      const frequency = snapshot.loadout === "gun-focus" ? 980 : snapshot.loadout === "missile-focus" ? 640 : 760;
+      this.audio.tone(frequency, .09, .02, snapshot.loadout === "missile-focus" ? "square" : "triangle");
+      this.audio.tone(frequency * .5, .13, .018, "sawtooth");
+    }
     if (snapshot.bossActive && !this.previousSnapshot.bossActive) { this.audio.tone(72, .42, .052, "sawtooth"); this.audio.tone(144, .34, .025, "triangle"); }
     if (snapshot.bossMechanicSerial !== this.previousSnapshot.bossMechanicSerial) { this.audio.tone(96, .2, .035, "sawtooth"); this.audio.tone(288, .12, .018, "triangle"); }
     if (snapshot.stageSerial !== this.previousSnapshot.stageSerial) this.audio.tone(330, .18, .025, "triangle");

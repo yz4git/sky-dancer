@@ -53,6 +53,7 @@ export type SkyDancerArcadeStatus =
   | "practice-clear";
 
 export type SkyDancerArcadeEnemyManeuver = "approach" | "close-bank" | "overtake" | "parallel" | "cross-pass";
+export type SkyDancerArcadeLoadoutReaction = "none" | "fusion-link" | "ripple-shock" | "twin-cannon";
 
 export interface SkyDancerArcadeRuntimeOptions {
   difficulty: "normal" | "hard";
@@ -105,6 +106,8 @@ export interface SkyDancerArcadeImpactSnapshot {
   boss: boolean;
   missile: boolean;
   destroyed: boolean;
+  reaction: SkyDancerArcadeLoadoutReaction;
+  armorBreak: boolean;
 }
 
 export interface SkyDancerArcadeHazardSnapshot {
@@ -154,6 +157,10 @@ export interface SkyDancerArcadeSnapshot {
   bestChain: number;
   armorBreaks: number;
   formationBreaks: number;
+  loadoutBonusScore: number;
+  loadoutReactionSerial: number;
+  loadoutReactionLabel: string | null;
+  loadoutReactionIntensity: number;
   bossKills: number;
   continuesRemaining: number;
   continuesUsed: number;
@@ -214,6 +221,7 @@ interface ArcadeEnemy extends SkyDancerArcadeEnemySnapshot {
   alive: boolean;
   maneuverClock: number;
   maneuverSign: number;
+  loadoutStaggerRewarded: boolean;
 }
 
 interface ArcadeProjectile extends SkyDancerArcadeProjectileSnapshot {
@@ -444,6 +452,10 @@ export class SkyDancerArcadeRuntime {
   private hitSerial = 0;
   private damageSerial = 0;
   private damageCooldown = 0;
+  private loadoutBonusScore = 0;
+  private loadoutReactionSerial = 0;
+  private loadoutReactionLabel: string | null = null;
+  private loadoutReactionTimer = 0;
   private stageSerial = 1;
   private resultSerial = 0;
   private readonly stageStats: StageStats = {
@@ -484,6 +496,8 @@ export class SkyDancerArcadeRuntime {
     this.nextWaveAt = this.stageTime + (rewindTime > 0 ? 1.35 : 2.35);
     this.nextHazardAt = this.stageTime + (rewindTime > 0 ? 2.0 : 4.1);
     this.damageCooldown = 0;
+    this.loadoutReactionLabel = null;
+    this.loadoutReactionTimer = 0;
     const finalStage = this.stage.id === SKY_DANCER_ARCADE_FINAL_STAGE;
     const rewindCheckpoint = skyDancerArcadeStageEventCheckpoint(this.stageTime / this.stage.durationSeconds, finalStage);
     this.stageEventCheckpoint = rewindTime > 0 ? Math.max(this.stageEventCheckpoint, rewindCheckpoint) as 0 | 1 | 2 : 0;
@@ -593,6 +607,8 @@ export class SkyDancerArcadeRuntime {
     this.distance += this.stage.courseSpeed * (turboActive ? 1.44 : 1) * delta;
     this.messageTimer = Math.max(0, this.messageTimer - delta);
     this.damageCooldown = Math.max(0, this.damageCooldown - delta);
+    this.loadoutReactionTimer = Math.max(0, this.loadoutReactionTimer - delta);
+    if (this.loadoutReactionTimer <= 0) this.loadoutReactionLabel = null;
     this.stageEventTimer = Math.max(0, this.stageEventTimer - delta);
     if (this.stageEventTimer <= 0) this.stageEventLabel = null;
     if (this.messageTimer <= 0) this.message = null;
@@ -812,6 +828,7 @@ export class SkyDancerArcadeRuntime {
       alive: true,
       maneuverClock: 0,
       maneuverSign: maneuverSign < 0 ? -1 : 1,
+      loadoutStaggerRewarded: false,
     });
   }
 
@@ -859,6 +876,7 @@ export class SkyDancerArcadeRuntime {
       alive: true,
       maneuverClock: 0,
       maneuverSign: 1,
+      loadoutStaggerRewarded: false,
     });
     const bossProfile = skyDancerArcadeV11BossProfile(this.stage.id);
     this.bossMechanicSerial += 1;
@@ -1337,25 +1355,62 @@ export class SkyDancerArcadeRuntime {
     }
   }
 
+  private loadoutReactionForHit(missile: boolean): SkyDancerArcadeLoadoutReaction {
+    const turboLink = this.input.turbo && this.turbo > 0.5;
+    if (this.options.loadout === "missile-focus" && missile) return "ripple-shock";
+    if (this.options.loadout === "gun-focus" && !missile) return "twin-cannon";
+    if (arcadeStandardFusionActive(this.options.loadout, turboLink)) return "fusion-link";
+    return "none";
+  }
+
+  private rewardLoadoutReaction(label: string, baseScore: number, turboGain: number, duration = .9): void {
+    const awarded = this.addScore(baseScore, true);
+    this.loadoutBonusScore += awarded;
+    this.loadoutReactionSerial += 1;
+    this.loadoutReactionLabel = label;
+    this.loadoutReactionTimer = duration;
+    this.turbo = Math.min(100, this.turbo + turboGain);
+    this.message = label;
+    this.messageTimer = Math.max(this.messageTimer, duration);
+  }
+
   private damageEnemy(enemy: ArcadeEnemy, amount: number, missile: boolean): void {
     if (!enemy.alive) return;
     const hpBefore = enemy.hp;
     const armorBefore = enemy.armor;
+    const staggerBefore = enemy.stagger;
+    const reaction = this.loadoutReactionForHit(missile);
     let hullDamage = amount;
     if (enemy.armor > 0) {
-      const armorDamage = amount * (missile ? 1.35 : .7);
-      enemy.armor = Math.max(0, enemy.armor - armorDamage);
+      let armorScale = missile ? 1.35 : .7;
+      if (reaction === "ripple-shock") armorScale = 1.72;
+      else if (reaction === "twin-cannon") armorScale = 1.04;
+      else if (reaction === "fusion-link") armorScale = missile ? 1.52 : .9;
+      enemy.armor = Math.max(0, enemy.armor - amount * armorScale);
       hullDamage *= missile ? .9 : .72;
+      if (reaction === "twin-cannon") hullDamage *= 1.08;
+      if (reaction === "fusion-link") hullDamage *= 1.08;
     }
     if (enemy.boss && enemy.weakpointOpen) hullDamage *= missile ? 1.65 : 1.35;
     enemy.hp = Math.max(0, enemy.hp - hullDamage);
-    enemy.stagger = clamp(enemy.stagger + hullDamage / Math.max(1, enemy.maxHp) * (missile ? 5.2 : 3.2), 0, 1);
-    if (armorBefore > 0 && enemy.armor <= 0) {
+    const staggerScale = reaction === "ripple-shock" ? 7.4 : reaction === "twin-cannon" ? 4.7 : reaction === "fusion-link" ? 5.9 : missile ? 5.2 : 3.2;
+    enemy.stagger = clamp(enemy.stagger + hullDamage / Math.max(1, enemy.maxHp) * staggerScale, 0, 1);
+    const armorBreak = armorBefore > 0 && enemy.armor <= 0;
+    if (armorBreak) {
       this.armorBreaks += 1;
       this.addScore(enemy.boss ? 1800 : enemy.kind === "bomber" ? 900 : 650, true);
       this.turbo = Math.min(100, this.turbo + (enemy.boss ? 11 : 6));
       this.message = enemy.boss ? "BOSS ARMOR BREAK · CORE EXPOSED" : "ARMOR BREAK";
       this.messageTimer = 1.05;
+      if (reaction === "twin-cannon") this.rewardLoadoutReaction("TWIN CANNON SHRED", enemy.boss ? 700 : 420, enemy.boss ? 6 : 4, 1.05);
+      else if (reaction === "ripple-shock") this.rewardLoadoutReaction("RIPPLE ARMOR CRUSH", enemy.boss ? 820 : 520, enemy.boss ? 7 : 5, 1.05);
+      else if (reaction === "fusion-link") this.rewardLoadoutReaction("FUSION BREACH", enemy.boss ? 760 : 480, enemy.boss ? 7 : 5, 1.05);
+    }
+    if (reaction !== "none" && !enemy.loadoutStaggerRewarded && staggerBefore < .72 && enemy.stagger >= .72) {
+      enemy.loadoutStaggerRewarded = true;
+      if (reaction === "twin-cannon") this.rewardLoadoutReaction("CANNON STAGGER", enemy.boss ? 460 : 260, 3);
+      else if (reaction === "ripple-shock") this.rewardLoadoutReaction("RIPPLE SHOCK", enemy.boss ? 540 : 320, 4);
+      else this.rewardLoadoutReaction("FUSION OVERDRIVE", enemy.boss ? 520 : 300, 4);
     }
     this.hitSerial += 1;
     const destroyed = enemy.hp <= 0;
@@ -1372,6 +1427,8 @@ export class SkyDancerArcadeRuntime {
       boss: enemy.boss,
       missile,
       destroyed,
+      reaction,
+      armorBreak,
     });
     this.impactEventAges.set(this.hitSerial, 0);
     if (this.impactEvents.length > 16) {
@@ -1398,6 +1455,9 @@ export class SkyDancerArcadeRuntime {
       this.multiLockKills += 1;
       this.addScore(350, true);
     }
+    if (reaction === "twin-cannon") this.rewardLoadoutReaction("TWIN CANNON FINISH", enemy.boss ? 720 : 360, enemy.boss ? 5 : 2);
+    else if (reaction === "ripple-shock") this.rewardLoadoutReaction("RIPPLE BREAK", enemy.boss ? 840 : 420, enemy.boss ? 6 : 3);
+    else if (reaction === "fusion-link") this.rewardLoadoutReaction("FUSION LINK FINISH", enemy.boss ? 960 : 520, enemy.boss ? 8 : 5);
     if (!enemy.boss) return;
     this.bossKills += 1;
     this.bossDefeated = true;
@@ -1406,10 +1466,12 @@ export class SkyDancerArcadeRuntime {
     if (this.stageTime >= this.stage.durationSeconds) this.completeStage();
   }
 
-  private addScore(base: number, risk: boolean): void {
+  private addScore(base: number, risk: boolean): number {
     const chainMultiplier = 1 + Math.min(12, this.chain) * 0.1;
     const riskMultiplier = risk ? 1.25 : 1;
-    this.score += Math.round(base * chainMultiplier * riskMultiplier);
+    const awarded = Math.round(base * chainMultiplier * riskMultiplier);
+    this.score += awarded;
+    return awarded;
   }
 
   private takeDamage(amount: number): void {
@@ -1562,6 +1624,10 @@ export class SkyDancerArcadeRuntime {
       bestChain: this.bestChain,
       armorBreaks: this.armorBreaks,
       formationBreaks: this.formationBreaks,
+      loadoutBonusScore: this.loadoutBonusScore,
+      loadoutReactionSerial: this.loadoutReactionSerial,
+      loadoutReactionLabel: this.loadoutReactionLabel,
+      loadoutReactionIntensity: this.loadoutReactionTimer > 0 ? clamp(this.loadoutReactionTimer / 1.05, 0, 1) : 0,
       bossKills: this.bossKills,
       continuesRemaining: this.continuesRemaining,
       continuesUsed: this.continuesUsed,
@@ -1642,6 +1708,18 @@ export class SkyDancerArcadeRuntime {
       stageSerial: this.stageSerial,
       resultSerial: this.resultSerial,
     };
+  }
+
+  /** Deterministic V11.8 hooks for loadout combat regression tests. */
+  spawnEnemyForTests(kind: SkyDancerArcadeEnemyKind, x = 0, y = 0, depth = 30): number {
+    const id = this.nextEntityId;
+    this.spawnEnemy(kind, x, y, depth);
+    return id;
+  }
+
+  damageEnemyForTests(enemyId: number, amount: number, missile: boolean): void {
+    const enemy = this.enemies.find((candidate) => candidate.id === enemyId && candidate.alive);
+    if (enemy) this.damageEnemy(enemy, amount, missile);
   }
 
   /** Deterministic V11 hook for timeline/director regression tests. */

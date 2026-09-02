@@ -372,6 +372,8 @@ export default function SkyDancerArcadeMode({ request, onReturnTitle }: SkyDance
   const fireDoctrine = snapshot.loadout === "gun-focus" ? "TWIN BURST" : snapshot.loadout === "missile-focus" ? "BACKUP GUN" : standardFusionActive ? "FUSION GUN" : "HOLD · GUN";
   const lockDoctrine = snapshot.loadout === "missile-focus" ? "RAPID MULTI" : snapshot.loadout === "gun-focus" ? "TACTICAL LOCK" : standardFusionActive ? "FUSION SALVO" : "RELEASE SALVO";
   const turboDoctrine = snapshot.loadout === "standard" ? (standardFusionActive ? "FUSION LINK" : "LINK DRIVE") : snapshot.turboActive ? "SMASH" : "HOLD";
+  const loadoutTacticalName = snapshot.loadout === "gun-focus" ? "CANNON DOCTRINE" : snapshot.loadout === "missile-focus" ? "RIPPLE DOCTRINE" : "FUSION DOCTRINE";
+  const loadoutTacticalHint = snapshot.loadout === "gun-focus" ? "SHRED ARMOR · FORCE STAGGER" : snapshot.loadout === "missile-focus" ? "CRUSH ARMOR · SHOCK TARGET" : "TURBO LINK · FINISH FOR REFUND";
 
   return (
     <main className={`${styles.shell} ${productStyles.productShell}`} onContextMenu={(event) => event.preventDefault()}>
@@ -444,6 +446,11 @@ export default function SkyDancerArcadeMode({ request, onReturnTitle }: SkyDance
             <i className={styles.hpTrack}><b style={{ width: `${hpPercent}%` }} /></i>
             <small>CONTINUE ×{snapshot.continuesRemaining} <span>NEAR MISS {snapshot.nearMisses}</span></small>
           </div>
+          <div className={productStyles.v118LoadoutStatus} data-loadout={snapshot.loadout} data-active={snapshot.loadoutReactionIntensity > 0}>
+            <small>{loadoutTacticalName}</small>
+            <strong>{snapshot.loadoutReactionLabel ?? loadoutTacticalHint}</strong>
+            <span>TACTICAL BONUS +{snapshot.loadoutBonusScore}</span>
+          </div>
         </div>
 
         {controlsVisible && (
@@ -489,7 +496,7 @@ export default function SkyDancerArcadeMode({ request, onReturnTitle }: SkyDance
           </>
         )}
 
-        <span className={productStyles.rendererBadge}>{rendererName === "WEBGL" ? `3D FLIGHT · V11.7 · ${snapshot.paintScheme.toUpperCase()} · ${snapshot.loadout.toUpperCase()}` : `COMPATIBILITY · CANVAS · V11.7 · ${snapshot.loadout.toUpperCase()}`}</span>
+        <span className={productStyles.rendererBadge}>{rendererName === "WEBGL" ? `3D FLIGHT · V11.8 · ${snapshot.paintScheme.toUpperCase()} · ${snapshot.loadout.toUpperCase()}` : `COMPATIBILITY · CANVAS · V11.8 · ${snapshot.loadout.toUpperCase()}`}</span>
         {runtimeMessage && <div className={styles.runtimeMessage}>{runtimeMessage}</div>}
 
         {snapshot.status === "stage-clear" && (
