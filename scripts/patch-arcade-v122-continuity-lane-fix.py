@@ -38,3 +38,22 @@ new = '''      const flowActive = phaseIndex > 0 && maneuver !== "overtake" && c
 if old not in s:
     raise SystemExit('V12.2 runtime lane anchor missing')
 runtime.write_text(s.replace(old, new, 1))
+
+# V12.2 intentionally advances the presentation badge. Older contract tests are
+# compatibility guards, so keep accepting their historical versions plus V12.2.
+tests = Path('tests/sky-arcade-run.test.ts')
+t = tests.read_text()
+replacements = [
+    (r'/V(?:11\.(?:8|9)|12\.[01])/', r'/V(?:11\.(?:8|9)|12\.[012])/'),
+    (r'/V(?:11\.9|12\.[01])/', r'/V(?:11\.9|12\.[012])/'),
+    (r'/V12\.1/', r'/V12\.[12]/'),
+]
+changed = 0
+for old_regex, new_regex in replacements:
+    count = t.count(old_regex)
+    if count:
+        t = t.replace(old_regex, new_regex)
+        changed += count
+if changed < 5:
+    raise SystemExit(f'V12.2 version contract anchors missing: updated {changed}, expected at least 5')
+tests.write_text(t)
