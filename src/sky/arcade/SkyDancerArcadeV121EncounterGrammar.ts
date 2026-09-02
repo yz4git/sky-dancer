@@ -172,7 +172,7 @@ export function skyDancerArcadeV121EncounterGrammar(
       cadenceScale: 1.24,
       phases: [
         phase("light-pass", "LIGHT PASS", 0, .42, "line", "approach", "cross-pass", ["fighter", "interceptor"], 6),
-        phase("exit-lane", "EXIT LANE", .72, .42, "vee", "cross-pass", "approach", ["fighter", "interceptor"], 10),
+        phase("exit-lane", "EXIT LANE", 1.08, .42, "vee", "cross-pass", "approach", ["fighter", "interceptor"], 10),
       ],
     };
   }
@@ -186,8 +186,8 @@ export function skyDancerArcadeV121EncounterGrammar(
       cadenceScale: .98,
       phases: [
         phase("screen-in", "SCREEN IN", 0, .7, formations[0], "parallel", maneuvers[0], ["bomber", "missile-boat", ...profile.enemyBias], 2),
-        phase("brace-cross", "BRACE CROSS", .48, .56, formations[1], "cross-pass", maneuvers[1], ["bomber", "missile-boat", "ace"], -2, pressureBias),
-        phase("breaker", acePursuit ? "ACE BREAKER" : "BREAKER", 1.02, .44, formations[2], maneuvers[2], "close-bank", acePursuit ? ["ace", "interceptor"] : ["ace", "bomber", ...profile.enemyBias], -5),
+        phase("brace-cross", "BRACE CROSS", .82, .56, formations[1], "cross-pass", maneuvers[1], ["bomber", "missile-boat", "ace"], -2, pressureBias),
+        phase("breaker", acePursuit ? "ACE BREAKER" : "BREAKER", 1.64, .44, formations[2], maneuvers[2], "close-bank", acePursuit ? ["ace", "interceptor"] : ["ace", "bomber", ...profile.enemyBias], -5),
       ],
     };
   }
@@ -201,8 +201,8 @@ export function skyDancerArcadeV121EncounterGrammar(
       cadenceScale: .94,
       phases: [
         phase("feint", "FEINT", 0, .62, formations[0], "approach", "close-bank", ["interceptor", "fighter", ...profile.enemyBias], 5),
-        phase("crosscut", "CROSSCUT", .4, .6, formations[1], "cross-pass", maneuvers[1], ["interceptor", "ace", "fighter"], -3, pressureBias),
-        phase("overtake", acePursuit ? "ACE OVERTAKE" : "OVERTAKE", .86, .5, formations[2], "overtake", maneuvers[2], ["ace", "interceptor"], -8),
+        phase("crosscut", "CROSSCUT", .78, .6, formations[1], "cross-pass", maneuvers[1], ["interceptor", "ace", "fighter"], -3, pressureBias),
+        phase("overtake", acePursuit ? "ACE OVERTAKE" : "OVERTAKE", 1.56, .5, formations[2], "overtake", maneuvers[2], ["ace", "interceptor"], -8),
       ],
     };
   }
@@ -216,8 +216,8 @@ export function skyDancerArcadeV121EncounterGrammar(
       cadenceScale: .97,
       phases: [
         phase("bait", "BAIT", 0, .62, formations[0], maneuvers[0], "approach", ["fighter", "interceptor", ...profile.enemyBias], 4),
-        phase("jammer-line", "JAMMER LINE", .46, .58, formations[1], "parallel", "cross-pass", ["missile-boat", "bomber", "ace"], 0, pressureBias),
-        phase("close-net", "CLOSE NET", .96, .46, formations[2], "close-bank", maneuvers[2], ["missile-boat", "ace", ...profile.enemyBias], -5),
+        phase("jammer-line", "JAMMER LINE", .82, .58, formations[1], "parallel", "cross-pass", ["missile-boat", "bomber", "ace"], 0, pressureBias),
+        phase("close-net", "CLOSE NET", 1.62, .46, formations[2], "close-bank", maneuvers[2], ["missile-boat", "ace", ...profile.enemyBias], -5),
       ],
     };
   }
@@ -230,8 +230,8 @@ export function skyDancerArcadeV121EncounterGrammar(
     cadenceScale: 1,
     phases: [
       phase("probe", "PROBE", 0, .62, formations[0], maneuvers[0], "approach", profile.enemyBias, 5),
-      phase("crosscut", "CROSSCUT", .48, .56, formations[1], maneuvers[1], "cross-pass", profile.enemyBias, 0, pressureBias),
-      phase("finish", acePursuit ? "ACE FINISH" : "FINISH", 1.02, .46, formations[2], maneuvers[2], "overtake", acePursuit ? ["ace", "interceptor"] : profile.enemyBias, -5),
+      phase("crosscut", "CROSSCUT", .82, .56, formations[1], maneuvers[1], "cross-pass", profile.enemyBias, 0, pressureBias),
+      phase("finish", acePursuit ? "ACE FINISH" : "FINISH", 1.64, .46, formations[2], maneuvers[2], "overtake", acePursuit ? ["ace", "interceptor"] : profile.enemyBias, -5),
     ],
   };
 }

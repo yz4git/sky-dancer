@@ -145,8 +145,13 @@ test("combat contract includes eight locks, continues and score ranks", () => {
 
 test("holding lock acquires targets and release launches a bounded salvo", () => {
   const runtime = new SkyDancerArcadeRuntime({ mode: "arcade-run", difficulty: "normal", seed: 42 });
+  // Keep this combat-control contract deterministic: Encounter Grammar is allowed to change
+  // automatic wave timing and attack lanes, so the lock test owns its target geometry.
+  runtime.spawnEnemyForTests("fighter", -0.16, 0.02, 46);
+  runtime.spawnEnemyForTests("fighter", 0, -0.03, 49);
+  runtime.spawnEnemyForTests("fighter", 0.16, 0.04, 52);
   runtime.setLock(true);
-  for (let frame = 0; frame < 270; frame += 1) runtime.step(1 / 60);
+  for (let frame = 0; frame < 60; frame += 1) runtime.step(1 / 60);
   const acquired = runtime.getSnapshot();
   assert.ok(acquired.lockedCount > 1);
   assert.ok(acquired.lockedCount <= SKY_DANCER_ARCADE_MAX_LOCKS);
@@ -964,6 +969,8 @@ test("V12.1 Dawn City encounter grammar authors a real three-step combat sentenc
   const second = skyDancerArcadeV121EncounterGrammar("dawn-city", "adaptive-mix", 1, "city-entry", .72, false);
   assert.equal(first.phases.length, 3);
   assert.ok(first.phases[0].delay < first.phases[1].delay && first.phases[1].delay < first.phases[2].delay);
+  assert.ok(first.phases[1].delay >= .75, "second beat must be visually separable");
+  assert.ok(first.phases[2].delay - first.phases[1].delay >= .7, "final beat must not collapse into the crosscut");
   assert.notEqual(first.signature, second.signature, "successive encounters alternate authored grammar variants");
   assert.notEqual(first.label, second.label, "Dawn City alternates skyline and gantry attack sentences");
   assert.notEqual(first.phases[0].maneuver, first.phases[1].maneuver, "a grammar changes maneuver between phases");
