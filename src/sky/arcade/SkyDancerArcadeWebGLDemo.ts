@@ -9,6 +9,7 @@ import { arcadeCameraPose } from "./SkyDancerArcadeCamera";
 import { arcadeCoursePose, arcadeCourseRelativeVisualPose } from "./SkyDancerArcadeCoursePath";
 import { ARCADE_SUN_DIRECTION, referenceAtmosphere } from "./SkyDancerArcadeReferenceMaterials";
 import { arcadeGroundSurfaceLocalYV1052, arcadeSharedSceneryAttitudeV1041 } from "./SkyDancerArcadeReferenceWorld";
+import { SkyDancerArcadeV11SetpieceDirector } from "./SkyDancerArcadeV11Setpieces";
 import {
   createSkyDancerArcadeEnemy,
   createSkyDancerArcadeHazard,
@@ -109,6 +110,7 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
   private environmentMap: THREE.WebGLRenderTarget | null = null;
   private readonly environment: SkyDancerArcadeEnvironment;
   private readonly presentation: SkyDancerArcadeProductPresentation;
+  private readonly v11Setpieces: SkyDancerArcadeV11SetpieceDirector;
   private readonly player = createSkyDancerArcadePlayer();
   private readonly entityRoot = new THREE.Group();
   private readonly projectileRoot = new THREE.Group();
@@ -174,6 +176,8 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
     this.scene.add(this.entityRoot, this.projectileRoot, this.hazardRoot, this.branchRoot, this.player);
     this.environment = new SkyDancerArcadeEnvironment(this.scene);
     this.environment.setStage(this.previousSnapshot.stage);
+    this.v11Setpieces = new SkyDancerArcadeV11SetpieceDirector(this.scene);
+    this.v11Setpieces.setStage(this.previousSnapshot.stage);
     this.updateReflections(this.previousSnapshot);
     this.presentation = new SkyDancerArcadeProductPresentation(this.scene);
     this.presentation.setStage();
@@ -218,12 +222,14 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
     if (snapshot.stage.id !== this.currentStageId) {
       this.currentStageId = snapshot.stage.id;
       this.environment.setStage(snapshot.stage);
+      this.v11Setpieces.setStage(snapshot.stage);
       this.updateReflections(snapshot);
       this.presentation.setStage();
       this.clearEntityVisuals();
       this.buildBranchGates(snapshot);
     }
     this.environment.update(snapshot.distance, snapshot.playerX, snapshot.playerY);
+    this.v11Setpieces.update(snapshot);
     this.syncPlayer(snapshot, delta);
     this.syncEnemies(snapshot, delta);
     this.syncProjectiles(snapshot);
@@ -788,6 +794,7 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
     this.audio.dispose();
     this.presentation.dispose();
     this.environment.dispose();
+    this.v11Setpieces.dispose();
     this.clearEntityVisuals();
     for (const child of this.branchRoot.children) this.disposeObject(child);
     this.branchRoot.clear();
