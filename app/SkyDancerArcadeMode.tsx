@@ -378,6 +378,12 @@ export default function SkyDancerArcadeMode({ request, onReturnTitle }: SkyDance
           </div>
         </header>
 
+        <div className={productStyles.timelineBeat} data-kind={snapshot.timelineBeatKind} aria-label="Current course beat">
+          <small>COURSE BEAT · {String(snapshot.timelineBeatId).toUpperCase().replaceAll("-", " ")}</small>
+          <strong>{snapshot.timelineBeatLabel}</strong>
+          <span>{snapshot.timelineSetpiece}</span>
+        </div>
+
         {snapshot.message && <div className={`${styles.message} ${productStyles.flightMessage}`}>{snapshot.message}</div>}
         {snapshot.chain > 1 && <div className={`${styles.chain} ${productStyles.chainReadout}`}>CHAIN <strong>×{snapshot.chain}</strong></div>}
         {incomingMissiles.length > 0 && (
@@ -401,7 +407,7 @@ export default function SkyDancerArcadeMode({ request, onReturnTitle }: SkyDance
                 const stage = skyDancerArcadeStageById(id);
                 return (
                   <div key={id} className={`${styles.routeOption} ${snapshot.branchSelection === id ? styles.routeSelected : ""}`}>
-                    <span>{index === 0 ? "LEFT" : index === snapshot.branchOptions.length - 1 ? "RIGHT" : "CENTER"}</span>
+                    <span>{index === 0 ? "LEFT" : index === snapshot.branchOptions.length - 1 ? "RIGHT" : "CENTER"} · {snapshot.routeRiskLabels[index] ?? "ROUTE"}</span>
                     <strong>{stage.name}</strong>
                   </div>
                 );
@@ -461,7 +467,7 @@ export default function SkyDancerArcadeMode({ request, onReturnTitle }: SkyDance
           </>
         )}
 
-        <span className={productStyles.rendererBadge}>{rendererName === "WEBGL" ? "3D FLIGHT" : "COMPATIBILITY · CANVAS"}</span>
+        <span className={productStyles.rendererBadge}>{rendererName === "WEBGL" ? "3D FLIGHT · V11 ARCADE EVOLUTION" : "COMPATIBILITY · CANVAS · V11"}</span>
         {runtimeMessage && <div className={styles.runtimeMessage}>{runtimeMessage}</div>}
 
         {snapshot.status === "stage-clear" && (

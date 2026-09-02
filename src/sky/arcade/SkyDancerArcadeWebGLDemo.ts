@@ -656,6 +656,7 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
     if (snapshot.enemiesDefeated > this.previousSnapshot.enemiesDefeated) this.audio.tone(236, .08, .018, "triangle");
     if (snapshot.bossActive && !this.previousSnapshot.bossActive) { this.audio.tone(72, .42, .052, "sawtooth"); this.audio.tone(144, .34, .025, "triangle"); }
     if (snapshot.stageSerial !== this.previousSnapshot.stageSerial) this.audio.tone(330, .18, .025, "triangle");
+    if (snapshot.timelineSerial !== this.previousSnapshot.timelineSerial) { this.audio.tone(520, .12, .018, "triangle"); this.audio.tone(780, .08, .012, "square"); }
     const incoming = snapshot.projectiles.some((projectile) => projectile.owner === "enemy" && projectile.depth > 2.2 && projectile.depth < 30);
     const wasIncoming = this.previousSnapshot.projectiles.some((projectile) => projectile.owner === "enemy" && projectile.depth > 2.2 && projectile.depth < 30);
     if (incoming && !wasIncoming) this.audio.tone(880, 0.12, 0.026, "square");
@@ -686,8 +687,9 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
     const targetY = pose.y + shakeY;
     this.camera.position.x += (targetX - this.camera.position.x) * xAlpha;
     this.camera.position.y += (targetY - this.camera.position.y) * yAlpha;
-    this.camera.position.z += (pose.z + this.presentationFx.pullback + this.cameraImpactKick - this.camera.position.z) * zAlpha;
-    this.camera.fov += (pose.fov + this.presentationFx.fovKick - this.camera.fov) * fovAlpha;
+    // V11 course beats may widen or pull back the shot, but never own world rotation/translation.
+    this.camera.position.z += (pose.z + this.presentationFx.pullback + snapshot.timelineCameraPullback + this.cameraImpactKick - this.camera.position.z) * zAlpha;
+    this.camera.fov += (pose.fov + this.presentationFx.fovKick + snapshot.timelineCameraFov - this.camera.fov) * fovAlpha;
     this.camera.updateProjectionMatrix();
 
     const desiredLookX = pose.lookX;

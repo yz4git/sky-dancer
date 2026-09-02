@@ -180,3 +180,23 @@
   .flightStatus { width: min(70vw,310px); bottom: max(23px,calc(env(safe-area-inset-bottom) + 10px)); }
   .rendererBadge { display: none; }
 }
+
+
+/* V11: stage-specific timeline readout. It stays informational and never covers the reticle. */
+.timelineBeat {
+  position: absolute; z-index: 7; pointer-events: none;
+  left: 50%; top: max(78px, calc(env(safe-area-inset-top) + 58px)); transform: translateX(-50%);
+  width: min(290px, 34vw); text-align: center; color: #eefbff;
+  text-shadow: 0 2px 7px #071b2ae8;
+  opacity: .82;
+}
+.timelineBeat small { display: block; font-size: 6px; letter-spacing: .22em; color: #bfe9f2a8; }
+.timelineBeat strong { display: block; margin-top: 3px; font-size: 10px; font-weight: 650; letter-spacing: .16em; }
+.timelineBeat span { display: block; margin-top: 3px; font-size: 6px; letter-spacing: .14em; color: #dceef0a6; }
+.timelineBeat[data-kind="setpiece"] strong, .timelineBeat[data-kind="chase"] strong { color: #fff0c6; }
+.timelineBeat[data-kind="boss"] strong { color: #ffc4ca; }
+@media (max-height: 520px) {
+  .timelineBeat { top: max(58px, calc(env(safe-area-inset-top) + 43px)); width: 30vw; opacity: .72; }
+  .timelineBeat span { display: none; }
+}
+@media (orientation: portrait) { .timelineBeat { top: 148px; width: 54vw; } }

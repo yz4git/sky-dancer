@@ -25,6 +25,13 @@ import {
   type SkyDancerArcadeBossPhase,
   type SkyDancerArcadeEnemyRole,
 } from "./SkyDancerArcadeV10Systems";
+import {
+  skyDancerArcadeV11Beat,
+  skyDancerArcadeV11BeatIndex,
+  skyDancerArcadeV11RouteRisk,
+  type SkyDancerArcadeV11BeatKind,
+  type SkyDancerArcadeV11RouteRisk,
+} from "./SkyDancerArcadeV11Timeline";
 
 export type SkyDancerArcadeStatus =
   | "running"
@@ -149,6 +156,15 @@ export interface SkyDancerArcadeSnapshot {
   stageEventSerial: number;
   stageEventLabel: string | null;
   stageEventIntensity: number;
+  timelineBeatId: string;
+  timelineBeatLabel: string;
+  timelineBeatKind: SkyDancerArcadeV11BeatKind;
+  timelineSetpiece: string;
+  timelineIntensity: number;
+  timelineCameraFov: number;
+  timelineCameraPullback: number;
+  timelineSerial: number;
+  routeRiskLabels: readonly SkyDancerArcadeV11RouteRisk[];
   enemies: SkyDancerArcadeEnemySnapshot[];
   projectiles: SkyDancerArcadeProjectileSnapshot[];
   impacts: SkyDancerArcadeImpactSnapshot[];
@@ -335,6 +351,8 @@ export class SkyDancerArcadeRuntime {
   private stageEventCheckpoint: 0 | 1 | 2 = 0;
   private stageEventLabel: string | null = null;
   private stageEventTimer = 0;
+  private timelineBeatIndex = 0;
+  private timelineSerial = 0;
   private resultTimer = 0;
   private lastClearedStageId: SkyDancerArcadeStageId | null = null;
   private lastStageScore = 0;
@@ -389,6 +407,7 @@ export class SkyDancerArcadeRuntime {
     this.stageEventCheckpoint = rewindTime > 0 ? Math.max(this.stageEventCheckpoint, rewindCheckpoint) as 0 | 1 | 2 : 0;
     this.stageEventLabel = null;
     this.stageEventTimer = 0;
+    this.timelineBeatIndex = skyDancerArcadeV11BeatIndex(this.stage.id, this.stageTime / this.stage.durationSeconds);
     this.branchSelection = null;
     this.branchWasResolved = this.stageTime >= this.stage.durationSeconds * 0.45;
     this.bossSpawned = false;
@@ -491,7 +510,7 @@ export class SkyDancerArcadeRuntime {
     if (this.messageTimer <= 0) this.message = null;
     this.updatePlayer(delta, turboActive);
     this.updateBranch();
-    this.updateStageEvolution();
+    this.updateV11Timeline();
     this.updateDirector();
     this.updateLocking(delta);
     this.updateWeapons(delta);
@@ -558,6 +577,24 @@ export class SkyDancerArcadeRuntime {
     }
   }
 
+  private updateV11Timeline(): void {
+    const progress = clamp(this.stageTime / this.stage.durationSeconds, 0, 1);
+    const nextIndex = skyDancerArcadeV11BeatIndex(this.stage.id, progress);
+    if (nextIndex === this.timelineBeatIndex) return;
+    this.timelineBeatIndex = nextIndex;
+    const beat = skyDancerArcadeV11Beat(this.stage.id, progress);
+    this.timelineSerial += 1;
+    // Reuse the proven presentation event channel while V11 owns the actual gameplay timeline.
+    this.stageEventSerial += 1;
+    this.stageEventLabel = beat.label;
+    this.stageEventTimer = 1.72;
+    this.message = `COURSE BEAT · ${beat.label}`;
+    this.messageTimer = beat.kind === "boss" ? 1.15 : 1.4;
+    this.addScore(beat.scoreBonus, true);
+    this.turbo = Math.min(100, this.turbo + 4 + Math.round(beat.intensity * 5));
+    if (!this.bossSpawned && beat.forcedHazard && this.hazards.length < 8) this.spawnHazardPattern(beat.forcedHazard);
+  }
+
   private updateStageEvolution(): void {
     const progress = clamp(this.stageTime / this.stage.durationSeconds, 0, 1);
     const checkpoint = skyDancerArcadeStageEventCheckpoint(progress, this.stage.id === SKY_DANCER_ARCADE_FINAL_STAGE);
@@ -580,39 +617,55 @@ export class SkyDancerArcadeRuntime {
   }
 
   private updateDirector(): void {
+    const progress = clamp(this.stageTime / this.stage.durationSeconds, 0, 1);
+    const beat = skyDancerArcadeV11Beat(this.stage.id, progress);
     const bossTime = this.stage.durationSeconds * skyDancerArcadeBossStartProgress(this.stage.id === SKY_DANCER_ARCADE_FINAL_STAGE);
     if (!this.bossSpawned && this.stageTime >= bossTime) this.spawnBoss();
+    // Keep the proven V6.2 readability ceiling; V11 changes cadence/composition, not simultaneous clutter.
     const enemyCap = this.options.difficulty === "hard" ? 15 : 11;
     if (!this.bossSpawned && this.stageTime >= this.nextWaveAt && this.enemies.filter((enemy) => enemy.alive).length < enemyCap) {
       this.spawnWave();
       const pressure = this.options.difficulty === "hard" ? 0.84 : 1;
-      this.nextWaveAt += this.stage.waveIntervalSeconds * pressure * (0.84 + this.random() * 0.34);
+      this.nextWaveAt += this.stage.waveIntervalSeconds * beat.waveIntervalScale * pressure * (0.84 + this.random() * 0.34);
     }
     if (!this.bossSpawned && this.stageTime >= this.nextHazardAt && this.hazards.length < 8) {
       this.spawnHazardPattern();
-      this.nextHazardAt += (3.8 - this.stage.turbulence * 2.6) * (0.82 + this.random() * 0.42);
+      this.nextHazardAt += (3.8 - this.stage.turbulence * 2.6) * beat.hazardIntervalScale * (0.82 + this.random() * 0.42);
     }
   }
 
   private spawnWave(): void {
-    const formation = this.stage.formations[Math.floor(this.random() * this.stage.formations.length)] ?? "line";
+    const progress = clamp(this.stageTime / this.stage.durationSeconds, 0, 1);
+    const beat = skyDancerArcadeV11Beat(this.stage.id, progress);
+    const formations = beat.preferredFormations.length > 0 ? beat.preferredFormations : this.stage.formations;
+    const enemyPool = beat.preferredEnemies.length > 0 ? beat.preferredEnemies : this.stage.enemies;
+    const formation = formations[Math.floor(this.random() * formations.length)] ?? "line";
     const hardBonus = this.options.difficulty === "hard" ? 1 : 0;
-    const count = 3 + Math.floor(this.random() * 2) + hardBonus;
-    const choreography: readonly SkyDancerArcadeEnemyManeuver[] = ["close-bank", "overtake", "parallel", "cross-pass"];
+    const count = Math.min(6, 3 + Math.floor(this.random() * 2) + hardBonus + (beat.intensity > .9 ? 1 : 0));
+    const choreography = beat.maneuvers.length > 0 ? beat.maneuvers : (["close-bank", "overtake", "parallel", "cross-pass"] as const);
     const featured = choreography[this.waveSerial % choreography.length] ?? "close-bank";
     this.waveSerial += 1;
+
+    // V11 showcase: Dawn City's pre-boss beat is a deliberate pursuit formation, not a random wave.
+    if (this.stage.id === "dawn-city" && beat.id === "ace-pursuit") {
+      const sign = this.waveSerial % 2 === 0 ? 1 : -1;
+      this.spawnEnemy("ace", sign * 1.86, .12, -6.4, "overtake", sign);
+      this.spawnEnemy("interceptor", -sign * 1.52, -.46, 48, "cross-pass", -sign);
+      this.spawnEnemy("interceptor", sign * .72, .58, 55, "parallel", sign);
+      return;
+    }
+
     for (let index = 0; index < count; index += 1) {
-      const kind = this.stage.enemies[Math.floor(this.random() * this.stage.enemies.length)] ?? "fighter";
+      const kind = enemyPool[Math.floor(this.random() * enemyPool.length)] ?? "fighter";
       const [formationX, formationY] = this.formationPosition(formation, index, count);
       const maneuver: SkyDancerArcadeEnemyManeuver = index === 0
         ? featured
         : index === 1 && count >= 4
-          ? "close-bank"
+          ? (choreography[(this.waveSerial + 1) % choreography.length] ?? "close-bank")
           : "approach";
       const sign = Math.abs(formationX) > 0.18 ? Math.sign(formationX) : index % 2 === 0 ? 1 : -1;
       const x = maneuver === "overtake" ? sign * 1.9 : formationX;
       const y = maneuver === "overtake" ? clamp(formationY * 0.34, -0.62, 0.62) : formationY;
-      // V8 keeps ordinary enemies in the readable mid-field and lets an overtaker enter from behind.
       const depth = maneuver === "overtake" ? -6.4 : 51 + index * 3.8 + this.random() * 10;
       this.spawnEnemy(kind, x, y, depth, maneuver, sign);
     }
@@ -869,15 +922,24 @@ export class SkyDancerArcadeRuntime {
           this.spawnHazardPattern(profile.eventHazards[nextPhase === 2 ? 0 : 1]);
         }
         enemy.weakpointOpen = skyDancerArcadeBossWeakpointOpen(enemy.bossPhase, enemy.age);
-        const phaseDepth = enemy.bossPhase === 1 ? 33 : enemy.bossPhase === 2 ? 29 : 25.5;
-        const phaseSpeed = enemy.bossPhase === 1 ? 18 : enemy.bossPhase === 2 ? 21 : 24;
+        const dawnAceChase = this.stage.id === "dawn-city";
+        const phaseDepth = dawnAceChase
+          ? (enemy.bossPhase === 1 ? 30 : enemy.bossPhase === 2 ? 23.5 : 18.5)
+          : (enemy.bossPhase === 1 ? 33 : enemy.bossPhase === 2 ? 29 : 25.5);
+        const phaseSpeed = dawnAceChase
+          ? (enemy.bossPhase === 1 ? 22 : enemy.bossPhase === 2 ? 26 : 30)
+          : (enemy.bossPhase === 1 ? 18 : enemy.bossPhase === 2 ? 21 : 24);
         enemy.depth = moveToward(enemy.depth, phaseDepth, delta * phaseSpeed);
         const baseFrequency = this.options.difficulty === "hard" ? 0.82 : 0.68;
-        const frequency = baseFrequency * (1 + (enemy.bossPhase - 1) * .24);
-        const phaseAmplitude = enemy.amplitude * (1 + (enemy.bossPhase - 1) * .13);
+        const frequency = baseFrequency * (1 + (enemy.bossPhase - 1) * .24) * (dawnAceChase ? 1.34 : 1);
+        const phaseAmplitude = enemy.amplitude * (1 + (enemy.bossPhase - 1) * .13) * (dawnAceChase ? 1.12 : 1);
         const staggerSuppression = 1 - enemy.stagger * .16;
-        enemy.x = clamp((this.playerX * 0.58 + Math.sin(enemy.age * frequency) * phaseAmplitude) * staggerSuppression, -ENEMY_X_LIMIT, ENEMY_X_LIMIT);
-        enemy.y = clamp(this.playerY * 0.5 + enemy.baseY + Math.sin(enemy.age * (0.92 + enemy.bossPhase * .08) + 1.3) * (0.72 + enemy.bossPhase * .1), -ENEMY_Y_LIMIT, ENEMY_Y_LIMIT);
+        enemy.x = dawnAceChase
+          ? clamp((this.playerX * .78 + Math.sin(enemy.age * frequency) * phaseAmplitude) * staggerSuppression, -ENEMY_X_LIMIT, ENEMY_X_LIMIT)
+          : clamp((this.playerX * 0.58 + Math.sin(enemy.age * frequency) * phaseAmplitude) * staggerSuppression, -ENEMY_X_LIMIT, ENEMY_X_LIMIT);
+        enemy.y = dawnAceChase
+          ? clamp(this.playerY * .68 + Math.sin(enemy.age * (1.18 + enemy.bossPhase * .12) + 1.3) * (.78 + enemy.bossPhase * .12), -ENEMY_Y_LIMIT, ENEMY_Y_LIMIT)
+          : clamp(this.playerY * 0.5 + enemy.baseY + Math.sin(enemy.age * (0.92 + enemy.bossPhase * .08) + 1.3) * (0.72 + enemy.bossPhase * .1), -ENEMY_Y_LIMIT, ENEMY_Y_LIMIT);
       } else {
         const frequency = enemy.kind === "interceptor" ? 2.35 : enemy.kind === "ace" ? 1.75 : 1.02;
         const pursuit = clamp((62 - enemy.depth) / 62, 0.12, enemy.kind === "ace" ? 0.84 : enemy.kind === "interceptor" ? 0.74 : 0.54);
@@ -1353,7 +1415,16 @@ export class SkyDancerArcadeRuntime {
       bossPhaseSerial: this.bossPhaseSerial,
       stageEventSerial: this.stageEventSerial,
       stageEventLabel: this.stageEventLabel,
-      stageEventIntensity: this.stageEventTimer > 0 ? clamp(this.stageEventTimer / 1.65, 0, 1) : 0,
+      stageEventIntensity: this.stageEventTimer > 0 ? clamp(this.stageEventTimer / 1.72, 0, 1) : 0,
+      timelineBeatId: skyDancerArcadeV11Beat(this.stage.id, clamp(this.stageTime / this.stage.durationSeconds, 0, 1)).id,
+      timelineBeatLabel: skyDancerArcadeV11Beat(this.stage.id, clamp(this.stageTime / this.stage.durationSeconds, 0, 1)).label,
+      timelineBeatKind: skyDancerArcadeV11Beat(this.stage.id, clamp(this.stageTime / this.stage.durationSeconds, 0, 1)).kind,
+      timelineSetpiece: skyDancerArcadeV11Beat(this.stage.id, clamp(this.stageTime / this.stage.durationSeconds, 0, 1)).setpiece,
+      timelineIntensity: skyDancerArcadeV11Beat(this.stage.id, clamp(this.stageTime / this.stage.durationSeconds, 0, 1)).intensity,
+      timelineCameraFov: skyDancerArcadeV11Beat(this.stage.id, clamp(this.stageTime / this.stage.durationSeconds, 0, 1)).cameraFov,
+      timelineCameraPullback: skyDancerArcadeV11Beat(this.stage.id, clamp(this.stageTime / this.stage.durationSeconds, 0, 1)).cameraPullback,
+      timelineSerial: this.timelineSerial,
+      routeRiskLabels: this.stage.next.map((_, index) => skyDancerArcadeV11RouteRisk(index, this.stage.next.length)),
       enemies: this.enemies.filter((enemy) => enemy.alive).map((enemy) => ({
         id: enemy.id,
         kind: enemy.kind,
@@ -1405,7 +1476,14 @@ export class SkyDancerArcadeRuntime {
     };
   }
 
-  /** Deterministic V10 hooks used by rule tests without adding alternate production gameplay paths. */
+  /** Deterministic V11 hook for timeline/director regression tests. */
+  triggerV11TimelineForTests(progress: number): void {
+    this.stageTime = this.stage.durationSeconds * clamp(progress, 0, 1);
+    this.distance = this.stageTime * this.stage.courseSpeed;
+    this.updateV11Timeline();
+  }
+
+  /** Deterministic V10 hooks retained for legacy rule coverage. */
   triggerStageEvolutionForTests(progress: number): void {
     this.stageTime = this.stage.durationSeconds * clamp(progress, 0, 1);
     this.distance = this.stageTime * this.stage.courseSpeed;
