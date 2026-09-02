@@ -4,9 +4,11 @@ import { Fragment, useEffect, useState } from "react";
 import "../src/cart/CartRogueRuntime";
 import "../src/cart/CartGameMenuRuntime";
 import "../src/sky/SkyDancerTurboInputIsolation";
+import "../src/sky/SkyDancerSkyRaid";
 import { setCartRunDifficulty, type CartRunDifficulty } from "../src/cart/CartRunDifficulty";
 import CartRogueGame from "./CartRogueGame";
 import CartTurboHuntHudOverlay from "./CartTurboHuntHudOverlay";
+import SkyDancerSkyRaidOverlay from "./SkyDancerSkyRaidOverlay";
 import CartCombatReadabilityPass from "./CartCombatReadabilityPass";
 import CartGameMenu from "./CartGameMenu";
 import SkyDancerArcadeVirtualPad from "./SkyDancerArcadeVirtualPad";
@@ -29,6 +31,7 @@ export default function CartRogueGamePhase13() {
   const [runKey, setRunKey] = useState(0);
 
   const startRun = (request: SkyDancerStartRequest) => {
+    document.documentElement.dataset.skyDancerMode = request.mode;
     setCartRunDifficulty(request.difficulty as CartRunDifficulty);
     setRunKey((value) => value + 1);
     setActiveRequest(request);
@@ -49,10 +52,10 @@ export default function CartRogueGamePhase13() {
   }, [activeRequest?.mode]);
 
   return <>
-    {activeRequest?.mode === "turbo-hunt" && (
+    {(activeRequest?.mode === "turbo-hunt" || activeRequest?.mode === "sky-raid") && (
       <Fragment key={runKey}>
         <CartRogueGame />
-        <CartTurboHuntHudOverlay />
+        {activeRequest.mode === "sky-raid" ? <SkyDancerSkyRaidOverlay /> : <CartTurboHuntHudOverlay />}
         <CartCombatReadabilityPass />
         <SkyDancerArcadeVirtualPad />
         <SkyDancerHudQualityPass />
@@ -68,7 +71,7 @@ export default function CartRogueGamePhase13() {
         <SkyDancerHudV54 />
       </Fragment>
     )}
-    {activeRequest && activeRequest.mode !== "turbo-hunt" && (
+    {activeRequest && (activeRequest.mode === "arcade-run" || activeRequest.mode === "stage-practice") && (
       <SkyDancerArcadeMode key={runKey} request={activeRequest} onReturnTitle={() => setActiveRequest(null)} />
     )}
     <CartGameMenu

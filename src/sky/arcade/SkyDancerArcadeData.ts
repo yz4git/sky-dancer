@@ -73,7 +73,7 @@ export interface SkyDancerArcadeStageDefinition {
   palette: SkyDancerArcadePalette;
 }
 
-export type SkyDancerGameMode = "turbo-hunt" | "arcade-run" | "stage-practice";
+export type SkyDancerGameMode = "turbo-hunt" | "sky-raid" | "arcade-run" | "stage-practice";
 
 export interface SkyDancerStartRequest {
   mode: SkyDancerGameMode;

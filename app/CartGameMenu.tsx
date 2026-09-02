@@ -78,7 +78,7 @@ export default function CartGameMenu({ started, activeMode, onStart, onReturnTit
   const [hardSnapshot, setHardSnapshot] = useState<CartHardModeSnapshot | null>(null);
   const [cameraDistance, setCameraDistance] = useState(DEFAULT_CART_ROGUE_CONFIG.cameraDistance);
   const [vibrationEnabled, setVibrationEnabled] = useState(true);
-  const gameOver = activeMode === "turbo-hunt" && Boolean(hardSnapshot?.gameOver);
+  const gameOver = (activeMode === "turbo-hunt" || activeMode === "sky-raid") && Boolean(hardSnapshot?.gameOver);
 
   const pauseGame = useCallback(() => {
     if (!started || paused || gameOver || hasBlockingGameOverlay()) return;
@@ -104,8 +104,8 @@ export default function CartGameMenu({ started, activeMode, onStart, onReturnTit
       mode: nextMode,
       difficulty: nextDifficulty,
       practiceStageId: nextMode === "stage-practice" ? practiceStageId : undefined,
-      paintScheme: nextMode === "turbo-hunt" ? undefined : selectedPaintScheme,
-      loadout: nextMode === "turbo-hunt" ? undefined : selectedLoadout,
+      paintScheme: nextMode === "turbo-hunt" || nextMode === "sky-raid" ? undefined : selectedPaintScheme,
+      loadout: nextMode === "turbo-hunt" || nextMode === "sky-raid" ? undefined : selectedLoadout,
       seed: ((Date.now() & 0x7fffffff) ^ 0x51f15e) | 0,
     });
   };
@@ -224,22 +224,26 @@ export default function CartGameMenu({ started, activeMode, onStart, onReturnTit
       : "SKY MASTER COMPLETE";
     const modeSummary = selectedMode === "arcade-run"
       ? "BRANCHING FIXED COURSE · 7 SECTIONS · ABOUT 4 MINUTES"
-      : selectedMode === "turbo-hunt"
-        ? "HUNT THE RAID. BREAK THE LINE. KEEP MOVING."
-        : selectedStage
-          ? `${selectedStage.name} · SCORE ATTACK · MASTERY ${selectedMasteryCount}/3`
-          : "CLEAR AN ARCADE STAGE TO UNLOCK PRACTICE";
+      : selectedMode === "sky-raid"
+        ? "FREE 360° RAID · ARCADE ACTS · SETPIECES · TITAN FINALE · ABOUT 2 MINUTES"
+        : selectedMode === "turbo-hunt"
+          ? "HUNT THE RAID. BREAK THE LINE. KEEP MOVING."
+          : selectedStage
+            ? `${selectedStage.name} · SCORE ATTACK · MASTERY ${selectedMasteryCount}/3`
+            : "CLEAR AN ARCADE STAGE TO UNLOCK PRACTICE";
     const startLabel = selectedMode === "arcade-run"
       ? "START ARCADE RUN"
-      : selectedMode === "turbo-hunt"
-        ? hard ? "START HARD HUNT" : "START TURBO HUNT"
-        : "START STAGE PRACTICE";
+      : selectedMode === "sky-raid"
+        ? hard ? "START ACE SKY RAID" : "START SKY RAID"
+        : selectedMode === "turbo-hunt"
+          ? hard ? "START HARD HUNT" : "START TURBO HUNT"
+          : "START STAGE PRACTICE";
     return (
       <div className={`${styles.titleScreen} ${modeStyles.scrollTitleScreen}`} role="dialog" aria-modal="true" aria-label="Sky Dancer title screen">
         <div className={styles.titleGlow} aria-hidden="true" />
         <div className={`${styles.titlePanel} ${modeStyles.modeTitlePanel}`}>
           <div className={`${styles.eyebrow} ${modeStyles.compactEyebrow}`}>HIGH SPEED AIR RAID ACTION</div>
-          {selectedMode !== "turbo-hunt" && (
+          {selectedMode !== "turbo-hunt" && selectedMode !== "sky-raid" && (
             <button className={modeStyles.hangarButton} onClick={() => setHangarOpen(true)} aria-label="Open hangar">
               <strong>HANGAR</strong><small>{selectedPaintScheme.toUpperCase()} · {selectedLoadout.toUpperCase()}</small>
             </button>
@@ -255,6 +259,14 @@ export default function CartGameMenu({ started, activeMode, onStart, onReturnTit
             >
               <strong>ARCADE RUN</strong>
               <small>FIXED COURSE · 7 SECTIONS · 4 MIN</small>
+            </button>
+            <button
+              className={`${modeStyles.modeButton} ${selectedMode === "sky-raid" ? modeStyles.modeButtonActive : ""}`}
+              onClick={() => setSelectedMode("sky-raid")}
+              aria-pressed={selectedMode === "sky-raid"}
+            >
+              <strong>SKY RAID</strong>
+              <small>FREE 360° · ARCADE ACTS · 2 MIN</small>
             </button>
             <button
               className={`${modeStyles.modeButton} ${selectedMode === "turbo-hunt" ? modeStyles.modeButtonActive : ""}`}
@@ -334,7 +346,9 @@ export default function CartGameMenu({ started, activeMode, onStart, onReturnTit
           <div className={`${styles.hardWarning} ${modeStyles.compactWarning}`}>
             {selectedMode === "turbo-hunt"
               ? `GAS = LIFE · RECOVERY CELLS RESTORE GAS · ZERO GAS = GAME OVER${hard ? " · HARD RAID HITS DEAL HEAVY LIFE DAMAGE" : ""}`
-              : selectedMode === "arcade-run"
+              : selectedMode === "sky-raid"
+                ? `FREE FLIGHT · 5 ARCADE ACTS · ACT BREAKS REFILL GAS + TURBO · SCORE CHAIN · TITAN AT ~1:45${hard ? " · ACE PRESSURE" : ""}`
+                : selectedMode === "arcade-run"
                 ? `2 CONTINUES · BEST ${arcadeMeta.bestRunScore} ${arcadeMeta.bestRunRank} · MASTERY ${arcadeMeta.totalMedals}/${SKY_DANCER_ARCADE_MAX_MEDALS} · ${selectedPaintScheme.toUpperCase()} / ${selectedLoadout.toUpperCase()} · ${masteryRewardSummary}${hard ? " · ACE PRESSURE" : ""}`
                 : `SINGLE STAGE · BEST ${selectedStageRecord?.bestScore ?? 0} ${selectedStageRecord?.bestRank ?? "D"} · MASTERY ${selectedMasteryCount}/3 · PILOT ${arcadeMeta.totalMedals}/${SKY_DANCER_ARCADE_MAX_MEDALS} · ${selectedPaintScheme.toUpperCase()} / ${selectedLoadout.toUpperCase()} · ${masteryRewardSummary}${hard ? " · ACE DIFFICULTY" : ""}`}
           </div>
@@ -345,12 +359,14 @@ export default function CartGameMenu({ started, activeMode, onStart, onReturnTit
           <div className={`${styles.titleControls} ${modeStyles.compactControls}`}>
             {selectedMode === "turbo-hunt" ? (
               <><span>DRAG LEFT · STEER</span><span>HOLD TURBO · CHARGE / RELEASE · DASH</span><span>SHOT · MISSILE</span></>
+            ) : selectedMode === "sky-raid" ? (
+              <><span>DRAG LEFT · FREE TURN</span><span>SHOT · MISSILE · RAM</span><span>ACT BREAK · CHAIN SCORE</span><span>TITAN FINALE</span></>
             ) : (
               <><span>STICK · FLY</span><span>FIRE · GUN</span><span>LOCK / RELEASE · MISSILE SALVO</span><span>TURBO · SMASH</span></>
             )}
           </div>
         </div>
-        {hangarOpen && selectedMode !== "turbo-hunt" && (
+        {hangarOpen && selectedMode !== "turbo-hunt" && selectedMode !== "sky-raid" && (
           <div className={modeStyles.hangarOverlay} role="dialog" aria-label="Arcade hangar">
             <div className={modeStyles.hangarPanel}>
               <div className={modeStyles.hangarHeading}><span>PILOT CONFIGURATION</span><strong>HANGAR</strong><small>{arcadeMeta.totalMedals}/{SKY_DANCER_ARCADE_MAX_MEDALS} MASTERY MEDALS</small></div>
@@ -376,18 +392,19 @@ export default function CartGameMenu({ started, activeMode, onStart, onReturnTit
             </div>
           </div>
         )}
-        <div className={styles.titleFooter}>ONE SKY · TWO STYLES · ELEVEN COURSES</div>
+        <div className={styles.titleFooter}>ONE SKY · THREE STYLES · ELEVEN ARCADE WORLDS</div>
       </div>
     );
   }
 
   if (gameOver && hardSnapshot) {
     const failedDifficulty = hardSnapshot.difficulty;
+    const failedMode: SkyDancerGameMode = activeMode === "sky-raid" ? "sky-raid" : "turbo-hunt";
     const hard = failedDifficulty === "hard";
     return (
       <div className={styles.gameOverOverlay} role="dialog" aria-modal="true" aria-label="Game over">
         <div className={styles.gameOverPanel}>
-          <div className={styles.gameOverEyebrow}>{hard ? "HARD MODE" : "TURBO HUNT"} · RUN FAILED</div>
+          <div className={styles.gameOverEyebrow}>{failedMode === "sky-raid" ? (hard ? "ACE SKY RAID" : "SKY RAID") : hard ? "HARD MODE" : "TURBO HUNT"} · RUN FAILED</div>
           <h2>GAME OVER</h2>
           <strong className={styles.gameOverReason}>GAS EMPTY · LIFE LOST</strong>
           <div className={styles.gameOverStats}>
@@ -395,7 +412,7 @@ export default function CartGameMenu({ started, activeMode, onStart, onReturnTit
             <span>RAID HITS {hardSnapshot.raidHits}</span>
             <span>PERFECT DODGES {hardSnapshot.perfectDodges}</span>
           </div>
-          <button className={styles.retryButton} onClick={() => startGame(failedDifficulty, "turbo-hunt")}>
+          <button className={styles.retryButton} onClick={() => startGame(failedDifficulty, failedMode)}>
             <strong>{hard ? "RETRY HARD" : "RETRY RUN"}</strong>
             <small>RUN IT BACK</small>
           </button>
@@ -417,11 +434,11 @@ export default function CartGameMenu({ started, activeMode, onStart, onReturnTit
           <div className={styles.pausePanel}>
             <div className={styles.pauseEyebrow}>RUN SUSPENDED</div>
             <h2>PAUSED</h2>
-            <p>{activeMode === "turbo-hunt" ? "Steering, brake and Turbo input are released while paused." : "Flight, weapons and Turbo input are released while paused."}</p>
+            <p>{activeMode === "turbo-hunt" || activeMode === "sky-raid" ? "Steering, weapons and Turbo input are released while paused." : "Flight, weapons and Turbo input are released while paused."}</p>
             <div className={configStyles.menuActions}>
               <button className={styles.resumeButton} onClick={resumeGame}>
                 <strong>RESUME</strong>
-                <small>{activeMode === "turbo-hunt" ? "BACK TO THE HUNT" : "BACK TO THE COURSE"}</small>
+                <small>{activeMode === "sky-raid" ? "BACK TO THE RAID" : activeMode === "turbo-hunt" ? "BACK TO THE HUNT" : "BACK TO THE COURSE"}</small>
               </button>
               <button className={configStyles.secondaryButton} onClick={openConfig}>
                 <strong>CONFIG</strong>
