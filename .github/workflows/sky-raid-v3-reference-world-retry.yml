@@ -1,0 +1,105 @@
+name: SKY RAID V3 reference world retry
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/sky-raid-v3-reference-world-retry.yml'
+permissions:
+  contents: write
+jobs:
+  implement:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+        with: { fetch-depth: 0 }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22.13.0, cache: npm }
+      - run: npm ci --no-audit --no-fund
+      - name: Write reference-world integration
+        run: |
+          cat > src/sky/SkyDancerSkyRaidArcadeWorld.ts <<'EOF'
+          import * as THREE from "three";
+          import { SkyDancerArcadeEnvironment } from "./arcade/SkyDancerArcadeEnvironment";
+          import { skyDancerArcadeStageById, type SkyDancerArcadeStageDefinition, type SkyDancerArcadeStageId } from "./arcade/SkyDancerArcadeData";
+          import type { SkyDancerSkyRaidAct } from "./SkyDancerSkyRaidRules";
+          function wrapAngle(value:number):number{let a=value;while(a>Math.PI)a-=Math.PI*2;while(a<-Math.PI)a+=Math.PI*2;return a;}
+          function dampAngle(current:number,target:number,response:number,delta:number):number{return current+wrapAngle(target-current)*(1-Math.exp(-Math.max(0,response)*Math.max(0,delta)));}
+          export class SkyDancerSkyRaidArcadeWorld {
+            private readonly environment:SkyDancerArcadeEnvironment;
+            private stage:SkyDancerArcadeStageDefinition|null=null;
+            private stageStartElapsed=0;
+            private worldYaw=Math.PI;
+            private initializedYaw=false;
+            constructor(private readonly scene:THREE.Scene){this.environment=new SkyDancerArcadeEnvironment(scene);scene.userData.skyRaidUsesArcadeReferenceWorld=true;}
+            update(actId:SkyDancerSkyRaidAct["id"],x:number,z:number,heading:number,altitude:number,elapsed:number,delta:number):void{
+              if(!this.stage||this.stage.id!==actId){this.stage=skyDancerArcadeStageById(actId as SkyDancerArcadeStageId);this.environment.setStage(this.stage);this.stageStartElapsed=elapsed;this.worldYaw=heading+Math.PI;this.initializedYaw=true;}
+              if(!this.stage)return;
+              const desiredYaw=heading+Math.PI;
+              if(!this.initializedYaw){this.worldYaw=desiredYaw;this.initializedYaw=true;}else{const error=Math.abs(wrapAngle(desiredYaw-this.worldYaw));const response=error>.72?.95:error>.38?.42:.06;this.worldYaw=dampAngle(this.worldYaw,desiredYaw,response,delta);}
+              const localSeconds=Math.max(0,elapsed-this.stageStartElapsed);
+              const authoredDistance=localSeconds*this.stage.courseSpeed*(this.stage.durationSeconds/24);
+              this.environment.setWorldFrame(x,0,z,this.worldYaw);
+              this.environment.update(authoredDistance,0,altitude);
+              this.scene.userData.skyRaidArcadeReferenceStage=this.stage.id;
+              this.scene.userData.skyRaidArcadeReferenceDistance=authoredDistance;
+              this.scene.userData.skyRaidArcadeWorldYaw=this.worldYaw;
+            }
+            dispose():void{this.environment.dispose();}
+          }
+          EOF
+          cat > src/sky/SkyDancerSkyRaidPresentationGuard.ts <<'EOF'
+          import * as THREE from "three";
+          import type { SkyDancerFxRuntime } from "./SkyDancerAirCombatFxV2";
+          import { skyDancerArcadeStageById, type SkyDancerArcadeStageId } from "./arcade/SkyDancerArcadeData";
+          import { ARCADE_FOG_FAR, ARCADE_FOG_NEAR, referenceAtmosphere } from "./arcade/SkyDancerArcadeReferenceMaterials";
+          const PREFIXES=["sky-dancer-v35-","sky-dancer-v36-","sky-dancer-v38-","sky-dancer-v40-","sky-dancer-v41-","sky-dancer-v47-","sky-dancer-v50-","sky-dancer-v53-"] as const;
+          function active():boolean{return typeof document!=="undefined"&&document.documentElement.dataset.skyDancerMode==="sky-raid";}
+          function insideArcade(object:THREE.Object3D):boolean{let current:THREE.Object3D|null=object;while(current){if(current.name==="arcade-course-environment")return true;current=current.parent;}return false;}
+          export function finalizeSkyRaidReferencePresentation(runtime:SkyDancerFxRuntime):void{
+            if(!active())return;const scene=runtime.scene;const arcadeRoot=scene.getObjectByName("arcade-course-environment");if(!arcadeRoot)return;
+            scene.traverse(object=>{if(object===arcadeRoot||insideArcade(object))return;const legacyNamed=object.name==="phase67-turbo-hunt-world"||PREFIXES.some(prefix=>object.name.startsWith(prefix));const legacyTheme=object.userData.skyDancerLegacyEnvironment===true;const legacyLargeSky=object instanceof THREE.Mesh&&object.geometry instanceof THREE.SphereGeometry&&object.geometry.parameters.radius>=250;if(legacyNamed||legacyTheme||legacyLargeSky)object.visible=false;if(object.parent===scene&&object instanceof THREE.Light)object.visible=false;});
+            arcadeRoot.visible=true;arcadeRoot.traverse(object=>{if(object instanceof THREE.Light)object.visible=true;});
+            const actId=document.documentElement.dataset.skyRaidAct as SkyDancerArcadeStageId|undefined;if(!actId)return;const atmosphere=referenceAtmosphere(skyDancerArcadeStageById(actId));scene.background=atmosphere.zenith;if(scene.fog instanceof THREE.Fog){scene.fog.color.copy(atmosphere.fog);scene.fog.near=ARCADE_FOG_NEAR;scene.fog.far=ARCADE_FOG_FAR;}else scene.fog=new THREE.Fog(atmosphere.fog,ARCADE_FOG_NEAR,ARCADE_FOG_FAR);scene.userData.skyRaidReferencePresentationFinalized=true;
+          }
+          EOF
+      - name: Patch integration points
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('src/sky/arcade/SkyDancerArcadeReferenceWorld.ts');s=p.read_text();m='  setStage(stage:SkyDancerArcadeStageDefinition):void {\n';i='  setWorldFrame(x:number,y:number,z:number,yaw:number):void {\n    this.root.position.set(x,y,z);\n    this.root.rotation.set(0,yaw,0);\n    this.root.userData.skyRaidReferenceFrame=true;\n  }\n\n'+m
+          if m not in s: raise SystemExit('ReferenceWorld marker');p.write_text(s.replace(m,i,1))
+          p=Path('src/sky/arcade/SkyDancerArcadeEnvironment.ts');s=p.read_text();m='  override setStage(stage: SkyDancerArcadeStageDefinition): void {\n';i='  setWorldFrame(x: number, y: number, z: number, yaw: number): void {\n    super.setWorldFrame(x, y, z, yaw);\n  }\n\n'+m
+          if m not in s: raise SystemExit('Environment marker');p.write_text(s.replace(m,i,1))
+          p=Path('src/sky/SkyDancerSkyRaid.ts');s=p.read_text();old='  visual.arcadeWorld.update(raid.actId, base.x, base.z, flight.altitude, raid.elapsedSeconds);';new='  visual.arcadeWorld.update(raid.actId, base.x, base.z, base.heading, flight.altitude, raid.elapsedSeconds, delta);'
+          if old not in s: raise SystemExit('SkyRaid marker');p.write_text(s.replace(old,new,1))
+          p=Path('src/sky/presentation/SkyDancerPresentationPipeline.ts');s=p.read_text();m='import { SkyDancerV53SetpieceEnvironmentDensityPass } from "./SkyDancerV53SetpieceEnvironmentDensityPass";\n'
+          if m not in s: raise SystemExit('pipeline import');s=s.replace(m,m+'import { finalizeSkyRaidReferencePresentation } from "../SkyDancerSkyRaidPresentationGuard";\n',1);s=s.replace('export class SkyDancerPresentationPipeline {\n','export class SkyDancerPresentationPipeline {\n  private readonly runtime: SkyDancerFxRuntime;\n',1);s=s.replace('  constructor(runtime: SkyDancerFxRuntime) {\n    this.v30','  constructor(runtime: SkyDancerFxRuntime) {\n    this.runtime = runtime;\n    this.v30',1);s=s.replace('    this.v52.update(snapshot);\n    this.v53.update(snapshot);\n  }','    this.v52.update(snapshot);\n    this.v53.update(snapshot);\n    finalizeSkyRaidReferencePresentation(this.runtime);\n  }',1);p.write_text(s)
+          p=Path('src/sky/SkyDancerWebGLDemo.ts');s=p.read_text();old='    this.buildTerrain150m(runtime.scene);\n    this.buildCloudDeck(runtime.scene);\n    this.buildAirspaceGuides(runtime.scene);\n    this.replacePlayerWithFighter(runtime);';new='    const legacyEnvironmentBefore = new Set(runtime.scene.children);\n    this.buildTerrain150m(runtime.scene);\n    this.buildCloudDeck(runtime.scene);\n    this.buildAirspaceGuides(runtime.scene);\n    for (const object of runtime.scene.children) {\n      if (!legacyEnvironmentBefore.has(object)) object.userData.skyDancerLegacyEnvironment = true;\n    }\n    this.replacePlayerWithFighter(runtime);'
+          if old not in s: raise SystemExit('theme marker');p.write_text(s.replace(old,new,1))
+          PY
+      - name: Add focused regression test
+        run: |
+          cat > tests/sky-sky-raid-reference-world.test.ts <<'EOF'
+          import assert from "node:assert/strict";
+          import test from "node:test";
+          import { readFile } from "node:fs/promises";
+          test("SKY RAID uses the real Arcade Run environment",async()=>{const world=await readFile(new URL("../src/sky/SkyDancerSkyRaidArcadeWorld.ts",import.meta.url),"utf8");assert.match(world,/SkyDancerArcadeEnvironment/);assert.match(world,/setWorldFrame\(x,0,z,this\.worldYaw\)/);assert.doesNotMatch(world,/InstancedMesh/);});
+          test("SKY RAID final visual owner runs after V53",async()=>{const p=await readFile(new URL("../src/sky/presentation/SkyDancerPresentationPipeline.ts",import.meta.url),"utf8");assert.ok(p.indexOf("finalizeSkyRaidReferencePresentation(this.runtime)")>p.indexOf("this.v53.update(snapshot)"));});
+          EOF
+      - name: Validate
+        run: |
+          node --import tsx --test tests/sky-sky-raid-reference-world.test.ts tests/sky-sky-raid-flight.test.ts
+          npm run test:fast
+          npm run lint
+          npm run build:pages
+      - name: Commit and clean one-shots
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add src tests
+          git commit -m "Use Arcade Run reference world in SKY RAID"
+          git push origin main
+          git rm .github/workflows/sky-raid-v3-reference-world-once.yml .github/workflows/sky-raid-v3-reference-world-retry.yml
+          git commit -m "Remove SKY RAID V3 one-shot workflows"
+          git push origin main
