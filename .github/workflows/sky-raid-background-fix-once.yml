@@ -1,0 +1,114 @@
+name: SKY RAID background ownership fix
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/sky-raid-background-fix-once.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - name: Wire SKY RAID into final background owners
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          def replace(path: str, old: str, new: str, count: int = 1):
+              p = Path(path)
+              text = p.read_text()
+              if old not in text:
+                  raise SystemExit(f"missing patch anchor in {path}: {old[:120]!r}")
+              p.write_text(text.replace(old, new, count))
+
+          # Pure act -> mature world-style bridge.
+          replace(
+              "src/sky/SkyDancerSkyRaidRules.ts",
+              'export const SKY_DANCER_SKY_RAID_TARGET_SECONDS = 120;\n',
+              '''export const SKY_DANCER_SKY_RAID_TARGET_SECONDS = 120;\n\nexport type SkyDancerSkyRaidWorldStyle = "city" | "mountains" | "clouds" | "storm" | "citadel";\n\nexport function skyDancerSkyRaidWorldStyle(actId: SkyDancerSkyRaidActId): SkyDancerSkyRaidWorldStyle {\n  switch (actId) {\n    case "dawn-city": return "city";\n    case "red-canyon": return "mountains";\n    case "cloud-fleet": return "clouds";\n    case "storm-carrier": return "storm";\n    case "prism-citadel": return "citadel";\n  }\n}\n''',
+          )
+
+          # Publish the active visual world to the existing mature presentation stack.
+          replace(
+              "src/sky/SkyDancerSkyRaid.ts",
+              '  skyDancerSkyRaidRushActive,\n',
+              '  skyDancerSkyRaidRushActive,\n  skyDancerSkyRaidWorldStyle,\n',
+          )
+          replace(
+              "src/sky/SkyDancerSkyRaid.ts",
+              '''function clamp(value: number, min: number, max: number): number {\n  return Math.max(min, Math.min(max, value));\n}\n''',
+              '''function clamp(value: number, min: number, max: number): number {\n  return Math.max(min, Math.min(max, value));\n}\n\nfunction publishSkyRaidWorldStyle(snapshot: SkyDancerSkyRaidSnapshot): void {\n  if (typeof document === "undefined") return;\n  document.documentElement.dataset.skyRaidAct = snapshot.actId;\n  document.documentElement.dataset.skyRaidWorldStyle = skyDancerSkyRaidWorldStyle(snapshot.actId);\n}\n\nfunction suppressTurboHuntBackdrop(scene: THREE.Scene): void {\n  // Phase67 owns a 360m fixed blue sky sphere plus a pastel test field. Because\n  // that sphere sits inside the later V38/V50 sky domes, it completely masks\n  // their color-script changes. SKY RAID has its own world owners, so remove\n  // only this legacy decorative root while keeping enemies/pickups/combat.\n  const turboBackdrop = scene.getObjectByName("phase67-turbo-hunt-world");\n  if (turboBackdrop) turboBackdrop.visible = false;\n}\n''',
+          )
+          replace(
+              "src/sky/SkyDancerSkyRaid.ts",
+              '  const raid = updateRaid(demo.session as unknown as RaidSession, hunt, 0);\n  const base = demo.session.snapshot();',
+              '  const raid = updateRaid(demo.session as unknown as RaidSession, hunt, 0);\n  publishSkyRaidWorldStyle(raid);\n  suppressTurboHuntBackdrop(demo.scene);\n  const base = demo.session.snapshot();',
+          )
+          replace(
+              "src/sky/SkyDancerSkyRaid.ts",
+              '    const snapshot = updateRaid(this, hunt, delta);\n    const state = stateFor(this, hunt);',
+              '    const snapshot = updateRaid(this, hunt, delta);\n    publishSkyRaidWorldStyle(snapshot);\n    const state = stateFor(this, hunt);',
+          )
+
+          # Mature world reconstruction: SKY RAID act beats override campaign fallback.
+          replace(
+              "src/sky/presentation/SkyDancerV47WorldReconstructionPass.ts",
+              'const WORLD_STYLES: readonly SkyDancerMissionWorldStyleV49[] = ["city", "clouds", "mountains", "facility", "storm", "citadel"];\n',
+              '''const WORLD_STYLES: readonly SkyDancerMissionWorldStyleV49[] = ["city", "clouds", "mountains", "facility", "storm", "citadel"];\n\nfunction skyRaidWorldStyle(): SkyDancerMissionWorldStyleV49 | null {\n  if (typeof document === "undefined" || document.documentElement.dataset.skyDancerMode !== "sky-raid") return null;\n  const style = document.documentElement.dataset.skyRaidWorldStyle;\n  return style === "mountains" || style === "clouds" || style === "storm" || style === "citadel" ? style : "city";\n}\n''',
+          )
+          replace(
+              "src/sky/presentation/SkyDancerV47WorldReconstructionPass.ts",
+              '    const style = campaign?.worldStyle ?? "city";\n',
+              '    const style = skyRaidWorldStyle() ?? campaign?.worldStyle ?? "city";\n',
+          )
+
+          # Final color script: use the same act-owned world style, so the sky/fog/key/rim actually change.
+          replace(
+              "src/sky/presentation/SkyDancerV50ColorScriptAtmospherePass.ts",
+              'function color(value: number): THREE.Color {\n  return new THREE.Color(value);\n}\n',
+              '''function color(value: number): THREE.Color {\n  return new THREE.Color(value);\n}\n\nfunction skyRaidWorldStyle(): SkyDancerMissionWorldStyleV49 | null {\n  if (typeof document === "undefined" || document.documentElement.dataset.skyDancerMode !== "sky-raid") return null;\n  const style = document.documentElement.dataset.skyRaidWorldStyle;\n  return style === "mountains" || style === "clouds" || style === "storm" || style === "citadel" ? style : "city";\n}\n''',
+          )
+          replace(
+              "src/sky/presentation/SkyDancerV50ColorScriptAtmospherePass.ts",
+              '    this.activeStyle = campaign?.worldStyle ?? "city";\n',
+              '    this.activeStyle = skyRaidWorldStyle() ?? campaign?.worldStyle ?? "city";\n',
+          )
+
+          # Final density/setpiece owner: swap entire landmark grammar on ACT transition.
+          replace(
+              "src/sky/presentation/SkyDancerV53SetpieceEnvironmentDensityPass.ts",
+              'const STYLES: readonly SkyDancerMissionWorldStyleV49[] = ["city", "clouds", "mountains", "facility", "storm", "citadel"];\n',
+              '''const STYLES: readonly SkyDancerMissionWorldStyleV49[] = ["city", "clouds", "mountains", "facility", "storm", "citadel"];\n\nfunction skyRaidWorldStyle(): SkyDancerMissionWorldStyleV49 | null {\n  if (typeof document === "undefined" || document.documentElement.dataset.skyDancerMode !== "sky-raid") return null;\n  const style = document.documentElement.dataset.skyRaidWorldStyle;\n  return style === "mountains" || style === "clouds" || style === "storm" || style === "citadel" ? style : "city";\n}\n''',
+          )
+          replace(
+              "src/sky/presentation/SkyDancerV53SetpieceEnvironmentDensityPass.ts",
+              '    const style = getLatestSkyDancerCampaignSnapshotV49()?.worldStyle ?? "city";\n',
+              '    const style = skyRaidWorldStyle() ?? getLatestSkyDancerCampaignSnapshotV49()?.worldStyle ?? "city";\n',
+          )
+
+          # Regression contract: all five ACTs must select distinct whole-world identities.
+          replace(
+              "tests/sky-sky-raid.test.ts",
+              '  skyDancerSkyRaidRushActive,\n',
+              '  skyDancerSkyRaidRushActive,\n  skyDancerSkyRaidWorldStyle,\n',
+          )
+          with Path("tests/sky-sky-raid.test.ts").open("a") as f:
+              f.write('''\n\ntest("SKY RAID routes every act into a distinct mature background owner", () => {\n  assert.equal(skyDancerSkyRaidWorldStyle("dawn-city"), "city");\n  assert.equal(skyDancerSkyRaidWorldStyle("red-canyon"), "mountains");\n  assert.equal(skyDancerSkyRaidWorldStyle("cloud-fleet"), "clouds");\n  assert.equal(skyDancerSkyRaidWorldStyle("storm-carrier"), "storm");\n  assert.equal(skyDancerSkyRaidWorldStyle("prism-citadel"), "citadel");\n  assert.equal(new Set(SKY_DANCER_SKY_RAID_ACTS.map((act) => skyDancerSkyRaidWorldStyle(act.id))).size, 5);\n});\n''')
+
+          Path(".github/workflows/sky-raid-background-fix-once.yml").unlink()
+          PY
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --check
+          git commit -m "Fix SKY RAID background act transitions"
+          git push origin HEAD:main
