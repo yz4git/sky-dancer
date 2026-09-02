@@ -22,6 +22,8 @@ jobs:
         run: npm ci --no-audit --no-fund
       - name: Apply V12.0 product patch
         run: python3 scripts/apply-arcade-v120-combat-director.py
+      - name: Update legacy version contract
+        run: python3 scripts/fix-arcade-v120-version-contract.py
       - name: Run arcade rule regression
         run: npm run test:rules
       - name: Run arcade contract checks
@@ -38,6 +40,6 @@ jobs:
           git commit -m 'Arcade V12.0: add adaptive combat director'
       - name: Cleanup one-shot implementation files
         run: |
-          git rm -f scripts/apply-arcade-v120-combat-director.py .github/workflows/arcade-v120-combat-director-once.yml
+          git rm -f scripts/apply-arcade-v120-combat-director.py scripts/fix-arcade-v120-version-contract.py .github/workflows/arcade-v120-combat-director-once.yml
           git commit -m 'Remove V12.0 implementation files'
           git push origin HEAD:main
