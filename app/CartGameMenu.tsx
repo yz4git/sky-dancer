@@ -21,7 +21,11 @@ import {
   type SkyDancerGameMode,
   type SkyDancerStartRequest,
 } from "../src/sky/arcade/SkyDancerArcadeData";
-import { loadSkyDancerArcadeProgress } from "../src/sky/arcade/SkyDancerArcadeProgress";
+import {
+  SKY_DANCER_ARCADE_MAX_MEDALS,
+  loadSkyDancerArcadeProgress,
+  skyDancerArcadeNextMasteryReward,
+} from "../src/sky/arcade/SkyDancerArcadeProgress";
 import { skyDancerArcadeV11StageMedalGoals } from "../src/sky/arcade/SkyDancerArcadeV11Scoring";
 import styles from "./CartGameMenu.module.css";
 import modeStyles from "./CartGameMenuModes.module.css";
@@ -183,6 +187,10 @@ export default function CartGameMenu({ started, activeMode, onStart, onReturnTit
     const selectedStageGoals = selectedStage ? skyDancerArcadeV11StageMedalGoals(selectedStage.id) : [];
     const selectedMasteryCount = selectedStageGoals.filter((goal) => selectedStageRecord?.medals.includes(goal.id)).length;
     const selectedNextGoal = selectedStageGoals.find((goal) => !selectedStageRecord?.medals.includes(goal.id));
+    const nextMasteryReward = skyDancerArcadeNextMasteryReward(arcadeMeta.totalMedals);
+    const masteryRewardSummary = nextMasteryReward
+      ? `NEXT ${nextMasteryReward.shortLabel} @${nextMasteryReward.threshold}◆`
+      : "SKY MASTER COMPLETE";
     const modeSummary = selectedMode === "arcade-run"
       ? "BRANCHING FIXED COURSE · 7 SECTIONS · ABOUT 4 MINUTES"
       : selectedMode === "turbo-hunt"
@@ -264,7 +272,7 @@ export default function CartGameMenu({ started, activeMode, onStart, onReturnTit
                 <div className={modeStyles.practiceNextTarget} data-complete={!selectedNextGoal}>
                   <span>{selectedNextGoal ? "NEXT TARGET" : "STAGE MASTERED"}</span>
                   <strong>{selectedNextGoal?.label ?? "ALL 3 MEDALS COMPLETE"}</strong>
-                  <small>{selectedNextGoal?.description ?? "PUSH THE BEST SCORE HIGHER"}</small>
+                  <small>{selectedNextGoal?.description ?? "PUSH THE BEST SCORE HIGHER"} · {nextMasteryReward ? `PILOT REWARD ${nextMasteryReward.label} AT ${nextMasteryReward.threshold} MEDALS` : "SKY MASTER COMPLETE"}</small>
                 </div>
               </div>
             </div>
@@ -291,8 +299,8 @@ export default function CartGameMenu({ started, activeMode, onStart, onReturnTit
             {selectedMode === "turbo-hunt"
               ? `GAS = LIFE · RECOVERY CELLS RESTORE GAS · ZERO GAS = GAME OVER${hard ? " · HARD RAID HITS DEAL HEAVY LIFE DAMAGE" : ""}`
               : selectedMode === "arcade-run"
-                ? `2 CONTINUES · ROUTE GATES CHANGE THE RUN · BEST ${arcadeMeta.bestRunScore} ${arcadeMeta.bestRunRank} · BOSS ${arcadeMeta.totalBossKills} · CHAIN ×${arcadeMeta.bestChain} · UNLOCKS ${arcadeMeta.unlockedPaintSchemes.length + arcadeMeta.unlockedLoadouts.length}${hard ? " · ACE ENEMIES FIRE FASTER AND HIT HARDER" : ""}`
-                : `SINGLE STAGE · BEST ${selectedStageRecord?.bestScore ?? 0} ${selectedStageRecord?.bestRank ?? "D"} · MASTERY ${selectedMasteryCount}/3${selectedNextGoal ? ` · NEXT ${selectedNextGoal.label}` : " · MASTERED"}${hard ? " · ACE DIFFICULTY" : ""}`}
+                ? `2 CONTINUES · BEST ${arcadeMeta.bestRunScore} ${arcadeMeta.bestRunRank} · MASTERY ${arcadeMeta.totalMedals}/${SKY_DANCER_ARCADE_MAX_MEDALS} · ${masteryRewardSummary}${hard ? " · ACE PRESSURE" : ""}`
+                : `SINGLE STAGE · BEST ${selectedStageRecord?.bestScore ?? 0} ${selectedStageRecord?.bestRank ?? "D"} · MASTERY ${selectedMasteryCount}/3 · PILOT ${arcadeMeta.totalMedals}/${SKY_DANCER_ARCADE_MAX_MEDALS} · ${masteryRewardSummary}${hard ? " · ACE DIFFICULTY" : ""}`}
           </div>
           <button className={`${styles.startButton} ${modeStyles.compactStart} ${hard ? styles.startButtonHard : ""}`} onClick={() => startGame()}>
             <strong>{startLabel}</strong>

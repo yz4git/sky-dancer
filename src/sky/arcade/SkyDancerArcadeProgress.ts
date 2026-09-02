@@ -9,6 +9,48 @@ export type SkyDancerArcadeRank = "D" | "C" | "B" | "A" | "S" | "SS";
 export type SkyDancerArcadePaintScheme = "default" | "sunset" | "storm" | "prism";
 export type SkyDancerArcadeLoadout = "standard" | "missile-focus" | "gun-focus";
 
+export type SkyDancerArcadeMasteryRewardKind = "paint" | "loadout" | "badge";
+
+export interface SkyDancerArcadeMasteryReward {
+  threshold: number;
+  label: string;
+  shortLabel: string;
+  kind: SkyDancerArcadeMasteryRewardKind;
+  paintScheme?: SkyDancerArcadePaintScheme;
+  loadout?: SkyDancerArcadeLoadout;
+}
+
+export const SKY_DANCER_ARCADE_MAX_MEDALS = SKY_DANCER_ARCADE_STAGES.length * 3;
+
+export const SKY_DANCER_ARCADE_MASTERY_REWARDS: readonly SkyDancerArcadeMasteryReward[] = [
+  { threshold: 6, label: "SUNSET PAINT", shortLabel: "SUNSET", kind: "paint", paintScheme: "sunset" },
+  { threshold: 12, label: "MISSILE FOCUS", shortLabel: "MISSILE", kind: "loadout", loadout: "missile-focus" },
+  { threshold: 18, label: "STORM PAINT", shortLabel: "STORM", kind: "paint", paintScheme: "storm" },
+  { threshold: 24, label: "GUN FOCUS", shortLabel: "GUN", kind: "loadout", loadout: "gun-focus" },
+  { threshold: 30, label: "PRISM PAINT", shortLabel: "PRISM", kind: "paint", paintScheme: "prism" },
+  { threshold: SKY_DANCER_ARCADE_MAX_MEDALS, label: "SKY MASTER", shortLabel: "SKY MASTER", kind: "badge" },
+];
+
+export function skyDancerArcadeNextMasteryReward(totalMedals: number): SkyDancerArcadeMasteryReward | null {
+  const medals = Math.max(0, Math.floor(Number(totalMedals) || 0));
+  return SKY_DANCER_ARCADE_MASTERY_REWARDS.find((reward) => medals < reward.threshold) ?? null;
+}
+
+export function skyDancerArcadeMasteryUnlocks(totalMedals: number): {
+  paintSchemes: SkyDancerArcadePaintScheme[];
+  loadouts: SkyDancerArcadeLoadout[];
+} {
+  const medals = Math.max(0, Math.floor(Number(totalMedals) || 0));
+  const paintSchemes: SkyDancerArcadePaintScheme[] = [];
+  const loadouts: SkyDancerArcadeLoadout[] = [];
+  for (const reward of SKY_DANCER_ARCADE_MASTERY_REWARDS) {
+    if (medals < reward.threshold) break;
+    if (reward.paintScheme) paintSchemes.push(reward.paintScheme);
+    if (reward.loadout) loadouts.push(reward.loadout);
+  }
+  return { paintSchemes, loadouts };
+}
+
 export interface SkyDancerArcadeStageRecord {
   clears: number;
   bestScore: number;
@@ -117,6 +159,9 @@ function applyUnlocks(progress: SkyDancerArcadeProgress): void {
   if (progress.completedRuns >= 1) paint.add("prism");
   if (progress.totalArmorBreaks >= 10) loadouts.add("missile-focus");
   if (progress.bestChain >= 8) loadouts.add("gun-focus");
+  const masteryUnlocks = skyDancerArcadeMasteryUnlocks(progress.totalMedals);
+  for (const scheme of masteryUnlocks.paintSchemes) paint.add(scheme);
+  for (const loadout of masteryUnlocks.loadouts) loadouts.add(loadout);
   progress.unlockedPaintSchemes = [...paint];
   progress.unlockedLoadouts = [...loadouts];
 }
@@ -161,7 +206,10 @@ export function loadSkyDancerArcadeProgress(): SkyDancerArcadeProgress {
       bestChain: finiteCount(parsed.bestChain),
       bestRoute: uniqueValidStages(parsed.bestRoute),
       bestRouteScore: finiteCount(parsed.bestRouteScore),
-      totalMedals: finiteCount(parsed.totalMedals),
+      totalMedals: Math.max(
+        finiteCount(parsed.totalMedals),
+        Object.values(records).reduce((sum, record) => sum + (record?.medals.length ?? 0), 0),
+      ),
       recentRoutes: validRecentRoutes(parsed.recentRoutes),
       unlockedPaintSchemes: Array.isArray(parsed.unlockedPaintSchemes)
         ? parsed.unlockedPaintSchemes.filter((value): value is SkyDancerArcadePaintScheme => value === "default" || value === "sunset" || value === "storm" || value === "prism")

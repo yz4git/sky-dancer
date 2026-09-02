@@ -19,6 +19,12 @@ import {
 import { arcadeCoursePose } from "../src/sky/arcade/SkyDancerArcadeCoursePath";
 import { SkyDancerArcadePresentationDirector } from "../src/sky/arcade/SkyDancerArcadePresentationDirector";
 import { skyDancerArcadeV11StageMedalGoals } from "../src/sky/arcade/SkyDancerArcadeV11Scoring";
+import {
+  SKY_DANCER_ARCADE_MASTERY_REWARDS,
+  SKY_DANCER_ARCADE_MAX_MEDALS,
+  skyDancerArcadeMasteryUnlocks,
+  skyDancerArcadeNextMasteryReward,
+} from "../src/sky/arcade/SkyDancerArcadeProgress";
 
 test("arcade mode authors eleven distinct compact product sections", () => {
   assert.equal(SKY_DANCER_ARCADE_STAGES.length, 11);
@@ -633,4 +639,26 @@ test("V11.4 stage practice UI closes the mastery retry loop", async () => {
   assert.match(mode, /CHASE \${practiceNextTarget\.label}/);
   assert.match(menuCss, /practiceMastery/);
   assert.match(productCss, /v114PracticeGoals/);
+});
+
+
+test("V11.5 mastery rewards turn the 33-medal chase into a deterministic unlock track", async () => {
+  assert.equal(SKY_DANCER_ARCADE_MAX_MEDALS, 33);
+  assert.deepEqual(SKY_DANCER_ARCADE_MASTERY_REWARDS.map((reward) => reward.threshold), [6, 12, 18, 24, 30, 33]);
+  assert.equal(skyDancerArcadeNextMasteryReward(0)?.label, "SUNSET PAINT");
+  assert.equal(skyDancerArcadeNextMasteryReward(6)?.label, "MISSILE FOCUS");
+  assert.equal(skyDancerArcadeNextMasteryReward(33), null);
+  assert.deepEqual(skyDancerArcadeMasteryUnlocks(5), { paintSchemes: [], loadouts: [] });
+  assert.deepEqual(skyDancerArcadeMasteryUnlocks(30), {
+    paintSchemes: ["sunset", "storm", "prism"],
+    loadouts: ["missile-focus", "gun-focus"],
+  });
+  const [menuSource, resultSource] = await Promise.all([
+    readFile(new URL("../app/CartGameMenu.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/SkyDancerArcadeMode.tsx", import.meta.url), "utf8"),
+  ]);
+  assert.match(menuSource, /MASTERY \$\{arcadeMeta\.totalMedals\}\/\$\{SKY_DANCER_ARCADE_MAX_MEDALS\}/);
+  assert.match(menuSource, /PILOT REWARD/);
+  assert.match(resultSource, /projectedNextMasteryReward/);
+  assert.match(resultSource, /SKY MASTER COMPLETE/);
 });

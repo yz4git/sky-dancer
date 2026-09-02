@@ -14,9 +14,11 @@ import { skyDancerArcadeStageById } from "../src/sky/arcade/SkyDancerArcadeData"
 import { normalizeArcadeStick } from "../src/sky/arcade/SkyDancerArcadeInput";
 import { SkyDancerArcadeCanvasDemo } from "../src/sky/arcade/SkyDancerArcadeCanvasDemo";
 import {
+  SKY_DANCER_ARCADE_MAX_MEDALS,
   loadSkyDancerArcadeProgress,
   recordSkyDancerArcadeRunClear,
   recordSkyDancerArcadeStageClear,
+  skyDancerArcadeNextMasteryReward,
 } from "../src/sky/arcade/SkyDancerArcadeProgress";
 import { SkyDancerArcadeRuntime, type SkyDancerArcadeSnapshot } from "../src/sky/arcade/SkyDancerArcadeRuntime";
 import {
@@ -353,9 +355,15 @@ export default function SkyDancerArcadeMode({ request, onReturnTitle }: SkyDance
   const missileDanger = incomingMissiles.some((projectile) => projectile.depth < 17);
   const controlsVisible = snapshot.status === "running";
   const finalOverlay = snapshot.status === "run-clear" || snapshot.status === "practice-clear" || snapshot.status === "game-over";
+  const persistedArcadeProgress = loadSkyDancerArcadeProgress();
   const persistedPracticeMedals = runtimeOptions.mode === "stage-practice" && runtimeOptions.startStageId
-    ? loadSkyDancerArcadeProgress().records[runtimeOptions.startStageId]?.medals ?? []
+    ? persistedArcadeProgress.records[runtimeOptions.startStageId]?.medals ?? []
     : [];
+  const currentEarnedMedals = snapshot.lastStageMedals.filter((medal) => medal.earned).map((medal) => medal.id);
+  const projectedStageMedals = new Set([...persistedPracticeMedals, ...currentEarnedMedals]);
+  const projectedNewMedals = Math.max(0, projectedStageMedals.size - persistedPracticeMedals.length);
+  const projectedTotalMedals = Math.min(SKY_DANCER_ARCADE_MAX_MEDALS, persistedArcadeProgress.totalMedals + projectedNewMedals);
+  const projectedNextMasteryReward = skyDancerArcadeNextMasteryReward(projectedTotalMedals);
   const practiceMasteryCount = snapshot.lastStageMedals.filter((medal) => persistedPracticeMedals.includes(medal.id) || medal.earned).length;
   const practiceNextTarget = snapshot.lastStageMedals.find((medal) => !persistedPracticeMedals.includes(medal.id) && !medal.earned);
 
@@ -527,17 +535,17 @@ export default function SkyDancerArcadeMode({ request, onReturnTitle }: SkyDance
               {snapshot.route.length > 1 && <div className={productStyles.v11RouteHistory}><small>FLIGHT ROUTE</small><strong>{snapshot.route.map(id => skyDancerArcadeStageById(id).shortName).join(" → ")}</strong></div>}
               {snapshot.mode === "stage-practice" && snapshot.status === "practice-clear" && snapshot.lastStageMedals.length > 0 && (
                 <div className={productStyles.v114PracticeMastery} aria-label="Stage mastery result">
-                  <div><small>STAGE MASTERY</small><strong>{practiceMasteryCount}/3</strong><span>{practiceMasteryCount === 3 ? "MASTERED" : "KEEP FLYING"}</span></div>
+                  <div><small>STAGE MASTERY</small><strong>{practiceMasteryCount}/3 · {projectedTotalMedals}◆</strong><span>{practiceMasteryCount === 3 ? "MASTERED" : "KEEP FLYING"} · PILOT {projectedTotalMedals}/{SKY_DANCER_ARCADE_MAX_MEDALS}</span></div>
                   <div className={productStyles.v114PracticeGoals}>
                     {snapshot.lastStageMedals.map((medal) => {
                       const mastered = persistedPracticeMedals.includes(medal.id) || medal.earned;
                       return <span key={medal.id} data-earned={mastered}><b>{mastered ? "◆" : "◇"} {medal.label}</b><small>{medal.description}</small></span>;
                     })}
                   </div>
-                  <div className={productStyles.v114NextTarget} data-complete={!practiceNextTarget}><small>{practiceNextTarget ? "NEXT TARGET" : "STAGE MASTERED"}</small><strong>{practiceNextTarget?.label ?? "ALL MEDALS COMPLETE"}</strong><span>{practiceNextTarget?.description ?? "CHASE A NEW HIGH SCORE"}</span></div>
+                  <div className={productStyles.v114NextTarget} data-complete={!practiceNextTarget}><small>{practiceNextTarget ? "NEXT TARGET" : "STAGE MASTERED"}</small><strong>{practiceNextTarget?.label ?? "ALL MEDALS COMPLETE"}</strong><span>{practiceNextTarget?.description ?? "CHASE A NEW HIGH SCORE"} · {projectedNextMasteryReward ? `NEXT REWARD ${projectedNextMasteryReward.label} @${projectedNextMasteryReward.threshold}◆` : "SKY MASTER COMPLETE"}</span></div>
                 </div>
               )}
-              <button onClick={restart}><strong>{snapshot.mode === "stage-practice" ? "RETRY STAGE" : "NEW ARCADE RUN"}</strong><span>{snapshot.mode === "stage-practice" && practiceNextTarget ? `CHASE ${practiceNextTarget.label}` : "FLY AGAIN"}</span></button>
+              <button onClick={restart}><strong>{snapshot.mode === "stage-practice" ? "RETRY STAGE" : "NEW ARCADE RUN"}</strong><span>{snapshot.mode === "stage-practice" ? `${practiceNextTarget ? `CHASE ${practiceNextTarget.label}` : "FLY AGAIN"} · ${projectedNextMasteryReward ? `${projectedNextMasteryReward.shortLabel} @${projectedNextMasteryReward.threshold}◆` : "SKY MASTER"}` : "FLY AGAIN"}</span></button>
               <button className={styles.secondaryButton} onClick={onReturnTitle}>BACK TO TITLE</button>
             </div>
           </div>
