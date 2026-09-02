@@ -1,0 +1,55 @@
+name: Arcade V11.1 Signature Setpieces Once
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/arcade-v111-setpieces-once.yml'
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  setpieces:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.13.0
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Apply V11.1 signature setpieces
+        run: python3 scripts/apply-arcade-v111-setpieces.py
+      - name: Existing arcade regression
+        run: npm run test:rules
+      - name: V11 timeline regression
+        run: node --import tsx --test tests/sky-arcade-v11.test.ts
+      - name: V11.1 setpiece regression
+        run: node --import tsx --test tests/sky-arcade-v111-setpieces.test.ts
+      - name: Arcade typecheck
+        run: npm run check:arcade
+      - name: Lint
+        run: npm run lint
+      - name: Pages production build
+        run: npm run build:pages
+      - name: Commit V11.1 product
+        shell: bash
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git rm -f scripts/apply-arcade-v111-setpieces.py .github/workflows/arcade-v111-setpieces-once.yml
+          git add src/sky/arcade/SkyDancerArcadeV11Setpieces.ts \
+            src/sky/arcade/SkyDancerArcadeWebGLDemo.ts \
+            tests/sky-arcade-v111-setpieces.test.ts \
+            docs/ARCADE_V11_EVOLUTION.md
+          git commit -m 'Arcade V11.1: signature setpiece traversal'
+          git push origin HEAD:main
+      - name: Dispatch Pages for product commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run pages.yml --ref main
