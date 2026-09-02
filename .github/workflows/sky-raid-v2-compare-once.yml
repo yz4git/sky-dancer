@@ -1,4 +1,4 @@
-# V4 single-world-owner visual recheck
+# V5 isolate CartRogue base world, then capture the real result
 name: SKY RAID V2 visual compare
 on:
   push:
@@ -6,20 +6,54 @@ on:
     paths:
       - '.github/workflows/sky-raid-v2-compare-once.yml'
 permissions:
-  contents: read
+  contents: write
 jobs:
   compare:
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    timeout-minutes: 12
     env:
       SKY_DANCER_CHROME_PATH: /usr/bin/google-chrome
     steps:
       - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: 22.13.0
           cache: npm
       - run: npm ci --no-audit --no-fund
+      - name: Isolate SKY RAID from CartRogue base world
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('src/sky/SkyDancerSkyRaid.ts')
+          s = p.read_text()
+          old = '''  webglPrototype.buildWorld = function skyRaidBuildWorld(this: RaidWebGLDemo): void {
+    previousBuildWorld.call(this);
+    buildRaidVisuals(this);
+  };'''
+          new = '''  webglPrototype.buildWorld = function skyRaidBuildWorld(this: RaidWebGLDemo): void {
+    // Turbo Hunt inherits CartRogue's decorative road/garden world. In SKY RAID
+    // that world is visually incompatible with Arcade Run and used to leave a
+    // huge green floor under the aircraft. The Arcade Run renderer owns the
+    // complete SKY RAID environment, so do not build the CartRogue world here.
+    if (!isSkyRaidMode()) previousBuildWorld.call(this);
+    buildRaidVisuals(this);
+  };'''
+          if old not in s:
+              raise SystemExit('SKY RAID buildWorld hook marker missing')
+          p.write_text(s.replace(old, new, 1))
+          PY
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add src/sky/SkyDancerSkyRaid.ts
+          git commit -m "Remove CartRogue ground from SKY RAID"
+          git push origin main
+      - name: Regression checks
+        run: |
+          grep -F 'if (!isSkyRaidMode()) previousBuildWorld.call(this);' src/sky/SkyDancerSkyRaid.ts
+          npm run test:fast
+          npm run lint
       - name: Install isolated browser controller
         run: |
           rm -rf .audit-runtime
