@@ -1,4 +1,4 @@
-# V6 runtime scene ownership audit
+# V6 legacy-owner runtime audit
 name: SKY RAID V2 visual compare
 on:
   push:
@@ -10,7 +10,7 @@ permissions:
 jobs:
   compare:
     runs-on: ubuntu-24.04
-    timeout-minutes: 12
+    timeout-minutes: 10
     env:
       SKY_DANCER_CHROME_PATH: /usr/bin/google-chrome
     steps:
@@ -20,116 +20,13 @@ jobs:
           node-version: 22.13.0
           cache: npm
       - run: npm ci --no-audit --no-fund
-      - name: Inject webdriver-only scene ownership audit
-        run: |
-          python3 - <<'PY'
-          from pathlib import Path
-          p = Path('src/sky/SkyDancerSkyRaid.ts')
-          s = p.read_text()
-          marker = 'function updateRaidVisuals(demo: RaidWebGLDemo, delta: number): void {\n'
-          helper = r'''function skyRaidSceneAudit(demo: RaidWebGLDemo): unknown {
-            demo.scene.updateMatrixWorld(true);
-            const effectiveVisible = (object: THREE.Object3D): boolean => {
-              let current: THREE.Object3D | null = object;
-              while (current) {
-                if (!current.visible) return false;
-                current = current.parent;
-              }
-              return true;
-            };
-            const pathFor = (object: THREE.Object3D): string => {
-              const parts: string[] = [];
-              let current: THREE.Object3D | null = object;
-              while (current && current !== demo.scene) {
-                parts.unshift(current.name || current.type);
-                current = current.parent;
-              }
-              return parts.join('/');
-            };
-            const materialColors = (object: THREE.Object3D): string[] => {
-              if (!(object instanceof THREE.Mesh) && !(object instanceof THREE.Points) && !(object instanceof THREE.LineSegments)) return [];
-              const materials = Array.isArray(object.material) ? object.material : [object.material];
-              return materials.map((material) => {
-                const value = (material as THREE.Material & { color?: THREE.Color }).color;
-                return value instanceof THREE.Color ? `#${value.getHexString()}` : 'none';
-              });
-            };
-            const large: Array<Record<string, unknown>> = [];
-            demo.scene.traverse((object) => {
-              if (!effectiveVisible(object)) return;
-              if (!(object instanceof THREE.Mesh) && !(object instanceof THREE.InstancedMesh) && !(object instanceof THREE.Points) && !(object instanceof THREE.LineSegments)) return;
-              const bounds = new THREE.Box3().setFromObject(object);
-              if (bounds.isEmpty()) return;
-              const size = bounds.getSize(new THREE.Vector3());
-              const centre = bounds.getCenter(new THREE.Vector3());
-              const footprint = Math.max(size.x, size.z);
-              const instances = object instanceof THREE.InstancedMesh ? object.count : 1;
-              if (footprint < 24 && size.y < 18 && instances < 25) return;
-              large.push({
-                path: pathFor(object),
-                name: object.name || '(unnamed)',
-                type: object.type,
-                instances,
-                size: { x: +size.x.toFixed(1), y: +size.y.toFixed(1), z: +size.z.toFixed(1) },
-                centre: { x: +centre.x.toFixed(1), y: +centre.y.toFixed(1), z: +centre.z.toFixed(1) },
-                colors: materialColors(object),
-                renderOrder: object.renderOrder,
-              });
-            });
-            large.sort((a, b) => {
-              const aa = a.size as { x: number; y: number; z: number };
-              const bb = b.size as { x: number; y: number; z: number };
-              return Math.max(bb.x, bb.z) - Math.max(aa.x, aa.z);
-            });
-            const topLevel = demo.scene.children.map((object) => ({
-              name: object.name || '(unnamed)',
-              type: object.type,
-              visible: effectiveVisible(object),
-              childCount: object.children.length,
-            }));
-            const arcadeRoot = demo.scene.getObjectByName('arcade-course-environment');
-            return {
-              mode: typeof document !== 'undefined' ? document.documentElement.dataset.skyDancerMode : null,
-              act: typeof document !== 'undefined' ? document.documentElement.dataset.skyRaidAct : null,
-              arcadeRoot: arcadeRoot ? { visible: effectiveVisible(arcadeRoot), childCount: arcadeRoot.children.length, position: arcadeRoot.position.toArray(), rotationY: arcadeRoot.rotation.y } : null,
-              sceneUserData: { ...demo.scene.userData },
-              topLevel,
-              large: large.slice(0, 140),
-            };
-          }
-
-          '''
-          if marker not in s:
-              raise SystemExit('updateRaidVisuals marker missing')
-          s = s.replace(marker, helper + marker, 1)
-          needle = '  const visual = raidVisualByDemo.get(demo as unknown as object);\n'
-          inject = '''  if (typeof window !== "undefined" && typeof navigator !== "undefined" && navigator.webdriver) {
-            (window as unknown as Record<string, unknown>).__skyRaidSceneAudit = () => skyRaidSceneAudit(demo);
-          }
-'''
-          if needle not in s:
-              raise SystemExit('visual lookup marker missing')
-          p.write_text(s.replace(needle, inject + needle, 1))
-
-          p = Path('scripts/webgl-sky-raid-v2-compare.mjs')
-          s = p.read_text()
-          old = '  const opening = await page.evaluate(() => ({ mode: document.documentElement.dataset.skyDancerMode, act: document.documentElement.dataset.skyRaidAct, style: document.documentElement.dataset.skyRaidWorldStyle }));\n'
-          new = old + '  const sceneAudit = await page.evaluate(() => typeof window.__skyRaidSceneAudit === "function" ? window.__skyRaidSceneAudit() : null);\n'
-          if old not in s:
-              raise SystemExit('compare opening marker missing')
-          s = s.replace(old, new, 1)
-          old2 = '  report.raid = { opening, act2, errors, body: (await page.locator("body").innerText()).slice(0, 2000) };\n'
-          new2 = '  report.raid = { opening, sceneAudit, act2, errors, body: (await page.locator("body").innerText()).slice(0, 2000) };\n'
-          if old2 not in s:
-              raise SystemExit('report marker missing')
-          p.write_text(s.replace(old2, new2, 1))
-          PY
       - name: Install isolated browser controller
         run: |
           rm -rf .audit-runtime
           mkdir -p .audit-runtime
           printf '{"private":true,"type":"commonjs"}\n' > .audit-runtime/package.json
           npm install --prefix .audit-runtime --no-package-lock --no-save --ignore-scripts --no-audit --no-fund playwright-core@1.55.0
+          google-chrome --version
       - name: Build Pages
         run: npm run build:pages
       - name: Serve build
@@ -139,8 +36,9 @@ jobs:
             if curl -fsS http://127.0.0.1:4173/ >/dev/null; then exit 0; fi
             sleep 1
           done
+          cat /tmp/sky-raid-audit-http.log
           exit 1
-      - name: Capture and audit Arcade Run and SKY RAID
+      - name: Capture Arcade Run and SKY RAID
         run: node scripts/webgl-sky-raid-v2-compare.mjs
       - uses: actions/upload-artifact@v4
         if: always()
