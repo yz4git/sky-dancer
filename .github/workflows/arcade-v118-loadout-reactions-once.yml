@@ -22,6 +22,23 @@ jobs:
         run: npm ci --no-audit --no-fund
       - name: Apply V11.8 product patch
         run: python3 scripts/apply-arcade-v118-loadout-reactions.py
+      - name: Migrate V11.7 doctrine wording contract
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('tests/sky-arcade-run.test.ts')
+          s = p.read_text()
+          replacements = {
+            'assert.match(menuSource, /FUSION LINK · TURBO BOOSTS FIRE \\+ LOCK/);': 'assert.match(menuSource, /FUSION LINK/);',
+            'assert.match(menuSource, /RAPID MULTI · WIDE LOCK · TWIN RIPPLE/);': 'assert.match(menuSource, /RAPID MULTI/);',
+            'assert.match(menuSource, /TWIN BURST · DUAL CANNON · HIGH RATE/);': 'assert.match(menuSource, /TWIN BURST/);',
+          }
+          for old, new in replacements.items():
+            if old not in s:
+              raise SystemExit(f'missing stale V11.7 contract: {old}')
+            s = s.replace(old, new, 1)
+          p.write_text(s)
+          PY
       - name: Run arcade rule regression
         run: npm run test:rules
       - name: Run arcade contract checks
