@@ -404,10 +404,11 @@ export default function SkyDancerArcadeMode({ request, onReturnTitle }: SkyDance
           </div>
         </header>
 
-        <div className={productStyles.timelineBeat} data-kind={snapshot.timelineBeatKind} aria-label="Current course beat">
+        <div className={productStyles.timelineBeat} data-kind={snapshot.timelineBeatKind} data-director={snapshot.combatDirectorMode} aria-label="Current course beat">
           <small>COURSE BEAT · {String(snapshot.timelineBeatId).toUpperCase().replaceAll("-", " ")}</small>
           <strong>{snapshot.timelineBeatLabel}</strong>
           <span>{snapshot.timelineSetpiece}</span>
+          <em className={productStyles.v12DirectorLine}>COMBAT DIRECTOR · {snapshot.combatDirectorLabel} · {snapshot.combatDirectorIntent}</em>
         </div>
 
         {snapshot.message && <div className={`${styles.message} ${productStyles.flightMessage}`}>{snapshot.message}</div>}
@@ -499,7 +500,7 @@ export default function SkyDancerArcadeMode({ request, onReturnTitle }: SkyDance
           </>
         )}
 
-        <span className={productStyles.rendererBadge}>{rendererName === "WEBGL" ? `3D FLIGHT · V11.9 · ${snapshot.paintScheme.toUpperCase()} · ${snapshot.loadout.toUpperCase()}` : `COMPATIBILITY · CANVAS · V11.9 · ${snapshot.loadout.toUpperCase()}`}</span>
+        <span className={productStyles.rendererBadge}>{rendererName === "WEBGL" ? `3D FLIGHT · V12.0 · ${snapshot.paintScheme.toUpperCase()} · ${snapshot.loadout.toUpperCase()}` : `COMPATIBILITY · CANVAS · V12.0 · ${snapshot.loadout.toUpperCase()}`}</span>
         {runtimeMessage && <div className={styles.runtimeMessage}>{runtimeMessage}</div>}
 
         {snapshot.status === "stage-clear" && (

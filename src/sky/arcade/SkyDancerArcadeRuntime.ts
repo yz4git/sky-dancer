@@ -42,6 +42,12 @@ import {
   type SkyDancerArcadeV11MedalResult,
   type SkyDancerArcadeV11ScoreBreakdown,
 } from "./SkyDancerArcadeV11Scoring";
+import {
+  skyDancerArcadeV12CombatPlan,
+  type SkyDancerArcadeV12DirectorMode,
+  type SkyDancerArcadeV12EncounterPlan,
+  type SkyDancerArcadeV12PlayerStyle,
+} from "./SkyDancerArcadeV12Director";
 
 export type SkyDancerArcadeStatus =
   | "running"
@@ -171,6 +177,14 @@ export interface SkyDancerArcadeSnapshot {
   enemyCounterplayCount: number;
   enemyCounterplayIntensity: number;
   turboJammed: boolean;
+  combatDirectorMode: SkyDancerArcadeV12DirectorMode;
+  combatDirectorPlayerStyle: SkyDancerArcadeV12PlayerStyle;
+  combatDirectorLabel: string;
+  combatDirectorIntent: string;
+  combatDirectorIntensity: number;
+  combatDirectorPressure: number;
+  combatDirectorSerial: number;
+  combatDirectorWaveSerial: number;
   bossKills: number;
   continuesRemaining: number;
   continuesUsed: number;
@@ -473,6 +487,20 @@ export class SkyDancerArcadeRuntime {
   private enemyCounterplaySerial = 0;
   private enemyCounterplayLabel: string | null = null;
   private enemyCounterplayLabelTimer = 0;
+  private directorGunHeat = 0;
+  private directorMissileHeat = 0;
+  private directorTurboHeat = 0;
+  private directorRecentDamage = 0;
+  private combatDirectorMode: SkyDancerArcadeV12DirectorMode = "adaptive-mix";
+  private combatDirectorPlayerStyle: SkyDancerArcadeV12PlayerStyle = "balanced";
+  private combatDirectorLabel = "MIXED ASSAULT";
+  private combatDirectorIntent = "READ FORMATION · CHOOSE TOOL";
+  private combatDirectorIntensity = .5;
+  private combatDirectorPressure = .5;
+  private combatDirectorCadenceScale = 1;
+  private combatDirectorCounterplayDelay = 1.08;
+  private combatDirectorSerial = 0;
+  private combatDirectorWaveSerial = 0;
   private stageSerial = 1;
   private resultSerial = 0;
   private readonly stageStats: StageStats = {
@@ -517,6 +545,19 @@ export class SkyDancerArcadeRuntime {
     this.loadoutReactionTimer = 0;
     this.enemyCounterplayLabel = null;
     this.enemyCounterplayLabelTimer = 0;
+    this.directorGunHeat = 0;
+    this.directorMissileHeat = 0;
+    this.directorTurboHeat = 0;
+    this.directorRecentDamage = 0;
+    this.combatDirectorMode = "adaptive-mix";
+    this.combatDirectorPlayerStyle = "balanced";
+    this.combatDirectorLabel = "MIXED ASSAULT";
+    this.combatDirectorIntent = "READ FORMATION · CHOOSE TOOL";
+    this.combatDirectorIntensity = .5;
+    this.combatDirectorPressure = .5;
+    this.combatDirectorCadenceScale = 1;
+    this.combatDirectorCounterplayDelay = 1.08;
+    this.combatDirectorWaveSerial = 0;
     const finalStage = this.stage.id === SKY_DANCER_ARCADE_FINAL_STAGE;
     const rewindCheckpoint = skyDancerArcadeStageEventCheckpoint(this.stageTime / this.stage.durationSeconds, finalStage);
     this.stageEventCheckpoint = rewindTime > 0 ? Math.max(this.stageEventCheckpoint, rewindCheckpoint) as 0 | 1 | 2 : 0;
@@ -633,6 +674,7 @@ export class SkyDancerArcadeRuntime {
     this.stageEventTimer = Math.max(0, this.stageEventTimer - delta);
     if (this.stageEventTimer <= 0) this.stageEventLabel = null;
     if (this.messageTimer <= 0) this.message = null;
+    this.updateV12CombatSignals(delta, turboActive);
     this.updatePlayer(delta, turboActive);
     this.updateBranch();
     this.updateV11Timeline();
@@ -743,6 +785,52 @@ export class SkyDancerArcadeRuntime {
     }
   }
 
+  private updateV12CombatSignals(delta: number, turboActive: boolean): void {
+    const decay = Math.exp(-delta * .43);
+    this.directorGunHeat *= decay;
+    this.directorMissileHeat *= decay;
+    this.directorTurboHeat *= decay;
+    this.directorRecentDamage = Math.max(0, this.directorRecentDamage - delta * .24);
+    if (this.input.fire) this.directorGunHeat = clamp(this.directorGunHeat + delta * .82, 0, 3);
+    if (this.input.lock) this.directorMissileHeat = clamp(this.directorMissileHeat + delta * .32, 0, 3);
+    if (turboActive) this.directorTurboHeat = clamp(this.directorTurboHeat + delta * .72, 0, 3);
+  }
+
+  private currentV12CombatPlan(): SkyDancerArcadeV12EncounterPlan {
+    const progress = clamp(this.stageTime / this.stage.durationSeconds, 0, 1);
+    const beat = skyDancerArcadeV11Beat(this.stage.id, progress);
+    return skyDancerArcadeV12CombatPlan({
+      gunHeat: this.directorGunHeat,
+      missileHeat: this.directorMissileHeat,
+      turboHeat: this.directorTurboHeat,
+      recentDamage: this.directorRecentDamage,
+      hpRatio: this.playerHp / PLAYER_MAX_HP,
+      chain: this.chain,
+      beatIntensity: beat.intensity,
+      hard: this.options.difficulty === "hard",
+    });
+  }
+
+  private applyV12CombatPlan(plan: SkyDancerArcadeV12EncounterPlan): void {
+    const shifted = plan.mode !== this.combatDirectorMode;
+    this.combatDirectorMode = plan.mode;
+    this.combatDirectorPlayerStyle = plan.playerStyle;
+    this.combatDirectorLabel = plan.label;
+    this.combatDirectorIntent = plan.intent;
+    this.combatDirectorIntensity = plan.intensity;
+    this.combatDirectorPressure = plan.pressure;
+    this.combatDirectorCadenceScale = plan.cadenceScale;
+    this.combatDirectorCounterplayDelay = plan.counterplayDelay;
+    this.combatDirectorWaveSerial += 1;
+    if (!shifted) return;
+    this.combatDirectorSerial += 1;
+    // Director messaging is intentionally short and only occurs on a doctrine shift.
+    if (this.combatDirectorWaveSerial > 1) {
+      this.message = `DIRECTOR SHIFT · ${plan.label}`;
+      this.messageTimer = Math.max(this.messageTimer, .82);
+    }
+  }
+
   private updateDirector(): void {
     const progress = clamp(this.stageTime / this.stage.durationSeconds, 0, 1);
     const beat = skyDancerArcadeV11Beat(this.stage.id, progress);
@@ -753,7 +841,7 @@ export class SkyDancerArcadeRuntime {
     if (!this.bossSpawned && this.stageTime >= this.nextWaveAt && this.enemies.filter((enemy) => enemy.alive).length < enemyCap) {
       this.spawnWave();
       const pressure = this.options.difficulty === "hard" ? 0.84 : 1;
-      this.nextWaveAt += this.stage.waveIntervalSeconds * beat.waveIntervalScale * pressure * (0.84 + this.random() * 0.34);
+      this.nextWaveAt += this.stage.waveIntervalSeconds * beat.waveIntervalScale * pressure * this.combatDirectorCadenceScale * (0.84 + this.random() * 0.34);
     }
     if (!this.bossSpawned && this.stageTime >= this.nextHazardAt && this.hazards.length < 8) {
       this.spawnHazardPattern();
@@ -764,12 +852,20 @@ export class SkyDancerArcadeRuntime {
   private spawnWave(): void {
     const progress = clamp(this.stageTime / this.stage.durationSeconds, 0, 1);
     const beat = skyDancerArcadeV11Beat(this.stage.id, progress);
-    const formations = beat.preferredFormations.length > 0 ? beat.preferredFormations : this.stage.formations;
-    const enemyPool = beat.preferredEnemies.length > 0 ? beat.preferredEnemies : this.stage.enemies;
+    const plan = this.currentV12CombatPlan();
+    this.applyV12CombatPlan(plan);
+    const authoredFormations = beat.preferredFormations.length > 0 ? beat.preferredFormations : this.stage.formations;
+    const preferredFormations = plan.formationBias.filter((formation) => authoredFormations.includes(formation));
+    const formations = preferredFormations.length > 0 ? [...preferredFormations, ...preferredFormations, ...authoredFormations] : authoredFormations;
+    const authoredEnemyPool = beat.preferredEnemies.length > 0 ? beat.preferredEnemies : this.stage.enemies;
+    const preferredEnemies = plan.enemyBias.filter((kind) => authoredEnemyPool.includes(kind));
+    const enemyPool = preferredEnemies.length > 0 ? [...preferredEnemies, ...preferredEnemies, ...authoredEnemyPool] : authoredEnemyPool;
     const formation = formations[Math.floor(this.random() * formations.length)] ?? "line";
     const hardBonus = this.options.difficulty === "hard" ? 1 : 0;
-    const count = Math.min(6, 3 + Math.floor(this.random() * 2) + hardBonus + (beat.intensity > .9 ? 1 : 0));
-    const choreography = beat.maneuvers.length > 0 ? beat.maneuvers : (["close-bank", "overtake", "parallel", "cross-pass"] as const);
+    const baseCount = 3 + Math.floor(this.random() * 2) + hardBonus + (beat.intensity > .9 ? 1 : 0);
+    const count = clamp(baseCount + plan.waveCountDelta, 2, 6);
+    const authoredChoreography = beat.maneuvers.length > 0 ? beat.maneuvers : (["close-bank", "overtake", "parallel", "cross-pass"] as const);
+    const choreography = [...plan.maneuverBias, ...plan.maneuverBias, ...authoredChoreography];
     const featured = choreography[this.waveSerial % choreography.length] ?? "close-bank";
     this.waveSerial += 1;
 
@@ -855,7 +951,7 @@ export class SkyDancerArcadeRuntime {
       counterplay: "none",
       counterplayIntensity: 0,
       counterplayTimer: 0,
-      counterplayCooldown: .38 + (this.nextEntityId % 3) * .31,
+      counterplayCooldown: Math.max(.38 + (this.nextEntityId % 3) * .31, this.combatDirectorCounterplayDelay + (this.nextEntityId % 3) * .16),
       counterplayRewarded: false,
     });
   }
@@ -908,7 +1004,7 @@ export class SkyDancerArcadeRuntime {
       counterplay: "none",
       counterplayIntensity: 0,
       counterplayTimer: 0,
-      counterplayCooldown: .38 + (this.nextEntityId % 3) * .31,
+      counterplayCooldown: Math.max(.9 + (this.nextEntityId % 3) * .31, this.combatDirectorCounterplayDelay),
       counterplayRewarded: false,
     });
     const bossProfile = skyDancerArcadeV11BossProfile(this.stage.id);
@@ -1084,6 +1180,7 @@ export class SkyDancerArcadeRuntime {
       }
     });
     if (targets.length > 0) {
+      this.directorMissileHeat = clamp(this.directorMissileHeat + Math.min(1.25, targets.length * .28), 0, 3);
       this.missileSerial += 1;
       const missileCount = targets.length * rippleCount;
       this.message = this.options.loadout === "missile-focus"
@@ -1623,6 +1720,7 @@ export class SkyDancerArcadeRuntime {
     const effective = this.input.turbo ? amount * 0.72 : amount;
     this.playerHp = Math.max(0, this.playerHp - effective);
     this.damageTaken += effective;
+    this.directorRecentDamage = clamp(this.directorRecentDamage + effective / PLAYER_MAX_HP * 2.15, 0, 2);
     this.chain = 0;
     this.chainTimer = 0;
     this.damageSerial += 1;
@@ -1777,6 +1875,14 @@ export class SkyDancerArcadeRuntime {
       enemyCounterplayCount: activeCounterplays.length,
       enemyCounterplayIntensity: activeCounterplays.reduce((peak, enemy) => Math.max(peak, enemy.counterplayIntensity), 0),
       turboJammed: activeCounterplays.some((enemy) => enemy.counterplay === "turbo-jammer"),
+      combatDirectorMode: this.combatDirectorMode,
+      combatDirectorPlayerStyle: this.combatDirectorPlayerStyle,
+      combatDirectorLabel: this.combatDirectorLabel,
+      combatDirectorIntent: this.combatDirectorIntent,
+      combatDirectorIntensity: this.combatDirectorIntensity,
+      combatDirectorPressure: this.combatDirectorPressure,
+      combatDirectorSerial: this.combatDirectorSerial,
+      combatDirectorWaveSerial: this.combatDirectorWaveSerial,
       bossKills: this.bossKills,
       continuesRemaining: this.continuesRemaining,
       continuesUsed: this.continuesUsed,
@@ -1859,6 +1965,20 @@ export class SkyDancerArcadeRuntime {
       stageSerial: this.stageSerial,
       resultSerial: this.resultSerial,
     };
+  }
+
+  /** Deterministic V12 hook for adaptive encounter regression tests. */
+  setV12DirectorSignalsForTests(gunHeat: number, missileHeat: number, turboHeat: number, recentDamage = 0, hpRatio = 1): void {
+    this.directorGunHeat = clamp(gunHeat, 0, 3);
+    this.directorMissileHeat = clamp(missileHeat, 0, 3);
+    this.directorTurboHeat = clamp(turboHeat, 0, 3);
+    this.directorRecentDamage = clamp(recentDamage, 0, 2);
+    this.playerHp = PLAYER_MAX_HP * clamp(hpRatio, .01, 1);
+    this.applyV12CombatPlan(this.currentV12CombatPlan());
+  }
+
+  spawnV12EncounterForTests(): void {
+    this.spawnWave();
   }
 
   /** Deterministic V11.8 hooks for loadout combat regression tests. */

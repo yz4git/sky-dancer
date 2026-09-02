@@ -19,6 +19,7 @@ import {
 import { arcadeCoursePose } from "../src/sky/arcade/SkyDancerArcadeCoursePath";
 import { SkyDancerArcadePresentationDirector } from "../src/sky/arcade/SkyDancerArcadePresentationDirector";
 import { skyDancerArcadeV11StageMedalGoals } from "../src/sky/arcade/SkyDancerArcadeV11Scoring";
+import { skyDancerArcadeV12CombatPlan } from "../src/sky/arcade/SkyDancerArcadeV12Director";
 import {
   SKY_DANCER_ARCADE_MASTERY_REWARDS,
   SKY_DANCER_ARCADE_MAX_MEDALS,
@@ -748,7 +749,7 @@ test("V11.7 loadout doctrine is visible in hangar controls and projectile presen
   assert.match(menuSource, /RAPID MULTI/);
   assert.match(menuSource, /TWIN BURST/);
   assert.match(modeSource, /data-loadout=\{snapshot\.loadout\}/);
-  assert.match(modeSource, /V11\.(?:8|9)/);
+  assert.match(modeSource, /V(?:11\.(?:8|9)|12\.0)/);
   assert.match(webglSource, /arcadeLoadoutV117/);
   assert.match(webglSource, /snapshot\.loadout === "gun-focus" \? 0xffdf72/);
   assert.match(cssSource, /data-loadout="gun-focus"/);
@@ -815,7 +816,7 @@ test("V11.8 tactical doctrine is visible in HUD, hangar and WebGL enemy reaction
     readFile(new URL("../app/SkyDancerArcadeProduct.module.css", import.meta.url), "utf8"),
     readFile(new URL("../src/sky/arcade/SkyDancerArcadeRuntime.ts", import.meta.url), "utf8"),
   ]);
-  assert.match(modeSource, /V11\.(?:8|9)/);
+  assert.match(modeSource, /V(?:11\.(?:8|9)|12\.0)/);
   assert.match(modeSource, /TACTICAL BONUS \+\{snapshot\.loadoutBonusScore\}/);
   assert.match(menuSource, /ARMOR SHRED · CANNON STAGGER/);
   assert.match(menuSource, /RIPPLE SHOCK · ARMOR CRUSH/);
@@ -887,7 +888,7 @@ test("V11.9 enemy counterplay is surfaced in HUD, hangar, runtime and WebGL pres
     readFile(new URL("../app/SkyDancerArcadeProduct.module.css", import.meta.url), "utf8"),
     readFile(new URL("../src/sky/arcade/SkyDancerArcadeRuntime.ts", import.meta.url), "utf8"),
   ]);
-  assert.match(modeSource, /V11\.9/);
+  assert.match(modeSource, /V(?:11\.9|12\.0)/);
   assert.match(modeSource, /ENEMY COUNTER/);
   assert.match(menuSource, /BREAK JAMMERS/);
   assert.match(menuSource, /PUNISH EVASION/);
@@ -897,4 +898,60 @@ test("V11.9 enemy counterplay is surfaced in HUD, hangar, runtime and WebGL pres
   assert.match(runtimeSource, /ARMOR BRACE/);
   assert.match(runtimeSource, /EVASIVE ROLL/);
   assert.match(runtimeSource, /TURBO JAMMER/);
+});
+
+
+
+test("V12.0 director reacts to actual combat behavior instead of only equipped loadout", () => {
+  const common = { recentDamage: 0, hpRatio: 1, chain: 5, beatIntensity: .82, hard: false };
+  assert.equal(skyDancerArcadeV12CombatPlan({ ...common, gunHeat: 2.4, missileHeat: .2, turboHeat: .2 }).mode, "armor-screen");
+  assert.equal(skyDancerArcadeV12CombatPlan({ ...common, gunHeat: .2, missileHeat: 2.4, turboHeat: .2 }).mode, "hunter-sweep");
+  assert.equal(skyDancerArcadeV12CombatPlan({ ...common, gunHeat: .2, missileHeat: .2, turboHeat: 2.4 }).mode, "jammer-net");
+  const relief = skyDancerArcadeV12CombatPlan({ ...common, gunHeat: 2.4, missileHeat: .2, turboHeat: .2, recentDamage: 1.3, hpRatio: .28 });
+  assert.equal(relief.mode, "relief-window");
+  assert.ok(relief.waveCountDelta < 0);
+  assert.ok(relief.cadenceScale > 1);
+});
+
+test("V12.0 runtime turns sustained gun pressure into an armor-screen encounter", () => {
+  const runtime = new SkyDancerArcadeRuntime({ difficulty: "normal", mode: "stage-practice", startStageId: "dawn-city", loadout: "standard", seed: 0x1201 });
+  runtime.setFire(true);
+  for (let frame = 0; frame < 155; frame += 1) runtime.step(1 / 60);
+  const snapshot = runtime.getSnapshot();
+  assert.ok(snapshot.combatDirectorWaveSerial >= 1);
+  assert.equal(snapshot.combatDirectorPlayerStyle, "gun");
+  assert.equal(snapshot.combatDirectorMode, "armor-screen");
+  assert.match(snapshot.combatDirectorIntent, /BREAK THE LINE/);
+});
+
+test("V12.0 relief window reduces encounter density and delays enemy counters after heavy damage", () => {
+  const pressure = new SkyDancerArcadeRuntime({ difficulty: "normal", mode: "stage-practice", startStageId: "dawn-city", seed: 0x1202 });
+  const relief = new SkyDancerArcadeRuntime({ difficulty: "normal", mode: "stage-practice", startStageId: "dawn-city", seed: 0x1202 });
+  pressure.setV12DirectorSignalsForTests(2.2, .1, .1, 0, 1);
+  relief.setV12DirectorSignalsForTests(2.2, .1, .1, 1.4, .25);
+  pressure.spawnV12EncounterForTests();
+  relief.spawnV12EncounterForTests();
+  const aggressiveEnemies = pressure.getSnapshot().enemies;
+  const reliefEnemies = relief.getSnapshot().enemies;
+  assert.equal(relief.getSnapshot().combatDirectorMode, "relief-window");
+  assert.ok(reliefEnemies.length < aggressiveEnemies.length, `${reliefEnemies.length} < ${aggressiveEnemies.length}`);
+  assert.ok(reliefEnemies.every((enemy) => enemy.counterplay === "none"));
+});
+
+test("V12.0 adaptive encounter state is surfaced in the compact HUD and version contract", async () => {
+  const [modeSource, cssSource, runtimeSource, directorSource] = await Promise.all([
+    readFile(new URL("../app/SkyDancerArcadeMode.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/SkyDancerArcadeProduct.module.css", import.meta.url), "utf8"),
+    readFile(new URL("../src/sky/arcade/SkyDancerArcadeRuntime.ts", import.meta.url), "utf8"),
+    readFile(new URL("../src/sky/arcade/SkyDancerArcadeV12Director.ts", import.meta.url), "utf8"),
+  ]);
+  assert.match(modeSource, /V12\.0/);
+  assert.match(modeSource, /COMBAT DIRECTOR/);
+  assert.match(modeSource, /combatDirectorIntent/);
+  assert.match(cssSource, /v12DirectorLine/);
+  assert.match(runtimeSource, /combatDirectorWaveSerial/);
+  assert.match(directorSource, /ARMOR SCREEN/);
+  assert.match(directorSource, /HUNTER SWEEP/);
+  assert.match(directorSource, /JAMMER NET/);
+  assert.match(directorSource, /RELIEF WINDOW/);
 });

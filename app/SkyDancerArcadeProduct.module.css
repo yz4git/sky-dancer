@@ -350,3 +350,26 @@
 @media (max-width: 720px) {
   .v119Counterplay { font-size: 6px; letter-spacing: .045em; }
 }
+
+
+/* V12.0 Combat Director lives inside the course-beat plate so adaptation is readable without HUD sprawl. */
+.v12DirectorLine {
+  display: block;
+  margin-top: 3px;
+  padding-top: 3px;
+  border-top: 1px solid rgba(255,255,255,.12);
+  color: rgba(216,236,255,.9);
+  font-size: 7px;
+  font-style: normal;
+  font-weight: 800;
+  letter-spacing: .055em;
+  line-height: 1.12;
+  white-space: nowrap;
+}
+.timelineBeat[data-director="armor-screen"] .v12DirectorLine { color: #ffd28f; }
+.timelineBeat[data-director="hunter-sweep"] .v12DirectorLine { color: #8ff3ff; }
+.timelineBeat[data-director="jammer-net"] .v12DirectorLine { color: #e9b0ff; }
+.timelineBeat[data-director="relief-window"] .v12DirectorLine { color: #a9ffd2; }
+@media (max-width: 720px) {
+  .v12DirectorLine { font-size: 6px; letter-spacing: .035em; }
+}
