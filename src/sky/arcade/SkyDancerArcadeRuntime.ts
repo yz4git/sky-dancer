@@ -271,24 +271,53 @@ const ENEMY_FLYBY_CULL_DEPTH = -11.5;
 const MAX_ENEMY_PROJECTILES_NORMAL = 5;
 const MAX_ENEMY_PROJECTILES_HARD = 9;
 
-function arcadeLoadoutGunCooldown(loadout: SkyDancerArcadeLoadout | undefined): number {
-  return GUN_COOLDOWN * (loadout === "gun-focus" ? 0.74 : loadout === "missile-focus" ? 1.08 : 1);
+function arcadeStandardFusionActive(loadout: SkyDancerArcadeLoadout | undefined, turboActive: boolean): boolean {
+  return (loadout ?? "standard") === "standard" && turboActive;
 }
 
-function arcadeLoadoutGunDamage(loadout: SkyDancerArcadeLoadout | undefined): number {
-  return loadout === "gun-focus" ? 1.18 : loadout === "missile-focus" ? 0.92 : 1;
+function arcadeLoadoutGunCooldown(loadout: SkyDancerArcadeLoadout | undefined, turboActive = false): number {
+  if (loadout === "gun-focus") return GUN_COOLDOWN * 0.74;
+  if (loadout === "missile-focus") return GUN_COOLDOWN * 1.08;
+  return GUN_COOLDOWN * (arcadeStandardFusionActive(loadout, turboActive) ? 0.86 : 1);
 }
 
-function arcadeLoadoutLockInterval(loadout: SkyDancerArcadeLoadout | undefined): number {
-  return LOCK_INTERVAL * (loadout === "missile-focus" ? 0.72 : loadout === "gun-focus" ? 1.1 : 1);
+/** V11.7 damage is per projectile: Gun Focus fires a matched twin pair. */
+function arcadeLoadoutGunDamage(loadout: SkyDancerArcadeLoadout | undefined, turboActive = false): number {
+  if (loadout === "gun-focus") return 0.59;
+  if (loadout === "missile-focus") return 0.92;
+  return arcadeStandardFusionActive(loadout, turboActive) ? 1.12 : 1;
 }
 
-function arcadeLoadoutMissileDamage(loadout: SkyDancerArcadeLoadout | undefined): number {
-  return loadout === "missile-focus" ? 1.22 : loadout === "gun-focus" ? 0.92 : 1;
+function arcadeLoadoutGunProjectiles(loadout: SkyDancerArcadeLoadout | undefined): number {
+  return loadout === "gun-focus" ? 2 : 1;
+}
+
+function arcadeLoadoutLockInterval(loadout: SkyDancerArcadeLoadout | undefined, turboActive = false): number {
+  if (loadout === "missile-focus") return LOCK_INTERVAL * 0.72;
+  if (loadout === "gun-focus") return LOCK_INTERVAL * 1.1;
+  return LOCK_INTERVAL * (arcadeStandardFusionActive(loadout, turboActive) ? 0.88 : 1);
+}
+
+function arcadeLoadoutLockThreshold(loadout: SkyDancerArcadeLoadout | undefined, boss: boolean, turboActive = false): number {
+  const base = boss ? 1.85 : 1.45;
+  if (loadout === "missile-focus") return base + (boss ? 0.42 : 0.4);
+  if (loadout === "gun-focus") return base - (boss ? 0.12 : 0.16);
+  return base + (arcadeStandardFusionActive(loadout, turboActive) ? (boss ? 0.2 : 0.18) : 0);
+}
+
+/** V11.7 damage is per missile: Missile Focus launches two missiles per locked target. */
+function arcadeLoadoutMissileDamage(loadout: SkyDancerArcadeLoadout | undefined, turboActive = false): number {
+  if (loadout === "missile-focus") return 0.7;
+  if (loadout === "gun-focus") return 0.92;
+  return arcadeStandardFusionActive(loadout, turboActive) ? 1.12 : 1;
+}
+
+function arcadeLoadoutMissileCount(loadout: SkyDancerArcadeLoadout | undefined): number {
+  return loadout === "missile-focus" ? 2 : 1;
 }
 
 function arcadeLoadoutMissileSpeed(loadout: SkyDancerArcadeLoadout | undefined): number {
-  return loadout === "missile-focus" ? 1.1 : loadout === "gun-focus" ? 0.96 : 1;
+  return loadout === "missile-focus" ? 1.12 : loadout === "gun-focus" ? 0.96 : 1;
 }
 
 function clamp(value: number, min: number, max: number): number {
@@ -898,6 +927,7 @@ export class SkyDancerArcadeRuntime {
     if (!this.input.lock || this.lockCooldown > 0) return;
     const locked = this.enemies.filter((enemy) => enemy.alive && enemy.locked).length;
     if (locked >= SKY_DANCER_ARCADE_MAX_LOCKS) return;
+    const turboLink = this.input.turbo && this.turbo > 0.5;
     let candidate: ArcadeEnemy | null = null;
     let best = Number.POSITIVE_INFINITY;
     for (const enemy of this.enemies) {
@@ -905,7 +935,7 @@ export class SkyDancerArcadeRuntime {
       const dx = enemy.x - this.playerX;
       const dy = enemy.y - this.playerY;
       const reticleDistance = Math.hypot(dx, dy);
-      const threshold = enemy.boss ? 1.85 : 1.45;
+      const threshold = arcadeLoadoutLockThreshold(this.options.loadout, enemy.boss, turboLink);
       if (reticleDistance > threshold) continue;
       const score = reticleDistance * 20 + enemy.depth * 0.05 - skyDancerArcadeTargetPriority(enemy.role);
       if (score < best) {
@@ -915,8 +945,12 @@ export class SkyDancerArcadeRuntime {
     }
     if (candidate) {
       candidate.locked = true;
-      this.lockCooldown = arcadeLoadoutLockInterval(this.options.loadout);
-      this.message = `LOCK ${locked + 1}`;
+      this.lockCooldown = arcadeLoadoutLockInterval(this.options.loadout, turboLink);
+      this.message = this.options.loadout === "missile-focus"
+        ? `RAPID LOCK ${locked + 1}`
+        : arcadeStandardFusionActive(this.options.loadout, turboLink)
+          ? `FUSION LOCK ${locked + 1}`
+          : `LOCK ${locked + 1}`;
       this.messageTimer = 0.35;
     }
   }
@@ -924,23 +958,28 @@ export class SkyDancerArcadeRuntime {
   private updateWeapons(delta: number): void {
     this.gunCooldown = Math.max(0, this.gunCooldown - delta);
     if (!this.input.fire || this.gunCooldown > 0) return;
-    this.gunCooldown = arcadeLoadoutGunCooldown(this.options.loadout);
+    const turboLink = this.input.turbo && this.turbo > 0.5;
+    this.gunCooldown = arcadeLoadoutGunCooldown(this.options.loadout, turboLink);
     const target = this.chooseGunTarget();
-    this.projectiles.push({
-      id: this.nextEntityId++,
-      owner: "player-gun",
-      x: this.playerX,
-      y: this.playerY,
-      depth: 1.2,
-      targetEnemyId: target?.id ?? null,
-      speed: 118,
-      damage: (this.options.difficulty === "hard" ? 8 : 9.5) * arcadeLoadoutGunDamage(this.options.loadout),
-      life: 1.05,
-      vx: target ? (target.x - this.playerX) * 0.48 : 0,
-      vy: target ? (target.y - this.playerY) * 0.48 : 0,
-      guidance: 0,
-      nearMissChecked: false,
-    });
+    const volleyCount = arcadeLoadoutGunProjectiles(this.options.loadout);
+    for (let index = 0; index < volleyCount; index += 1) {
+      const side = volleyCount === 1 ? 0 : (index === 0 ? -1 : 1);
+      this.projectiles.push({
+        id: this.nextEntityId++,
+        owner: "player-gun",
+        x: this.playerX + side * 0.055,
+        y: this.playerY + side * 0.012,
+        depth: 1.2,
+        targetEnemyId: target?.id ?? null,
+        speed: this.options.loadout === "gun-focus" ? 126 : 118,
+        damage: (this.options.difficulty === "hard" ? 8 : 9.5) * arcadeLoadoutGunDamage(this.options.loadout, turboLink),
+        life: 1.05,
+        vx: target ? (target.x - this.playerX) * 0.48 + side * 0.028 : side * 0.024,
+        vy: target ? (target.y - this.playerY) * 0.48 - side * 0.012 : -side * 0.01,
+        guidance: 0,
+        nearMissChecked: false,
+      });
+    }
     this.shotSerial += 1;
   }
 
@@ -969,27 +1008,37 @@ export class SkyDancerArcadeRuntime {
       const fallback = this.chooseGunTarget();
       if (fallback) targets = [fallback];
     }
-    targets.forEach((target, index) => {
+    const turboLink = this.input.turbo && this.turbo > 0.5;
+    const rippleCount = arcadeLoadoutMissileCount(this.options.loadout);
+    targets.forEach((target, targetIndex) => {
       target.locked = false;
-      this.projectiles.push({
-        id: this.nextEntityId++,
-        owner: "player-missile",
-        x: this.playerX + (index % 2 === 0 ? -0.08 : 0.08),
-        y: this.playerY - 0.05,
-        depth: 0.8,
-        targetEnemyId: target.id,
-        speed: 62 * arcadeLoadoutMissileSpeed(this.options.loadout),
-        damage: (target.boss ? 34 : 46) * arcadeLoadoutMissileDamage(this.options.loadout),
-        life: 2.8,
-        vx: 0,
-        vy: 0,
-        guidance: 0,
-        nearMissChecked: false,
-      });
+      for (let ripple = 0; ripple < rippleCount; ripple += 1) {
+        const side = (targetIndex + ripple) % 2 === 0 ? -1 : 1;
+        this.projectiles.push({
+          id: this.nextEntityId++,
+          owner: "player-missile",
+          x: this.playerX + side * (rippleCount === 2 ? 0.13 : 0.08),
+          y: this.playerY - 0.05 + (rippleCount === 2 ? (ripple === 0 ? -0.025 : 0.035) : 0),
+          depth: 0.8 + ripple * 0.08,
+          targetEnemyId: target.id,
+          speed: 62 * arcadeLoadoutMissileSpeed(this.options.loadout) * (1 + ripple * 0.025),
+          damage: (target.boss ? 34 : 46) * arcadeLoadoutMissileDamage(this.options.loadout, turboLink),
+          life: 2.8,
+          vx: side * (rippleCount === 2 ? 0.035 : 0),
+          vy: rippleCount === 2 ? (ripple === 0 ? -0.018 : 0.018) : 0,
+          guidance: 0,
+          nearMissChecked: false,
+        });
+      }
     });
     if (targets.length > 0) {
       this.missileSerial += 1;
-      this.message = targets.length >= 4 ? `MULTI LOCK ×${targets.length}` : "FOX TWO";
+      const missileCount = targets.length * rippleCount;
+      this.message = this.options.loadout === "missile-focus"
+        ? `RAPID RIPPLE ×${missileCount}`
+        : arcadeStandardFusionActive(this.options.loadout, turboLink)
+          ? `FUSION SALVO ×${missileCount}`
+          : targets.length >= 4 ? `MULTI LOCK ×${targets.length}` : "FOX TWO";
       this.messageTimer = 0.9;
     }
   }

@@ -368,6 +368,10 @@ export default function SkyDancerArcadeMode({ request, onReturnTitle }: SkyDance
   const projectedNextMasteryReward = skyDancerArcadeNextMasteryReward(projectedTotalMedals);
   const practiceMasteryCount = snapshot.lastStageMedals.filter((medal) => persistedPracticeMedals.includes(medal.id) || medal.earned).length;
   const practiceNextTarget = snapshot.lastStageMedals.find((medal) => !persistedPracticeMedals.includes(medal.id) && !medal.earned);
+  const standardFusionActive = snapshot.loadout === "standard" && snapshot.turboActive;
+  const fireDoctrine = snapshot.loadout === "gun-focus" ? "TWIN BURST" : snapshot.loadout === "missile-focus" ? "BACKUP GUN" : standardFusionActive ? "FUSION GUN" : "HOLD · GUN";
+  const lockDoctrine = snapshot.loadout === "missile-focus" ? "RAPID MULTI" : snapshot.loadout === "gun-focus" ? "TACTICAL LOCK" : standardFusionActive ? "FUSION SALVO" : "RELEASE SALVO";
+  const turboDoctrine = snapshot.loadout === "standard" ? (standardFusionActive ? "FUSION LINK" : "LINK DRIVE") : snapshot.turboActive ? "SMASH" : "HOLD";
 
   return (
     <main className={`${styles.shell} ${productStyles.productShell}`} onContextMenu={(event) => event.preventDefault()}>
@@ -459,33 +463,33 @@ export default function SkyDancerArcadeMode({ request, onReturnTitle }: SkyDance
                 <span>FLIGHT</span>
               </div>
             </div>
-            <div className={styles.actions} aria-label="Arcade combat controls">
+            <div className={styles.actions} aria-label="Arcade combat controls" data-loadout={snapshot.loadout} data-fusion={standardFusionActive}>
               <button
                 className={`${styles.fireButton} ${snapshot.fireActive ? styles.actionActive : ""}`}
                 onPointerDown={(event) => pressAction(event, firePointersRef, (active) => demoRef.current?.setFire(active))}
                 onPointerUp={(event) => releaseAction(event, firePointersRef, (active) => demoRef.current?.setFire(active))}
                 onPointerCancel={(event) => releaseAction(event, firePointersRef, (active) => demoRef.current?.setFire(active))}
                 onLostPointerCapture={(event) => releaseAction(event, firePointersRef, (active) => demoRef.current?.setFire(active))}
-              ><CombatIcon kind="fire" /><strong>FIRE</strong><small>HOLD · GUN</small></button>
+              ><CombatIcon kind="fire" /><strong>FIRE</strong><small>{fireDoctrine}</small></button>
               <button
                 className={`${styles.lockButton} ${snapshot.lockActive ? styles.actionActive : ""}`}
                 onPointerDown={(event) => pressAction(event, lockPointersRef, (active) => demoRef.current?.setLock(active))}
                 onPointerUp={(event) => releaseAction(event, lockPointersRef, (active) => demoRef.current?.setLock(active))}
                 onPointerCancel={(event) => releaseAction(event, lockPointersRef, (active) => demoRef.current?.setLock(active))}
                 onLostPointerCapture={(event) => releaseAction(event, lockPointersRef, (active) => demoRef.current?.setLock(active))}
-              ><CombatIcon kind="lock" /><strong>LOCK <span>{snapshot.lockedCount}/8</span></strong><small>RELEASE SALVO</small></button>
+              ><CombatIcon kind="lock" /><strong>LOCK <span>{snapshot.lockedCount}/8</span></strong><small>{lockDoctrine}</small></button>
               <button
                 className={`${styles.turboButton} ${snapshot.turboActive ? styles.actionActive : ""}`}
                 onPointerDown={(event) => pressAction(event, turboPointersRef, (active) => demoRef.current?.setTurbo(active))}
                 onPointerUp={(event) => releaseAction(event, turboPointersRef, (active) => demoRef.current?.setTurbo(active))}
                 onPointerCancel={(event) => releaseAction(event, turboPointersRef, (active) => demoRef.current?.setTurbo(active))}
                 onLostPointerCapture={(event) => releaseAction(event, turboPointersRef, (active) => demoRef.current?.setTurbo(active))}
-              ><CombatIcon kind="turbo" /><strong>TURBO</strong><small>{Math.round(snapshot.turbo)}% · {snapshot.turboActive ? "SMASH" : "HOLD"}</small></button>
+              ><CombatIcon kind="turbo" /><strong>TURBO</strong><small>{Math.round(snapshot.turbo)}% · {turboDoctrine}</small></button>
             </div>
           </>
         )}
 
-        <span className={productStyles.rendererBadge}>{rendererName === "WEBGL" ? `3D FLIGHT · V11.6 · ${snapshot.paintScheme.toUpperCase()} · ${snapshot.loadout.toUpperCase()}` : `COMPATIBILITY · CANVAS · V11.6 · ${snapshot.loadout.toUpperCase()}`}</span>
+        <span className={productStyles.rendererBadge}>{rendererName === "WEBGL" ? `3D FLIGHT · V11.7 · ${snapshot.paintScheme.toUpperCase()} · ${snapshot.loadout.toUpperCase()}` : `COMPATIBILITY · CANVAS · V11.7 · ${snapshot.loadout.toUpperCase()}`}</span>
         {runtimeMessage && <div className={styles.runtimeMessage}>{runtimeMessage}</div>}
 
         {snapshot.status === "stage-clear" && (

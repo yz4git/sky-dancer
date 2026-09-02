@@ -387,7 +387,11 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
       let mesh = this.projectileMeshes.get(projectile.id);
       if (!mesh) {
         const enemyMissile = projectile.owner === "enemy";
-        const color = enemyMissile ? 0xff8a2b : projectile.owner === "player-missile" ? 0xfff4de : 0xc8f8ff;
+        const color = enemyMissile
+          ? 0xff8a2b
+          : projectile.owner === "player-missile"
+            ? snapshot.loadout === "missile-focus" ? 0x8cf6ff : snapshot.loadout === "gun-focus" ? 0xffe6c4 : 0xfff4de
+            : snapshot.loadout === "gun-focus" ? 0xffdf72 : snapshot.loadout === "missile-focus" ? 0x9ddfff : 0xc8f8ff;
         const geometry = projectile.owner === "player-missile"
           ? new THREE.ConeGeometry(0.28, 1.58, 8)
           : enemyMissile
@@ -406,6 +410,7 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
           }),
         );
         if (projectile.owner === "enemy") mesh.renderOrder = 8;
+        mesh.userData.arcadeLoadoutV117 = snapshot.loadout;
         this.projectileMeshes.set(projectile.id, mesh);
         this.projectileRoot.add(mesh);
       }
@@ -414,10 +419,10 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
       mesh.rotation.y = course.yaw;
       mesh.rotation.x = course.pitch;
       const pulse = projectile.owner === "player-missile"
-        ? 1.35 + Math.sin(performance.now() * 0.025 + projectile.id) * 0.15
+        ? (snapshot.loadout === "missile-focus" ? 1.55 : 1.35) + Math.sin(performance.now() * 0.025 + projectile.id) * 0.15
         : projectile.owner === "enemy"
           ? 1.1 + Math.sin(performance.now() * 0.018 + projectile.id) * 0.08
-          : 1;
+          : snapshot.loadout === "gun-focus" ? 1.16 : 1;
       mesh.scale.setScalar(pulse);
     }
     for (const [id, mesh] of this.projectileMeshes) {

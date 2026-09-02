@@ -45,9 +45,9 @@ const PAINT_OPTIONS: readonly { id: SkyDancerArcadePaintScheme; label: string; u
 ];
 
 const LOADOUT_OPTIONS: readonly { id: SkyDancerArcadeLoadout; label: string; detail: string; unlock: number }[] = [
-  { id: "standard", label: "STANDARD", detail: "BALANCED GUN / LOCK / MISSILE", unlock: 0 },
-  { id: "missile-focus", label: "MISSILE", detail: "LOCK +28% · MISSILE +22% · GUN -8%", unlock: 12 },
-  { id: "gun-focus", label: "GUN", detail: "GUN RATE +35% · DAMAGE +18% · MISSILE -8%", unlock: 24 },
+  { id: "standard", label: "STANDARD", detail: "FUSION LINK · TURBO BOOSTS FIRE + LOCK", unlock: 0 },
+  { id: "missile-focus", label: "MISSILE", detail: "RAPID MULTI · WIDE LOCK · TWIN RIPPLE", unlock: 12 },
+  { id: "gun-focus", label: "GUN", detail: "TWIN BURST · DUAL CANNON · HIGH RATE", unlock: 24 },
 ];
 
 type PausePage = "menu" | "config";

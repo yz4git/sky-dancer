@@ -676,7 +676,7 @@ test("V11.6 hangar selections persist and change the actual sortie profile", asy
   assert.match(progressSource, /selectedLoadout: SkyDancerArcadeLoadout/);
   assert.match(progressSource, /selectSkyDancerArcadeEquipment/);
   assert.match(menuSource, /Open hangar/);
-  assert.match(menuSource, /MISSILE \+22%/);
+  assert.match(menuSource, /id: "missile-focus"/);
   assert.match(runtimeSource, /arcadeLoadoutGunCooldown/);
   assert.match(runtimeSource, /arcadeLoadoutLockInterval/);
   assert.match(runtimeSource, /arcadeLoadoutMissileDamage/);
@@ -692,4 +692,65 @@ test("V11.6 hangar selections persist and change the actual sortie profile", asy
   assert.equal(gun.getSnapshot().paintScheme, "prism");
   assert.equal(gun.getSnapshot().loadout, "gun-focus");
   assert.ok(gun.getSnapshot().shotSerial > standard.getSnapshot().shotSerial, `${gun.getSnapshot().shotSerial} > ${standard.getSnapshot().shotSerial}`);
+});
+
+
+test("V11.7 Gun Focus fires a visible twin-cannon burst instead of a scalar-only buff", () => {
+  const runtime = new SkyDancerArcadeRuntime({ difficulty: "normal", mode: "stage-practice", startStageId: "dawn-city", loadout: "gun-focus", seed: 0x1171 });
+  runtime.setFire(true);
+  runtime.step(1 / 60);
+  const shots = runtime.getSnapshot().projectiles.filter((projectile) => projectile.owner === "player-gun");
+  assert.equal(runtime.getSnapshot().shotSerial, 1);
+  assert.equal(shots.length, 2);
+  assert.ok(shots[0].x < shots[1].x, "twin cannons originate from separate left/right lanes");
+});
+
+test("V11.7 Missile Focus widens acquisition and releases a twin ripple per lock", () => {
+  const standard = new SkyDancerArcadeRuntime({ difficulty: "normal", mode: "stage-practice", startStageId: "dawn-city", loadout: "standard", seed: 0x1172 });
+  const missile = new SkyDancerArcadeRuntime({ difficulty: "normal", mode: "stage-practice", startStageId: "dawn-city", loadout: "missile-focus", seed: 0x1172 });
+  const standardDebug = standard as unknown as { spawnEnemy(kind: "fighter", x: number, y: number, depth: number): void };
+  const missileDebug = missile as unknown as { spawnEnemy(kind: "fighter", x: number, y: number, depth: number): void };
+  standardDebug.spawnEnemy("fighter", 1.68, 0, 30);
+  missileDebug.spawnEnemy("fighter", 1.68, 0, 30);
+  standard.setLock(true);
+  missile.setLock(true);
+  standard.step(1 / 60);
+  missile.step(1 / 60);
+  assert.equal(standard.getSnapshot().lockedCount, 0, "standard cone leaves the edge target outside acquisition");
+  assert.equal(missile.getSnapshot().lockedCount, 1, "missile focus acquires the wider edge target");
+  missile.setLock(false);
+  const ripple = missile.getSnapshot().projectiles.filter((projectile) => projectile.owner === "player-missile");
+  assert.equal(ripple.length, 2, "one lock becomes a two-missile ripple");
+  assert.equal(ripple[0].targetEnemyId, ripple[1].targetEnemyId);
+});
+
+test("V11.7 Standard Fusion Link changes weapon cadence only while Turbo is engaged", () => {
+  const normal = new SkyDancerArcadeRuntime({ difficulty: "normal", mode: "stage-practice", startStageId: "dawn-city", loadout: "standard", seed: 0x1173 });
+  const linked = new SkyDancerArcadeRuntime({ difficulty: "normal", mode: "stage-practice", startStageId: "dawn-city", loadout: "standard", seed: 0x1173 });
+  normal.setFire(true);
+  linked.setFire(true);
+  linked.setTurbo(true);
+  for (let frame = 0; frame < 60; frame += 1) {
+    normal.step(1 / 60);
+    linked.step(1 / 60);
+  }
+  assert.ok(linked.getSnapshot().shotSerial > normal.getSnapshot().shotSerial, `${linked.getSnapshot().shotSerial} should exceed ${normal.getSnapshot().shotSerial}`);
+});
+
+test("V11.7 loadout doctrine is visible in hangar controls and projectile presentation", async () => {
+  const [menuSource, modeSource, webglSource, cssSource] = await Promise.all([
+    readFile(new URL("../app/CartGameMenu.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/SkyDancerArcadeMode.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../src/sky/arcade/SkyDancerArcadeWebGLDemo.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/SkyDancerArcadeProduct.module.css", import.meta.url), "utf8"),
+  ]);
+  assert.match(menuSource, /FUSION LINK · TURBO BOOSTS FIRE \+ LOCK/);
+  assert.match(menuSource, /RAPID MULTI · WIDE LOCK · TWIN RIPPLE/);
+  assert.match(menuSource, /TWIN BURST · DUAL CANNON · HIGH RATE/);
+  assert.match(modeSource, /data-loadout=\{snapshot\.loadout\}/);
+  assert.match(modeSource, /V11\.7/);
+  assert.match(webglSource, /arcadeLoadoutV117/);
+  assert.match(webglSource, /snapshot\.loadout === "gun-focus" \? 0xffdf72/);
+  assert.match(cssSource, /data-loadout="gun-focus"/);
+  assert.match(cssSource, /data-fusion="true"/);
 });
