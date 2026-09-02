@@ -9,6 +9,11 @@ const ROAD_CAPACITY = 24;
 const GLOBAL_CITY_DEBUG_KEY = "__skyDancerGetV40CityDebug";
 const AIR_BURST_V6_SCALE = 0.58;
 const PLAYER_HIT_BURST_V6_SCALE = 0.74;
+
+function skyRaidShowsCityExpansion(): boolean {
+  if (typeof document === "undefined" || document.documentElement.dataset.skyDancerMode !== "sky-raid") return true;
+  return (document.documentElement.dataset.skyRaidWorldStyle ?? "city") === "city";
+}
 export const SKY_DANCER_V40_BURST_LINEAR_SCALE = 0.55;
 export const SKY_DANCER_V40_AIR_BURST_SCALE = AIR_BURST_V6_SCALE * SKY_DANCER_V40_BURST_LINEAR_SCALE;
 export const SKY_DANCER_V40_PLAYER_HIT_BURST_SCALE = PLAYER_HIT_BURST_V6_SCALE * SKY_DANCER_V40_BURST_LINEAR_SCALE;
@@ -134,7 +139,7 @@ export class SkyDancerV40CityExpansionPass {
   }
 
   update(snapshot: CartArenaSessionSnapshot): void {
-    this.root.visible = true;
+    this.root.visible = skyRaidShowsCityExpansion();
     this.reduceInheritedCombatBursts();
     // V42: decorative city geometry is world scenery, not a player-relative
     // chase object. Rebuilding and shifting the entire root every 420 m made

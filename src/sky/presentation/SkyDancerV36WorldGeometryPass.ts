@@ -15,6 +15,11 @@ const CITY_ORIGIN_Z = 300;
 const CITY_CENTER_Z = 145;
 const GLOBAL_WORLD_DEBUG_KEY = "__skyDancerGetV36WorldDebug";
 
+function skyRaidShowsCityGround(): boolean {
+  if (typeof document === "undefined" || document.documentElement.dataset.skyDancerMode !== "sky-raid") return true;
+  return (document.documentElement.dataset.skyRaidWorldStyle ?? "city") === "city";
+}
+
 function hash2(x: number, z: number, salt = 0): number {
   let n = Math.imul(x + 0x6d2b79f5 + salt * 719, 0x27d4eb2d) ^ Math.imul(z - salt * 449, 0x165667b1);
   n ^= n >>> 15;
@@ -189,9 +194,10 @@ export class SkyDancerV36WorldGeometryPass {
     const legacyFields = this.runtime.scene.getObjectByName("sky-dancer-v31-patchwork-fields");
     if (legacyFields) legacyFields.visible = false;
     this.terrainRoot.visible = true;
-    this.cityRoot.visible = true;
-    for (const mesh of this.archetypes) mesh.visible = true;
-    this.arterialRoads.visible = true;
+    const showCityGround = skyRaidShowsCityGround();
+    this.cityRoot.visible = showCityGround;
+    for (const mesh of this.archetypes) mesh.visible = showCityGround;
+    this.arterialRoads.visible = showCityGround;
 
     // V41 owns the rolling terrain. The primary skyline is scenery and must not
     // jump to a new 420 m player-relative tile. Rebuilding it on every boundary

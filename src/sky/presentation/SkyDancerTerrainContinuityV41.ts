@@ -24,19 +24,40 @@ interface TerrainTile {
   tileZ: number;
 }
 
-function worldHeight(x: number, z: number): number {
-  const broad = Math.sin(x * 0.0061) * Math.cos(z * 0.0053) * 1.65;
-  const ridge = Math.sin((x + z) * 0.0107 + Math.cos(z * 0.0039)) * 0.92;
-  const secondary = Math.cos((x - z * 0.72) * 0.0141) * 0.48;
-  return GROUND_Y + 0.34 + broad + ridge + secondary;
+type SkyRaidSurfaceStyle = "city" | "mountains" | "clouds" | "storm" | "citadel";
+
+function skyRaidSurfaceStyle(): SkyRaidSurfaceStyle | null {
+  if (typeof document === "undefined" || document.documentElement.dataset.skyDancerMode !== "sky-raid") return null;
+  const style = document.documentElement.dataset.skyRaidWorldStyle;
+  return style === "mountains" || style === "clouds" || style === "storm" || style === "citadel" ? style : "city";
 }
 
-function terrainColor(height: number, x: number, z: number): THREE.Color {
-  const normalized = THREE.MathUtils.clamp((height - (GROUND_Y - 2.8)) / 6.0, 0, 1);
-  const low = new THREE.Color(0x3f6946);
-  const high = new THREE.Color(0x718451);
-  const color = low.lerp(high, normalized);
-  const variation = 0.93 + (Math.sin(x * 0.021) * Math.cos(z * 0.018) * 0.5 + 0.5) * 0.10;
+function worldHeight(x: number, z: number, style: SkyRaidSurfaceStyle): number {
+  const broad = Math.sin(x * 0.0061) * Math.cos(z * 0.0053);
+  const ridge = Math.sin((x + z) * 0.0107 + Math.cos(z * 0.0039));
+  const secondary = Math.cos((x - z * 0.72) * 0.0141);
+  if (style === "mountains") return GROUND_Y - 0.8 + broad * 4.8 + ridge * 3.2 + secondary * 1.4;
+  if (style === "clouds") return GROUND_Y - 8.5 + broad * 0.55 + ridge * 0.32 + secondary * 0.18;
+  if (style === "storm") return GROUND_Y - 2.2 + broad * 2.1 + ridge * 1.7 + secondary * 0.75;
+  if (style === "citadel") {
+    const prism = Math.abs(Math.sin(x * 0.018) * Math.cos(z * 0.016));
+    return GROUND_Y - 0.4 + broad * 1.2 + ridge * 0.8 + prism * 2.4;
+  }
+  return GROUND_Y + 0.34 + broad * 1.65 + ridge * 0.92 + secondary * 0.48;
+}
+
+function terrainColor(height: number, x: number, z: number, style: SkyRaidSurfaceStyle): THREE.Color {
+  const normalized = THREE.MathUtils.clamp((height - (GROUND_Y - 10)) / 18.0, 0, 1);
+  const palettes: Record<SkyRaidSurfaceStyle, readonly [number, number]> = {
+    city: [0x3f6946, 0x718451],
+    mountains: [0x5b2f24, 0xb2673f],
+    clouds: [0xb9dce8, 0xf1f7f5],
+    storm: [0x1e2939, 0x46566a],
+    citadel: [0x241d3f, 0x685683],
+  };
+  const [lowHex, highHex] = palettes[style];
+  const color = new THREE.Color(lowHex).lerp(new THREE.Color(highHex), normalized);
+  const variation = 0.91 + (Math.sin(x * 0.021) * Math.cos(z * 0.018) * 0.5 + 0.5) * 0.13;
   return color.multiplyScalar(variation);
 }
 
@@ -53,6 +74,7 @@ export class SkyDancerTerrainContinuityV41 {
   private readonly tiles: TerrainTile[] = [];
   private centerTileX = Number.NaN;
   private centerTileZ = Number.NaN;
+  private activeSurfaceStyle: SkyRaidSurfaceStyle = "city";
   private latest: SkyDancerTerrainContinuitySnapshotV41 = {
     centerTileX: 0,
     centerTileZ: 0,
@@ -99,9 +121,13 @@ export class SkyDancerTerrainContinuityV41 {
       legacyTerrain.userData.skyDancerV41Superseded = true;
     }
     this.root.visible = true;
+    const nextStyle = skyRaidSurfaceStyle() ?? "city";
+    const styleChanged = nextStyle !== this.activeSurfaceStyle;
+    this.activeSurfaceStyle = nextStyle;
+    this.root.userData.skyRaidSurfaceStyle = nextStyle;
     const nextTileX = Math.floor((snapshot.x + TILE_SIZE * 0.5) / TILE_SIZE);
     const nextTileZ = Math.floor((snapshot.z + TILE_SIZE * 0.5) / TILE_SIZE);
-    if (nextTileX !== this.centerTileX || nextTileZ !== this.centerTileZ) {
+    if (styleChanged || nextTileX !== this.centerTileX || nextTileZ !== this.centerTileZ) {
       this.centerTileX = nextTileX;
       this.centerTileZ = nextTileZ;
       this.rebuildRing();
@@ -130,9 +156,9 @@ export class SkyDancerTerrainContinuityV41 {
           const localZ = position.getZ(index);
           const worldX = tileX * TILE_SIZE + localX;
           const worldZ = tileZ * TILE_SIZE + localZ;
-          const height = worldHeight(worldX, worldZ);
+          const height = worldHeight(worldX, worldZ, this.activeSurfaceStyle);
           position.setY(index, height);
-          const color = terrainColor(height, worldX, worldZ);
+          const color = terrainColor(height, worldX, worldZ, this.activeSurfaceStyle);
           tile.colors.setXYZ(index, color.r, color.g, color.b);
           minHeight = Math.min(minHeight, height);
           maxHeight = Math.max(maxHeight, height);
