@@ -1,0 +1,40 @@
+name: SKY RAID V2 visual compare
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/sky-raid-v2-compare-once.yml'
+permissions:
+  contents: read
+jobs:
+  compare:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Install Playwright runtime
+        run: |
+          mkdir -p .audit-runtime
+          cd .audit-runtime
+          npm init -y >/dev/null 2>&1
+          npm install playwright-core@1.55.0
+      - name: Build Pages
+        run: npm run build:pages
+      - name: Serve build
+        run: |
+          python3 -m http.server 4173 -d out > /tmp/sky-raid-audit-http.log 2>&1 &
+          echo $! > /tmp/sky-raid-audit-http.pid
+          sleep 2
+      - name: Capture Arcade Run and SKY RAID
+        env:
+          SKY_DANCER_CHROME_PATH: /usr/bin/google-chrome
+        run: node scripts/webgl-sky-raid-v2-compare.mjs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sky-raid-v2-compare
+          path: artifacts/sky-raid-v2-compare
+          if-no-files-found: error
