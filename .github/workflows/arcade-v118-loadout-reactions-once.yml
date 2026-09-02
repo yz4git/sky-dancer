@@ -32,6 +32,7 @@ jobs:
             'assert.match(menuSource, /FUSION LINK · TURBO BOOSTS FIRE \\+ LOCK/);': 'assert.match(menuSource, /FUSION LINK/);',
             'assert.match(menuSource, /RAPID MULTI · WIDE LOCK · TWIN RIPPLE/);': 'assert.match(menuSource, /RAPID MULTI/);',
             'assert.match(menuSource, /TWIN BURST · DUAL CANNON · HIGH RATE/);': 'assert.match(menuSource, /TWIN BURST/);',
+            'assert.match(modeSource, /V11\\.7/);': 'assert.match(modeSource, /V11\\.8/);',
           }
           for old, new in replacements.items():
             if old not in s:
