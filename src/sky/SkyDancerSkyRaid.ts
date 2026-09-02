@@ -519,7 +519,7 @@ export function installSkyDancerSkyRaid(): void {
   };
   const previousBuildWorld = webglPrototype.buildWorld;
   webglPrototype.buildWorld = function skyRaidBuildWorld(this: RaidWebGLDemo): void {
-    previousBuildWorld.call(this);
+    if (!isSkyRaidMode()) previousBuildWorld.call(this);
     buildRaidVisuals(this);
   };
   const previousUpdateVisuals = webglPrototype.updateVisuals;
