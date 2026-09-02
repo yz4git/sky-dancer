@@ -20,6 +20,7 @@ import { arcadeCoursePose } from "../src/sky/arcade/SkyDancerArcadeCoursePath";
 import { SkyDancerArcadePresentationDirector } from "../src/sky/arcade/SkyDancerArcadePresentationDirector";
 import { skyDancerArcadeV11StageMedalGoals } from "../src/sky/arcade/SkyDancerArcadeV11Scoring";
 import { skyDancerArcadeV12CombatPlan } from "../src/sky/arcade/SkyDancerArcadeV12Director";
+import { skyDancerArcadeV121EncounterGrammar } from "../src/sky/arcade/SkyDancerArcadeV121EncounterGrammar";
 import {
   SKY_DANCER_ARCADE_MASTERY_REWARDS,
   SKY_DANCER_ARCADE_MAX_MEDALS,
@@ -749,7 +750,7 @@ test("V11.7 loadout doctrine is visible in hangar controls and projectile presen
   assert.match(menuSource, /RAPID MULTI/);
   assert.match(menuSource, /TWIN BURST/);
   assert.match(modeSource, /data-loadout=\{snapshot\.loadout\}/);
-  assert.match(modeSource, /V(?:11\.(?:8|9)|12\.0)/);
+  assert.match(modeSource, /V(?:11\.(?:8|9)|12\.[01])/);
   assert.match(webglSource, /arcadeLoadoutV117/);
   assert.match(webglSource, /snapshot\.loadout === "gun-focus" \? 0xffdf72/);
   assert.match(cssSource, /data-loadout="gun-focus"/);
@@ -816,7 +817,7 @@ test("V11.8 tactical doctrine is visible in HUD, hangar and WebGL enemy reaction
     readFile(new URL("../app/SkyDancerArcadeProduct.module.css", import.meta.url), "utf8"),
     readFile(new URL("../src/sky/arcade/SkyDancerArcadeRuntime.ts", import.meta.url), "utf8"),
   ]);
-  assert.match(modeSource, /V(?:11\.(?:8|9)|12\.0)/);
+  assert.match(modeSource, /V(?:11\.(?:8|9)|12\.[01])/);
   assert.match(modeSource, /TACTICAL BONUS \+\{snapshot\.loadoutBonusScore\}/);
   assert.match(menuSource, /ARMOR SHRED · CANNON STAGGER/);
   assert.match(menuSource, /RIPPLE SHOCK · ARMOR CRUSH/);
@@ -888,7 +889,7 @@ test("V11.9 enemy counterplay is surfaced in HUD, hangar, runtime and WebGL pres
     readFile(new URL("../app/SkyDancerArcadeProduct.module.css", import.meta.url), "utf8"),
     readFile(new URL("../src/sky/arcade/SkyDancerArcadeRuntime.ts", import.meta.url), "utf8"),
   ]);
-  assert.match(modeSource, /V(?:11\.9|12\.0)/);
+  assert.match(modeSource, /V(?:11\.9|12\.[01])/);
   assert.match(modeSource, /ENEMY COUNTER/);
   assert.match(menuSource, /BREAK JAMMERS/);
   assert.match(menuSource, /PUNISH EVASION/);
@@ -945,7 +946,7 @@ test("V12.0 adaptive encounter state is surfaced in the compact HUD and version 
     readFile(new URL("../src/sky/arcade/SkyDancerArcadeRuntime.ts", import.meta.url), "utf8"),
     readFile(new URL("../src/sky/arcade/SkyDancerArcadeV12Director.ts", import.meta.url), "utf8"),
   ]);
-  assert.match(modeSource, /V12\.0/);
+  assert.match(modeSource, /V12\.1/);
   assert.match(modeSource, /COMBAT DIRECTOR/);
   assert.match(modeSource, /combatDirectorIntent/);
   assert.match(cssSource, /v12DirectorLine/);
@@ -954,4 +955,64 @@ test("V12.0 adaptive encounter state is surfaced in the compact HUD and version 
   assert.match(directorSource, /HUNTER SWEEP/);
   assert.match(directorSource, /JAMMER NET/);
   assert.match(directorSource, /RELIEF WINDOW/);
+});
+
+
+
+test("V12.1 Dawn City encounter grammar authors a real three-step combat sentence", () => {
+  const first = skyDancerArcadeV121EncounterGrammar("dawn-city", "adaptive-mix", 0, "city-entry", .72, false);
+  const second = skyDancerArcadeV121EncounterGrammar("dawn-city", "adaptive-mix", 1, "city-entry", .72, false);
+  assert.equal(first.phases.length, 3);
+  assert.ok(first.phases[0].delay < first.phases[1].delay && first.phases[1].delay < first.phases[2].delay);
+  assert.notEqual(first.signature, second.signature, "successive encounters alternate authored grammar variants");
+  assert.notEqual(first.label, second.label, "Dawn City alternates skyline and gantry attack sentences");
+  assert.notEqual(first.phases[0].maneuver, first.phases[1].maneuver, "a grammar changes maneuver between phases");
+});
+
+test("V12.1 runtime advances encounter phases over time instead of spawning one undifferentiated wave", () => {
+  const runtime = new SkyDancerArcadeRuntime({ difficulty: "normal", mode: "stage-practice", startStageId: "dawn-city", seed: 0x1211 });
+  runtime.setV12DirectorSignalsForTests(.2, 2.4, .2, 0, 1);
+  runtime.spawnV12EncounterForTests();
+  const first = runtime.getSnapshot();
+  assert.equal(first.encounterGrammarPhaseIndex, 1);
+  assert.equal(first.encounterGrammarPhaseCount, 3);
+  assert.ok(first.enemies.length > 0);
+  const firstPhase = first.encounterGrammarPhaseLabel;
+  const firstManeuvers = new Set(first.enemies.map((enemy) => enemy.maneuver));
+  assert.equal(runtime.advanceV121EncounterForTests(), true);
+  const second = runtime.getSnapshot();
+  assert.equal(second.encounterGrammarPhaseIndex, 2);
+  assert.notEqual(second.encounterGrammarPhaseLabel, firstPhase);
+  assert.ok(second.enemies.length > first.enemies.length, `${second.enemies.length} > ${first.enemies.length}`);
+  assert.ok(second.enemies.some((enemy) => !firstManeuvers.has(enemy.maneuver)), "second phase introduces a different attack maneuver");
+});
+
+test("V12.1 relief grammar is intentionally shorter and lighter than pressure grammar", () => {
+  const pressure = skyDancerArcadeV121EncounterGrammar("dawn-city", "armor-screen", 0, "city-entry", .8, false);
+  const relief = skyDancerArcadeV121EncounterGrammar("dawn-city", "relief-window", 0, "city-entry", .8, false);
+  const pressureMass = pressure.phases.reduce((sum, phase) => sum + phase.countScale + phase.countDelta * .2, 0);
+  const reliefMass = relief.phases.reduce((sum, phase) => sum + phase.countScale + phase.countDelta * .2, 0);
+  assert.equal(relief.phases.length, 2);
+  assert.ok(reliefMass < pressureMass, `${reliefMass} < ${pressureMass}`);
+  assert.ok(relief.cadenceScale > pressure.cadenceScale);
+});
+
+test("V12.1 encounter identity is stage-specific and surfaced in the compact HUD", async () => {
+  const dawn = skyDancerArcadeV121EncounterGrammar("dawn-city", "adaptive-mix", 0, "entry", .7, false);
+  const fleet = skyDancerArcadeV121EncounterGrammar("cloud-fleet", "adaptive-mix", 0, "entry", .7, false);
+  assert.notEqual(dawn.label, fleet.label);
+  const [modeSource, cssSource, runtimeSource, grammarSource] = await Promise.all([
+    readFile(new URL("../app/SkyDancerArcadeMode.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/SkyDancerArcadeProduct.module.css", import.meta.url), "utf8"),
+    readFile(new URL("../src/sky/arcade/SkyDancerArcadeRuntime.ts", import.meta.url), "utf8"),
+    readFile(new URL("../src/sky/arcade/SkyDancerArcadeV121EncounterGrammar.ts", import.meta.url), "utf8"),
+  ]);
+  assert.match(modeSource, /V12\.1/);
+  assert.match(modeSource, /ENCOUNTER · \{snapshot\.encounterGrammarLabel\}/);
+  assert.match(cssSource, /v121GrammarLine/);
+  assert.match(runtimeSource, /encounterPhaseQueue/);
+  assert.match(grammarSource, /SKYLINE KNIFE/);
+  assert.match(grammarSource, /DECK CROSS/);
+  assert.match(grammarSource, /NEON CROSS/);
+  assert.match(grammarSource, /PRISM GAUNTLET/);
 });

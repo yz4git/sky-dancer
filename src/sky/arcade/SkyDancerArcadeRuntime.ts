@@ -48,6 +48,11 @@ import {
   type SkyDancerArcadeV12EncounterPlan,
   type SkyDancerArcadeV12PlayerStyle,
 } from "./SkyDancerArcadeV12Director";
+import {
+  skyDancerArcadeV121EncounterGrammar,
+  type SkyDancerArcadeV121EncounterGrammar,
+  type SkyDancerArcadeV121EncounterPhase,
+} from "./SkyDancerArcadeV121EncounterGrammar";
 
 export type SkyDancerArcadeStatus =
   | "running"
@@ -185,6 +190,13 @@ export interface SkyDancerArcadeSnapshot {
   combatDirectorPressure: number;
   combatDirectorSerial: number;
   combatDirectorWaveSerial: number;
+  encounterGrammarId: string;
+  encounterGrammarLabel: string;
+  encounterGrammarIntent: string;
+  encounterGrammarPhaseLabel: string;
+  encounterGrammarPhaseIndex: number;
+  encounterGrammarPhaseCount: number;
+  encounterGrammarSerial: number;
   bossKills: number;
   continuesRemaining: number;
   continuesUsed: number;
@@ -275,6 +287,14 @@ interface ArcadeInput {
   fire: boolean;
   lock: boolean;
   turbo: boolean;
+}
+
+interface ArcadeV121QueuedPhase {
+  at: number;
+  grammar: SkyDancerArcadeV121EncounterGrammar;
+  phase: SkyDancerArcadeV121EncounterPhase;
+  phaseIndex: number;
+  plan: SkyDancerArcadeV12EncounterPlan;
 }
 
 interface StageStats {
@@ -501,6 +521,15 @@ export class SkyDancerArcadeRuntime {
   private combatDirectorCounterplayDelay = 1.08;
   private combatDirectorSerial = 0;
   private combatDirectorWaveSerial = 0;
+  private encounterGrammarId = "opening-pass";
+  private encounterGrammarLabel = "OPENING PASS";
+  private encounterGrammarIntent = "READ SKY · BUILD RHYTHM";
+  private encounterGrammarPhaseLabel = "APPROACH";
+  private encounterGrammarPhaseIndex = 0;
+  private encounterGrammarPhaseCount = 1;
+  private encounterGrammarSerial = 0;
+  private encounterGrammarCadenceScale = 1;
+  private encounterPhaseQueue: ArcadeV121QueuedPhase[] = [];
   private stageSerial = 1;
   private resultSerial = 0;
   private readonly stageStats: StageStats = {
@@ -558,6 +587,14 @@ export class SkyDancerArcadeRuntime {
     this.combatDirectorCadenceScale = 1;
     this.combatDirectorCounterplayDelay = 1.08;
     this.combatDirectorWaveSerial = 0;
+    this.encounterGrammarId = "opening-pass";
+    this.encounterGrammarLabel = "OPENING PASS";
+    this.encounterGrammarIntent = "READ SKY · BUILD RHYTHM";
+    this.encounterGrammarPhaseLabel = "APPROACH";
+    this.encounterGrammarPhaseIndex = 0;
+    this.encounterGrammarPhaseCount = 1;
+    this.encounterGrammarCadenceScale = 1;
+    this.encounterPhaseQueue = [];
     const finalStage = this.stage.id === SKY_DANCER_ARCADE_FINAL_STAGE;
     const rewindCheckpoint = skyDancerArcadeStageEventCheckpoint(this.stageTime / this.stage.durationSeconds, finalStage);
     this.stageEventCheckpoint = rewindTime > 0 ? Math.max(this.stageEventCheckpoint, rewindCheckpoint) as 0 | 1 | 2 : 0;
@@ -832,16 +869,17 @@ export class SkyDancerArcadeRuntime {
   }
 
   private updateDirector(): void {
+    this.updateV121EncounterQueue();
     const progress = clamp(this.stageTime / this.stage.durationSeconds, 0, 1);
     const beat = skyDancerArcadeV11Beat(this.stage.id, progress);
     const bossTime = this.stage.durationSeconds * skyDancerArcadeBossStartProgress(this.stage.id === SKY_DANCER_ARCADE_FINAL_STAGE);
     if (!this.bossSpawned && this.stageTime >= bossTime) this.spawnBoss();
     // Keep the proven V6.2 readability ceiling; V11 changes cadence/composition, not simultaneous clutter.
     const enemyCap = this.options.difficulty === "hard" ? 15 : 11;
-    if (!this.bossSpawned && this.stageTime >= this.nextWaveAt && this.enemies.filter((enemy) => enemy.alive).length < enemyCap) {
+    if (!this.bossSpawned && this.encounterPhaseQueue.length === 0 && this.stageTime >= this.nextWaveAt && this.enemies.filter((enemy) => enemy.alive).length < enemyCap) {
       this.spawnWave();
       const pressure = this.options.difficulty === "hard" ? 0.84 : 1;
-      this.nextWaveAt += this.stage.waveIntervalSeconds * beat.waveIntervalScale * pressure * this.combatDirectorCadenceScale * (0.84 + this.random() * 0.34);
+      this.nextWaveAt += this.stage.waveIntervalSeconds * beat.waveIntervalScale * pressure * this.combatDirectorCadenceScale * this.encounterGrammarCadenceScale * (0.84 + this.random() * 0.34);
     }
     if (!this.bossSpawned && this.stageTime >= this.nextHazardAt && this.hazards.length < 8) {
       this.spawnHazardPattern();
@@ -854,42 +892,100 @@ export class SkyDancerArcadeRuntime {
     const beat = skyDancerArcadeV11Beat(this.stage.id, progress);
     const plan = this.currentV12CombatPlan();
     this.applyV12CombatPlan(plan);
-    const authoredFormations = beat.preferredFormations.length > 0 ? beat.preferredFormations : this.stage.formations;
-    const preferredFormations = plan.formationBias.filter((formation) => authoredFormations.includes(formation));
-    const formations = preferredFormations.length > 0 ? [...preferredFormations, ...preferredFormations, ...authoredFormations] : authoredFormations;
-    const authoredEnemyPool = beat.preferredEnemies.length > 0 ? beat.preferredEnemies : this.stage.enemies;
-    const preferredEnemies = plan.enemyBias.filter((kind) => authoredEnemyPool.includes(kind));
-    const enemyPool = preferredEnemies.length > 0 ? [...preferredEnemies, ...preferredEnemies, ...authoredEnemyPool] : authoredEnemyPool;
-    const formation = formations[Math.floor(this.random() * formations.length)] ?? "line";
-    const hardBonus = this.options.difficulty === "hard" ? 1 : 0;
-    const baseCount = 3 + Math.floor(this.random() * 2) + hardBonus + (beat.intensity > .9 ? 1 : 0);
-    const count = clamp(baseCount + plan.waveCountDelta, 2, 6);
-    const authoredChoreography = beat.maneuvers.length > 0 ? beat.maneuvers : (["close-bank", "overtake", "parallel", "cross-pass"] as const);
-    const choreography = [...plan.maneuverBias, ...plan.maneuverBias, ...authoredChoreography];
-    const featured = choreography[this.waveSerial % choreography.length] ?? "close-bank";
+    const grammar = skyDancerArcadeV121EncounterGrammar(
+      this.stage.id,
+      plan.mode,
+      this.waveSerial,
+      beat.id,
+      plan.intensity,
+      this.options.difficulty === "hard",
+    );
     this.waveSerial += 1;
+    this.encounterGrammarId = grammar.id;
+    this.encounterGrammarLabel = grammar.label;
+    this.encounterGrammarIntent = grammar.intent;
+    this.encounterGrammarPhaseCount = grammar.phases.length;
+    this.encounterGrammarCadenceScale = grammar.cadenceScale;
+    this.encounterGrammarSerial += 1;
+    this.encounterPhaseQueue = grammar.phases.slice(1).map((phase, index) => ({
+      at: this.stageTime + phase.delay,
+      grammar,
+      phase,
+      phaseIndex: index + 1,
+      plan,
+    }));
+    const first = grammar.phases[0];
+    if (first) this.spawnV121EncounterPhase(grammar, first, 0, plan);
+  }
 
-    // V11 showcase: Dawn City's pre-boss beat is a deliberate pursuit formation, not a random wave.
-    if (this.stage.id === "dawn-city" && beat.id === "ace-pursuit") {
-      const sign = this.waveSerial % 2 === 0 ? 1 : -1;
-      this.spawnEnemy("ace", sign * 1.86, .12, -6.4, "overtake", sign);
-      this.spawnEnemy("interceptor", -sign * 1.52, -.46, 48, "cross-pass", -sign);
-      this.spawnEnemy("interceptor", sign * .72, .58, 55, "parallel", sign);
+  private updateV121EncounterQueue(): void {
+    if (this.bossSpawned) {
+      this.encounterPhaseQueue = [];
       return;
     }
+    while (this.encounterPhaseQueue.length > 0 && this.encounterPhaseQueue[0].at <= this.stageTime) {
+      const queued = this.encounterPhaseQueue.shift();
+      if (!queued) break;
+      this.spawnV121EncounterPhase(queued.grammar, queued.phase, queued.phaseIndex, queued.plan);
+    }
+  }
 
-    for (let index = 0; index < count; index += 1) {
+  private spawnV121EncounterPhase(
+    grammar: SkyDancerArcadeV121EncounterGrammar,
+    phase: SkyDancerArcadeV121EncounterPhase,
+    phaseIndex: number,
+    plan: SkyDancerArcadeV12EncounterPlan,
+  ): void {
+    this.encounterGrammarId = grammar.id;
+    this.encounterGrammarLabel = grammar.label;
+    this.encounterGrammarIntent = grammar.intent;
+    this.encounterGrammarPhaseLabel = phase.label;
+    this.encounterGrammarPhaseIndex = phaseIndex + 1;
+    this.encounterGrammarPhaseCount = grammar.phases.length;
+
+    const progress = clamp(this.stageTime / this.stage.durationSeconds, 0, 1);
+    const beat = skyDancerArcadeV11Beat(this.stage.id, progress);
+    const authoredFormations = beat.preferredFormations.length > 0 ? beat.preferredFormations : this.stage.formations;
+    const formationCandidates = [phase.formation, ...plan.formationBias, ...authoredFormations];
+    const formation = formationCandidates.find((candidate) => authoredFormations.includes(candidate)) ?? authoredFormations[0] ?? "line";
+    const authoredEnemyPool = beat.preferredEnemies.length > 0 ? beat.preferredEnemies : this.stage.enemies;
+    const biasedEnemyPool = [...phase.enemyBias, ...plan.enemyBias, ...authoredEnemyPool].filter((kind) => authoredEnemyPool.includes(kind));
+    const enemyPool = biasedEnemyPool.length > 0 ? biasedEnemyPool : authoredEnemyPool;
+    const hardBonus = this.options.difficulty === "hard" ? 1 : 0;
+    const totalTarget = clamp(3 + Math.floor(this.random() * 2) + hardBonus + (beat.intensity > .9 ? 1 : 0) + plan.waveCountDelta, 2, 6);
+    const plannedCount = clamp(Math.round(totalTarget * phase.countScale) + phase.countDelta, 1, 4);
+    const enemyCap = this.options.difficulty === "hard" ? 15 : 11;
+    const aliveNonBoss = this.enemies.filter((enemy) => enemy.alive && !enemy.boss).length;
+    const count = Math.max(0, Math.min(plannedCount, enemyCap - aliveNonBoss));
+    if (count <= 0) return;
+
+    let startIndex = 0;
+    if (
+      this.stage.id === "dawn-city"
+      && beat.id === "ace-pursuit"
+      && phaseIndex === grammar.phases.length - 1
+      && authoredEnemyPool.includes("ace")
+    ) {
+      const sign = this.waveSerial % 2 === 0 ? 1 : -1;
+      this.spawnEnemy("ace", sign * 1.86, .12, -6.4, "overtake", sign);
+      startIndex = 1;
+    }
+
+    for (let index = startIndex; index < count; index += 1) {
       const kind = enemyPool[Math.floor(this.random() * enemyPool.length)] ?? "fighter";
       const [formationX, formationY] = this.formationPosition(formation, index, count);
-      const maneuver: SkyDancerArcadeEnemyManeuver = index === 0
-        ? featured
-        : index === 1 && count >= 4
-          ? (choreography[(this.waveSerial + 1) % choreography.length] ?? "close-bank")
-          : "approach";
-      const sign = Math.abs(formationX) > 0.18 ? Math.sign(formationX) : index % 2 === 0 ? 1 : -1;
-      const x = maneuver === "overtake" ? sign * 1.9 : formationX;
-      const y = maneuver === "overtake" ? clamp(formationY * 0.34, -0.62, 0.62) : formationY;
-      const depth = maneuver === "overtake" ? -6.4 : 51 + index * 3.8 + this.random() * 10;
+      const maneuver: SkyDancerArcadeEnemyManeuver = index === 0 || (index + phaseIndex) % 3 !== 0
+        ? phase.maneuver
+        : phase.secondaryManeuver;
+      const sign = Math.abs(formationX) > 0.18 ? Math.sign(formationX) : (index + phaseIndex) % 2 === 0 ? 1 : -1;
+      const x = maneuver === "overtake"
+        ? sign * 1.9
+        : maneuver === "cross-pass"
+          ? clamp(formationX + sign * .18, -ENEMY_X_LIMIT, ENEMY_X_LIMIT)
+          : formationX;
+      const y = maneuver === "overtake" ? clamp(formationY * .34, -.62, .62) : formationY;
+      const depthBase = maneuver === "overtake" ? -6.4 : maneuver === "cross-pass" ? 44 : maneuver === "parallel" ? 48 : maneuver === "close-bank" ? 50 : 56;
+      const depth = maneuver === "overtake" ? depthBase : depthBase + phase.depthOffset + index * 3.1 + this.random() * 6;
       this.spawnEnemy(kind, x, y, depth, maneuver, sign);
     }
   }
@@ -959,6 +1055,8 @@ export class SkyDancerArcadeRuntime {
   private spawnBoss(): void {
     if (this.bossSpawned) return;
     this.bossSpawned = true;
+    this.encounterPhaseQueue = [];
+    this.encounterGrammarPhaseLabel = "CLIMAX";
     // V10.1: boss ingress owns the arena. Retire leftover wave pressure instead of stacking it under the climax target.
     for (const enemy of this.enemies) {
       if (enemy.boss) continue;
@@ -1883,6 +1981,13 @@ export class SkyDancerArcadeRuntime {
       combatDirectorPressure: this.combatDirectorPressure,
       combatDirectorSerial: this.combatDirectorSerial,
       combatDirectorWaveSerial: this.combatDirectorWaveSerial,
+      encounterGrammarId: this.encounterGrammarId,
+      encounterGrammarLabel: this.encounterGrammarLabel,
+      encounterGrammarIntent: this.encounterGrammarIntent,
+      encounterGrammarPhaseLabel: this.encounterGrammarPhaseLabel,
+      encounterGrammarPhaseIndex: this.encounterGrammarPhaseIndex,
+      encounterGrammarPhaseCount: this.encounterGrammarPhaseCount,
+      encounterGrammarSerial: this.encounterGrammarSerial,
       bossKills: this.bossKills,
       continuesRemaining: this.continuesRemaining,
       continuesUsed: this.continuesUsed,
@@ -1979,6 +2084,15 @@ export class SkyDancerArcadeRuntime {
 
   spawnV12EncounterForTests(): void {
     this.spawnWave();
+  }
+
+  advanceV121EncounterForTests(): boolean {
+    const next = this.encounterPhaseQueue[0];
+    if (!next) return false;
+    this.stageTime = Math.max(this.stageTime, next.at);
+    this.distance = this.stageTime * this.stage.courseSpeed;
+    this.updateV121EncounterQueue();
+    return true;
   }
 
   /** Deterministic V11.8 hooks for loadout combat regression tests. */

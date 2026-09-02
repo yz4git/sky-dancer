@@ -373,3 +373,21 @@
 @media (max-width: 720px) {
   .v12DirectorLine { font-size: 6px; letter-spacing: .035em; }
 }
+
+
+/* V12.1 Encounter Grammar: second telemetry row exposes the active mini-script without adding a panel. */
+.v121GrammarLine {
+  display: block;
+  margin-top: 2px;
+  color: rgba(244,250,255,.78);
+  font-size: 6px;
+  font-style: normal;
+  font-weight: 700;
+  letter-spacing: .05em;
+  line-height: 1.08;
+  white-space: nowrap;
+}
+.timelineBeat[data-director="relief-window"] .v121GrammarLine { color: #baffdc; }
+@media (max-width: 720px) {
+  .v121GrammarLine { font-size: 5.5px; letter-spacing: .03em; }
+}
