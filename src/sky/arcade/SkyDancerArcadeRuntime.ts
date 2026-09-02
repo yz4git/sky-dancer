@@ -15,9 +15,7 @@ import type { SkyDancerArcadeRank } from "./SkyDancerArcadeProgress";
 import {
   skyDancerArcadeArmorRatio,
   skyDancerArcadeBossPhase,
-  skyDancerArcadeBossPhaseLabel,
   skyDancerArcadeBossStartProgress,
-  skyDancerArcadeBossWeakpointOpen,
   skyDancerArcadeEnemyRole,
   skyDancerArcadeStageEventCheckpoint,
   skyDancerArcadeStageEvolutionProfile,
@@ -32,6 +30,12 @@ import {
   type SkyDancerArcadeV11BeatKind,
   type SkyDancerArcadeV11RouteRisk,
 } from "./SkyDancerArcadeV11Timeline";
+import {
+  skyDancerArcadeV11BossMechanicLabel,
+  skyDancerArcadeV11BossMotion,
+  skyDancerArcadeV11BossProfile,
+  skyDancerArcadeV11BossWeakpointOpen,
+} from "./SkyDancerArcadeV11Bosses";
 
 export type SkyDancerArcadeStatus =
   | "running"
@@ -153,6 +157,9 @@ export interface SkyDancerArcadeSnapshot {
   bossPhase: SkyDancerArcadeBossPhase;
   bossWeakpointOpen: boolean;
   bossPhaseSerial: number;
+  bossMechanicLabel: string;
+  bossMechanicIntensity: number;
+  bossMechanicSerial: number;
   stageEventSerial: number;
   stageEventLabel: string | null;
   stageEventIntensity: number;
@@ -347,6 +354,7 @@ export class SkyDancerArcadeRuntime {
   private bossSpawned = false;
   private bossDefeated = false;
   private bossPhaseSerial = 0;
+  private bossMechanicSerial = 0;
   private stageEventSerial = 0;
   private stageEventCheckpoint: 0 | 1 | 2 = 0;
   private stageEventLabel: string | null = null;
@@ -772,9 +780,40 @@ export class SkyDancerArcadeRuntime {
       maneuverClock: 0,
       maneuverSign: 1,
     });
-    this.message = `WARNING · ${this.stage.bossName}`;
+    const bossProfile = skyDancerArcadeV11BossProfile(this.stage.id);
+    this.bossMechanicSerial += 1;
+    this.message = `WARNING · ${this.stage.bossName} · ${bossProfile.mechanicLabels[0]}`;
     this.messageTimer = 3.2;
     this.stageSerial += 1;
+  }
+
+  private spawnBossPhaseEscorts(phase: SkyDancerArcadeBossPhase): void {
+    const profile = skyDancerArcadeV11BossProfile(this.stage.id);
+    const index = phase - 1;
+    const kind = profile.escortKinds[index];
+    const count = profile.escortCounts[index];
+    if (!kind || count <= 0) return;
+    const aliveNonBoss = this.enemies.filter((enemy) => enemy.alive && !enemy.boss).length;
+    const allowed = Math.max(0, Math.min(count, 4 - aliveNonBoss));
+    for (let escort = 0; escort < allowed; escort += 1) {
+      const sign = escort % 2 === 0 ? -1 : 1;
+      const maneuver: SkyDancerArcadeEnemyManeuver = profile.motionStyle === "broadside" || profile.motionStyle === "carrier"
+        ? "parallel"
+        : profile.motionStyle === "phantom" || profile.motionStyle === "duel"
+          ? "overtake"
+          : "cross-pass";
+      this.spawnEnemy(kind, sign * (1.35 + escort * .22), sign * .34, 38 + escort * 5, maneuver, sign);
+    }
+  }
+
+  private triggerBossPhaseMechanic(phase: SkyDancerArcadeBossPhase): void {
+    const profile = skyDancerArcadeV11BossProfile(this.stage.id);
+    const index = phase - 1;
+    const hazard = profile.phaseHazards[index];
+    const bursts = profile.phaseHazardBursts[index];
+    if (hazard) for (let burst = 0; burst < bursts; burst += 1) this.spawnHazardPattern(hazard);
+    this.spawnBossPhaseEscorts(phase);
+    this.bossMechanicSerial += 1;
   }
 
   private spawnHazardPattern(forcedKind?: SkyDancerArcadeHazardKind): void {
@@ -914,32 +953,20 @@ export class SkyDancerArcadeRuntime {
         if (nextPhase !== enemy.bossPhase) {
           enemy.bossPhase = nextPhase;
           this.bossPhaseSerial += 1;
-          this.message = `PHASE ${nextPhase} · ${skyDancerArcadeBossPhaseLabel(nextPhase)}`;
-          this.messageTimer = 1.5;
+          const mechanic = skyDancerArcadeV11BossMechanicLabel(this.stage.id, nextPhase);
+          this.message = `PHASE ${nextPhase} · ${mechanic}`;
+          this.messageTimer = 1.65;
           this.addScore(1000 + nextPhase * 650, true);
           this.turbo = Math.min(100, this.turbo + 9);
-          const profile = skyDancerArcadeStageEvolutionProfile(this.stage.biome);
-          this.spawnHazardPattern(profile.eventHazards[nextPhase === 2 ? 0 : 1]);
+          this.triggerBossPhaseMechanic(nextPhase);
         }
-        enemy.weakpointOpen = skyDancerArcadeBossWeakpointOpen(enemy.bossPhase, enemy.age);
-        const dawnAceChase = this.stage.id === "dawn-city";
-        const phaseDepth = dawnAceChase
-          ? (enemy.bossPhase === 1 ? 30 : enemy.bossPhase === 2 ? 23.5 : 18.5)
-          : (enemy.bossPhase === 1 ? 33 : enemy.bossPhase === 2 ? 29 : 25.5);
-        const phaseSpeed = dawnAceChase
-          ? (enemy.bossPhase === 1 ? 22 : enemy.bossPhase === 2 ? 26 : 30)
-          : (enemy.bossPhase === 1 ? 18 : enemy.bossPhase === 2 ? 21 : 24);
-        enemy.depth = moveToward(enemy.depth, phaseDepth, delta * phaseSpeed);
-        const baseFrequency = this.options.difficulty === "hard" ? 0.82 : 0.68;
-        const frequency = baseFrequency * (1 + (enemy.bossPhase - 1) * .24) * (dawnAceChase ? 1.34 : 1);
-        const phaseAmplitude = enemy.amplitude * (1 + (enemy.bossPhase - 1) * .13) * (dawnAceChase ? 1.12 : 1);
-        const staggerSuppression = 1 - enemy.stagger * .16;
-        enemy.x = dawnAceChase
-          ? clamp((this.playerX * .78 + Math.sin(enemy.age * frequency) * phaseAmplitude) * staggerSuppression, -ENEMY_X_LIMIT, ENEMY_X_LIMIT)
-          : clamp((this.playerX * 0.58 + Math.sin(enemy.age * frequency) * phaseAmplitude) * staggerSuppression, -ENEMY_X_LIMIT, ENEMY_X_LIMIT);
-        enemy.y = dawnAceChase
-          ? clamp(this.playerY * .68 + Math.sin(enemy.age * (1.18 + enemy.bossPhase * .12) + 1.3) * (.78 + enemy.bossPhase * .12), -ENEMY_Y_LIMIT, ENEMY_Y_LIMIT)
-          : clamp(this.playerY * 0.5 + enemy.baseY + Math.sin(enemy.age * (0.92 + enemy.bossPhase * .08) + 1.3) * (0.72 + enemy.bossPhase * .1), -ENEMY_Y_LIMIT, ENEMY_Y_LIMIT);
+        enemy.weakpointOpen = skyDancerArcadeV11BossWeakpointOpen(this.stage.id, enemy.bossPhase, enemy.age);
+        const motion = skyDancerArcadeV11BossMotion(
+          this.stage.id, enemy.bossPhase, enemy.age, this.playerX, this.playerY, enemy.amplitude, enemy.stagger,
+        );
+        enemy.depth = moveToward(enemy.depth, motion.depthTarget, delta * motion.depthSpeed);
+        enemy.x = clamp(motion.x, -ENEMY_X_LIMIT, ENEMY_X_LIMIT);
+        enemy.y = clamp(motion.y, -ENEMY_Y_LIMIT, ENEMY_Y_LIMIT);
       } else {
         const frequency = enemy.kind === "interceptor" ? 2.35 : enemy.kind === "ace" ? 1.75 : 1.02;
         const pursuit = clamp((62 - enemy.depth) / 62, 0.12, enemy.kind === "ace" ? 0.84 : enemy.kind === "interceptor" ? 0.74 : 0.54);
@@ -1068,8 +1095,10 @@ export class SkyDancerArcadeRuntime {
     const hard = this.options.difficulty === "hard";
     const threatBudget = hard ? MAX_ENEMY_PROJECTILES_HARD : MAX_ENEMY_PROJECTILES_NORMAL;
     const activeThreats = this.projectiles.filter((projectile) => projectile.owner === "enemy" && projectile.life > 0).length;
-    const desiredSpread = enemy.boss
-      ? Math.min(5, (hard ? 2 : 1) + enemy.bossPhase)
+    const bossProfile = enemy.boss ? skyDancerArcadeV11BossProfile(this.stage.id) : null;
+    const bossIndex = enemy.boss ? enemy.bossPhase - 1 : 0;
+    const desiredSpread = enemy.boss && bossProfile
+      ? Math.min(5, (hard ? 1 : 0) + enemy.bossPhase + bossProfile.spreadBonus[bossIndex])
       : enemy.kind === "missile-boat" || enemy.kind === "bomber" ? 2 : enemy.kind === "ace" ? 2 : 1;
     const spreadCount = Math.max(0, Math.min(desiredSpread, threatBudget - activeThreats));
     if (spreadCount <= 0) {
@@ -1078,7 +1107,12 @@ export class SkyDancerArcadeRuntime {
     }
     for (let index = 0; index < spreadCount; index += 1) {
       const centered = index - (spreadCount - 1) * 0.5;
-      const guidance = enemy.boss ? 1.02 + enemy.bossPhase * .2 : enemy.kind === "missile-boat" ? 1.52 : enemy.kind === "bomber" ? 1.26 : enemy.kind === "ace" ? 1.12 : 0.88;
+      const guidance = enemy.boss && bossProfile
+        ? (1.02 + enemy.bossPhase * .2) * bossProfile.guidanceScale[bossIndex]
+        : enemy.kind === "missile-boat" ? 1.52 : enemy.kind === "bomber" ? 1.26 : enemy.kind === "ace" ? 1.12 : 0.88;
+      const bossSpeedScale = enemy.boss && bossProfile ? bossProfile.projectileSpeedScale[bossIndex] : 1;
+      const bossSpreadX = enemy.boss && bossProfile ? bossProfile.spreadX[bossIndex] : .2;
+      const bossSpreadY = enemy.boss && bossProfile ? bossProfile.spreadY[bossIndex] : .11;
       this.projectiles.push({
         id: this.nextEntityId++,
         owner: "enemy",
@@ -1086,16 +1120,17 @@ export class SkyDancerArcadeRuntime {
         y: enemy.y,
         depth: enemy.depth,
         targetEnemyId: null,
-        speed: enemy.boss ? 15.8 + enemy.bossPhase * 1.7 : enemy.kind === "missile-boat" ? 15.5 : enemy.kind === "bomber" ? 14.5 : 13.2,
+        speed: enemy.boss ? (15.8 + enemy.bossPhase * 1.7) * bossSpeedScale : enemy.kind === "missile-boat" ? 15.5 : enemy.kind === "bomber" ? 14.5 : 13.2,
         damage: enemy.boss ? (hard ? 18 : 11) : hard ? 13 : 8,
         life: 5.6,
-        vx: (this.playerX - enemy.x) * 0.28 + centered * 0.2,
-        vy: (this.playerY - enemy.y) * 0.28 + centered * 0.11,
+        vx: (this.playerX - enemy.x) * 0.28 + centered * bossSpreadX,
+        vy: (this.playerY - enemy.y) * 0.28 + centered * bossSpreadY,
         guidance,
         nearMissChecked: false,
       });
     }
-    const base = enemy.boss ? 1.68 - enemy.bossPhase * .18 : enemy.kind === "missile-boat" ? 1.68 : enemy.kind === "bomber" ? 1.9 : enemy.kind === "ace" ? 1.78 : 2.18;
+    const bossCadence = enemy.boss && bossProfile ? bossProfile.fireCadenceScale[bossIndex] : 1;
+    const base = enemy.boss ? (1.68 - enemy.bossPhase * .18) * bossCadence : enemy.kind === "missile-boat" ? 1.68 : enemy.kind === "bomber" ? 1.9 : enemy.kind === "ace" ? 1.78 : 2.18;
     enemy.fireCooldown = base * (hard ? 0.8 : 1) * (0.84 + this.random() * 0.38);
   }
 
@@ -1413,6 +1448,9 @@ export class SkyDancerArcadeRuntime {
       bossPhase: boss?.bossPhase ?? (this.bossDefeated ? 3 : 1),
       bossWeakpointOpen: boss?.weakpointOpen ?? false,
       bossPhaseSerial: this.bossPhaseSerial,
+      bossMechanicLabel: skyDancerArcadeV11BossMechanicLabel(this.stage.id, boss?.bossPhase ?? (this.bossDefeated ? 3 : 1)),
+      bossMechanicIntensity: skyDancerArcadeV11BossProfile(this.stage.id).intensity[(boss?.bossPhase ?? (this.bossDefeated ? 3 : 1)) - 1],
+      bossMechanicSerial: this.bossMechanicSerial,
       stageEventSerial: this.stageEventSerial,
       stageEventLabel: this.stageEventLabel,
       stageEventIntensity: this.stageEventTimer > 0 ? clamp(this.stageEventTimer / 1.72, 0, 1) : 0,
@@ -1488,6 +1526,11 @@ export class SkyDancerArcadeRuntime {
     this.stageTime = this.stage.durationSeconds * clamp(progress, 0, 1);
     this.distance = this.stageTime * this.stage.courseSpeed;
     this.updateStageEvolution();
+  }
+
+  triggerBossPhaseForTests(phase: SkyDancerArcadeBossPhase): void {
+    const ratio = phase === 1 ? .9 : phase === 2 ? .6 : .25;
+    this.setBossHpRatioForTests(ratio);
   }
 
   setBossHpRatioForTests(ratio: number): void {

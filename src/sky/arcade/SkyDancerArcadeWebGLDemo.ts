@@ -661,6 +661,7 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
     if (snapshot.nearMisses > this.previousSnapshot.nearMisses) this.audio.tone(1180, .075, .018, "triangle");
     if (snapshot.enemiesDefeated > this.previousSnapshot.enemiesDefeated) this.audio.tone(236, .08, .018, "triangle");
     if (snapshot.bossActive && !this.previousSnapshot.bossActive) { this.audio.tone(72, .42, .052, "sawtooth"); this.audio.tone(144, .34, .025, "triangle"); }
+    if (snapshot.bossMechanicSerial !== this.previousSnapshot.bossMechanicSerial) { this.audio.tone(96, .2, .035, "sawtooth"); this.audio.tone(288, .12, .018, "triangle"); }
     if (snapshot.stageSerial !== this.previousSnapshot.stageSerial) this.audio.tone(330, .18, .025, "triangle");
     if (snapshot.timelineSerial !== this.previousSnapshot.timelineSerial) { this.audio.tone(520, .12, .018, "triangle"); this.audio.tone(780, .08, .012, "square"); }
     const incoming = snapshot.projectiles.some((projectile) => projectile.owner === "enemy" && projectile.depth > 2.2 && projectile.depth < 30);

@@ -394,7 +394,7 @@ export default function SkyDancerArcadeMode({ request, onReturnTitle }: SkyDance
 
         {snapshot.bossActive && (
           <div className={styles.bossHud} aria-label="Climax target">
-            <div><small>CLIMAX TARGET · PHASE {snapshot.bossPhase}{snapshot.bossWeakpointOpen ? " · CORE OPEN" : bossArmorPercent > 0 ? ` · ARMOR ${bossArmorPercent}%` : ""}</small><strong>{snapshot.bossName}</strong><span>{bossPercent}%</span></div>
+            <div><small>CLIMAX TARGET · PHASE {snapshot.bossPhase}{snapshot.bossWeakpointOpen ? " · CORE OPEN" : bossArmorPercent > 0 ? ` · ARMOR ${bossArmorPercent}%` : ""}</small><strong>{snapshot.bossName}<em>{snapshot.bossMechanicLabel}</em></strong><span>{bossPercent}%</span></div>
             <i><b style={{ width: `${bossPercent}%` }} /></i>
           </div>
         )}
