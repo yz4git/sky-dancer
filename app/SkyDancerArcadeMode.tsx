@@ -57,8 +57,10 @@ export default function SkyDancerArcadeMode({ request, onReturnTitle }: SkyDance
     difficulty: request.difficulty,
     mode: request.mode === "stage-practice" ? "stage-practice" as const : "arcade-run" as const,
     startStageId: request.practiceStageId,
+    paintScheme: request.paintScheme ?? "default",
+    loadout: request.loadout ?? "standard",
     seed: (request.seed ?? 0x51f15e) ^ Math.imul(runSerial + 1, 0x45d9f3b),
-  }), [request.difficulty, request.mode, request.practiceStageId, request.seed, runSerial]);
+  }), [request.difficulty, request.loadout, request.mode, request.paintScheme, request.practiceStageId, request.seed, runSerial]);
   const initialSnapshot = useMemo(() => new SkyDancerArcadeRuntime(runtimeOptions).getSnapshot(), [runtimeOptions]);
   const mountRef = useRef<HTMLDivElement>(null);
   const stickBaseRef = useRef<HTMLDivElement>(null);
@@ -483,7 +485,7 @@ export default function SkyDancerArcadeMode({ request, onReturnTitle }: SkyDance
           </>
         )}
 
-        <span className={productStyles.rendererBadge}>{rendererName === "WEBGL" ? "3D FLIGHT · V11.4 MASTERY LOOP" : "COMPATIBILITY · CANVAS · V11.4"}</span>
+        <span className={productStyles.rendererBadge}>{rendererName === "WEBGL" ? `3D FLIGHT · V11.6 · ${snapshot.paintScheme.toUpperCase()} · ${snapshot.loadout.toUpperCase()}` : `COMPATIBILITY · CANVAS · V11.6 · ${snapshot.loadout.toUpperCase()}`}</span>
         {runtimeMessage && <div className={styles.runtimeMessage}>{runtimeMessage}</div>}
 
         {snapshot.status === "stage-clear" && (

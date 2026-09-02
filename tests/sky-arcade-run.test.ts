@@ -662,3 +662,34 @@ test("V11.5 mastery rewards turn the 33-medal chase into a deterministic unlock 
   assert.match(resultSource, /projectedNextMasteryReward/);
   assert.match(resultSource, /SKY MASTER COMPLETE/);
 });
+
+
+test("V11.6 hangar selections persist and change the actual sortie profile", async () => {
+  const [progressSource, menuSource, runtimeSource, airframeSource, webglSource] = await Promise.all([
+    readFile(new URL("../src/sky/arcade/SkyDancerArcadeProgress.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/CartGameMenu.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../src/sky/arcade/SkyDancerArcadeRuntime.ts", import.meta.url), "utf8"),
+    readFile(new URL("../src/sky/arcade/SkyDancerArcadeReferenceAirframes.ts", import.meta.url), "utf8"),
+    readFile(new URL("../src/sky/arcade/SkyDancerArcadeWebGLDemo.ts", import.meta.url), "utf8"),
+  ]);
+  assert.match(progressSource, /selectedPaintScheme: SkyDancerArcadePaintScheme/);
+  assert.match(progressSource, /selectedLoadout: SkyDancerArcadeLoadout/);
+  assert.match(progressSource, /selectSkyDancerArcadeEquipment/);
+  assert.match(menuSource, /Open hangar/);
+  assert.match(menuSource, /MISSILE \+22%/);
+  assert.match(runtimeSource, /arcadeLoadoutGunCooldown/);
+  assert.match(runtimeSource, /arcadeLoadoutLockInterval/);
+  assert.match(runtimeSource, /arcadeLoadoutMissileDamage/);
+  assert.match(airframeSource, /arcadePaintSchemeV116/);
+  assert.match(airframeSource, /playerPaintScheme === "prism"/);
+  assert.match(webglSource, /createSkyDancerArcadePlayer\(options\.paintScheme \?\? "default"\)/);
+
+  const standard = new SkyDancerArcadeRuntime({ difficulty: "normal", mode: "stage-practice", startStageId: "dawn-city", loadout: "standard", paintScheme: "default", seed: 116 });
+  const gun = new SkyDancerArcadeRuntime({ difficulty: "normal", mode: "stage-practice", startStageId: "dawn-city", loadout: "gun-focus", paintScheme: "prism", seed: 116 });
+  standard.setFire(true);
+  gun.setFire(true);
+  for (let frame = 0; frame < 60; frame += 1) { standard.step(1 / 60); gun.step(1 / 60); }
+  assert.equal(gun.getSnapshot().paintScheme, "prism");
+  assert.equal(gun.getSnapshot().loadout, "gun-focus");
+  assert.ok(gun.getSnapshot().shotSerial > standard.getSnapshot().shotSerial, `${gun.getSnapshot().shotSerial} > ${standard.getSnapshot().shotSerial}`);
+});

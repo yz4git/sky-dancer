@@ -91,6 +91,8 @@ export interface SkyDancerArcadeProgress {
   recentRoutes: SkyDancerArcadeStageId[][];
   unlockedPaintSchemes: SkyDancerArcadePaintScheme[];
   unlockedLoadouts: SkyDancerArcadeLoadout[];
+  selectedPaintScheme: SkyDancerArcadePaintScheme;
+  selectedLoadout: SkyDancerArcadeLoadout;
 }
 
 const STORAGE_KEY = "sky-dancer-arcade-progress-v2";
@@ -119,6 +121,8 @@ export function createDefaultSkyDancerArcadeProgress(): SkyDancerArcadeProgress 
     recentRoutes: [],
     unlockedPaintSchemes: ["default"],
     unlockedLoadouts: ["standard"],
+    selectedPaintScheme: "default",
+    selectedLoadout: "standard",
   };
 }
 
@@ -128,6 +132,14 @@ function validStageId(value: unknown): value is SkyDancerArcadeStageId {
 
 function validRank(value: unknown): value is SkyDancerArcadeRank {
   return value === "D" || value === "C" || value === "B" || value === "A" || value === "S" || value === "SS";
+}
+
+function validPaintScheme(value: unknown): value is SkyDancerArcadePaintScheme {
+  return value === "default" || value === "sunset" || value === "storm" || value === "prism";
+}
+
+function validLoadout(value: unknown): value is SkyDancerArcadeLoadout {
+  return value === "standard" || value === "missile-focus" || value === "gun-focus";
 }
 
 function uniqueValidStages(value: unknown): SkyDancerArcadeStageId[] {
@@ -212,15 +224,19 @@ export function loadSkyDancerArcadeProgress(): SkyDancerArcadeProgress {
       ),
       recentRoutes: validRecentRoutes(parsed.recentRoutes),
       unlockedPaintSchemes: Array.isArray(parsed.unlockedPaintSchemes)
-        ? parsed.unlockedPaintSchemes.filter((value): value is SkyDancerArcadePaintScheme => value === "default" || value === "sunset" || value === "storm" || value === "prism")
+        ? parsed.unlockedPaintSchemes.filter(validPaintScheme)
         : ["default"],
       unlockedLoadouts: Array.isArray(parsed.unlockedLoadouts)
-        ? parsed.unlockedLoadouts.filter((value): value is SkyDancerArcadeLoadout => value === "standard" || value === "missile-focus" || value === "gun-focus")
+        ? parsed.unlockedLoadouts.filter(validLoadout)
         : ["standard"],
+      selectedPaintScheme: validPaintScheme(parsed.selectedPaintScheme) ? parsed.selectedPaintScheme : "default",
+      selectedLoadout: validLoadout(parsed.selectedLoadout) ? parsed.selectedLoadout : "standard",
     };
     if (!progress.unlockedPaintSchemes.includes("default")) progress.unlockedPaintSchemes.unshift("default");
     if (!progress.unlockedLoadouts.includes("standard")) progress.unlockedLoadouts.unshift("standard");
     applyUnlocks(progress);
+    if (!progress.unlockedPaintSchemes.includes(progress.selectedPaintScheme)) progress.selectedPaintScheme = "default";
+    if (!progress.unlockedLoadouts.includes(progress.selectedLoadout)) progress.selectedLoadout = "standard";
     return progress;
   } catch {
     return createDefaultSkyDancerArcadeProgress();
@@ -231,10 +247,23 @@ export function saveSkyDancerArcadeProgress(progress: SkyDancerArcadeProgress): 
   if (typeof localStorage === "undefined") return;
   try {
     applyUnlocks(progress);
+    if (!progress.unlockedPaintSchemes.includes(progress.selectedPaintScheme)) progress.selectedPaintScheme = "default";
+    if (!progress.unlockedLoadouts.includes(progress.selectedLoadout)) progress.selectedLoadout = "standard";
     localStorage.setItem(STORAGE_KEY, JSON.stringify(progress));
   } catch {
     // Storage denial must never interrupt a run.
   }
+}
+
+export function selectSkyDancerArcadeEquipment(
+  paintScheme: SkyDancerArcadePaintScheme,
+  loadout: SkyDancerArcadeLoadout,
+): SkyDancerArcadeProgress {
+  const progress = loadSkyDancerArcadeProgress();
+  if (progress.unlockedPaintSchemes.includes(paintScheme)) progress.selectedPaintScheme = paintScheme;
+  if (progress.unlockedLoadouts.includes(loadout)) progress.selectedLoadout = loadout;
+  saveSkyDancerArcadeProgress(progress);
+  return progress;
 }
 
 export function recordSkyDancerArcadeStageClear(

@@ -11,7 +11,7 @@ import {
   type SkyDancerArcadeStageDefinition,
   type SkyDancerArcadeStageId,
 } from "./SkyDancerArcadeData";
-import type { SkyDancerArcadeRank } from "./SkyDancerArcadeProgress";
+import type { SkyDancerArcadeLoadout, SkyDancerArcadePaintScheme, SkyDancerArcadeRank } from "./SkyDancerArcadeProgress";
 import {
   skyDancerArcadeArmorRatio,
   skyDancerArcadeBossPhase,
@@ -58,6 +58,8 @@ export interface SkyDancerArcadeRuntimeOptions {
   difficulty: "normal" | "hard";
   mode: "arcade-run" | "stage-practice";
   startStageId?: SkyDancerArcadeStageId;
+  paintScheme?: SkyDancerArcadePaintScheme;
+  loadout?: SkyDancerArcadeLoadout;
   seed?: number;
 }
 
@@ -118,6 +120,8 @@ export interface SkyDancerArcadeSnapshot {
   status: SkyDancerArcadeStatus;
   difficulty: "normal" | "hard";
   mode: "arcade-run" | "stage-practice";
+  paintScheme: SkyDancerArcadePaintScheme;
+  loadout: SkyDancerArcadeLoadout;
   stage: SkyDancerArcadeStageDefinition;
   stageNumber: number;
   stagesCleared: number;
@@ -266,6 +270,26 @@ const PLAYER_MOVE_RESPONSE = 19.5;
 const ENEMY_FLYBY_CULL_DEPTH = -11.5;
 const MAX_ENEMY_PROJECTILES_NORMAL = 5;
 const MAX_ENEMY_PROJECTILES_HARD = 9;
+
+function arcadeLoadoutGunCooldown(loadout: SkyDancerArcadeLoadout | undefined): number {
+  return GUN_COOLDOWN * (loadout === "gun-focus" ? 0.74 : loadout === "missile-focus" ? 1.08 : 1);
+}
+
+function arcadeLoadoutGunDamage(loadout: SkyDancerArcadeLoadout | undefined): number {
+  return loadout === "gun-focus" ? 1.18 : loadout === "missile-focus" ? 0.92 : 1;
+}
+
+function arcadeLoadoutLockInterval(loadout: SkyDancerArcadeLoadout | undefined): number {
+  return LOCK_INTERVAL * (loadout === "missile-focus" ? 0.72 : loadout === "gun-focus" ? 1.1 : 1);
+}
+
+function arcadeLoadoutMissileDamage(loadout: SkyDancerArcadeLoadout | undefined): number {
+  return loadout === "missile-focus" ? 1.22 : loadout === "gun-focus" ? 0.92 : 1;
+}
+
+function arcadeLoadoutMissileSpeed(loadout: SkyDancerArcadeLoadout | undefined): number {
+  return loadout === "missile-focus" ? 1.1 : loadout === "gun-focus" ? 0.96 : 1;
+}
 
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
@@ -891,7 +915,7 @@ export class SkyDancerArcadeRuntime {
     }
     if (candidate) {
       candidate.locked = true;
-      this.lockCooldown = LOCK_INTERVAL;
+      this.lockCooldown = arcadeLoadoutLockInterval(this.options.loadout);
       this.message = `LOCK ${locked + 1}`;
       this.messageTimer = 0.35;
     }
@@ -900,7 +924,7 @@ export class SkyDancerArcadeRuntime {
   private updateWeapons(delta: number): void {
     this.gunCooldown = Math.max(0, this.gunCooldown - delta);
     if (!this.input.fire || this.gunCooldown > 0) return;
-    this.gunCooldown = GUN_COOLDOWN;
+    this.gunCooldown = arcadeLoadoutGunCooldown(this.options.loadout);
     const target = this.chooseGunTarget();
     this.projectiles.push({
       id: this.nextEntityId++,
@@ -910,7 +934,7 @@ export class SkyDancerArcadeRuntime {
       depth: 1.2,
       targetEnemyId: target?.id ?? null,
       speed: 118,
-      damage: this.options.difficulty === "hard" ? 8 : 9.5,
+      damage: (this.options.difficulty === "hard" ? 8 : 9.5) * arcadeLoadoutGunDamage(this.options.loadout),
       life: 1.05,
       vx: target ? (target.x - this.playerX) * 0.48 : 0,
       vy: target ? (target.y - this.playerY) * 0.48 : 0,
@@ -954,8 +978,8 @@ export class SkyDancerArcadeRuntime {
         y: this.playerY - 0.05,
         depth: 0.8,
         targetEnemyId: target.id,
-        speed: 62,
-        damage: target.boss ? 34 : 46,
+        speed: 62 * arcadeLoadoutMissileSpeed(this.options.loadout),
+        damage: (target.boss ? 34 : 46) * arcadeLoadoutMissileDamage(this.options.loadout),
         life: 2.8,
         vx: 0,
         vy: 0,
@@ -1455,6 +1479,8 @@ export class SkyDancerArcadeRuntime {
       status: this.status,
       difficulty: this.options.difficulty,
       mode: this.options.mode,
+      paintScheme: this.options.paintScheme ?? "default",
+      loadout: this.options.loadout ?? "standard",
       stage: this.stage,
       stageNumber: this.stageNumber,
       stagesCleared: this.stagesCleared,

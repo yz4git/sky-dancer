@@ -2,6 +2,7 @@ import * as THREE from "three";
 import { createReferenceCarrier, createReferenceFighter } from "./SkyDancerArcadeReferenceAirframes";
 import type { SkyDancerArcadeEnemySnapshot, SkyDancerArcadeHazardSnapshot } from "./SkyDancerArcadeRuntime";
 import type { SkyDancerArcadeStageDefinition } from "./SkyDancerArcadeData";
+import type { SkyDancerArcadePaintScheme } from "./SkyDancerArcadeProgress";
 
 function flatMaterial(color: number, emissive = 0): THREE.MeshStandardMaterial {
   return new THREE.MeshStandardMaterial({
@@ -41,8 +42,8 @@ export function extendArcadeGroundConnectorsV1052(group: THREE.Group, groundLoca
   group.userData.arcadeGroundLocalYV1052 = groundLocalY;
 }
 
-export function createSkyDancerArcadePlayer(): THREE.Group {
-  return createReferenceFighter();
+export function createSkyDancerArcadePlayer(paintScheme: SkyDancerArcadePaintScheme = "default"): THREE.Group {
+  return createReferenceFighter(false, false, paintScheme);
 }
 
 function createEnemyVisibilityBeacons(): THREE.Points<THREE.BufferGeometry, THREE.PointsMaterial> {

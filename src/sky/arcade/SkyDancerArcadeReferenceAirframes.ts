@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 import type { SkyDancerArcadeStageDefinition } from "./SkyDancerArcadeData";
+import type { SkyDancerArcadePaintScheme } from "./SkyDancerArcadeProgress";
 
 type Profile = readonly [z: number, width: number, height: number, centerY: number];
 
@@ -114,17 +115,28 @@ function engines(group: THREE.Group, offsets: readonly number[], z: number, radi
   }
 }
 
-export function createReferenceFighter(enemy = false, heavy = false): THREE.Group {
+export function createReferenceFighter(
+  enemy = false,
+  heavy = false,
+  playerPaintScheme: SkyDancerArcadePaintScheme = "default",
+): THREE.Group {
   const group = new THREE.Group();
   group.name = enemy ? "arcade-reference-raider" : "arcade-player-fighter";
-  const ceramic = paint(enemy ? 0xa72224 : 0xe4eef3, 0.36, 0.48);
-  const cyan = paint(enemy ? 0xee6d28 : 0x05bddd, 0.29, 0.5);
+  const playerPalette = playerPaintScheme === "sunset"
+    ? { ceramic: 0xf1d7c4, accent: 0xff6b35, glow: 0xffc75f, canopy: 0x402018, canopyGlow: 0x7d2d14, engine: 0xff9b55 }
+    : playerPaintScheme === "storm"
+      ? { ceramic: 0x75889d, accent: 0x63d8ff, glow: 0xa9efff, canopy: 0x071827, canopyGlow: 0x0a5873, engine: 0x8de8ff }
+      : playerPaintScheme === "prism"
+        ? { ceramic: 0xeee8ff, accent: 0xc45cff, glow: 0x78f6ff, canopy: 0x251948, canopyGlow: 0x6f2f9a, engine: 0x8ff7ff }
+        : { ceramic: 0xe4eef3, accent: 0x05bddd, glow: 0x2ee7ff, canopy: 0x082b48, canopyGlow: 0x064664, engine: 0x55dfff };
+  const ceramic = paint(enemy ? 0xa72224 : playerPalette.ceramic, 0.36, 0.48);
+  const cyan = paint(enemy ? 0xee6d28 : playerPalette.accent, 0.29, 0.5);
   const edge = paint(0x11202b, 0.42, 0.62);
   const silver = paint(0x7c8f9c, 0.33, 0.72);
-  const glow = emissive(enemy ? 0xff5b28 : 0x2ee7ff, 1.5);
+  const glow = emissive(enemy ? 0xff5b28 : playerPalette.glow, 1.5);
   const canopy = new THREE.MeshPhysicalMaterial({
-    color: 0x082b48, metalness: 0.7, roughness: 0.13, clearcoat: 1,
-    clearcoatRoughness: 0.06, emissive: 0x064664, emissiveIntensity: 0.18,
+    color: enemy ? 0x082b48 : playerPalette.canopy, metalness: 0.7, roughness: 0.13, clearcoat: 1,
+    clearcoatRoughness: 0.06, emissive: enemy ? 0x064664 : playerPalette.canopyGlow, emissiveIntensity: 0.18,
   });
   part(group, loft([
     [-3.8, .02, .02, -.04], [-2.6, .22, .15, .02], [-1.6, .48, .26, .04],
@@ -160,10 +172,11 @@ export function createReferenceFighter(enemy = false, heavy = false): THREE.Grou
   }
   // Armor seams stay in geometry and continue to read without a texture atlas.
   for (let row=0; row<4; row++) part(group,new THREE.BoxGeometry(.31,.018,.018),edge,0,.34,.05+row*.24);
-  engines(group,[-.67,.67],2.05,.31,enemy?0xff742e:0x55dfff);
+  engines(group,[-.67,.67],2.05,.31,enemy?0xff742e:playerPalette.engine);
   bakeArcadeAirframe(group);
   group.scale.setScalar(enemy ? (heavy ? .71 : .49) : 1.12);
   group.userData.referenceAirframe = true;
+  if (!enemy) group.userData.arcadePaintSchemeV116 = playerPaintScheme;
   return group;
 }
 

@@ -24,7 +24,10 @@ import {
 import {
   SKY_DANCER_ARCADE_MAX_MEDALS,
   loadSkyDancerArcadeProgress,
+  selectSkyDancerArcadeEquipment,
   skyDancerArcadeNextMasteryReward,
+  type SkyDancerArcadeLoadout,
+  type SkyDancerArcadePaintScheme,
 } from "../src/sky/arcade/SkyDancerArcadeProgress";
 import { skyDancerArcadeV11StageMedalGoals } from "../src/sky/arcade/SkyDancerArcadeV11Scoring";
 import styles from "./CartGameMenu.module.css";
@@ -33,6 +36,19 @@ import configStyles from "./CartGameMenuConfig.module.css";
 
 const MENU_PAUSE_EVENT = "cart-rogue-menu-pause";
 const MENU_RESUME_EVENT = "cart-rogue-menu-resume";
+
+const PAINT_OPTIONS: readonly { id: SkyDancerArcadePaintScheme; label: string; unlock: number }[] = [
+  { id: "default", label: "CLASSIC", unlock: 0 },
+  { id: "sunset", label: "SUNSET", unlock: 6 },
+  { id: "storm", label: "STORM", unlock: 18 },
+  { id: "prism", label: "PRISM", unlock: 30 },
+];
+
+const LOADOUT_OPTIONS: readonly { id: SkyDancerArcadeLoadout; label: string; detail: string; unlock: number }[] = [
+  { id: "standard", label: "STANDARD", detail: "BALANCED GUN / LOCK / MISSILE", unlock: 0 },
+  { id: "missile-focus", label: "MISSILE", detail: "LOCK +28% · MISSILE +22% · GUN -8%", unlock: 12 },
+  { id: "gun-focus", label: "GUN", detail: "GUN RATE +35% · DAMAGE +18% · MISSILE -8%", unlock: 24 },
+];
 
 type PausePage = "menu" | "config";
 
@@ -56,6 +72,9 @@ export default function CartGameMenu({ started, activeMode, onStart, onReturnTit
   const [practiceStageId, setPracticeStageId] = useState<SkyDancerArcadeStageId>("dawn-city");
   const [practiceStageIds, setPracticeStageIds] = useState<SkyDancerArcadeStageId[]>([]);
   const [arcadeMeta, setArcadeMeta] = useState(() => loadSkyDancerArcadeProgress());
+  const [selectedPaintScheme, setSelectedPaintScheme] = useState<SkyDancerArcadePaintScheme>(arcadeMeta.selectedPaintScheme);
+  const [selectedLoadout, setSelectedLoadout] = useState<SkyDancerArcadeLoadout>(arcadeMeta.selectedLoadout);
+  const [hangarOpen, setHangarOpen] = useState(false);
   const [hardSnapshot, setHardSnapshot] = useState<CartHardModeSnapshot | null>(null);
   const [cameraDistance, setCameraDistance] = useState(DEFAULT_CART_ROGUE_CONFIG.cameraDistance);
   const [vibrationEnabled, setVibrationEnabled] = useState(true);
@@ -79,13 +98,23 @@ export default function CartGameMenu({ started, activeMode, onStart, onReturnTit
     if (nextMode === "stage-practice" && practiceStageIds.length === 0) return;
     setPaused(false);
     setPausePage("menu");
+    setHangarOpen(false);
     setHardSnapshot(null);
     onStart({
       mode: nextMode,
       difficulty: nextDifficulty,
       practiceStageId: nextMode === "stage-practice" ? practiceStageId : undefined,
+      paintScheme: nextMode === "turbo-hunt" ? undefined : selectedPaintScheme,
+      loadout: nextMode === "turbo-hunt" ? undefined : selectedLoadout,
       seed: ((Date.now() & 0x7fffffff) ^ 0x51f15e) | 0,
     });
+  };
+
+  const selectEquipment = (paintScheme: SkyDancerArcadePaintScheme, loadout: SkyDancerArcadeLoadout) => {
+    const next = selectSkyDancerArcadeEquipment(paintScheme, loadout);
+    setArcadeMeta(next);
+    setSelectedPaintScheme(next.selectedPaintScheme);
+    setSelectedLoadout(next.selectedLoadout);
   };
 
   const returnTitle = () => {
@@ -128,6 +157,8 @@ export default function CartGameMenu({ started, activeMode, onStart, onReturnTit
     const timer = window.setTimeout(() => {
       const progress = loadSkyDancerArcadeProgress();
       setArcadeMeta(progress);
+      setSelectedPaintScheme(progress.selectedPaintScheme);
+      setSelectedLoadout(progress.selectedLoadout);
       const cleared = SKY_DANCER_ARCADE_STAGES
         .filter((stage) => progress.clearedStageIds.includes(stage.id))
         .map((stage) => stage.id);
@@ -208,6 +239,11 @@ export default function CartGameMenu({ started, activeMode, onStart, onReturnTit
         <div className={styles.titleGlow} aria-hidden="true" />
         <div className={`${styles.titlePanel} ${modeStyles.modeTitlePanel}`}>
           <div className={`${styles.eyebrow} ${modeStyles.compactEyebrow}`}>HIGH SPEED AIR RAID ACTION</div>
+          {selectedMode !== "turbo-hunt" && (
+            <button className={modeStyles.hangarButton} onClick={() => setHangarOpen(true)} aria-label="Open hangar">
+              <strong>HANGAR</strong><small>{selectedPaintScheme.toUpperCase()} · {selectedLoadout.toUpperCase()}</small>
+            </button>
+          )}
           <h1><span>SKY</span> DANCER</h1>
           <div className={`${styles.mode} ${modeStyles.compactMode}`}>SELECT GAME MODE</div>
           <p>{modeSummary}</p>
@@ -299,8 +335,8 @@ export default function CartGameMenu({ started, activeMode, onStart, onReturnTit
             {selectedMode === "turbo-hunt"
               ? `GAS = LIFE · RECOVERY CELLS RESTORE GAS · ZERO GAS = GAME OVER${hard ? " · HARD RAID HITS DEAL HEAVY LIFE DAMAGE" : ""}`
               : selectedMode === "arcade-run"
-                ? `2 CONTINUES · BEST ${arcadeMeta.bestRunScore} ${arcadeMeta.bestRunRank} · MASTERY ${arcadeMeta.totalMedals}/${SKY_DANCER_ARCADE_MAX_MEDALS} · ${masteryRewardSummary}${hard ? " · ACE PRESSURE" : ""}`
-                : `SINGLE STAGE · BEST ${selectedStageRecord?.bestScore ?? 0} ${selectedStageRecord?.bestRank ?? "D"} · MASTERY ${selectedMasteryCount}/3 · PILOT ${arcadeMeta.totalMedals}/${SKY_DANCER_ARCADE_MAX_MEDALS} · ${masteryRewardSummary}${hard ? " · ACE DIFFICULTY" : ""}`}
+                ? `2 CONTINUES · BEST ${arcadeMeta.bestRunScore} ${arcadeMeta.bestRunRank} · MASTERY ${arcadeMeta.totalMedals}/${SKY_DANCER_ARCADE_MAX_MEDALS} · ${selectedPaintScheme.toUpperCase()} / ${selectedLoadout.toUpperCase()} · ${masteryRewardSummary}${hard ? " · ACE PRESSURE" : ""}`
+                : `SINGLE STAGE · BEST ${selectedStageRecord?.bestScore ?? 0} ${selectedStageRecord?.bestRank ?? "D"} · MASTERY ${selectedMasteryCount}/3 · PILOT ${arcadeMeta.totalMedals}/${SKY_DANCER_ARCADE_MAX_MEDALS} · ${selectedPaintScheme.toUpperCase()} / ${selectedLoadout.toUpperCase()} · ${masteryRewardSummary}${hard ? " · ACE DIFFICULTY" : ""}`}
           </div>
           <button className={`${styles.startButton} ${modeStyles.compactStart} ${hard ? styles.startButtonHard : ""}`} onClick={() => startGame()}>
             <strong>{startLabel}</strong>
@@ -314,6 +350,32 @@ export default function CartGameMenu({ started, activeMode, onStart, onReturnTit
             )}
           </div>
         </div>
+        {hangarOpen && selectedMode !== "turbo-hunt" && (
+          <div className={modeStyles.hangarOverlay} role="dialog" aria-label="Arcade hangar">
+            <div className={modeStyles.hangarPanel}>
+              <div className={modeStyles.hangarHeading}><span>PILOT CONFIGURATION</span><strong>HANGAR</strong><small>{arcadeMeta.totalMedals}/{SKY_DANCER_ARCADE_MAX_MEDALS} MASTERY MEDALS</small></div>
+              <section className={modeStyles.hangarSection} aria-label="Paint schemes">
+                <div><span>PAINT</span><small>VISUAL AIRFRAME IDENTITY</small></div>
+                <div className={modeStyles.hangarChoices}>
+                  {PAINT_OPTIONS.map((option) => {
+                    const unlocked = arcadeMeta.unlockedPaintSchemes.includes(option.id);
+                    return <button key={option.id} disabled={!unlocked} data-selected={selectedPaintScheme === option.id} onClick={() => selectEquipment(option.id, selectedLoadout)}><strong>{option.label}</strong><small>{unlocked ? (selectedPaintScheme === option.id ? "EQUIPPED" : "READY") : `${option.unlock}◆`}</small></button>;
+                  })}
+                </div>
+              </section>
+              <section className={modeStyles.hangarSection} aria-label="Weapon loadouts">
+                <div><span>LOADOUT</span><small>{LOADOUT_OPTIONS.find((option) => option.id === selectedLoadout)?.detail}</small></div>
+                <div className={modeStyles.hangarChoices}>
+                  {LOADOUT_OPTIONS.map((option) => {
+                    const unlocked = arcadeMeta.unlockedLoadouts.includes(option.id);
+                    return <button key={option.id} disabled={!unlocked} data-selected={selectedLoadout === option.id} onClick={() => selectEquipment(selectedPaintScheme, option.id)}><strong>{option.label}</strong><small>{unlocked ? (selectedLoadout === option.id ? "EQUIPPED" : "READY") : `${option.unlock}◆`}</small></button>;
+                  })}
+                </div>
+              </section>
+              <button className={modeStyles.hangarReady} onClick={() => setHangarOpen(false)}><strong>READY</strong><small>{selectedPaintScheme.toUpperCase()} · {selectedLoadout.toUpperCase()}</small></button>
+            </div>
+          </div>
+        )}
         <div className={styles.titleFooter}>ONE SKY · TWO STYLES · ELEVEN COURSES</div>
       </div>
     );

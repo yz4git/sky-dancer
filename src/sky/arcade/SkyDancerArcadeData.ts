@@ -79,6 +79,8 @@ export interface SkyDancerStartRequest {
   mode: SkyDancerGameMode;
   difficulty: "normal" | "hard";
   practiceStageId?: SkyDancerArcadeStageId;
+  paintScheme?: "default" | "sunset" | "storm" | "prism";
+  loadout?: "standard" | "missile-focus" | "gun-focus";
   seed?: number;
 }
 

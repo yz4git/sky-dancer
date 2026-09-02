@@ -111,7 +111,7 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
   private readonly environment: SkyDancerArcadeEnvironment;
   private readonly presentation: SkyDancerArcadeProductPresentation;
   private readonly v11Setpieces: SkyDancerArcadeV11SetpieceDirector;
-  private readonly player = createSkyDancerArcadePlayer();
+  private readonly player: THREE.Group;
   private readonly entityRoot = new THREE.Group();
   private readonly projectileRoot = new THREE.Group();
   private readonly hazardRoot = new THREE.Group();
@@ -119,8 +119,8 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
   private readonly enemyGroups = new Map<number, THREE.Group>();
   private readonly projectileMeshes = new Map<number, THREE.Mesh>();
   private readonly hazardGroups = new Map<number, THREE.Group>();
-  private readonly engineGlows = this.player.getObjectsByProperty("name", "arcade-engine-glow");
-  private readonly engineTrails = this.player.getObjectsByProperty("name", "arcade-engine-trail");
+  private readonly engineGlows: THREE.Object3D[];
+  private readonly engineTrails: THREE.Object3D[];
   private readonly audio = new SkyDancerArcadeAudio();
   private readonly resizeObserver: ResizeObserver;
   private animationFrame = 0;
@@ -148,6 +148,9 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
     onRuntimeFailure: (message: string, error: unknown) => void,
   ) {
     this.mount = mount;
+    this.player = createSkyDancerArcadePlayer(options.paintScheme ?? "default");
+    this.engineGlows = this.player.getObjectsByProperty("name", "arcade-engine-glow");
+    this.engineTrails = this.player.getObjectsByProperty("name", "arcade-engine-trail");
     this.runtime = new SkyDancerArcadeRuntime(options);
     this.onSnapshot = onSnapshot;
     this.onRuntimeFailure = onRuntimeFailure;
