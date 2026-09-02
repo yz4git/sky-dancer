@@ -75,6 +75,23 @@ export class SkyDancerPresentationPipeline {
   }
 
   update(snapshot: CartArenaSessionSnapshot): void {
+    const skyRaid = typeof document !== "undefined" && document.documentElement.dataset.skyDancerMode === "sky-raid";
+    if (skyRaid) {
+      // SKY RAID uses the real Arcade Run world as the sole environment owner.
+      // Keep aircraft/combat/readability passes, but do not let the legacy
+      // terrain/city/atmosphere passes repopulate the scene every frame.
+      this.v37.update(snapshot);
+      this.v42.update(snapshot);
+      this.v43.update(snapshot);
+      this.v44.update(snapshot);
+      this.v45.update(snapshot);
+      this.v48.update(snapshot);
+      this.v51.update(snapshot);
+      this.v52.update(snapshot);
+      finalizeSkyRaidReferencePresentation(this.runtime);
+      return;
+    }
+
     this.v30.update(snapshot);
     this.v31.update(snapshot);
     this.v32.update(snapshot);
@@ -95,6 +112,5 @@ export class SkyDancerPresentationPipeline {
     this.v51.update(snapshot);
     this.v52.update(snapshot);
     this.v53.update(snapshot);
-    finalizeSkyRaidReferencePresentation(this.runtime);
   }
 }
