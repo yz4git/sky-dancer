@@ -32,3 +32,12 @@ V11 converts ARCADE RUN from shared event checkpoints into stage-authored playab
 - Phase transitions can launch stage-authored hazards and a small readable escort package without breaking the existing projectile/enemy caps.
 - AURORA ACE WING's V11.0 chase tuning is now represented by the same boss-profile system used by the other ten bosses.
 - Boss HUD surfaces the active mechanic below the target name and audio punctuates mechanic changes.
+
+
+## V11.3 — Medals, Score Ledger & Route History
+- Every stage now has three post-clear missions: score ace, a biome-specific signature challenge and PERFECT SKY no-damage.
+- Section clear adds explicit medal/perfect/boss/route bonuses on top of combat score and shows the exact ledger.
+- SCORE and DANGER route choices now have explicit score value; SAFE remains the recovery-minded route.
+- Stage records persist unique earned medals without invalidating the existing v2 localStorage format.
+- Completed runs retain recent route history (up to eight unique routes) and total medal achievement count.
+- Section result readability is extended from 0.55s to 1.35s in Arcade Run; Stage Practice remains longer.

@@ -189,8 +189,9 @@ export default function SkyDancerArcadeMode({ request, onReturnTitle }: SkyDance
       snapshot.lastStageScore,
       snapshot.lastStageRank,
       snapshot.lastStageNoDamage,
+      snapshot.lastStageMedals.filter(medal => medal.earned).map(medal => medal.id),
     );
-  }, [snapshot.lastClearedStageId, snapshot.lastStageNoDamage, snapshot.lastStageRank, snapshot.lastStageScore, snapshot.resultSerial]);
+  }, [snapshot.lastClearedStageId, snapshot.lastStageMedals, snapshot.lastStageNoDamage, snapshot.lastStageRank, snapshot.lastStageScore, snapshot.resultSerial]);
 
   useEffect(() => {
     if (snapshot.status !== "run-clear" || recordedRunClearRef.current) return;
@@ -203,6 +204,7 @@ export default function SkyDancerArcadeMode({ request, onReturnTitle }: SkyDance
       armorBreaks: snapshot.armorBreaks,
       formationBreaks: snapshot.formationBreaks,
       bestChain: snapshot.bestChain,
+      medalsEarned: snapshot.runMedalsEarned,
     });
   }, [snapshot.continuesUsed, snapshot.rank, snapshot.score, snapshot.status]);
 
@@ -476,6 +478,16 @@ export default function SkyDancerArcadeMode({ request, onReturnTitle }: SkyDance
               <small>{snapshot.lastStageNoDamage ? "NO DAMAGE · " : ""}SECTION CLEAR</small>
               <h2>{snapshot.lastStageRank}</h2>
               <strong>{snapshot.stage.name}</strong>
+              <div className={productStyles.v11ScoreBreakdown}>
+                <span><small>COMBAT</small><b>{snapshot.lastStageScoreBreakdown.combat}</b></span>
+                <span><small>MEDAL</small><b>+{snapshot.lastStageScoreBreakdown.medal}</b></span>
+                <span><small>PERFECT</small><b>+{snapshot.lastStageScoreBreakdown.perfect}</b></span>
+                <span><small>ROUTE</small><b>+{snapshot.lastStageScoreBreakdown.route}</b></span>
+                <span><small>BOSS</small><b>+{snapshot.lastStageScoreBreakdown.boss}</b></span>
+              </div>
+              <div className={productStyles.v11Medals}>
+                {snapshot.lastStageMedals.map(medal => <span key={medal.id} data-earned={medal.earned}><b>{medal.earned ? "◆" : "◇"} {medal.label}</b><small>{medal.description}</small></span>)}
+              </div>
               <div><span>SECTION SCORE</span><b>{snapshot.lastStageScore}</b></div>
               <p>NEXT SORTIE IN {snapshot.resultTimer.toFixed(1)}s</p>
             </div>
@@ -503,9 +515,10 @@ export default function SkyDancerArcadeMode({ request, onReturnTitle }: SkyDance
               <div className={styles.finalStats}>
                 <span><small>SCORE</small><b>{snapshot.score}</b></span>
                 <span><small>KILLS</small><b>{snapshot.enemiesDefeated}</b></span>
-                <span><small>BOSS</small><b>{snapshot.bossKills}</b></span>
+                <span><small>MEDALS</small><b>{snapshot.runMedalsEarned}</b></span>
                 <span><small>BEST CHAIN</small><b>×{snapshot.bestChain}</b></span>
               </div>
+              {snapshot.route.length > 1 && <div className={productStyles.v11RouteHistory}><small>FLIGHT ROUTE</small><strong>{snapshot.route.map(id => skyDancerArcadeStageById(id).shortName).join(" → ")}</strong></div>}
               <button onClick={restart}><strong>{snapshot.mode === "stage-practice" ? "RETRY STAGE" : "NEW ARCADE RUN"}</strong><span>FLY AGAIN</span></button>
               <button className={styles.secondaryButton} onClick={onReturnTitle}>BACK TO TITLE</button>
             </div>

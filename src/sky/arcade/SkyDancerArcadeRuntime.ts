@@ -36,6 +36,12 @@ import {
   skyDancerArcadeV11BossProfile,
   skyDancerArcadeV11BossWeakpointOpen,
 } from "./SkyDancerArcadeV11Bosses";
+import {
+  skyDancerArcadeV11ScoreBreakdown,
+  skyDancerArcadeV11StageMedals,
+  type SkyDancerArcadeV11MedalResult,
+  type SkyDancerArcadeV11ScoreBreakdown,
+} from "./SkyDancerArcadeV11Scoring";
 
 export type SkyDancerArcadeStatus =
   | "running"
@@ -181,6 +187,9 @@ export interface SkyDancerArcadeSnapshot {
   lastStageScore: number;
   lastStageRank: SkyDancerArcadeRank;
   lastStageNoDamage: boolean;
+  lastStageMedals: readonly SkyDancerArcadeV11MedalResult[];
+  lastStageScoreBreakdown: SkyDancerArcadeV11ScoreBreakdown;
+  runMedalsEarned: number;
   message: string | null;
   shotSerial: number;
   missileSerial: number;
@@ -233,6 +242,11 @@ interface StageStats {
   scoreAtStart: number;
   damageAtStart: number;
   killsAtStart: number;
+  nearMissesAtStart: number;
+  multiLockKillsAtStart: number;
+  turboSmashesAtStart: number;
+  armorBreaksAtStart: number;
+  formationBreaksAtStart: number;
 }
 
 const PLAYER_MAX_HP = 100;
@@ -242,7 +256,7 @@ const ENEMY_X_LIMIT = 2.62;
 const ENEMY_Y_LIMIT = 2.05;
 const GUN_COOLDOWN = 0.105;
 const LOCK_INTERVAL = 0.13;
-const ARCADE_SECTION_RESULT_SECONDS = 0.55;
+const ARCADE_SECTION_RESULT_SECONDS = 1.35;
 const PRACTICE_RESULT_SECONDS = 2.8;
 const PLAYER_MOVE_SPEED_X = 3.7;
 const PLAYER_MOVE_SPEED_Y = 3.18;
@@ -366,6 +380,10 @@ export class SkyDancerArcadeRuntime {
   private lastStageScore = 0;
   private lastStageRank: SkyDancerArcadeRank = "D";
   private lastStageNoDamage = false;
+  private lastStageMedals: readonly SkyDancerArcadeV11MedalResult[] = [];
+  private lastStageScoreBreakdown: SkyDancerArcadeV11ScoreBreakdown = { combat:0, medal:0, perfect:0, boss:0, route:0, total:0 };
+  private runMedalsEarned = 0;
+  private stageBestChain = 0;
   private message: string | null = "DROP IN · ARCADE RUN";
   private messageTimer = 2.5;
   private shotSerial = 0;
@@ -375,7 +393,10 @@ export class SkyDancerArcadeRuntime {
   private damageCooldown = 0;
   private stageSerial = 1;
   private resultSerial = 0;
-  private readonly stageStats: StageStats = { scoreAtStart: 0, damageAtStart: 0, killsAtStart: 0 };
+  private readonly stageStats: StageStats = {
+    scoreAtStart:0, damageAtStart:0, killsAtStart:0, nearMissesAtStart:0, multiLockKillsAtStart:0,
+    turboSmashesAtStart:0, armorBreaksAtStart:0, formationBreaksAtStart:0,
+  };
 
   constructor(options: SkyDancerArcadeRuntimeOptions) {
     this.options = options;
@@ -423,6 +444,12 @@ export class SkyDancerArcadeRuntime {
     this.stageStats.scoreAtStart = this.score;
     this.stageStats.damageAtStart = this.damageTaken;
     this.stageStats.killsAtStart = this.enemiesDefeated;
+    this.stageStats.nearMissesAtStart = this.nearMisses;
+    this.stageStats.multiLockKillsAtStart = this.multiLockKills;
+    this.stageStats.turboSmashesAtStart = this.turboSmashes;
+    this.stageStats.armorBreaksAtStart = this.armorBreaks;
+    this.stageStats.formationBreaksAtStart = this.formationBreaks;
+    this.stageBestChain = 0;
     if (this.stageTime >= this.stage.durationSeconds * skyDancerArcadeBossStartProgress(finalStage)) this.spawnBoss();
   }
 
@@ -1284,6 +1311,7 @@ export class SkyDancerArcadeRuntime {
     this.enemiesDefeated += 1;
     this.chain = Math.min(99, this.chain + 1);
     this.bestChain = Math.max(this.bestChain, this.chain);
+    this.stageBestChain = Math.max(this.stageBestChain, this.chain);
     this.chainTimer = 4.6;
     this.addScore(enemy.scoreValue, this.input.turbo);
     if (!enemy.boss && this.chain > 0 && this.chain % 3 === 0) {
@@ -1345,14 +1373,38 @@ export class SkyDancerArcadeRuntime {
 
   private completeStage(): void {
     if (this.status !== "running") return;
-    const stageScore = this.score - this.stageStats.scoreAtStart;
+    const combatScore = this.score - this.stageStats.scoreAtStart;
     const stageDamage = this.damageTaken - this.stageStats.damageAtStart;
+    const performance = {
+      score: combatScore,
+      destroyed: this.enemiesDefeated - this.stageStats.killsAtStart,
+      nearMisses: this.nearMisses - this.stageStats.nearMissesAtStart,
+      multiLockKills: this.multiLockKills - this.stageStats.multiLockKillsAtStart,
+      turboSmashes: this.turboSmashes - this.stageStats.turboSmashesAtStart,
+      bestChain: this.stageBestChain,
+      armorBreaks: this.armorBreaks - this.stageStats.armorBreaksAtStart,
+      formationBreaks: this.formationBreaks - this.stageStats.formationBreaksAtStart,
+      noDamage: stageDamage <= .001,
+    };
+    const medals = skyDancerArcadeV11StageMedals(this.stage.id, performance);
+    const selectedRouteIndex = this.branchSelection ? this.stage.next.indexOf(this.branchSelection) : -1;
+    const routeRisk = selectedRouteIndex >= 0
+      ? skyDancerArcadeV11RouteRisk(selectedRouteIndex, this.stage.next.length)
+      : "LOCKED";
+    const bossBonus = 1200 + this.stage.act * 260 + (this.stage.id === SKY_DANCER_ARCADE_FINAL_STAGE ? 1400 : 0);
+    const breakdown = skyDancerArcadeV11ScoreBreakdown(combatScore, medals, bossBonus, routeRisk);
+    const bonus = breakdown.total - breakdown.combat;
+    this.score += bonus;
+    const stageScore = breakdown.total;
     const rank = skyDancerArcadeRankForScore(stageScore, 1, stageDamage, 0);
     this.stagesCleared += 1;
     this.lastClearedStageId = this.stage.id;
     this.lastStageScore = stageScore;
     this.lastStageRank = rank;
-    this.lastStageNoDamage = stageDamage <= 0.001;
+    this.lastStageNoDamage = performance.noDamage;
+    this.lastStageMedals = medals;
+    this.lastStageScoreBreakdown = breakdown;
+    this.runMedalsEarned += medals.filter(medal => medal.earned).length;
     this.status = "stage-clear";
     this.resultTimer = this.options.mode === "stage-practice" ? PRACTICE_RESULT_SECONDS : ARCADE_SECTION_RESULT_SECONDS;
     this.resultSerial += 1;
@@ -1504,6 +1556,9 @@ export class SkyDancerArcadeRuntime {
       lastStageScore: this.lastStageScore,
       lastStageRank: this.lastStageRank,
       lastStageNoDamage: this.lastStageNoDamage,
+      lastStageMedals: this.lastStageMedals.map(medal => ({ ...medal })),
+      lastStageScoreBreakdown: { ...this.lastStageScoreBreakdown },
+      runMedalsEarned: this.runMedalsEarned,
       message: this.message,
       shotSerial: this.shotSerial,
       missileSerial: this.missileSerial,

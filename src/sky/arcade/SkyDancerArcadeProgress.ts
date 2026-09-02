@@ -3,6 +3,7 @@ import {
   SKY_DANCER_ARCADE_STAGES,
   type SkyDancerArcadeStageId,
 } from "./SkyDancerArcadeData";
+import type { SkyDancerArcadeV11MedalId } from "./SkyDancerArcadeV11Scoring";
 
 export type SkyDancerArcadeRank = "D" | "C" | "B" | "A" | "S" | "SS";
 export type SkyDancerArcadePaintScheme = "default" | "sunset" | "storm" | "prism";
@@ -13,6 +14,7 @@ export interface SkyDancerArcadeStageRecord {
   bestScore: number;
   bestRank: SkyDancerArcadeRank;
   noDamage: boolean;
+  medals: SkyDancerArcadeV11MedalId[];
 }
 
 export interface SkyDancerArcadeRunSummary {
@@ -23,6 +25,7 @@ export interface SkyDancerArcadeRunSummary {
   armorBreaks: number;
   formationBreaks: number;
   bestChain: number;
+  medalsEarned?: number;
 }
 
 export interface SkyDancerArcadeProgress {
@@ -42,6 +45,8 @@ export interface SkyDancerArcadeProgress {
   bestChain: number;
   bestRoute: SkyDancerArcadeStageId[];
   bestRouteScore: number;
+  totalMedals: number;
+  recentRoutes: SkyDancerArcadeStageId[][];
   unlockedPaintSchemes: SkyDancerArcadePaintScheme[];
   unlockedLoadouts: SkyDancerArcadeLoadout[];
 }
@@ -68,6 +73,8 @@ export function createDefaultSkyDancerArcadeProgress(): SkyDancerArcadeProgress 
     bestChain: 0,
     bestRoute: [],
     bestRouteScore: 0,
+    totalMedals: 0,
+    recentRoutes: [],
     unlockedPaintSchemes: ["default"],
     unlockedLoadouts: ["standard"],
   };
@@ -87,6 +94,19 @@ function uniqueValidStages(value: unknown): SkyDancerArcadeStageId[] {
 
 function finiteCount(value: unknown): number {
   return Math.max(0, Math.floor(Number(value) || 0));
+}
+
+function validMedal(value: unknown): value is SkyDancerArcadeV11MedalId {
+  return value === "score" || value === "signature" || value === "no-damage";
+}
+
+function uniqueMedals(value: unknown): SkyDancerArcadeV11MedalId[] {
+  return Array.isArray(value) ? [...new Set(value.filter(validMedal))] : [];
+}
+
+function validRecentRoutes(value: unknown): SkyDancerArcadeStageId[][] {
+  if (!Array.isArray(value)) return [];
+  return value.map(uniqueValidStages).filter(route => route.length > 0).slice(0, 8);
 }
 
 function applyUnlocks(progress: SkyDancerArcadeProgress): void {
@@ -120,6 +140,7 @@ export function loadSkyDancerArcadeProgress(): SkyDancerArcadeProgress {
           bestScore: finiteCount(candidate.bestScore),
           bestRank: validRank(candidate.bestRank) ? candidate.bestRank : "D",
           noDamage: candidate.noDamage === true,
+          medals: uniqueMedals(candidate.medals),
         };
       }
     }
@@ -140,6 +161,8 @@ export function loadSkyDancerArcadeProgress(): SkyDancerArcadeProgress {
       bestChain: finiteCount(parsed.bestChain),
       bestRoute: uniqueValidStages(parsed.bestRoute),
       bestRouteScore: finiteCount(parsed.bestRouteScore),
+      totalMedals: finiteCount(parsed.totalMedals),
+      recentRoutes: validRecentRoutes(parsed.recentRoutes),
       unlockedPaintSchemes: Array.isArray(parsed.unlockedPaintSchemes)
         ? parsed.unlockedPaintSchemes.filter((value): value is SkyDancerArcadePaintScheme => value === "default" || value === "sunset" || value === "storm" || value === "prism")
         : ["default"],
@@ -171,6 +194,7 @@ export function recordSkyDancerArcadeStageClear(
   score: number,
   rank: SkyDancerArcadeRank,
   noDamage: boolean,
+  medals: readonly SkyDancerArcadeV11MedalId[] = [],
 ): SkyDancerArcadeProgress {
   const progress = loadSkyDancerArcadeProgress();
   const stage = SKY_DANCER_ARCADE_STAGES.find((candidate) => candidate.id === stageId);
@@ -180,11 +204,13 @@ export function recordSkyDancerArcadeStageClear(
     bestScore: Math.max(previous?.bestScore ?? 0, Math.floor(score)),
     bestRank: !previous || RANK_VALUE[rank] > RANK_VALUE[previous.bestRank] ? rank : previous.bestRank,
     noDamage: Boolean(previous?.noDamage || noDamage),
+    medals: [...new Set([...(previous?.medals ?? []), ...medals.filter(validMedal)])],
   };
   if (!progress.clearedStageIds.includes(stageId)) progress.clearedStageIds.push(stageId);
   for (const next of stage?.next ?? []) {
     if (!progress.unlockedStageIds.includes(next)) progress.unlockedStageIds.push(next);
   }
+  progress.totalMedals = Object.values(progress.records).reduce((sum, record) => sum + (record?.medals.length ?? 0), 0);
   saveSkyDancerArcadeProgress(progress);
   return progress;
 }
@@ -207,6 +233,11 @@ export function recordSkyDancerArcadeRunClear(
     progress.totalArmorBreaks += finiteCount(summary.armorBreaks);
     progress.totalFormationBreaks += finiteCount(summary.formationBreaks);
     progress.bestChain = Math.max(progress.bestChain, finiteCount(summary.bestChain));
+    progress.totalMedals = Math.max(progress.totalMedals, finiteCount(summary.medalsEarned));
+    if (summary.route.length > 0) {
+      const route = uniqueValidStages(summary.route);
+      progress.recentRoutes = [route, ...progress.recentRoutes.filter(previous => previous.join(">") !== route.join(">"))].slice(0, 8);
+    }
     if (score > progress.bestRouteScore && summary.route.length > 0) {
       progress.bestRouteScore = Math.floor(score);
       progress.bestRoute = uniqueValidStages(summary.route);
