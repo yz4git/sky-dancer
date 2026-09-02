@@ -329,3 +329,24 @@
   .v118LoadoutStatus { min-width: 142px; max-width: 170px; padding: 6px 8px; }
   .v118LoadoutStatus strong { font-size: 9px; }
 }
+
+
+/* V11.9 Enemy Counterplay: one embedded warning line, no extra HUD panel. */
+.v118LoadoutStatus[data-countered="true"] { border-color: rgba(255,193,112,.42); box-shadow: 0 0 18px rgba(255,139,86,.13); }
+.v119Counterplay {
+  margin-top: 3px;
+  padding-top: 4px;
+  border-top: 1px solid rgba(255,255,255,.12);
+  color: #ffd19a;
+  font-size: 7px;
+  font-style: normal;
+  font-weight: 700;
+  letter-spacing: .07em;
+  line-height: 1.1;
+  white-space: nowrap;
+}
+.v118LoadoutStatus[data-loadout="missile-focus"] .v119Counterplay { color: #8ff3ff; }
+.v118LoadoutStatus[data-loadout="standard"] .v119Counterplay { color: #e5b5ff; }
+@media (max-width: 720px) {
+  .v119Counterplay { font-size: 6px; letter-spacing: .045em; }
+}

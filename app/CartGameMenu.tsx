@@ -45,9 +45,9 @@ const PAINT_OPTIONS: readonly { id: SkyDancerArcadePaintScheme; label: string; u
 ];
 
 const LOADOUT_OPTIONS: readonly { id: SkyDancerArcadeLoadout; label: string; detail: string; unlock: number }[] = [
-  { id: "standard", label: "STANDARD", detail: "FUSION LINK · TURBO FINISH · SCORE + REFUND", unlock: 0 },
-  { id: "missile-focus", label: "MISSILE", detail: "RAPID MULTI · RIPPLE SHOCK · ARMOR CRUSH", unlock: 12 },
-  { id: "gun-focus", label: "GUN", detail: "TWIN BURST · ARMOR SHRED · CANNON STAGGER", unlock: 24 },
+  { id: "standard", label: "STANDARD", detail: "FUSION LINK · BREAK JAMMERS · TURBO FINISH · SCORE + REFUND", unlock: 0 },
+  { id: "missile-focus", label: "MISSILE", detail: "RAPID MULTI · PUNISH EVASION · RIPPLE SHOCK · ARMOR CRUSH", unlock: 12 },
+  { id: "gun-focus", label: "GUN", detail: "TWIN BURST · CRACK BRACE · ARMOR SHRED · CANNON STAGGER", unlock: 24 },
 ];
 
 type PausePage = "menu" | "config";

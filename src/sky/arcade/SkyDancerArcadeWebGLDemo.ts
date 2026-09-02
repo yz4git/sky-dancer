@@ -340,8 +340,26 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
         this.disposeObject(aimRing);
         aimRing = undefined;
       }
+      let counterplayRing = group.getObjectByName("arcade-counterplay-ring");
+      if (enemy.counterplay !== "none" && !counterplayRing) {
+        const counterColor = enemy.counterplay === "armor-brace" ? 0xffd56a : enemy.counterplay === "evasive-roll" ? 0x6feeff : 0xe68cff;
+        counterplayRing = createSkyDancerArcadeLockRing(counterColor);
+        counterplayRing.name = "arcade-counterplay-ring";
+        counterplayRing.userData.arcadeEnemyCounterplayV119 = enemy.counterplay;
+        counterplayRing.traverse((object) => {
+          if (!(object instanceof THREE.Mesh)) return;
+          const material = object.material as THREE.MeshBasicMaterial;
+          material.opacity = .42;
+        });
+        group.add(counterplayRing);
+      } else if (enemy.counterplay === "none" && counterplayRing) {
+        group.remove(counterplayRing);
+        this.disposeObject(counterplayRing);
+        counterplayRing = undefined;
+      }
+      if (counterplayRing) counterplayRing.position.z = .12;
       const lockRing = group.getObjectByName("arcade-lock-ring");
-      for (const ring of [lockRing, aimRing]) {
+      for (const ring of [lockRing, aimRing, counterplayRing]) {
         if (!ring) continue;
         ring.rotation.y = -group.rotation.y;
         ring.rotation.z = -group.rotation.z;
@@ -349,12 +367,18 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
       }
       if (lockRing) lockRing.scale.setScalar(enemy.boss ? 4.2 : enemy.kind === "bomber" ? 1.7 : 1.1);
       if (aimRing) aimRing.scale.setScalar(enemy.boss ? 3.7 : enemy.kind === "bomber" ? 1.5 : .92);
+      if (counterplayRing) {
+        const pulse = 1 + Math.sin(snapshot.runTimeSeconds * 15 + enemy.id) * .08;
+        counterplayRing.scale.setScalar((enemy.boss ? 4.75 : enemy.kind === "bomber" ? 2.05 : 1.38) * pulse);
+      }
       if (!enemy.boss) {
         const baseScale = typeof group.userData.arcadeCombatBaseScale === "number" ? group.userData.arcadeCombatBaseScale : group.scale.x;
         const extremeCloseClamp = 1 - THREE.MathUtils.clamp((18 - enemy.depth) / 15, 0, 1) * .18;
         const maneuverPresence = enemy.maneuver === "parallel" || enemy.maneuver === "close-bank" ? 1.035 : 1;
         const impactPulse = 1 + (reaction?.flash ?? 0) * .055;
         group.scale.setScalar(baseScale * maneuverPresence * extremeCloseClamp * impactPulse);
+        if (enemy.counterplay === "armor-brace") { group.scale.x *= 1.045; group.scale.y *= .96; }
+        if (enemy.counterplay === "evasive-roll") group.rotation.z += Math.sin(snapshot.runTimeSeconds * 12 + enemy.id) * .065 * enemy.counterplayIntensity;
       }
       if (enemy.boss) {
         const hpRatio = enemy.maxHp > 0 ? enemy.hp / enemy.maxHp : 0;
@@ -673,6 +697,10 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
     if (snapshot.turboActive && !this.previousSnapshot.turboActive) this.audio.tone(132, .2, .035, "sawtooth");
     if (snapshot.nearMisses > this.previousSnapshot.nearMisses) this.audio.tone(1180, .075, .018, "triangle");
     if (snapshot.enemiesDefeated > this.previousSnapshot.enemiesDefeated) this.audio.tone(236, .08, .018, "triangle");
+    if (snapshot.enemyCounterplaySerial !== this.previousSnapshot.enemyCounterplaySerial) {
+      const frequency = snapshot.turboJammed ? 310 : snapshot.loadout === "gun-focus" ? 540 : 860;
+      this.audio.tone(frequency, .105, .018, snapshot.turboJammed ? "sawtooth" : "square");
+    }
     if (snapshot.loadoutReactionSerial !== this.previousSnapshot.loadoutReactionSerial) {
       const frequency = snapshot.loadout === "gun-focus" ? 980 : snapshot.loadout === "missile-focus" ? 640 : 760;
       this.audio.tone(frequency, .09, .02, snapshot.loadout === "missile-focus" ? "square" : "triangle");

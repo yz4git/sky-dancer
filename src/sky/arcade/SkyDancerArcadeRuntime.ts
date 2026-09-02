@@ -54,6 +54,7 @@ export type SkyDancerArcadeStatus =
 
 export type SkyDancerArcadeEnemyManeuver = "approach" | "close-bank" | "overtake" | "parallel" | "cross-pass";
 export type SkyDancerArcadeLoadoutReaction = "none" | "fusion-link" | "ripple-shock" | "twin-cannon";
+export type SkyDancerArcadeEnemyCounterplay = "none" | "armor-brace" | "evasive-roll" | "turbo-jammer";
 
 export interface SkyDancerArcadeRuntimeOptions {
   difficulty: "normal" | "hard";
@@ -82,6 +83,8 @@ export interface SkyDancerArcadeEnemySnapshot {
   bossPhase: SkyDancerArcadeBossPhase;
   weakpointOpen: boolean;
   stagger: number;
+  counterplay: SkyDancerArcadeEnemyCounterplay;
+  counterplayIntensity: number;
 }
 
 export interface SkyDancerArcadeProjectileSnapshot {
@@ -108,6 +111,7 @@ export interface SkyDancerArcadeImpactSnapshot {
   destroyed: boolean;
   reaction: SkyDancerArcadeLoadoutReaction;
   armorBreak: boolean;
+  counterplay: SkyDancerArcadeEnemyCounterplay;
 }
 
 export interface SkyDancerArcadeHazardSnapshot {
@@ -161,6 +165,12 @@ export interface SkyDancerArcadeSnapshot {
   loadoutReactionSerial: number;
   loadoutReactionLabel: string | null;
   loadoutReactionIntensity: number;
+  counterplayBreaks: number;
+  enemyCounterplaySerial: number;
+  enemyCounterplayLabel: string | null;
+  enemyCounterplayCount: number;
+  enemyCounterplayIntensity: number;
+  turboJammed: boolean;
   bossKills: number;
   continuesRemaining: number;
   continuesUsed: number;
@@ -222,6 +232,9 @@ interface ArcadeEnemy extends SkyDancerArcadeEnemySnapshot {
   maneuverClock: number;
   maneuverSign: number;
   loadoutStaggerRewarded: boolean;
+  counterplayTimer: number;
+  counterplayCooldown: number;
+  counterplayRewarded: boolean;
 }
 
 interface ArcadeProjectile extends SkyDancerArcadeProjectileSnapshot {
@@ -456,6 +469,10 @@ export class SkyDancerArcadeRuntime {
   private loadoutReactionSerial = 0;
   private loadoutReactionLabel: string | null = null;
   private loadoutReactionTimer = 0;
+  private counterplayBreaks = 0;
+  private enemyCounterplaySerial = 0;
+  private enemyCounterplayLabel: string | null = null;
+  private enemyCounterplayLabelTimer = 0;
   private stageSerial = 1;
   private resultSerial = 0;
   private readonly stageStats: StageStats = {
@@ -498,6 +515,8 @@ export class SkyDancerArcadeRuntime {
     this.damageCooldown = 0;
     this.loadoutReactionLabel = null;
     this.loadoutReactionTimer = 0;
+    this.enemyCounterplayLabel = null;
+    this.enemyCounterplayLabelTimer = 0;
     const finalStage = this.stage.id === SKY_DANCER_ARCADE_FINAL_STAGE;
     const rewindCheckpoint = skyDancerArcadeStageEventCheckpoint(this.stageTime / this.stage.durationSeconds, finalStage);
     this.stageEventCheckpoint = rewindTime > 0 ? Math.max(this.stageEventCheckpoint, rewindCheckpoint) as 0 | 1 | 2 : 0;
@@ -609,6 +628,8 @@ export class SkyDancerArcadeRuntime {
     this.damageCooldown = Math.max(0, this.damageCooldown - delta);
     this.loadoutReactionTimer = Math.max(0, this.loadoutReactionTimer - delta);
     if (this.loadoutReactionTimer <= 0) this.loadoutReactionLabel = null;
+    this.enemyCounterplayLabelTimer = Math.max(0, this.enemyCounterplayLabelTimer - delta);
+    if (this.enemyCounterplayLabelTimer <= 0) this.enemyCounterplayLabel = null;
     this.stageEventTimer = Math.max(0, this.stageEventTimer - delta);
     if (this.stageEventTimer <= 0) this.stageEventLabel = null;
     if (this.messageTimer <= 0) this.message = null;
@@ -642,8 +663,10 @@ export class SkyDancerArcadeRuntime {
     this.playerVY = moveToward(this.playerVY, targetVY, PLAYER_MOVE_RESPONSE * delta);
     this.playerX = clamp(this.playerX + this.playerVX * delta, -PLAYER_X_LIMIT, PLAYER_X_LIMIT);
     this.playerY = clamp(this.playerY + this.playerVY * delta, -PLAYER_Y_LIMIT, PLAYER_Y_LIMIT);
-    if (turboActive) this.turbo = Math.max(0, this.turbo - 29 * delta);
-    else this.turbo = Math.min(100, this.turbo + 13.5 * delta);
+    const jammerCount = this.activeTurboJammerCount();
+    const jammerDrain = Math.min(18, jammerCount * 9);
+    if (turboActive) this.turbo = Math.max(0, this.turbo - (29 + jammerDrain) * delta);
+    else this.turbo = Math.min(100, this.turbo + 13.5 * (jammerCount > 0 ? .58 : 1) * delta);
   }
 
   private get branchActive(): boolean {
@@ -829,6 +852,11 @@ export class SkyDancerArcadeRuntime {
       maneuverClock: 0,
       maneuverSign: maneuverSign < 0 ? -1 : 1,
       loadoutStaggerRewarded: false,
+      counterplay: "none",
+      counterplayIntensity: 0,
+      counterplayTimer: 0,
+      counterplayCooldown: .38 + (this.nextEntityId % 3) * .31,
+      counterplayRewarded: false,
     });
   }
 
@@ -877,6 +905,11 @@ export class SkyDancerArcadeRuntime {
       maneuverClock: 0,
       maneuverSign: 1,
       loadoutStaggerRewarded: false,
+      counterplay: "none",
+      counterplayIntensity: 0,
+      counterplayTimer: 0,
+      counterplayCooldown: .38 + (this.nextEntityId % 3) * .31,
+      counterplayRewarded: false,
     });
     const bossProfile = skyDancerArcadeV11BossProfile(this.stage.id);
     this.bossMechanicSerial += 1;
@@ -953,7 +986,8 @@ export class SkyDancerArcadeRuntime {
       const dx = enemy.x - this.playerX;
       const dy = enemy.y - this.playerY;
       const reticleDistance = Math.hypot(dx, dy);
-      const threshold = arcadeLoadoutLockThreshold(this.options.loadout, enemy.boss, turboLink);
+      const counterplayScale = enemy.counterplay === "evasive-roll" ? (enemy.boss ? .82 : .72) : 1;
+      const threshold = arcadeLoadoutLockThreshold(this.options.loadout, enemy.boss, turboLink) * counterplayScale;
       if (reticleDistance > threshold) continue;
       const score = reticleDistance * 20 + enemy.depth * 0.05 - skyDancerArcadeTargetPriority(enemy.role);
       if (score < best) {
@@ -1061,11 +1095,101 @@ export class SkyDancerArcadeRuntime {
     }
   }
 
+  private counterplayTypeForEnemy(enemy: ArcadeEnemy): SkyDancerArcadeEnemyCounterplay {
+    const loadout = this.options.loadout ?? "standard";
+    if (loadout === "gun-focus") {
+      if (enemy.boss || enemy.kind === "bomber" || enemy.kind === "missile-boat" || enemy.kind === "ace" || enemy.kind === "interceptor") return "armor-brace";
+      return "none";
+    }
+    if (loadout === "missile-focus") {
+      if (enemy.boss || enemy.kind === "fighter" || enemy.kind === "interceptor" || enemy.kind === "ace") return "evasive-roll";
+      return "none";
+    }
+    if (enemy.boss || enemy.kind === "missile-boat" || enemy.kind === "bomber" || enemy.kind === "ace") return "turbo-jammer";
+    return "none";
+  }
+
+  private counterplayLabel(type: SkyDancerArcadeEnemyCounterplay): string {
+    if (type === "armor-brace") return "ARMOR BRACE";
+    if (type === "evasive-roll") return "EVASIVE ROLL";
+    if (type === "turbo-jammer") return "TURBO JAMMER";
+    return "";
+  }
+
+  private activateEnemyCounterplay(enemy: ArcadeEnemy, type: SkyDancerArcadeEnemyCounterplay): void {
+    if (type === "none") return;
+    enemy.counterplay = type;
+    enemy.counterplayTimer = (enemy.boss ? 1.62 : type === "turbo-jammer" ? 1.38 : type === "armor-brace" ? 1.24 : 1.12);
+    enemy.counterplayIntensity = 1;
+    enemy.counterplayRewarded = false;
+    enemy.counterplayCooldown = (enemy.boss ? 2.15 : 2.7) + (enemy.id % 4) * .27;
+    this.enemyCounterplaySerial += 1;
+    this.enemyCounterplayLabel = this.counterplayLabel(type);
+    this.enemyCounterplayLabelTimer = 1.05;
+    this.message = `ENEMY COUNTER · ${this.enemyCounterplayLabel}`;
+    this.messageTimer = Math.max(this.messageTimer, .72);
+  }
+
+  private updateEnemyCounterplay(enemy: ArcadeEnemy, delta: number, turboActive: boolean): void {
+    if (enemy.counterplay !== "none") {
+      enemy.counterplayTimer = Math.max(0, enemy.counterplayTimer - delta);
+      const duration = enemy.boss ? 1.62 : enemy.counterplay === "turbo-jammer" ? 1.38 : enemy.counterplay === "armor-brace" ? 1.24 : 1.12;
+      enemy.counterplayIntensity = clamp(enemy.counterplayTimer / duration, 0, 1);
+      if (enemy.counterplayTimer <= 0) {
+        enemy.counterplay = "none";
+        enemy.counterplayIntensity = 0;
+      }
+      return;
+    }
+    enemy.counterplayCooldown = Math.max(0, enemy.counterplayCooldown - delta);
+    enemy.counterplayIntensity = 0;
+    if (enemy.counterplayCooldown > 0 || enemy.stagger > .68 || enemy.depth < 8 || enemy.depth > 62) return;
+    const type = this.counterplayTypeForEnemy(enemy);
+    if (type === "none") return;
+    const missileThreat = this.input.lock || this.projectiles.some((projectile) => projectile.owner === "player-missile" && projectile.targetEnemyId === enemy.id && projectile.life > 0);
+    const triggered = type === "armor-brace" ? this.input.fire : type === "evasive-roll" ? missileThreat : turboActive;
+    if (triggered) this.activateEnemyCounterplay(enemy, type);
+  }
+
+  private activeTurboJammerCount(): number {
+    return this.enemies.filter((enemy) => enemy.alive && enemy.counterplay === "turbo-jammer" && enemy.counterplayTimer > 0).length;
+  }
+
+  private rewardEnemyCounterplayBreak(
+    enemy: ArcadeEnemy,
+    counterplay: SkyDancerArcadeEnemyCounterplay,
+    missile: boolean,
+    destroyed: boolean,
+    armorBreak: boolean,
+  ): void {
+    if (counterplay === "none" || enemy.counterplayRewarded) return;
+    const qualifies = counterplay === "armor-brace"
+      ? destroyed || armorBreak || enemy.stagger >= .72
+      : counterplay === "evasive-roll"
+        ? missile && (destroyed || armorBreak || enemy.stagger >= .32)
+        : destroyed || armorBreak || enemy.stagger >= .72;
+    if (!qualifies) return;
+    enemy.counterplayRewarded = true;
+    enemy.counterplay = "none";
+    enemy.counterplayTimer = 0;
+    enemy.counterplayIntensity = 0;
+    enemy.counterplayCooldown = Math.max(enemy.counterplayCooldown, enemy.boss ? 2.8 : 3.25);
+    this.counterplayBreaks += 1;
+    this.enemyCounterplaySerial += 1;
+    const label = counterplay === "armor-brace" ? "BRACE BREAK" : counterplay === "evasive-roll" ? "EVADE PUNISH" : "JAMMER BREAK";
+    this.enemyCounterplayLabel = label;
+    this.enemyCounterplayLabelTimer = 1.18;
+    const base = counterplay === "armor-brace" ? (enemy.boss ? 760 : 430) : counterplay === "evasive-roll" ? (enemy.boss ? 820 : 470) : (enemy.boss ? 920 : 540);
+    const turboGain = counterplay === "turbo-jammer" ? (enemy.boss ? 12 : 8) : enemy.boss ? 8 : 5;
+    this.rewardLoadoutReaction(label, base, turboGain, 1.12);
+  }
+
   private updateEnemies(delta: number, turboActive: boolean): void {
     for (const enemy of this.enemies) {
       if (!enemy.alive) continue;
       enemy.age += delta;
       enemy.stagger = Math.max(0, enemy.stagger - delta * (enemy.boss ? .82 : 1.35));
+      this.updateEnemyCounterplay(enemy, delta, turboActive);
       if (enemy.boss) {
         const nextPhase = skyDancerArcadeBossPhase(enemy.hp, enemy.maxHp);
         if (nextPhase !== enemy.bossPhase) {
@@ -1179,6 +1303,12 @@ export class SkyDancerArcadeRuntime {
           enemy.y = genericY();
         }
       }
+      if (enemy.counterplay === "evasive-roll") {
+        const intensity = .35 + enemy.counterplayIntensity * .65;
+        enemy.x = clamp(enemy.x + Math.sin(enemy.age * 10.4 + enemy.phase) * .44 * intensity + enemy.maneuverSign * .08, -ENEMY_X_LIMIT, ENEMY_X_LIMIT);
+        enemy.y = clamp(enemy.y + Math.cos(enemy.age * 8.6 + enemy.phase * 1.3) * .28 * intensity, -ENEMY_Y_LIMIT, ENEMY_Y_LIMIT);
+      }
+      if (enemy.counterplay === "armor-brace") enemy.fireCooldown += delta * .42;
       enemy.fireCooldown -= delta;
       if (enemy.fireCooldown <= 0 && enemy.depth > 12 && enemy.depth < 72) {
         // Stagger turns accurate pressure into a short offensive opening without hard-stopping the simulation.
@@ -1380,20 +1510,27 @@ export class SkyDancerArcadeRuntime {
     const armorBefore = enemy.armor;
     const staggerBefore = enemy.stagger;
     const reaction = this.loadoutReactionForHit(missile);
+    const counterplay = enemy.counterplay;
     let hullDamage = amount;
     if (enemy.armor > 0) {
       let armorScale = missile ? 1.35 : .7;
       if (reaction === "ripple-shock") armorScale = 1.72;
       else if (reaction === "twin-cannon") armorScale = 1.04;
       else if (reaction === "fusion-link") armorScale = missile ? 1.52 : .9;
+      if (counterplay === "armor-brace" && !missile) armorScale *= .62;
+      if (counterplay === "evasive-roll" && missile) armorScale *= .72;
       enemy.armor = Math.max(0, enemy.armor - amount * armorScale);
       hullDamage *= missile ? .9 : .72;
+      if (counterplay === "armor-brace" && !missile) hullDamage *= .78;
+      if (counterplay === "evasive-roll" && missile) hullDamage *= .7;
       if (reaction === "twin-cannon") hullDamage *= 1.08;
       if (reaction === "fusion-link") hullDamage *= 1.08;
     }
     if (enemy.boss && enemy.weakpointOpen) hullDamage *= missile ? 1.65 : 1.35;
     enemy.hp = Math.max(0, enemy.hp - hullDamage);
-    const staggerScale = reaction === "ripple-shock" ? 7.4 : reaction === "twin-cannon" ? 4.7 : reaction === "fusion-link" ? 5.9 : missile ? 5.2 : 3.2;
+    let staggerScale = reaction === "ripple-shock" ? 7.4 : reaction === "twin-cannon" ? 4.7 : reaction === "fusion-link" ? 5.9 : missile ? 5.2 : 3.2;
+    if (counterplay === "armor-brace" && !missile) staggerScale *= 1.24;
+    if (counterplay === "evasive-roll" && missile) staggerScale *= 1.16;
     enemy.stagger = clamp(enemy.stagger + hullDamage / Math.max(1, enemy.maxHp) * staggerScale, 0, 1);
     const armorBreak = armorBefore > 0 && enemy.armor <= 0;
     if (armorBreak) {
@@ -1429,13 +1566,17 @@ export class SkyDancerArcadeRuntime {
       destroyed,
       reaction,
       armorBreak,
+      counterplay,
     });
     this.impactEventAges.set(this.hitSerial, 0);
     if (this.impactEvents.length > 16) {
       const retired = this.impactEvents.splice(0, this.impactEvents.length - 16);
       for (const impact of retired) this.impactEventAges.delete(impact.serial);
     }
-    if (!destroyed) return;
+    if (!destroyed) {
+      this.rewardEnemyCounterplayBreak(enemy, counterplay, missile, false, armorBreak);
+      return;
+    }
     enemy.alive = false;
     enemy.locked = false;
     this.enemiesDefeated += 1;
@@ -1458,6 +1599,7 @@ export class SkyDancerArcadeRuntime {
     if (reaction === "twin-cannon") this.rewardLoadoutReaction("TWIN CANNON FINISH", enemy.boss ? 720 : 360, enemy.boss ? 5 : 2);
     else if (reaction === "ripple-shock") this.rewardLoadoutReaction("RIPPLE BREAK", enemy.boss ? 840 : 420, enemy.boss ? 6 : 3);
     else if (reaction === "fusion-link") this.rewardLoadoutReaction("FUSION LINK FINISH", enemy.boss ? 960 : 520, enemy.boss ? 8 : 5);
+    this.rewardEnemyCounterplayBreak(enemy, counterplay, missile, destroyed, armorBreak);
     if (!enemy.boss) return;
     this.bossKills += 1;
     this.bossDefeated = true;
@@ -1583,6 +1725,7 @@ export class SkyDancerArcadeRuntime {
   getSnapshot(): SkyDancerArcadeSnapshot {
     const boss = this.enemies.find((enemy) => enemy.alive && enemy.boss) ?? null;
     const lockedCount = this.enemies.filter((enemy) => enemy.alive && enemy.locked).length;
+    const activeCounterplays = this.enemies.filter((enemy) => enemy.alive && enemy.counterplay !== "none");
     const stageScore = this.score - this.stageStats.scoreAtStart;
     const activeStageCount = Math.max(1, this.stagesCleared + (this.status === "running" ? 1 : 0));
     const rank = skyDancerArcadeRankForScore(this.score, activeStageCount, this.damageTaken, this.continuesUsed);
@@ -1628,6 +1771,12 @@ export class SkyDancerArcadeRuntime {
       loadoutReactionSerial: this.loadoutReactionSerial,
       loadoutReactionLabel: this.loadoutReactionLabel,
       loadoutReactionIntensity: this.loadoutReactionTimer > 0 ? clamp(this.loadoutReactionTimer / 1.05, 0, 1) : 0,
+      counterplayBreaks: this.counterplayBreaks,
+      enemyCounterplaySerial: this.enemyCounterplaySerial,
+      enemyCounterplayLabel: this.enemyCounterplayLabel,
+      enemyCounterplayCount: activeCounterplays.length,
+      enemyCounterplayIntensity: activeCounterplays.reduce((peak, enemy) => Math.max(peak, enemy.counterplayIntensity), 0),
+      turboJammed: activeCounterplays.some((enemy) => enemy.counterplay === "turbo-jammer"),
       bossKills: this.bossKills,
       continuesRemaining: this.continuesRemaining,
       continuesUsed: this.continuesUsed,
@@ -1674,6 +1823,8 @@ export class SkyDancerArcadeRuntime {
         bossPhase: enemy.bossPhase,
         weakpointOpen: enemy.weakpointOpen,
         stagger: enemy.stagger,
+        counterplay: enemy.counterplay,
+        counterplayIntensity: enemy.counterplayIntensity,
       })),
       projectiles: this.projectiles.filter((projectile) => projectile.life > 0).map((projectile) => ({
         id: projectile.id,
@@ -1720,6 +1871,13 @@ export class SkyDancerArcadeRuntime {
   damageEnemyForTests(enemyId: number, amount: number, missile: boolean): void {
     const enemy = this.enemies.find((candidate) => candidate.id === enemyId && candidate.alive);
     if (enemy) this.damageEnemy(enemy, amount, missile);
+  }
+
+  forceEnemyCounterplayForTests(enemyId: number): void {
+    const enemy = this.enemies.find((candidate) => candidate.id === enemyId && candidate.alive);
+    if (!enemy) return;
+    const type = this.counterplayTypeForEnemy(enemy);
+    if (type !== "none") this.activateEnemyCounterplay(enemy, type);
   }
 
   /** Deterministic V11 hook for timeline/director regression tests. */

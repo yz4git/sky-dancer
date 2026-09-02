@@ -748,7 +748,7 @@ test("V11.7 loadout doctrine is visible in hangar controls and projectile presen
   assert.match(menuSource, /RAPID MULTI/);
   assert.match(menuSource, /TWIN BURST/);
   assert.match(modeSource, /data-loadout=\{snapshot\.loadout\}/);
-  assert.match(modeSource, /V11\.8/);
+  assert.match(modeSource, /V11\.(?:8|9)/);
   assert.match(webglSource, /arcadeLoadoutV117/);
   assert.match(webglSource, /snapshot\.loadout === "gun-focus" \? 0xffdf72/);
   assert.match(cssSource, /data-loadout="gun-focus"/);
@@ -815,7 +815,7 @@ test("V11.8 tactical doctrine is visible in HUD, hangar and WebGL enemy reaction
     readFile(new URL("../app/SkyDancerArcadeProduct.module.css", import.meta.url), "utf8"),
     readFile(new URL("../src/sky/arcade/SkyDancerArcadeRuntime.ts", import.meta.url), "utf8"),
   ]);
-  assert.match(modeSource, /V11\.8/);
+  assert.match(modeSource, /V11\.(?:8|9)/);
   assert.match(modeSource, /TACTICAL BONUS \+\{snapshot\.loadoutBonusScore\}/);
   assert.match(menuSource, /ARMOR SHRED · CANNON STAGGER/);
   assert.match(menuSource, /RIPPLE SHOCK · ARMOR CRUSH/);
@@ -826,4 +826,75 @@ test("V11.8 tactical doctrine is visible in HUD, hangar and WebGL enemy reaction
   assert.match(runtimeSource, /TWIN CANNON SHRED/);
   assert.match(runtimeSource, /RIPPLE ARMOR CRUSH/);
   assert.match(runtimeSource, /FUSION LINK FINISH/);
+});
+
+
+test("V11.9 Gun Focus provokes armor brace that reduces direct cannon penetration but can be broken", () => {
+  const braced = new SkyDancerArcadeRuntime({ difficulty: "normal", mode: "stage-practice", startStageId: "dawn-city", loadout: "gun-focus", seed: 0x1191 });
+  const open = new SkyDancerArcadeRuntime({ difficulty: "normal", mode: "stage-practice", startStageId: "dawn-city", loadout: "gun-focus", seed: 0x1191 });
+  const bracedId = braced.spawnEnemyForTests("bomber", 0, 0, 30);
+  const openId = open.spawnEnemyForTests("bomber", 0, 0, 30);
+  braced.forceEnemyCounterplayForTests(bracedId);
+  assert.equal(braced.getSnapshot().enemies.find((enemy) => enemy.id === bracedId)?.counterplay, "armor-brace");
+  braced.damageEnemyForTests(bracedId, 18, false);
+  open.damageEnemyForTests(openId, 18, false);
+  const bracedEnemy = braced.getSnapshot().enemies.find((enemy) => enemy.id === bracedId);
+  const openEnemy = open.getSnapshot().enemies.find((enemy) => enemy.id === openId);
+  assert.ok(bracedEnemy && openEnemy);
+  assert.ok(bracedEnemy.armor > openEnemy.armor, `${bracedEnemy.armor} > ${openEnemy.armor}`);
+  const firstBreaks = braced.getSnapshot().counterplayBreaks;
+  const firstBreakLabel = braced.getSnapshot().loadoutReactionLabel;
+  braced.damageEnemyForTests(bracedId, 999, false);
+  assert.ok(braced.getSnapshot().counterplayBreaks >= 1);
+  if (firstBreaks > 0) assert.match(firstBreakLabel ?? "", /BRACE BREAK/);
+});
+
+test("V11.9 Missile Focus provokes evasive roll and rewards a tracked missile punish", () => {
+  const runtime = new SkyDancerArcadeRuntime({ difficulty: "normal", mode: "stage-practice", startStageId: "dawn-city", loadout: "missile-focus", seed: 0x1192 });
+  const id = runtime.spawnEnemyForTests("interceptor", .2, .1, 30);
+  runtime.forceEnemyCounterplayForTests(id);
+  const before = runtime.getSnapshot().enemies.find((enemy) => enemy.id === id);
+  assert.equal(before?.counterplay, "evasive-roll");
+  runtime.step(.05);
+  const after = runtime.getSnapshot().enemies.find((enemy) => enemy.id === id);
+  assert.ok(before && after);
+  assert.ok(Math.hypot(after.x - before.x, after.y - before.y) > .01, "evasive roll changes the target lane");
+  runtime.damageEnemyForTests(id, 999, true);
+  assert.ok(runtime.getSnapshot().counterplayBreaks >= 1);
+  assert.match(runtime.getSnapshot().loadoutReactionLabel ?? "", /EVADE PUNISH/);
+});
+
+test("V11.9 Standard Turbo Link can be jammed until the counter aircraft is broken", () => {
+  const jammed = new SkyDancerArcadeRuntime({ difficulty: "normal", mode: "stage-practice", startStageId: "dawn-city", loadout: "standard", seed: 0x1193 });
+  const clear = new SkyDancerArcadeRuntime({ difficulty: "normal", mode: "stage-practice", startStageId: "dawn-city", loadout: "standard", seed: 0x1193 });
+  const id = jammed.spawnEnemyForTests("missile-boat", 0, 0, 30);
+  jammed.forceEnemyCounterplayForTests(id);
+  jammed.setTurbo(true);
+  clear.setTurbo(true);
+  for (let frame = 0; frame < 24; frame += 1) { jammed.step(1 / 60); clear.step(1 / 60); }
+  assert.equal(jammed.getSnapshot().turboJammed, true);
+  assert.ok(jammed.getSnapshot().turbo < clear.getSnapshot().turbo, `${jammed.getSnapshot().turbo} < ${clear.getSnapshot().turbo}`);
+  jammed.damageEnemyForTests(id, 999, false);
+  assert.ok(jammed.getSnapshot().counterplayBreaks >= 1);
+  assert.match(jammed.getSnapshot().loadoutReactionLabel ?? "", /JAMMER BREAK/);
+});
+
+test("V11.9 enemy counterplay is surfaced in HUD, hangar, runtime and WebGL presentation", async () => {
+  const [modeSource, menuSource, webglSource, cssSource, runtimeSource] = await Promise.all([
+    readFile(new URL("../app/SkyDancerArcadeMode.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/CartGameMenu.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../src/sky/arcade/SkyDancerArcadeWebGLDemo.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/SkyDancerArcadeProduct.module.css", import.meta.url), "utf8"),
+    readFile(new URL("../src/sky/arcade/SkyDancerArcadeRuntime.ts", import.meta.url), "utf8"),
+  ]);
+  assert.match(modeSource, /V11\.9/);
+  assert.match(modeSource, /ENEMY COUNTER/);
+  assert.match(menuSource, /BREAK JAMMERS/);
+  assert.match(menuSource, /PUNISH EVASION/);
+  assert.match(menuSource, /CRACK BRACE/);
+  assert.match(webglSource, /arcadeEnemyCounterplayV119/);
+  assert.match(cssSource, /v119Counterplay/);
+  assert.match(runtimeSource, /ARMOR BRACE/);
+  assert.match(runtimeSource, /EVASIVE ROLL/);
+  assert.match(runtimeSource, /TURBO JAMMER/);
 });
