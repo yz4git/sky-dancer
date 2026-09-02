@@ -9,32 +9,40 @@ permissions:
 jobs:
   compare:
     runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      SKY_DANCER_CHROME_PATH: /usr/bin/google-chrome
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 22.13.0
           cache: npm
-      - run: npm ci
-      - name: Install Playwright runtime
+      - run: npm ci --no-audit --no-fund
+      - name: Install isolated browser controller
         run: |
+          rm -rf .audit-runtime
           mkdir -p .audit-runtime
-          cd .audit-runtime
-          npm init -y >/dev/null 2>&1
-          npm install playwright-core@1.55.0
+          printf '{"private":true,"type":"commonjs"}\n' > .audit-runtime/package.json
+          npm install --prefix .audit-runtime --no-package-lock --no-save --ignore-scripts --no-audit --no-fund playwright-core@1.55.0
+          google-chrome --version
       - name: Build Pages
         run: npm run build:pages
       - name: Serve build
         run: |
-          python3 -m http.server 4173 -d out > /tmp/sky-raid-audit-http.log 2>&1 &
-          echo $! > /tmp/sky-raid-audit-http.pid
-          sleep 2
+          python3 -m http.server 4173 --bind 127.0.0.1 --directory out > /tmp/sky-raid-audit-http.log 2>&1 &
+          for i in {1..30}; do
+            if curl -fsS http://127.0.0.1:4173/ >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          cat /tmp/sky-raid-audit-http.log
+          exit 1
       - name: Capture Arcade Run and SKY RAID
-        env:
-          SKY_DANCER_CHROME_PATH: /usr/bin/google-chrome
         run: node scripts/webgl-sky-raid-v2-compare.mjs
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: sky-raid-v2-compare
           path: artifacts/sky-raid-v2-compare
           if-no-files-found: error
+          retention-days: 7
