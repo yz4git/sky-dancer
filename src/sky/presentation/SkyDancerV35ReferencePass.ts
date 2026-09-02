@@ -12,6 +12,11 @@ const FRONT_MOUNTAIN_FAR_COUNT = 22;
 const FRONT_MOUNTAIN_NEAR_COUNT = 20;
 const FRONT_CLOUD_COUNT = 32;
 const FOCUS_CITY_LOCAL_CENTER_Z = 145;
+
+function skyRaidShowsReferenceCity(): boolean {
+  if (typeof document === "undefined" || document.documentElement.dataset.skyDancerMode !== "sky-raid") return true;
+  return (document.documentElement.dataset.skyRaidWorldStyle ?? "city") === "city";
+}
 const LEGACY_DYNAMIC_LAYER_NAMES = [
   "sky-dancer-v32-polish-ridge-near",
   "sky-dancer-v32-polish-ridge-far",
@@ -125,6 +130,18 @@ export class SkyDancerV35ReferencePass {
     this.frontMountainsFar.visible = true;
     this.frontMountainsNear.visible = true;
     this.frontClouds.visible = true;
+    const showCity = skyRaidShowsReferenceCity();
+    if (!showCity) {
+      this.focusRoot.visible = false;
+      this.focusBuildings.visible = false;
+      this.focusStreets.visible = false;
+      this.focusRiver.visible = false;
+      this.frontMountainsFar.visible = false;
+      this.frontMountainsNear.visible = false;
+      this.frontClouds.visible = false;
+      if (this.fields) this.fields.visible = false;
+      if (this.forest) this.forest.visible = false;
+    }
   }
 
   private hideStaticLegacyLayers(): void {

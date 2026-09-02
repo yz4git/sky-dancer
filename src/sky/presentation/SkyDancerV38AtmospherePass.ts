@@ -8,6 +8,14 @@ const CLOUD_CLUSTERS = 24;
 const PUFFS_PER_CLUSTER = 4;
 const CLOUD_INSTANCES = CLOUD_CLUSTERS * PUFFS_PER_CLUSTER;
 
+type SkyRaidAtmosphereStyle = "city" | "mountains" | "clouds" | "storm" | "citadel";
+
+function skyRaidAtmosphereStyle(): SkyRaidAtmosphereStyle | null {
+  if (typeof document === "undefined" || document.documentElement.dataset.skyDancerMode !== "sky-raid") return null;
+  const style = document.documentElement.dataset.skyRaidWorldStyle;
+  return style === "mountains" || style === "clouds" || style === "storm" || style === "citadel" ? style : "city";
+}
+
 function hash1(value: number, salt = 0): number {
   let n = Math.imul(value + salt * 0x45d9f3b, 0x27d4eb2d);
   n ^= n >>> 15;
@@ -75,6 +83,25 @@ export class SkyDancerV38AtmospherePass {
     this.cloudRoot.visible = true;
     this.cloudMain.visible = true;
     this.cloudShade.visible = true;
+    const raidStyle = skyRaidAtmosphereStyle();
+    if (raidStyle !== null) {
+      const showRidges = raidStyle === "city" || raidStyle === "mountains";
+      const showCloudDeck = raidStyle === "city" || raidStyle === "clouds" || raidStyle === "storm";
+      this.ridgeRoot.visible = showRidges;
+      this.farRidge.visible = showRidges;
+      this.nearRidge.visible = showRidges;
+      this.cloudRoot.visible = showCloudDeck;
+      this.cloudMain.visible = showCloudDeck;
+      this.cloudShade.visible = showCloudDeck;
+      if (this.cloudMain.material instanceof THREE.MeshBasicMaterial) {
+        this.cloudMain.material.color.setHex(raidStyle === "storm" ? 0x59697a : raidStyle === "clouds" ? 0xf4fbff : 0xf7fbfc);
+        this.cloudMain.material.opacity = raidStyle === "clouds" ? 0.34 : raidStyle === "storm" ? 0.22 : 0.24;
+      }
+      if (this.cloudShade.material instanceof THREE.MeshBasicMaterial) {
+        this.cloudShade.material.color.setHex(raidStyle === "storm" ? 0x273246 : 0x9fb5be);
+        this.cloudShade.material.opacity = raidStyle === "storm" ? 0.18 : raidStyle === "clouds" ? 0.12 : 0.10;
+      }
+    }
     this.sky.position.set(snapshot.x, 0, snapshot.z);
 
     const tileX = Math.floor(snapshot.x / SNAP);
