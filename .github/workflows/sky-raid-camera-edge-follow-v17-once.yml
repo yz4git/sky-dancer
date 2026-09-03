@@ -8,6 +8,8 @@ on:
       - app/SkyDancerArcadeVirtualPad.module.css
       - app/SkyDancerSkyRaidOverlay.tsx
       - src/sky/SkyDancerEnemyPopulation.ts
+      - src/sky/SkyDancerPlayerWeapons.ts
+      - src/sky/SkyDancerWeaponBridge.ts
       - src/sky/SkyDancerSkyRaid.ts
       - src/sky/SkyDancerSkyRaidArcadeWorld.ts
       - src/sky/SkyDancerSkyRaidFlight.ts
