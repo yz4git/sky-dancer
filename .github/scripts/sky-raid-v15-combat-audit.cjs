@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-require-imports */
 const { chromium } = require(process.cwd() + '/.audit-runtime/node_modules/playwright-core');
 const fs = require('node:fs');
 const path = require('node:path');
