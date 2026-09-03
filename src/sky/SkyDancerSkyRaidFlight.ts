@@ -1,4 +1,4 @@
-export const SKY_RAID_MIN_ALTITUDE = -18;
+export const SKY_RAID_MIN_ALTITUDE = 0;
 export const SKY_RAID_MAX_ALTITUDE = 64;
 export const SKY_RAID_MAX_BANK = 0.78;
 export const SKY_RAID_MAX_PITCH = 0.42;

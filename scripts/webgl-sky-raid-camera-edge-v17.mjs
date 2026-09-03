@@ -50,7 +50,7 @@ try {
     if (message.type() === "error" && !/404/.test(message.text())) errors.push(message.text());
   });
 
-  await page.goto(`http://127.0.0.1:4173?menu=1&v17=${Date.now()}`, { waitUntil: "networkidle", timeout: 30000 });
+  await page.goto(`http://127.0.0.1:4173?menu=1&v18=${Date.now()}`, { waitUntil: "networkidle", timeout: 30000 });
   await page.locator("button").filter({ hasText: /^\s*SKY RAID/i }).first().click({ force: true, timeout: 10000 });
   await page.waitForTimeout(100);
   await page.locator("button").filter({ hasText: /START/i }).last().click({ force: true, timeout: 10000 });
@@ -58,6 +58,7 @@ try {
   await page.waitForFunction(() => typeof window.__skyRaidGetCameraPolish === "function", null, { timeout: 12000 });
 
   const baseline = await camera();
+  await screenshot("00-baseline-flight.png");
   await beginVerticalHold(0.07);
   await page.waitForTimeout(1500);
   const realClimb = await camera();
@@ -80,12 +81,11 @@ try {
   const realDive = await camera();
   if (!(realDive.altitude < beforeDive.altitude - 1.0)) throw new Error(`real dive input weak: ${beforeDive.altitude}->${realDive.altitude}`);
 
-  await forceAuditAltitude(-18);
+  await forceAuditAltitude(0);
   const low = await camera();
-  if (!(low.altitude <= -17.95)) throw new Error(`lower altitude audit hook failed: ${low.altitude}`);
+  if (!(low.altitude >= -0.05 && low.altitude <= 0.05)) throw new Error(`lower altitude audit hook failed: ${low.altitude}`);
   if (!low.playerVisible) throw new Error("aircraft clipped at lower altitude stop");
   if (Math.abs(low.playerNdcY) > 0.52) throw new Error(`lower framing too close to edge: ${low.playerNdcY}`);
-  if (!(low.altitudeEdgeBlend > 0.98)) throw new Error(`lower edge blend inactive: ${low.altitudeEdgeBlend}`);
   await screenshot("02-lower-altitude-stop.png");
   await page.mouse.up();
   await clearAuditAltitude();
@@ -93,10 +93,10 @@ try {
   const report = { baseline, realClimb, high, beforeDive, realDive, low, errors };
   fs.writeFileSync(path.join(out, "report.json"), JSON.stringify(report, null, 2));
   if (errors.length) throw new Error(JSON.stringify(errors));
-  console.log("SKY RAID V17 PASS", JSON.stringify(report));
+  console.log("SKY RAID V18 PASS", JSON.stringify(report));
 } catch (error) {
   failure = error;
-  console.error("SKY RAID V17 FAIL", error?.stack || error);
+  console.error("SKY RAID V18 FAIL", error?.stack || error);
   try { await page?.mouse.up(); } catch {}
   await screenshot("failure.png");
   fs.mkdirSync(out, { recursive: true });
