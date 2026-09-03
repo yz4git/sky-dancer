@@ -52,16 +52,36 @@ export default function SkyDancerArcadeVirtualPad() {
   }, [applyHorizontal, applyVertical]);
 
   useEffect(() => {
+    // iOS Safari can lose an element-level pointerup/cancel while the finger
+    // crosses browser chrome, an orientation transition starts, or a second
+    // touch changes pointer routing. Capture termination at window level as a
+    // second safety net, while only releasing the pointer that owns this pad.
+    const onGlobalPointerEnd = (event: PointerEvent) => {
+      if (pointerRef.current !== event.pointerId) return;
+      reset();
+    };
     const onBlur = () => reset();
     const onVisibility = () => {
       if (document.visibilityState !== "visible") reset();
     };
+    const onPageLifecycle = () => reset();
     const onPause = () => reset();
+
+    window.addEventListener("pointerup", onGlobalPointerEnd, true);
+    window.addEventListener("pointercancel", onGlobalPointerEnd, true);
     window.addEventListener("blur", onBlur);
+    window.addEventListener("pagehide", onPageLifecycle);
+    window.addEventListener("pageshow", onPageLifecycle);
+    window.addEventListener("orientationchange", onPageLifecycle);
     document.addEventListener("visibilitychange", onVisibility);
     window.addEventListener("cart-rogue-menu-pause", onPause);
     return () => {
+      window.removeEventListener("pointerup", onGlobalPointerEnd, true);
+      window.removeEventListener("pointercancel", onGlobalPointerEnd, true);
       window.removeEventListener("blur", onBlur);
+      window.removeEventListener("pagehide", onPageLifecycle);
+      window.removeEventListener("pageshow", onPageLifecycle);
+      window.removeEventListener("orientationchange", onPageLifecycle);
       document.removeEventListener("visibilitychange", onVisibility);
       window.removeEventListener("cart-rogue-menu-pause", onPause);
       reset();
@@ -88,7 +108,12 @@ export default function SkyDancerArcadeVirtualPad() {
     event.preventDefault();
     if (pointerRef.current !== null) return;
     pointerRef.current = event.pointerId;
-    event.currentTarget.setPointerCapture(event.pointerId);
+    try {
+      event.currentTarget.setPointerCapture(event.pointerId);
+    } catch {
+      // Mobile Safari can reject capture during browser/UI transitions. The
+      // window-level release guards above remain authoritative in that case.
+    }
     setActive(true);
     updateFromPointer(event);
   };
@@ -96,14 +121,24 @@ export default function SkyDancerArcadeVirtualPad() {
   const onPointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (pointerRef.current !== event.pointerId) return;
     event.preventDefault();
+    // Desktop/debug safety: if an up event vanished but the browser reports no
+    // mouse buttons on the next move, force the same neutral recovery path.
+    if (event.pointerType === "mouse" && event.buttons === 0) {
+      reset();
+      return;
+    }
     updateFromPointer(event);
   };
 
   const onPointerEnd = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (pointerRef.current !== event.pointerId) return;
     event.preventDefault();
-    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
-      event.currentTarget.releasePointerCapture(event.pointerId);
+    try {
+      if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+        event.currentTarget.releasePointerCapture(event.pointerId);
+      }
+    } catch {
+      // Capture state can already be gone after Safari lifecycle transitions.
     }
     reset();
   };
