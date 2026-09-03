@@ -1,0 +1,35 @@
+name: Apply SKY RAID review pass
+
+on:
+  push:
+    paths:
+      - .github/workflows/apply-sky-raid-review-pass.yml
+      - scripts/apply-sky-raid-review-pass.mjs
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.13.0
+      - name: Apply review pass
+        run: node scripts/apply-sky-raid-review-pass.mjs
+      - name: Commit source improvements
+        run: |
+          if git diff --quiet -- src/cart/CartRoguePhase67TurboHunt.ts app/SkyDancerHudV45.tsx; then
+            echo "No source changes required"
+            exit 0
+          fi
+          git config user.name "yz4git"
+          git config user.email "65384484+yz4git@users.noreply.github.com"
+          git add src/cart/CartRoguePhase67TurboHunt.ts app/SkyDancerHudV45.tsx
+          git commit -m "Improve SKY RAID combat readability and missile kill flow"
+          git push origin HEAD:main
