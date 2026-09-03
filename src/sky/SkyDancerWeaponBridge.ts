@@ -1,12 +1,14 @@
 import type { RallyInputState } from "../rally/RallyTypes";
 import { CartArenaSession } from "../cart/CartArenaSession";
 import {
+  getSkyDancerPlayerLockSnapshotV45,
   getSkyDancerPlayerWeaponState,
   requestSkyDancerPlayerMissile,
 } from "./SkyDancerPlayerWeapons";
 
 let activeSession: CartArenaSession | null = null;
 const WEAPON_LOOP_PATCH_KEY = "__skyDancerPlayerWeaponLoopInstalled__";
+const WEAPON_AUDIT_KEY = "__skyDancerGetActiveWeaponDebug";
 
 /**
  * Keep player missiles advancing even when a presentation pass is skipped.
@@ -33,13 +35,37 @@ function installSkyDancerPlayerWeaponLoop(): void {
 
 installSkyDancerPlayerWeaponLoop();
 
+function activeWeaponDebug() {
+  if (!activeSession) return null;
+  const lock = getSkyDancerPlayerLockSnapshotV45(activeSession);
+  const weapon = getSkyDancerPlayerWeaponState(activeSession);
+  const target = lock.targetEnemyId
+    ? activeSession.enemies.find((enemy) => enemy.id === lock.targetEnemyId) ?? null
+    : null;
+  return {
+    lock,
+    weapon,
+    target: target ? { id: target.id, hp: target.hp, maxHp: target.maxHp, alive: target.alive } : null,
+  };
+}
+
+function installWeaponAuditBridge(): void {
+  if (typeof window === "undefined" || typeof navigator === "undefined" || !navigator.webdriver) return;
+  (window as unknown as Record<string, unknown>)[WEAPON_AUDIT_KEY] = activeWeaponDebug;
+}
+
 /** Keep the SHOT control bound to the renderer that is actually on screen. */
 export function bindSkyDancerWeaponSession(session: CartArenaSession): void {
   activeSession = session;
+  installWeaponAuditBridge();
 }
 
 export function unbindSkyDancerWeaponSession(session: CartArenaSession): void {
-  if (activeSession === session) activeSession = null;
+  if (activeSession !== session) return;
+  activeSession = null;
+  if (typeof window !== "undefined") {
+    delete (window as unknown as Record<string, unknown>)[WEAPON_AUDIT_KEY];
+  }
 }
 
 export function fireSkyDancerActiveWeapon(): boolean {
