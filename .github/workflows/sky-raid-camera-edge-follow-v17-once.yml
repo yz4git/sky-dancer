@@ -41,7 +41,7 @@ jobs:
           cat /tmp/sky-raid-v17-http.log
           exit 1
       - name: Real browser altitude-edge playcheck
-        run: node scripts/webgl-sky-raid-camera-edge-v17.cjs
+        run: node scripts/webgl-sky-raid-camera-edge-v17.mjs
       - name: Upload audit artifact
         if: always()
         uses: actions/upload-artifact@v4
