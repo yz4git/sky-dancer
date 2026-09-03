@@ -8,6 +8,8 @@ const chromium = playwrightModule.chromium ?? playwrightModule.default?.chromium
 if (!chromium) throw new Error("playwright chromium export missing");
 
 const out = "artifacts/sky-raid-v17";
+const desiredPlayerNdcY = -0.22;
+const baselineFrameTolerance = 0.30;
 let browser;
 let context;
 let page;
@@ -62,7 +64,9 @@ try {
 
   const baseline = await camera();
   if (!baseline.playerVisible) throw new Error("aircraft not visible after SKY RAID presentation settle");
-  if (Math.abs(baseline.playerNdcY) > 0.52) throw new Error(`baseline framing too close to edge after settle: ${baseline.playerNdcY}`);
+  if (Math.abs(baseline.playerNdcY - desiredPlayerNdcY) > baselineFrameTolerance) {
+    throw new Error(`baseline missed intended combat framing: ${baseline.playerNdcY} target=${desiredPlayerNdcY}`);
+  }
   await screenshot("00-baseline-flight.png");
   await beginVerticalHold(0.07);
   await page.waitForTimeout(1500);
@@ -95,7 +99,7 @@ try {
   await page.mouse.up();
   await clearAuditAltitude();
 
-  const report = { baseline, realClimb, high, beforeDive, realDive, low, errors };
+  const report = { desiredPlayerNdcY, baselineFrameTolerance, baseline, realClimb, high, beforeDive, realDive, low, errors };
   fs.writeFileSync(path.join(out, "report.json"), JSON.stringify(report, null, 2));
   if (errors.length) throw new Error(JSON.stringify(errors));
   console.log("SKY RAID V18 PASS", JSON.stringify(report));

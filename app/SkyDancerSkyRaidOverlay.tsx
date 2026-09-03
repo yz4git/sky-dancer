@@ -63,16 +63,23 @@ export default function SkyDancerSkyRaidOverlay() {
         border-top-width: 1px !important;
         border-bottom-width: 1px !important;
       }
+      .${styles.actBanner} {
+        top: 17% !important;
+        max-width: min(42vw, 250px) !important;
+        padding: 3px 10px 4px !important;
+      }
       .${styles.actBanner} strong, .${styles.rushBanner} strong, .${styles.bossCue} strong {
         margin-top: 2px !important;
         font-size: clamp(12px, 2vw, 18px) !important;
         letter-spacing: .10em !important;
       }
+      .${styles.actBanner} strong { font-size: clamp(11px, 1.65vw, 15px) !important; }
       .${styles.actBanner} small, .${styles.rushBanner} small, .${styles.bossCue} small,
       .${styles.actBanner} span, .${styles.rushBanner} span, .${styles.bossCue} span {
         font-size: clamp(6px, .72vw, 8px) !important;
         letter-spacing: .09em !important;
       }
+      .${styles.actBanner} span { display: none !important; }
       .${styles.rushBanner} { top: 23% !important; }
       .${styles.bossCue} { top: 24% !important; }
       @media(max-height:390px) {
@@ -83,7 +90,9 @@ export default function SkyDancerSkyRaidOverlay() {
           max-width: min(44vw, 280px) !important;
           padding: 3px 10px 4px !important;
         }
-        .${styles.actBanner} strong, .${styles.rushBanner} strong, .${styles.bossCue} strong { font-size: 13px !important; }
+        .${styles.actBanner} { top: 16.5% !important; max-width: min(38vw, 230px) !important; padding: 2px 9px 3px !important; }
+        .${styles.actBanner} strong { font-size: 11px !important; }
+        .${styles.rushBanner} strong, .${styles.bossCue} strong { font-size: 13px !important; }
         .${styles.actBanner} span, .${styles.rushBanner} span, .${styles.bossCue} span { display: none !important; }
       }
     `}</style>
@@ -110,7 +119,7 @@ export default function SkyDancerSkyRaidOverlay() {
         <span>{snapshot.chain > 1 ? `CHAIN ×${snapshot.chain} · ` : ""}MULTI ×{snapshot.multiplier.toFixed(2)}</span>
       </div>
 
-      {snapshot.actElapsedSeconds < 2.4 && !snapshot.clear && (
+      {snapshot.actElapsedSeconds < 1.6 && !snapshot.clear && (
         <div className={styles.actBanner}>
           <small>ACT {snapshot.actIndex + 1} · {snapshot.setpiece}</small>
           <strong>{snapshot.actLabel}</strong>

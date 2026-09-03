@@ -6,6 +6,11 @@ interface CameraPresentationRuntime extends SkyDancerFxRuntime {
   applyCameraPresentation?(snapshot: CartArenaSessionSnapshot): void;
 }
 
+const SKY_RAID_DESIRED_PLAYER_NDC_Y = -0.22;
+const SKY_RAID_SAFE_FRAME_TOLERANCE = 0.30;
+const SKY_RAID_MIN_ALTITUDE = 20;
+const SKY_RAID_MAX_ALTITUDE = 64;
+
 function scheduleInstall(install: () => void): void {
   if (typeof queueMicrotask === "function") queueMicrotask(install);
   else install();
@@ -25,9 +30,9 @@ function isSkyRaidMode(): boolean {
  * hit shake and screen-space edge framing. Rebuilding its full orientation here
  * would create two competing camera owners and can make the world appear to
  * rotate or slide independently of the aircraft. Preserve that authored pose
- * whenever it is already safe, and use the player-relative camera below only as
- * a final emergency fallback if a later decorator ever pushes the aircraft out
- * of the safe frame.
+ * whenever the aircraft is already close to the intended lower-middle combat
+ * framing, and use the player-relative camera below only as a final emergency
+ * fallback if a later decorator or startup handoff leaves it in the wrong band.
  */
 function finalizeSkyRaidCamera(
   runtime: CameraPresentationRuntime,
@@ -40,7 +45,11 @@ function finalizeSkyRaidCamera(
     && Math.abs(inheritedProjection.y) <= 1
     && inheritedProjection.z >= -1
     && inheritedProjection.z <= 1;
-  const inheritedSafe = inheritedVisible && Math.abs(inheritedProjection.y) <= 0.52;
+  const inheritedFrameError = inheritedProjection.y - SKY_RAID_DESIRED_PLAYER_NDC_Y;
+  const inheritedSafe = inheritedVisible && Math.abs(inheritedFrameError) <= SKY_RAID_SAFE_FRAME_TOLERANCE;
+
+  runtime.scene.userData.skyRaidFinalCameraDesiredPlayerNdcY = SKY_RAID_DESIRED_PLAYER_NDC_Y;
+  runtime.scene.userData.skyRaidFinalCameraFrameError = inheritedFrameError;
 
   if (inheritedSafe) {
     runtime.scene.userData.skyRaidFinalCameraOwner = "v35-final-player-relative";
@@ -50,11 +59,12 @@ function finalizeSkyRaidCamera(
     return;
   }
 
-  const altitude = Number(runtime.scene.userData.skyRaidPlayerAltitude ?? 0);
+  const altitude = Number(runtime.scene.userData.skyRaidPlayerAltitude ?? SKY_RAID_MIN_ALTITUDE);
   const verticalSpeed = Number(runtime.scene.userData.skyRaidPlayerVerticalSpeed ?? 0);
   const pitch = Number(runtime.scene.userData.skyRaidPlayerPitch ?? 0);
   const bank = Number(runtime.scene.userData.skyRaidPlayerBank ?? 0);
-  const normalizedAltitude = THREE.MathUtils.clamp((altitude + 18) / 82, 0, 1);
+  const altitudeRange = Math.max(1, SKY_RAID_MAX_ALTITUDE - SKY_RAID_MIN_ALTITUDE);
+  const normalizedAltitude = THREE.MathUtils.clamp((altitude - SKY_RAID_MIN_ALTITUDE) / altitudeRange, 0, 1);
   const edgeDistance = Math.min(normalizedAltitude, 1 - normalizedAltitude);
   const altitudeEdgeBlend = 1 - THREE.MathUtils.smoothstep(edgeDistance, 0, 0.18);
   const leadScale = 1 - altitudeEdgeBlend * 0.92;
@@ -77,6 +87,7 @@ function finalizeSkyRaidCamera(
   runtime.scene.userData.skyRaidFinalCameraOwner = "v35-final-player-relative";
   runtime.scene.userData.skyRaidFinalCameraFallback = true;
   runtime.scene.userData.skyRaidFinalCameraPlayerNdcY = playerProjection.y;
+  runtime.scene.userData.skyRaidFinalCameraFrameError = playerProjection.y - SKY_RAID_DESIRED_PLAYER_NDC_Y;
   runtime.scene.userData.skyRaidFinalCameraPlayerVisible = Math.abs(playerProjection.x) <= 1 && Math.abs(playerProjection.y) <= 1 && playerProjection.z >= -1 && playerProjection.z <= 1;
 }
 
