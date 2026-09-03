@@ -64,11 +64,23 @@ function stripDuplicateAtmosphere(root: THREE.Object3D): void {
   });
 }
 
+function freeFlightSectorRadius(stage: SkyDancerArcadeStageDefinition): number {
+  switch (stage.biome) {
+    case "city": return 168;
+    case "canyon": return 214;
+    case "cloud": return 206;
+    case "storm": return 218;
+    case "citadel": return 184;
+    default: return 196;
+  }
+}
+
 /**
  * SKY RAID keeps the Arcade Run art language but presents it as a spatial world.
- * The original authored corridor is one sector; two lightweight geometry clones
- * are rotated around the ACT anchor so a 360-degree turn still sees the same
- * architecture, fleets, canyon forms and citadel language instead of empty sky.
+ * The original authored corridor remains the hero sector. Two geometry-sharing
+ * secondary sectors are placed out around the free-flight area at +/-120 degrees,
+ * rather than stacked at the player's origin. Turning therefore reveals more of
+ * the same Arcade Run world without piling three corridors on top of one another.
  * Nothing follows aircraft heading or elapsed time, so this remains true free flight.
  */
 export class SkyDancerSkyRaidArcadeWorld {
@@ -93,6 +105,24 @@ export class SkyDancerSkyRaidArcadeWorld {
     this.freeFlightCopies.length = 0;
   }
 
+  private positionFreeFlightSector(copy: THREE.Group, angle: number, index: number): void {
+    if (!this.stage) return;
+    const yaw = this.anchorYaw + angle;
+    const radius = freeFlightSectorRadius(this.stage);
+    // Arcade Run local forward is -Z. Offset each auxiliary corridor in its own
+    // forward direction so it reads as a neighboring district/formation, not a
+    // second copy occupying the same physical space as the hero corridor.
+    const forwardX = -Math.sin(yaw);
+    const forwardZ = -Math.cos(yaw);
+    copy.position.set(
+      this.anchorX + forwardX * radius,
+      -0.035 * (index + 1),
+      this.anchorZ + forwardZ * radius,
+    );
+    copy.rotation.set(0, yaw, 0);
+    copy.userData.skyRaidFreeFlightSectorRadius = radius;
+  }
+
   private buildFreeFlightCopies(): void {
     this.clearFreeFlightCopies();
     const source = this.scene.getObjectByName("arcade-course-environment");
@@ -105,9 +135,8 @@ export class SkyDancerSkyRaidArcadeWorld {
       copy.name = FREE_FLIGHT_COPY_NAME;
       copy.userData.skyRaidFreeFlightSector = index + 1;
       copy.userData.skyRaidFreeFlightSectorAngle = angle;
-      copy.position.set(this.anchorX, -0.035 * (index + 1), this.anchorZ);
-      copy.rotation.set(0, this.anchorYaw + angle, 0);
       stripDuplicateAtmosphere(copy);
+      this.positionFreeFlightSector(copy, angle, index);
       this.scene.add(copy);
       this.freeFlightCopies.push(copy);
     });
@@ -131,8 +160,8 @@ export class SkyDancerSkyRaidArcadeWorld {
       this.stage = skyDancerArcadeStageById(actId as SkyDancerArcadeStageId);
       this.environment.setStage(this.stage);
 
-      // Arcade Run local forward is -Z while Sky Dancer heading 0 travels +Z.
-      // Capture the conversion only once per ACT. The world never chases the plane.
+      // Capture the Arcade Run-to-free-flight frame once per ACT. The world never
+      // chases the plane after this point.
       this.anchorX = x;
       this.anchorZ = z;
       this.anchorYaw = heading + Math.PI;
@@ -146,8 +175,7 @@ export class SkyDancerSkyRaidArcadeWorld {
 
     this.environment.setWorldFrame(this.anchorX, 0, this.anchorZ, this.anchorYaw);
     this.freeFlightCopies.forEach((copy, index) => {
-      copy.position.set(this.anchorX, -0.035 * (index + 1), this.anchorZ);
-      copy.rotation.set(0, this.anchorYaw + FREE_FLIGHT_SECTOR_ANGLES[index], 0);
+      this.positionFreeFlightSector(copy, FREE_FLIGHT_SECTOR_ANGLES[index], index);
     });
 
     this.scene.userData.skyRaidArcadeReferenceStage = this.stage.id;
@@ -157,6 +185,7 @@ export class SkyDancerSkyRaidArcadeWorld {
     this.scene.userData.skyRaidArcadeWorldAnchorZ = this.anchorZ;
     this.scene.userData.skyRaidArcadeWorldLocked = true;
     this.scene.userData.skyRaidArcadeFreeFlightSectorCount = 1 + this.freeFlightCopies.length;
+    this.scene.userData.skyRaidArcadeFreeFlightSectorRadius = freeFlightSectorRadius(this.stage);
   }
 
   dispose(): void {
