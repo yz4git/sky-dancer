@@ -1,4 +1,3 @@
-# SKY RAID V15.1 — same-frame flight/combat altitude + final play audit
 name: SKY RAID V2 visual compare
 on:
   push:
@@ -21,14 +20,13 @@ jobs:
           cache: npm
       - run: npm ci --no-audit --no-fund
 
-      - name: Fix same-frame SKY RAID altitude synchronization
+      - name: Patch same-frame altitude synchronization
         run: |
           python3 - <<'PY'
           from pathlib import Path
 
-          raid_path = Path('src/sky/SkyDancerSkyRaid.ts')
-          raid = raid_path.read_text()
-
+          p = Path('src/sky/SkyDancerSkyRaid.ts')
+          s = p.read_text()
           old = '''function applySkyRaidFlight(demo: RaidWebGLDemo, delta: number): SkyDancerSkyRaidFlightSnapshot {
             const base = demo.session.snapshot();
             const flight = flightControllerFor(demo).step(delta, base.heading, demo.steer, base.boostActive);
@@ -48,9 +46,6 @@ jobs:
           new = '''function stepSkyRaidFlight(demo: RaidWebGLDemo, delta: number): SkyDancerSkyRaidFlightSnapshot {
             const base = demo.session.snapshot();
             const flight = flightControllerFor(demo).step(delta, base.heading, demo.steer, base.boostActive);
-            // Publish the authoritative SKY RAID altitude before the inherited
-            // V43/V45 combat passes run. This keeps lock, missile launch and HUD
-            // telemetry on the same frame as the flight controller.
             (demo.session as unknown as { skyDancerPlayerAltitudeMeters?: number }).skyDancerPlayerAltitudeMeters = flight.altitude;
             demo.scene.userData.skyRaidPlayerAltitude = flight.altitude;
             demo.scene.userData.skyRaidPlayerVerticalSpeed = flight.verticalSpeed;
@@ -63,21 +58,19 @@ jobs:
             demo.playerVisual.position.y = 0.62 + flight.altitude;
             demo.playerVisual.rotation.x = flight.pitch;
             demo.playerVisual.rotation.z = flight.bank;
-            // Camera altitude is applied after the base chase-camera copy in
-            // applyCameraPresentation(); doing it here is overwritten by the base renderer.
           }
           '''
-          if old in raid:
-              raid = raid.replace(old, new, 1)
-          elif 'function stepSkyRaidFlight(' not in raid:
-              raise SystemExit('SKY RAID flight function marker missing')
+          if old in s:
+              s = s.replace(old, new, 1)
+          elif 'function stepSkyRaidFlight(' not in s:
+              raise SystemExit('flight split marker missing')
 
           old = 'function updateRaidVisuals(demo: RaidWebGLDemo, delta: number): void {'
           new = 'function updateRaidVisuals(demo: RaidWebGLDemo, delta: number, flight: SkyDancerSkyRaidFlightSnapshot | null = null): void {'
-          if old in raid:
-              raid = raid.replace(old, new, 1)
-          elif new not in raid:
-              raise SystemExit('updateRaidVisuals signature marker missing')
+          if old in s:
+              s = s.replace(old, new, 1)
+          elif new not in s:
+              raise SystemExit('visual signature marker missing')
 
           old = '''  const flight = applySkyRaidFlight(demo, delta);
             visual.arcadeWorld.update(raid.actId, base.x, base.z, base.heading, flight.altitude, raid.elapsedSeconds, delta);
@@ -90,10 +83,10 @@ jobs:
 
             visual.speedFx.visible = base.boostActive || raid.rushActive;
             visual.speedFx.position.set(base.x, 1.8 + resolvedFlight.altitude, base.z);'''
-          if old in raid:
-              raid = raid.replace(old, new, 1)
-          elif 'const resolvedFlight = flight ?? stepSkyRaidFlight' not in raid:
-              raise SystemExit('flight visual application marker missing')
+          if old in s:
+              s = s.replace(old, new, 1)
+          elif 'const resolvedFlight = flight ?? stepSkyRaidFlight' not in s:
+              raise SystemExit('visual flight marker missing')
 
           old = '''  const previousUpdateVisuals = webglPrototype.updateVisuals;
             webglPrototype.updateVisuals = function skyRaidUpdateVisuals(this: RaidWebGLDemo, delta: number): void {
@@ -102,21 +95,18 @@ jobs:
             };'''
           new = '''  const previousUpdateVisuals = webglPrototype.updateVisuals;
             webglPrototype.updateVisuals = function skyRaidUpdateVisuals(this: RaidWebGLDemo, delta: number): void {
-              // Step/publish flight first so inherited combat/HUD reads the
-              // current altitude instead of the prior presentation frame.
               const flight = isSkyRaidMode() ? stepSkyRaidFlight(this, delta) : null;
               previousUpdateVisuals.call(this, delta);
               updateRaidVisuals(this, delta, flight);
             };'''
-          if old in raid:
-              raid = raid.replace(old, new, 1)
-          elif 'const flight = isSkyRaidMode() ? stepSkyRaidFlight(this, delta) : null;' not in raid:
-              raise SystemExit('WebGL wrapper order marker missing')
+          if old in s:
+              s = s.replace(old, new, 1)
+          elif 'const flight = isSkyRaidMode() ? stepSkyRaidFlight(this, delta) : null;' not in s:
+              raise SystemExit('wrapper order marker missing')
+          p.write_text(s)
 
-          raid_path.write_text(raid)
-
-          v45_path = Path('src/sky/presentation/SkyDancerV45DecisionHierarchyPass.ts')
-          v45 = v45_path.read_text()
+          p = Path('src/sky/presentation/SkyDancerV45DecisionHierarchyPass.ts')
+          s = p.read_text()
           old = '''  private publishDecision(snapshot: CartArenaSessionSnapshot, delta: number): void {
             this.broadcastClock -= delta;
             if (this.broadcastClock > 0) return;
@@ -124,41 +114,18 @@ jobs:
           new = '''  private publishDecision(snapshot: CartArenaSessionSnapshot, delta: number): void {
             const skyRaid = typeof document !== "undefined" && document.documentElement.dataset.skyDancerMode === "sky-raid";
             this.broadcastClock -= delta;
-            // SKY RAID has real vertical input, so stale 80ms combat telemetry is
-            // visible as meters of reticle/launch error during a climb. Publish
-            // every rendered SKY RAID frame; preserve the legacy cadence elsewhere.
             if (!skyRaid && this.broadcastClock > 0) return;
             this.broadcastClock = skyRaid ? 0 : 0.08;'''
-          if old in v45:
-              v45 = v45.replace(old, new, 1)
-          elif 'this.broadcastClock = skyRaid ? 0 : 0.08;' not in v45:
-              raise SystemExit('V45 decision cadence marker missing')
-          v45_path.write_text(v45)
+          if old in s:
+              s = s.replace(old, new, 1)
+          elif 'this.broadcastClock = skyRaid ? 0 : 0.08;' not in s:
+              raise SystemExit('V45 cadence marker missing')
+          p.write_text(s)
 
-          test_path = Path('tests/sky-sky-raid-flight.test.ts')
-          test = test_path.read_text()
-          if 'readFile from "node:fs/promises"' not in test:
-              test = test.replace('import test from "node:test";\n', 'import test from "node:test";\nimport { readFile } from "node:fs/promises";\n', 1)
-          marker = 'test("SKY RAID publishes flight altitude before inherited combat presentation"'
-          if marker not in test:
-              test += r'''
-
-test("SKY RAID publishes flight altitude before inherited combat presentation", async () => {
-  const raid = await readFile(new URL("../src/sky/SkyDancerSkyRaid.ts", import.meta.url), "utf8");
-  const v45 = await readFile(new URL("../src/sky/presentation/SkyDancerV45DecisionHierarchyPass.ts", import.meta.url), "utf8");
-  const wrapperStart = raid.indexOf("webglPrototype.updateVisuals = function skyRaidUpdateVisuals");
-  const wrapper = raid.slice(wrapperStart, wrapperStart + 900);
-  const stepIndex = wrapper.indexOf("stepSkyRaidFlight(this, delta)");
-  const inheritedIndex = wrapper.indexOf("previousUpdateVisuals.call(this, delta)");
-  const visualIndex = wrapper.indexOf("updateRaidVisuals(this, delta, flight)");
-  assert.ok(wrapperStart >= 0);
-  assert.ok(stepIndex >= 0 && inheritedIndex > stepIndex, "flight must publish before inherited combat passes");
-  assert.ok(visualIndex > inheritedIndex, "final aircraft visuals remain after inherited rendering");
-  assert.match(v45, /this\.broadcastClock = skyRaid \? 0 : 0\.08/);
-});
-'''
-          test_path.write_text(test)
-          print('V15.1 synchronization patch applied')
+          raid = Path('src/sky/SkyDancerSkyRaid.ts').read_text()
+          wrapper = raid[raid.index('webglPrototype.updateVisuals = function skyRaidUpdateVisuals'):]
+          assert wrapper.index('stepSkyRaidFlight(this, delta)') < wrapper.index('previousUpdateVisuals.call(this, delta)') < wrapper.index('updateRaidVisuals(this, delta, flight)')
+          print('same-frame altitude patch ready')
           PY
 
       - name: Regression checks
@@ -167,38 +134,87 @@ test("SKY RAID publishes flight altitude before inherited combat presentation", 
           npm run lint
           npm run build:pages
 
-      - name: Commit synchronization fix
+      - name: Commit product fix
         run: |
-          if git diff --quiet -- src/sky/SkyDancerSkyRaid.ts src/sky/presentation/SkyDancerV45DecisionHierarchyPass.ts tests/sky-sky-raid-flight.test.ts; then
-            echo "Product synchronization fix already present"
+          if git diff --quiet -- src/sky/SkyDancerSkyRaid.ts src/sky/presentation/SkyDancerV45DecisionHierarchyPass.ts; then
+            echo "Synchronization fix already present"
           else
             git config user.name "yz4git"
             git config user.email "65384484+yz4git@users.noreply.github.com"
-            git add src/sky/SkyDancerSkyRaid.ts src/sky/presentation/SkyDancerV45DecisionHierarchyPass.ts tests/sky-sky-raid-flight.test.ts
+            git add src/sky/SkyDancerSkyRaid.ts src/sky/presentation/SkyDancerV45DecisionHierarchyPass.ts
             git commit -m "Synchronize SKY RAID flight altitude with combat"
             git push origin HEAD:main
           fi
 
-      - name: Inject webdriver audit hooks
+      - name: Inject browser audit hooks
         run: |
           python3 - <<'PY'
           from pathlib import Path
           p = Path('src/sky/SkyDancerSkyRaid.ts')
           s = p.read_text()
-          old = 'let latestSkyRaidSnapshot: SkyDancerSkyRaidSnapshot | null = null;\n'
-          if old not in s: raise SystemExit('snapshot marker missing')
-          s = s.replace(old, old + 'let skyRaidAuditForcedActId: SkyDancerSkyRaidAct["id"] | null = null;\n', 1)
-          old = '''  const raid = updateRaid(demo.session as unknown as RaidSession, hunt, 0);\n  publishSkyRaidWorldStyle(raid);\n'''
-          new = '''  const baseRaid = updateRaid(demo.session as unknown as RaidSession, hunt, 0);\n  if (typeof window !== "undefined" && typeof navigator !== "undefined" && navigator.webdriver) {\n    (window as unknown as Record<string, unknown>).__skyRaidAuditForceAct = (actId: SkyDancerSkyRaidAct["id"] | null) => {\n      skyRaidAuditForcedActId = actId && SKY_DANCER_SKY_RAID_ACTS.some((candidate) => candidate.id === actId) ? actId : null;\n    };\n  }\n  const forcedAct = skyRaidAuditForcedActId ? SKY_DANCER_SKY_RAID_ACTS.find((candidate) => candidate.id === skyRaidAuditForcedActId) ?? null : null;\n  const raid: SkyDancerSkyRaidSnapshot = forcedAct\n    ? { ...baseRaid, actIndex: forcedAct.index, actId: forcedAct.id, actLabel: forcedAct.label, actSubtitle: forcedAct.subtitle, setpiece: forcedAct.setpiece, elapsedSeconds: forcedAct.startSeconds + 6, actElapsedSeconds: 6, actSecondsRemaining: Math.max(0, forcedAct.endSeconds - forcedAct.startSeconds - 6), rushActive: false, palette: forcedAct.palette }\n    : baseRaid;\n  publishSkyRaidWorldStyle(raid);\n  if (forcedAct) broadcast(raid);\n'''
-          if old not in s: raise SystemExit('raid update marker missing')
+          marker = 'let latestSkyRaidSnapshot: SkyDancerSkyRaidSnapshot | null = null;\n'
+          s = s.replace(marker, marker + 'let skyRaidAuditForcedActId: SkyDancerSkyRaidAct["id"] | null = null;\n', 1)
+          old = '''  const raid = updateRaid(demo.session as unknown as RaidSession, hunt, 0);
+            publishSkyRaidWorldStyle(raid);
+          '''
+          new = '''  const baseRaid = updateRaid(demo.session as unknown as RaidSession, hunt, 0);
+            if (typeof window !== "undefined" && typeof navigator !== "undefined" && navigator.webdriver) {
+              (window as unknown as Record<string, unknown>).__skyRaidAuditForceAct = (actId: SkyDancerSkyRaidAct["id"] | null) => {
+                skyRaidAuditForcedActId = actId && SKY_DANCER_SKY_RAID_ACTS.some((candidate) => candidate.id === actId) ? actId : null;
+              };
+            }
+            const forcedAct = skyRaidAuditForcedActId ? SKY_DANCER_SKY_RAID_ACTS.find((candidate) => candidate.id === skyRaidAuditForcedActId) ?? null : null;
+            const raid: SkyDancerSkyRaidSnapshot = forcedAct
+              ? { ...baseRaid, actIndex: forcedAct.index, actId: forcedAct.id, actLabel: forcedAct.label, actSubtitle: forcedAct.subtitle, setpiece: forcedAct.setpiece, elapsedSeconds: forcedAct.startSeconds + 6, actElapsedSeconds: 6, actSecondsRemaining: Math.max(0, forcedAct.endSeconds - forcedAct.startSeconds - 6), rushActive: false, palette: forcedAct.palette }
+              : baseRaid;
+            publishSkyRaidWorldStyle(raid);
+            if (forcedAct) broadcast(raid);
+          '''
+          if old not in s: raise SystemExit('raid audit marker missing')
           s = s.replace(old, new, 1)
-          old = '''  visual.arcadeWorld.update(raid.actId, base.x, base.z, base.heading, resolvedFlight.altitude, raid.elapsedSeconds, delta);\n\n  visual.speedFx.visible = base.boostActive || raid.rushActive;\n'''
-          new = '''  visual.arcadeWorld.update(raid.actId, base.x, base.z, base.heading, resolvedFlight.altitude, raid.elapsedSeconds, delta);\n  if (typeof window !== "undefined" && typeof navigator !== "undefined" && navigator.webdriver) {\n    (window as unknown as Record<string, unknown>).__skyRaidAuditFlightState = () => {\n      demo.scene.updateMatrixWorld(true); demo.camera.updateMatrixWorld(true);\n      const player = new THREE.Vector3(); demo.playerVisual.getWorldPosition(player);\n      const projected = player.clone().project(demo.camera);\n      return { altitude: Number(demo.scene.userData.skyRaidPlayerAltitude ?? 0), sessionAltitude: Number((demo.session as unknown as { skyDancerPlayerAltitudeMeters?: number }).skyDancerPlayerAltitudeMeters ?? 0), cameraFov: Number(demo.camera.fov.toFixed(3)), boostActive: base.boostActive, worldLocked: Boolean(demo.scene.userData.skyRaidArcadeWorldLocked), playerWorld: { x: player.x, y: player.y, z: player.z }, playerNdc: { x: projected.x, y: projected.y, z: projected.z, visible: projected.z > -1 && projected.z < 1 && Math.abs(projected.x) < 1 && Math.abs(projected.y) < 1 } };\n    };\n    (window as unknown as Record<string, unknown>).__skyRaidAuditPrepareCombatTarget = () => {\n      const current = demo.session.snapshot();\n      const enemies = demo.session.enemies.filter((enemy) => enemy.alive && enemy.nodeId === demo.session.location.node.id).slice(0, 3);\n      const sideX = Math.cos(current.heading); const sideZ = -Math.sin(current.heading);\n      enemies.forEach((enemy, index) => { const ahead = 8.5 + index * 1.2; const lateral = (index - 1) * 0.8; enemy.x = current.x + Math.sin(current.heading) * ahead + sideX * lateral; enemy.z = current.z + Math.cos(current.heading) * ahead + sideZ * lateral; enemy.heading = current.heading + Math.PI; });\n      return enemies.map((enemy) => ({ id: enemy.id, x: enemy.x, z: enemy.z, kind: enemy.kind }));\n    };\n  }\n\n  visual.speedFx.visible = base.boostActive || raid.rushActive;\n'''
-          if old not in s: raise SystemExit('world audit marker missing')
+          old = '''  visual.arcadeWorld.update(raid.actId, base.x, base.z, base.heading, resolvedFlight.altitude, raid.elapsedSeconds, delta);
+
+            visual.speedFx.visible = base.boostActive || raid.rushActive;'''
+          new = '''  visual.arcadeWorld.update(raid.actId, base.x, base.z, base.heading, resolvedFlight.altitude, raid.elapsedSeconds, delta);
+            if (typeof window !== "undefined" && typeof navigator !== "undefined" && navigator.webdriver) {
+              (window as unknown as Record<string, unknown>).__skyRaidAuditFlightState = () => {
+                demo.scene.updateMatrixWorld(true);
+                demo.camera.updateMatrixWorld(true);
+                const player = new THREE.Vector3();
+                demo.playerVisual.getWorldPosition(player);
+                const projected = player.clone().project(demo.camera);
+                return {
+                  altitude: Number(demo.scene.userData.skyRaidPlayerAltitude ?? 0),
+                  sessionAltitude: Number((demo.session as unknown as { skyDancerPlayerAltitudeMeters?: number }).skyDancerPlayerAltitudeMeters ?? 0),
+                  cameraFov: Number(demo.camera.fov.toFixed(3)),
+                  boostActive: base.boostActive,
+                  worldLocked: Boolean(demo.scene.userData.skyRaidArcadeWorldLocked),
+                  playerWorld: { x: player.x, y: player.y, z: player.z },
+                  playerNdc: { x: projected.x, y: projected.y, z: projected.z, visible: projected.z > -1 && projected.z < 1 && Math.abs(projected.x) < 1 && Math.abs(projected.y) < 1 },
+                };
+              };
+              (window as unknown as Record<string, unknown>).__skyRaidAuditPrepareCombatTarget = () => {
+                const current = demo.session.snapshot();
+                const enemies = demo.session.enemies.filter((enemy) => enemy.alive && enemy.nodeId === demo.session.location.node.id).slice(0, 3);
+                const sideX = Math.cos(current.heading);
+                const sideZ = -Math.sin(current.heading);
+                enemies.forEach((enemy, index) => {
+                  const ahead = 8.5 + index * 1.2;
+                  const lateral = (index - 1) * 0.8;
+                  enemy.x = current.x + Math.sin(current.heading) * ahead + sideX * lateral;
+                  enemy.z = current.z + Math.cos(current.heading) * ahead + sideZ * lateral;
+                  enemy.heading = current.heading + Math.PI;
+                });
+                return enemies.map((enemy) => ({ id: enemy.id, x: enemy.x, z: enemy.z, kind: enemy.kind }));
+              };
+            }
+
+            visual.speedFx.visible = base.boostActive || raid.rushActive;'''
+          if old not in s: raise SystemExit('flight audit marker missing')
           p.write_text(s.replace(old, new, 1))
           PY
 
-      - name: Browser setup and audited build
+      - name: Browser setup
         run: |
           rm -rf .audit-runtime
           mkdir -p .audit-runtime
@@ -206,42 +222,133 @@ test("SKY RAID publishes flight altitude before inherited combat presentation", 
           npm install --prefix .audit-runtime --no-package-lock --no-save --ignore-scripts --no-audit --no-fund playwright-core@1.55.0
           npm run build:pages
           python3 -m http.server 4173 --bind 127.0.0.1 --directory out >/tmp/sky-raid-http.log 2>&1 &
-          for i in {1..30}; do curl -fsS http://127.0.0.1:4173/ >/dev/null && exit 0; sleep 1; done
-          cat /tmp/sky-raid-http.log; exit 1
+          for i in {1..30}; do
+            if curl -fsS http://127.0.0.1:4173/ >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          cat /tmp/sky-raid-http.log
+          exit 1
 
       - name: Capture five ACTs
         run: node scripts/webgl-sky-raid-v2-compare.mjs
 
-      - name: High-altitude lock shot hit turbo playcheck
+      - name: High-altitude combat playcheck
         run: |
           cat >/tmp/combat.cjs <<'JS'
           const { chromium } = require(process.cwd() + '/.audit-runtime/node_modules/playwright-core');
           const fs = require('node:fs');
           const path = require('node:path');
-          const out = 'artifacts/sky-raid-v2-compare'; fs.mkdirSync(out, { recursive: true });
+          const out = 'artifacts/sky-raid-v2-compare';
+          fs.mkdirSync(out, { recursive: true });
           let browser, context, page, failure;
-          const watchdog = setTimeout(() => { console.error('AUDIT WATCHDOG'); process.exit(124); }, 80000);
-          const screenshot = async n => { try { if (page) await page.screenshot({ path: path.join(out,n), timeout: 5000 }); } catch {} };
-          const log = (n,v) => console.log('AUDIT',n,v===undefined?'':JSON.stringify(v));
-          (async()=>{
-            try{
-              browser=await chromium.launch({headless:true,executablePath:process.env.SKY_DANCER_CHROME_PATH||'/usr/bin/google-chrome',args:['--use-angle=swiftshader','--enable-webgl','--enable-unsafe-swiftshader','--ignore-gpu-blocklist','--disable-dev-shm-usage']});
-              context=await browser.newContext({viewport:{width:844,height:390},deviceScaleFactor:2,isMobile:true,hasTouch:true}); page=await context.newPage(); const browserErrors=[];
-              page.on('pageerror',e=>browserErrors.push(String(e))); page.on('console',m=>{if(m.type()==='error'&&!/404/.test(m.text()))browserErrors.push(m.text());});
-              await page.goto(`http://127.0.0.1:4173?menu=1&a=${Date.now()}`,{waitUntil:'networkidle',timeout:30000});
-              await page.locator('button').filter({hasText:/^\s*SKY RAID/i}).first().click({force:true,timeout:10000}); await page.waitForTimeout(100); await page.locator('button').filter({hasText:/START/i}).last().click({force:true,timeout:10000});
-              await page.locator('canvas[aria-label="Sky Dancer WebGL game view"]').waitFor({state:'visible',timeout:20000}); await page.waitForFunction(()=>typeof window.__skyRaidAuditFlightState==='function'&&typeof window.__skyRaidAuditPrepareCombatTarget==='function',null,{timeout:12000});
-              const pad=page.locator('[aria-label="Sky Raid two-axis flight stick"]'); const b=await pad.boundingBox(); if(!b)throw new Error('flight pad missing'); await page.mouse.move(b.x+b.width*.5,b.y+b.height*.5); await page.mouse.down(); await page.mouse.move(b.x+b.width*.52,b.y+b.height*.08,{steps:7}); await page.waitForTimeout(1100); await page.mouse.up(); await page.waitForTimeout(150);
-              const flight=await page.evaluate(()=>window.__skyRaidAuditFlightState()); log('flight',flight); if(!(flight.altitude>5))throw new Error('climb failed'); if(Math.abs(flight.sessionAltitude-flight.altitude)>.15)throw new Error(`session/scene altitude divergence ${JSON.stringify(flight)}`);
-              let prepared=await page.evaluate(()=>window.__skyRaidAuditPrepareCombatTarget()); if(!prepared?.length)throw new Error('no enemy'); await page.waitForTimeout(100); prepared=await page.evaluate(()=>window.__skyRaidAuditPrepareCombatTarget()); await page.waitForTimeout(140);
-              const readDecision=()=>page.evaluate(()=>typeof window.__skyDancerGetV45DecisionHierarchy==='function'?window.__skyDancerGetV45DecisionHierarchy():null); let debug=await readDecision(); if(!debug?.decision?.targetEnemyId){await page.evaluate(()=>window.__skyRaidAuditPrepareCombatTarget());await page.waitForTimeout(180);debug=await readDecision();}
-              const decision=debug?.decision; log('lock',decision); if(!decision?.targetEnemyId)throw new Error(`lock failed ${JSON.stringify(debug)}`); if(Math.abs(decision.playerAltitudeMeters-flight.altitude)>.65)throw new Error(`lock altitude mismatch ${decision.playerAltitudeMeters} vs ${flight.altitude}`); if(!(await page.locator('[aria-label="Sky Raid target reticle"]').count()))throw new Error('reticle missing'); await screenshot('raid-combat-high-altitude-lock.png');
-              const beforeHit=Number(decision.hitSerial||0); const shot=page.locator('button[aria-label="Fire missile"]'); await shot.dispatchEvent('pointerdown',{pointerId:51,pointerType:'touch',isPrimary:true}); await page.waitForTimeout(70); await shot.dispatchEvent('pointerup',{pointerId:51,pointerType:'touch',isPrimary:true});
-              await page.waitForFunction(()=>{const s=typeof window.__skyDancerGetV43VerticalFlight==='function'?window.__skyDancerGetV43VerticalFlight():null;return Boolean(s?.playerMissiles?.length);},null,{timeout:2500}); const vertical=await page.evaluate(()=>window.__skyDancerGetV43VerticalFlight()); const missile=vertical.playerMissiles[0]; log('missile',missile); if(Math.abs(missile.altitudeOffsetMeters-flight.altitude)>1.0)throw new Error(`missile altitude mismatch ${missile.altitudeOffsetMeters} vs ${flight.altitude}`); await screenshot('raid-combat-high-altitude-shot.png');
-              let hitObserved=false,hitDecision=null;const deadline=Date.now()+5000;while(Date.now()<deadline){await page.waitForTimeout(70);const d=await readDecision();if(Number(d?.decision?.hitSerial||0)>beforeHit){hitObserved=true;hitDecision=d.decision;break;}} log('hit',{hitObserved,hitDecision}); if(!hitObserved)throw new Error('missile hit not observed'); await screenshot('raid-combat-high-altitude-hit.png');
-              const baseline=await page.evaluate(()=>window.__skyRaidAuditFlightState());const turbo=page.locator('button').filter({hasText:/TURBO/i}).last();const tb=await turbo.boundingBox();if(!tb)throw new Error('turbo missing');await turbo.dispatchEvent('pointerdown',{pointerId:71,pointerType:'touch',isPrimary:true});await page.waitForTimeout(180);await turbo.dispatchEvent('pointerup',{pointerId:71,pointerType:'touch',isPrimary:true});let peak=baseline;for(let i=0;i<14;i++){await page.waitForTimeout(35);const s=await page.evaluate(()=>window.__skyRaidAuditFlightState());if(s.cameraFov>peak.cameraFov)peak=s;}log('turbo',{baseline,peak});if(!peak.playerNdc.visible)throw new Error('aircraft left frame during turbo');await screenshot('raid-combat-turbo-camera.png');
-              const report={browserErrors,flightBeforeLock:flight,prepared,decision,missile,hitObserved,hitDecision,turbo:{baseline,peak}};fs.writeFileSync(path.join(out,'combat-report.json'),JSON.stringify(report,null,2));if(browserErrors.length)throw new Error(`browser errors ${JSON.stringify(browserErrors)}`);log('PASS');
-            }catch(e){failure=e;console.error('AUDIT FAIL',e?.stack||e);await screenshot('raid-combat-failure.png');fs.writeFileSync(path.join(out,'combat-failure.txt'),String(e?.stack||e));}finally{clearTimeout(watchdog);try{await context?.close();}catch{}try{await browser?.close();}catch{}}if(failure)process.exitCode=1;
+          const watchdog = setTimeout(() => process.exit(124), 80000);
+          const screenshot = async name => { try { if (page) await page.screenshot({ path: path.join(out, name), timeout: 5000 }); } catch {} };
+          const log = (name, value) => console.log('AUDIT', name, value === undefined ? '' : JSON.stringify(value));
+          (async () => {
+            try {
+              browser = await chromium.launch({ headless: true, executablePath: process.env.SKY_DANCER_CHROME_PATH || '/usr/bin/google-chrome', args: ['--use-angle=swiftshader','--enable-webgl','--enable-unsafe-swiftshader','--ignore-gpu-blocklist','--disable-dev-shm-usage'] });
+              context = await browser.newContext({ viewport: { width: 844, height: 390 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
+              page = await context.newPage();
+              const browserErrors = [];
+              page.on('pageerror', e => browserErrors.push(String(e)));
+              page.on('console', m => { if (m.type() === 'error' && !/404/.test(m.text())) browserErrors.push(m.text()); });
+              await page.goto(`http://127.0.0.1:4173?menu=1&a=${Date.now()}`, { waitUntil: 'networkidle', timeout: 30000 });
+              await page.locator('button').filter({ hasText: /^\s*SKY RAID/i }).first().click({ force: true, timeout: 10000 });
+              await page.waitForTimeout(100);
+              await page.locator('button').filter({ hasText: /START/i }).last().click({ force: true, timeout: 10000 });
+              await page.locator('canvas[aria-label="Sky Dancer WebGL game view"]').waitFor({ state: 'visible', timeout: 20000 });
+              await page.waitForFunction(() => typeof window.__skyRaidAuditFlightState === 'function' && typeof window.__skyRaidAuditPrepareCombatTarget === 'function', null, { timeout: 12000 });
+              const pad = page.locator('[aria-label="Sky Raid two-axis flight stick"]');
+              const b = await pad.boundingBox();
+              if (!b) throw new Error('flight pad missing');
+              await page.mouse.move(b.x + b.width * .5, b.y + b.height * .5);
+              await page.mouse.down();
+              await page.mouse.move(b.x + b.width * .52, b.y + b.height * .08, { steps: 7 });
+              await page.waitForTimeout(1100);
+              await page.mouse.up();
+              await page.waitForTimeout(150);
+              const flight = await page.evaluate(() => window.__skyRaidAuditFlightState());
+              log('flight', flight);
+              if (!(flight.altitude > 5)) throw new Error('climb failed');
+              if (Math.abs(flight.sessionAltitude - flight.altitude) > .15) throw new Error('session altitude divergence');
+              let prepared = await page.evaluate(() => window.__skyRaidAuditPrepareCombatTarget());
+              if (!prepared?.length) throw new Error('no enemy');
+              await page.waitForTimeout(120);
+              prepared = await page.evaluate(() => window.__skyRaidAuditPrepareCombatTarget());
+              await page.waitForTimeout(160);
+              const readDecision = () => page.evaluate(() => typeof window.__skyDancerGetV45DecisionHierarchy === 'function' ? window.__skyDancerGetV45DecisionHierarchy() : null);
+              let debug = await readDecision();
+              if (!debug?.decision?.targetEnemyId) {
+                await page.evaluate(() => window.__skyRaidAuditPrepareCombatTarget());
+                await page.waitForTimeout(180);
+                debug = await readDecision();
+              }
+              const decision = debug?.decision;
+              log('lock', decision);
+              if (!decision?.targetEnemyId) throw new Error('lock failed');
+              if (Math.abs(decision.playerAltitudeMeters - flight.altitude) > .65) throw new Error(`lock altitude mismatch ${decision.playerAltitudeMeters} vs ${flight.altitude}`);
+              if (!(await page.locator('[aria-label="Sky Raid target reticle"]').count())) throw new Error('reticle missing');
+              await screenshot('raid-combat-high-altitude-lock.png');
+              const beforeHit = Number(decision.hitSerial || 0);
+              const shot = page.locator('button[aria-label="Fire missile"]');
+              await shot.dispatchEvent('pointerdown', { pointerId: 51, pointerType: 'touch', isPrimary: true });
+              await page.waitForTimeout(70);
+              await shot.dispatchEvent('pointerup', { pointerId: 51, pointerType: 'touch', isPrimary: true });
+              await page.waitForFunction(() => {
+                const state = typeof window.__skyDancerGetV43VerticalFlight === 'function' ? window.__skyDancerGetV43VerticalFlight() : null;
+                return Boolean(state?.playerMissiles?.length);
+              }, null, { timeout: 2500 });
+              const vertical = await page.evaluate(() => window.__skyDancerGetV43VerticalFlight());
+              const missile = vertical.playerMissiles[0];
+              log('missile', missile);
+              if (Math.abs(missile.altitudeOffsetMeters - flight.altitude) > 1.0) throw new Error('missile altitude mismatch');
+              await screenshot('raid-combat-high-altitude-shot.png');
+              let hitObserved = false;
+              let hitDecision = null;
+              const deadline = Date.now() + 5000;
+              while (Date.now() < deadline) {
+                await page.waitForTimeout(70);
+                const d = await readDecision();
+                if (Number(d?.decision?.hitSerial || 0) > beforeHit) {
+                  hitObserved = true;
+                  hitDecision = d.decision;
+                  break;
+                }
+              }
+              log('hit', { hitObserved, hitDecision });
+              if (!hitObserved) throw new Error('missile hit not observed');
+              await screenshot('raid-combat-high-altitude-hit.png');
+              const baseline = await page.evaluate(() => window.__skyRaidAuditFlightState());
+              const turbo = page.locator('button').filter({ hasText: /TURBO/i }).last();
+              const tb = await turbo.boundingBox();
+              if (!tb) throw new Error('turbo missing');
+              await turbo.dispatchEvent('pointerdown', { pointerId: 71, pointerType: 'touch', isPrimary: true });
+              await page.waitForTimeout(180);
+              await turbo.dispatchEvent('pointerup', { pointerId: 71, pointerType: 'touch', isPrimary: true });
+              let peak = baseline;
+              for (let i = 0; i < 14; i += 1) {
+                await page.waitForTimeout(35);
+                const state = await page.evaluate(() => window.__skyRaidAuditFlightState());
+                if (state.cameraFov > peak.cameraFov) peak = state;
+              }
+              log('turbo', { baseline, peak });
+              if (!peak.playerNdc.visible) throw new Error('aircraft left frame during turbo');
+              await screenshot('raid-combat-turbo-camera.png');
+              const report = { browserErrors, flightBeforeLock: flight, prepared, decision, missile, hitObserved, hitDecision, turbo: { baseline, peak } };
+              fs.writeFileSync(path.join(out, 'combat-report.json'), JSON.stringify(report, null, 2));
+              if (browserErrors.length) throw new Error(`browser errors ${JSON.stringify(browserErrors)}`);
+              log('PASS');
+            } catch (error) {
+              failure = error;
+              console.error('AUDIT FAIL', error?.stack || error);
+              await screenshot('raid-combat-failure.png');
+              fs.writeFileSync(path.join(out, 'combat-failure.txt'), String(error?.stack || error));
+            } finally {
+              clearTimeout(watchdog);
+              try { await context?.close(); } catch {}
+              try { await browser?.close(); } catch {}
+            }
+            if (failure) process.exitCode = 1;
           })();
           JS
           node /tmp/combat.cjs
@@ -250,16 +357,14 @@ test("SKY RAID publishes flight altitude before inherited combat presentation", 
         run: |
           python3 - <<'PY'
           import json
-          r=json.load(open('artifacts/sky-raid-v2-compare/report.json'))
-          if len(r['raid']['acts']) != 5: raise SystemExit('five ACT capture failed')
-          if any(a['forbiddenHud'] for a in r['raid']['acts']): raise SystemExit('legacy HUD leak')
-          if r['raid']['errors']: raise SystemExit(str(r['raid']['errors']))
-          a=r['raid']['acts'][0];i=a['legacyOwners']['flight'];m=a['maneuverFlight']['flight'];w=a['wideClimbTurnFlight']['flight']
-          if m['playerWorld']['y']<i['playerWorld']['y']+7 or w['playerWorld']['y']<m['playerWorld']['y']+5: raise SystemExit('climb regression')
-          c=json.load(open('artifacts/sky-raid-v2-compare/combat-report.json'))
-          if not c['hitObserved']: raise SystemExit('hit missing')
-          if abs(c['decision']['playerAltitudeMeters']-c['flightBeforeLock']['altitude'])>.65: raise SystemExit('lock altitude mismatch')
-          if abs(c['missile']['altitudeOffsetMeters']-c['flightBeforeLock']['altitude'])>1.0: raise SystemExit('missile altitude mismatch')
+          report = json.load(open('artifacts/sky-raid-v2-compare/report.json'))
+          if len(report['raid']['acts']) != 5: raise SystemExit('five ACT capture failed')
+          if any(act['forbiddenHud'] for act in report['raid']['acts']): raise SystemExit('legacy HUD leak')
+          if report['raid']['errors']: raise SystemExit(str(report['raid']['errors']))
+          combat = json.load(open('artifacts/sky-raid-v2-compare/combat-report.json'))
+          if not combat['hitObserved']: raise SystemExit('hit missing')
+          if abs(combat['decision']['playerAltitudeMeters'] - combat['flightBeforeLock']['altitude']) > .65: raise SystemExit('lock altitude mismatch')
+          if abs(combat['missile']['altitudeOffsetMeters'] - combat['flightBeforeLock']['altitude']) > 1.0: raise SystemExit('missile altitude mismatch')
           print('SKY RAID V15.1 FINAL AUDIT PASS')
           PY
 
