@@ -52,4 +52,22 @@ patch("app/SkyDancerHudV45.tsx", [
   },
 ]);
 
+patch("src/sky/SkyDancerAirCombatFxV18.ts", [
+  {
+    label: "shrink inherited missile warning ring",
+    from: `    this.missileWarningRing = new THREE.Mesh(new THREE.TorusGeometry(0.15, 0.008, 4, 28), warningMaterial);`,
+    to: `    // This legacy camera-space cue used to fill most of a phone viewport\n    // under the newer SKY RAID chase camera. Keep it as a compact threat halo\n    // around the aircraft; the top HUD now carries the explicit warning text.\n    this.missileWarningRing = new THREE.Mesh(new THREE.TorusGeometry(0.078, 0.0055, 4, 24), warningMaterial);`,
+  },
+  {
+    label: "pull warning ticks inward",
+    from: `      const marker = new THREE.Mesh(new THREE.BoxGeometry(0.052, 0.012, 0.004), warningMaterial.clone());\n      const angle = index * Math.PI * 0.5;\n      marker.position.set(Math.cos(angle) * 0.205, Math.sin(angle) * 0.205, 0);`,
+    to: `      const marker = new THREE.Mesh(new THREE.BoxGeometry(0.030, 0.007, 0.004), warningMaterial.clone());\n      const angle = index * Math.PI * 0.5;\n      marker.position.set(Math.cos(angle) * 0.108, Math.sin(angle) * 0.108, 0);`,
+  },
+  {
+    label: "reduce warning spin and opacity",
+    from: `    this.missileWarningRoot.rotation.z += delta * (urgent ? 1.8 : 0.8);\n    this.missileWarningRoot.scale.setScalar(0.9 + strength * 0.2 + pulse * 0.05);\n    for (const child of this.missileWarningRoot.children) {\n      if (!(child instanceof THREE.Mesh)) continue;\n      const material = child.material as THREE.MeshBasicMaterial;\n      material.color.setHex(color);\n      material.opacity = 0.28 + strength * 0.68 * pulse;\n    }`,
+    to: `    this.missileWarningRoot.rotation.z += delta * (urgent ? 0.72 : 0.38);\n    this.missileWarningRoot.scale.setScalar(0.92 + strength * 0.12 + pulse * 0.025);\n    for (const child of this.missileWarningRoot.children) {\n      if (!(child instanceof THREE.Mesh)) continue;\n      const material = child.material as THREE.MeshBasicMaterial;\n      material.color.setHex(color);\n      material.opacity = 0.18 + strength * 0.44 * pulse;\n    }`,
+  },
+]);
+
 console.log("SKY RAID review pass patched source files");
