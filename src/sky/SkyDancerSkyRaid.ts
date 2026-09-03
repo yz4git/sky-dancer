@@ -85,6 +85,7 @@ interface RaidWebGLDemo {
   steer: number;
   buildWorld(): void;
   updateVisuals(delta: number): void;
+  applyCameraPresentation(snapshot: ReturnType<CartArenaSession["snapshot"]>): void;
   setVertical?(value: number): void;
 }
 
@@ -162,8 +163,8 @@ function applySkyRaidFlight(demo: RaidWebGLDemo, delta: number): SkyDancerSkyRai
   demo.playerVisual.position.y = 0.62 + flight.altitude;
   demo.playerVisual.rotation.x = flight.pitch;
   demo.playerVisual.rotation.z = flight.bank;
-  demo.camera.position.y += flight.altitude * 0.72;
-  demo.camera.rotation.z += flight.bank * 0.055;
+  // Camera altitude is applied after the base chase-camera copy in
+  // applyCameraPresentation(); doing it here is overwritten by the base renderer.
   demo.scene.userData.skyRaidPlayerAltitude = flight.altitude;
   demo.scene.userData.skyRaidPlayerVerticalSpeed = flight.verticalSpeed;
   demo.scene.userData.skyRaidPlayerBank = flight.bank;
@@ -531,6 +532,28 @@ export function installSkyDancerSkyRaid(): void {
   webglPrototype.updateVisuals = function skyRaidUpdateVisuals(this: RaidWebGLDemo, delta: number): void {
     previousUpdateVisuals.call(this, delta);
     updateRaidVisuals(this, delta);
+  };
+
+  // Base animate() copies the chase-camera position after updateVisuals(). Apply
+  // SKY RAID altitude here, at the final presentation stage, so the camera follows
+  // the aircraft throughout the much wider vertical flight envelope.
+  const previousApplyCameraPresentation = webglPrototype.applyCameraPresentation;
+  webglPrototype.applyCameraPresentation = function skyRaidCameraPresentation(
+    this: RaidWebGLDemo,
+    snapshot: ReturnType<CartArenaSession["snapshot"]>,
+  ): void {
+    previousApplyCameraPresentation.call(this, snapshot);
+    if (!isSkyRaidMode()) return;
+    const altitude = Number(this.scene.userData.skyRaidPlayerAltitude ?? 0);
+    const bank = Number(this.scene.userData.skyRaidPlayerBank ?? 0);
+    this.camera.position.y += altitude * 0.94;
+    const lookAhead = 5.8 + Math.min(4.2, Math.abs(snapshot.speed) * 0.12);
+    this.camera.lookAt(
+      snapshot.x + Math.sin(snapshot.heading) * lookAhead,
+      1.25 + altitude * 0.98,
+      snapshot.z + Math.cos(snapshot.heading) * lookAhead,
+    );
+    this.camera.rotateZ(bank * 0.055);
   };
 
   const canvasPrototype = CartRogueCanvasPreview.prototype as unknown as RaidCanvasDemo;
