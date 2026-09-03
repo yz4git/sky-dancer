@@ -35,3 +35,14 @@ test("SKY RAID final visual owner runs after V53", async () => {
   const pipeline = await readFile(new URL("../src/sky/presentation/SkyDancerPresentationPipeline.ts", import.meta.url), "utf8");
   assert.ok(pipeline.indexOf("finalizeSkyRaidReferencePresentation(this.runtime)") > pipeline.indexOf("this.v53.update(snapshot)"));
 });
+
+
+test("SKY RAID camera derives chase position from aircraft heading", async () => {
+  const source = await readFile(new URL("../src/sky/SkyDancerSkyRaid.ts", import.meta.url), "utf8");
+  assert.match(source, /const forwardX = Math\.sin\(snapshot\.heading\)/);
+  assert.match(source, /const forwardZ = Math\.cos\(snapshot\.heading\)/);
+  assert.match(source, /this\.camera\.position\.set\(/);
+  assert.match(source, /snapshot\.x - forwardX \* chaseDistance/);
+  assert.match(source, /snapshot\.z - forwardZ \* chaseDistance/);
+  assert.doesNotMatch(source, /this\.camera\.position\.y \+= altitude/);
+});

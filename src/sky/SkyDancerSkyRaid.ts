@@ -545,15 +545,29 @@ export function installSkyDancerSkyRaid(): void {
     previousApplyCameraPresentation.call(this, snapshot);
     if (!isSkyRaidMode()) return;
     const altitude = Number(this.scene.userData.skyRaidPlayerAltitude ?? 0);
+    const verticalSpeed = Number(this.scene.userData.skyRaidPlayerVerticalSpeed ?? 0);
     const bank = Number(this.scene.userData.skyRaidPlayerBank ?? 0);
-    this.camera.position.y += altitude * 0.94;
-    const lookAhead = 5.8 + Math.min(4.2, Math.abs(snapshot.speed) * 0.12);
-    this.camera.lookAt(
-      snapshot.x + Math.sin(snapshot.heading) * lookAhead,
-      1.25 + altitude * 0.98,
-      snapshot.z + Math.cos(snapshot.heading) * lookAhead,
+    const speed = Math.abs(snapshot.speed);
+    const forwardX = Math.sin(snapshot.heading);
+    const forwardZ = Math.cos(snapshot.heading);
+    const chaseDistance = 9.6 + Math.min(4.0, speed * 0.085);
+    const chaseHeight = 5.15 + altitude + Math.max(0, verticalSpeed) * 0.025;
+    const lookAhead = 6.8 + Math.min(5.2, speed * 0.105);
+    const lookHeight = 1.55 + altitude + verticalSpeed * 0.018;
+    // SKY RAID is true 360-degree flight, so the final camera must be derived from
+    // aircraft heading in all axes rather than inheriting the car chase X/Z frame.
+    this.camera.position.set(
+      snapshot.x - forwardX * chaseDistance,
+      chaseHeight,
+      snapshot.z - forwardZ * chaseDistance,
     );
-    this.camera.rotateZ(bank * 0.055);
+    this.camera.up.set(0, 1, 0);
+    this.camera.lookAt(
+      snapshot.x + forwardX * lookAhead,
+      lookHeight,
+      snapshot.z + forwardZ * lookAhead,
+    );
+    this.camera.rotateZ(bank * 0.075);
   };
 
   const canvasPrototype = CartRogueCanvasPreview.prototype as unknown as RaidCanvasDemo;
