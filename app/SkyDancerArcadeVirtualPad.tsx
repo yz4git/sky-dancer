@@ -7,37 +7,52 @@ const DEAD_ZONE = 0.16;
 const MAX_TRAVEL = 46;
 
 type Direction = -1 | 0 | 1;
+type FlightKey = "ArrowLeft" | "ArrowRight" | "ArrowUp" | "ArrowDown";
 
-function dispatchKey(type: "keydown" | "keyup", key: "ArrowLeft" | "ArrowRight"): void {
+function dispatchKey(type: "keydown" | "keyup", key: FlightKey): void {
   window.dispatchEvent(new KeyboardEvent(type, { key, bubbles: true, cancelable: true }));
 }
 
 export default function SkyDancerArcadeVirtualPad() {
   const pointerRef = useRef<number | null>(null);
-  const directionRef = useRef<Direction>(0);
+  const horizontalRef = useRef<Direction>(0);
+  const verticalRef = useRef<Direction>(0);
   const [direction, setDirection] = useState<Direction>(0);
   const [active, setActive] = useState(false);
+  const [flightMode, setFlightMode] = useState(false);
   const [knob, setKnob] = useState({ x: 0, y: 0 });
 
-  const applyDirection = useCallback((next: Direction) => {
-    const previous = directionRef.current;
+  const applyHorizontal = useCallback((next: Direction) => {
+    const previous = horizontalRef.current;
     if (previous === next) return;
     if (previous < 0) dispatchKey("keyup", "ArrowLeft");
     if (previous > 0) dispatchKey("keyup", "ArrowRight");
-    directionRef.current = next;
+    horizontalRef.current = next;
     setDirection(next);
     if (next < 0) dispatchKey("keydown", "ArrowLeft");
     if (next > 0) dispatchKey("keydown", "ArrowRight");
   }, []);
 
+  const applyVertical = useCallback((next: Direction) => {
+    const previous = verticalRef.current;
+    if (previous === next) return;
+    if (previous < 0) dispatchKey("keyup", "ArrowDown");
+    if (previous > 0) dispatchKey("keyup", "ArrowUp");
+    verticalRef.current = next;
+    if (next < 0) dispatchKey("keydown", "ArrowDown");
+    if (next > 0) dispatchKey("keydown", "ArrowUp");
+  }, []);
+
   const reset = useCallback(() => {
-    applyDirection(0);
+    applyHorizontal(0);
+    applyVertical(0);
     pointerRef.current = null;
     setActive(false);
     setKnob({ x: 0, y: 0 });
-  }, [applyDirection]);
+  }, [applyHorizontal, applyVertical]);
 
   useEffect(() => {
+    setFlightMode(document.documentElement.dataset.skyDancerMode === "sky-raid");
     const onBlur = () => reset();
     const onVisibility = () => {
       if (document.visibilityState !== "visible") reset();
@@ -63,8 +78,11 @@ export default function SkyDancerArcadeVirtualPad() {
     const x = dx * scale;
     const y = dy * scale;
     const normalizedX = x / MAX_TRAVEL;
-    setKnob({ x, y });
-    applyDirection(normalizedX < -DEAD_ZONE ? -1 : normalizedX > DEAD_ZONE ? 1 : 0);
+    const normalizedY = y / MAX_TRAVEL;
+    const isFlightMode = document.documentElement.dataset.skyDancerMode === "sky-raid";
+    setKnob({ x, y: isFlightMode ? y : 0 });
+    applyHorizontal(normalizedX < -DEAD_ZONE ? -1 : normalizedX > DEAD_ZONE ? 1 : 0);
+    applyVertical(isFlightMode ? (normalizedY < -DEAD_ZONE ? 1 : normalizedY > DEAD_ZONE ? -1 : 0) : 0);
   };
 
   const onPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
@@ -92,17 +110,17 @@ export default function SkyDancerArcadeVirtualPad() {
   };
 
   return (
-    <div className={styles.wrap} aria-label="Arcade steering control">
+    <div className={styles.wrap} aria-label={flightMode ? "Flight control" : "Arcade steering control"}>
       <div
         className={`${styles.pad}${active ? ` ${styles.active}` : ""}`}
         role="slider"
-        aria-label="Arcade steering virtual pad"
+        aria-label={flightMode ? "Sky Raid two-axis flight stick" : "Arcade steering virtual pad"}
         aria-valuemin={-1}
         aria-valuemax={1}
         aria-valuenow={direction}
         tabIndex={-1}
         onPointerDown={onPointerDown}
-        onPointerMove={onPointerMove}
+        onPointerMove={updateFromPointer}
         onPointerUp={onPointerEnd}
         onPointerCancel={onPointerEnd}
         onLostPointerCapture={onPointerEnd}
@@ -116,7 +134,7 @@ export default function SkyDancerArcadeVirtualPad() {
           <i />
         </span>
       </div>
-      <span className={styles.caption}>TURN</span>
+      <span className={styles.caption}>{flightMode ? "TURN · CLIMB / DIVE" : "TURN"}</span>
     </div>
   );
 }
