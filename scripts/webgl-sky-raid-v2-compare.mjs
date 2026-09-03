@@ -45,6 +45,15 @@ async function readLegacyVisualOwners(page) {
   }));
 }
 
+async function raidState(page) {
+  return page.evaluate(() => ({
+    mode: document.documentElement.dataset.skyDancerMode,
+    act: document.documentElement.dataset.skyRaidAct,
+    style: document.documentElement.dataset.skyRaidWorldStyle,
+    body: document.body.innerText,
+  }));
+}
+
 const report = {};
 {
   const { context, page, canvas, errors } = await startMode("ARCADE RUN", "Sky Dancer Arcade Run WebGL game view");
@@ -52,28 +61,44 @@ const report = {};
   await captureCanvas(page, canvas, `${outputDir}/arcade-00-opening.png`);
   await page.waitForTimeout(2500);
   await captureCanvas(page, canvas, `${outputDir}/arcade-01-course.png`);
-  await page.keyboard.down("ArrowRight"); await page.keyboard.down("ArrowUp");
+  await page.keyboard.down("ArrowRight");
+  await page.keyboard.down("ArrowUp");
   await page.waitForTimeout(1300);
   await captureCanvas(page, canvas, `${outputDir}/arcade-02-maneuver.png`);
-  await page.keyboard.up("ArrowRight"); await page.keyboard.up("ArrowUp");
+  await page.keyboard.up("ArrowRight");
+  await page.keyboard.up("ArrowUp");
   report.arcade = { errors, body: (await page.locator("body").innerText()).slice(0, 2000) };
   await context.close();
 }
 {
   const { context, page, canvas, errors } = await startMode("SKY RAID", "Sky Dancer WebGL game view");
-  await page.waitForTimeout(1500);
-  await captureCanvas(page, canvas, `${outputDir}/raid-00-opening.png`);
-  const opening = await page.evaluate(() => ({ mode: document.documentElement.dataset.skyDancerMode, act: document.documentElement.dataset.skyRaidAct, style: document.documentElement.dataset.skyRaidWorldStyle }));
-  const legacyOwners = await readLegacyVisualOwners(page);
-  await page.keyboard.down("ArrowRight"); await page.keyboard.down("ArrowUp");
-  await page.waitForTimeout(1300);
-  await captureCanvas(page, canvas, `${outputDir}/raid-01-maneuver.png`);
-  await page.keyboard.up("ArrowRight"); await page.keyboard.up("ArrowUp");
-  await page.waitForTimeout(22500);
-  await captureCanvas(page, canvas, `${outputDir}/raid-02-act2.png`);
-  const act2 = await page.evaluate(() => ({ mode: document.documentElement.dataset.skyDancerMode, act: document.documentElement.dataset.skyRaidAct, style: document.documentElement.dataset.skyRaidWorldStyle }));
-  const legacyOwnersLate = await readLegacyVisualOwners(page);
-  report.raid = { opening, legacyOwners, act2, legacyOwnersLate, errors, body: (await page.locator("body").innerText()).slice(0, 2000) };
+  const acts = ["dawn-city", "red-canyon", "cloud-fleet", "storm-carrier", "prism-citadel"];
+  const actReports = [];
+  for (let index = 0; index < acts.length; index += 1) {
+    const expected = acts[index];
+    await page.waitForFunction((act) => document.documentElement.dataset.skyRaidAct === act, expected, { timeout: index === 0 ? 15_000 : 40_000 });
+    await page.waitForTimeout(index === 0 ? 1500 : 900);
+    await captureCanvas(page, canvas, `${outputDir}/raid-act${index + 1}-${expected}.png`);
+    const state = await raidState(page);
+    const legacyOwners = await readLegacyVisualOwners(page);
+    const forbiddenHud = ["STAGE 1", "WAVE", "HEAD-ON CROSS", "CITY AIRSPACE", "ABOVE", "BELOW", "GAS 100%"].filter((text) => state.body.includes(text));
+    actReports.push({ index, expected, state: { mode: state.mode, act: state.act, style: state.style }, legacyOwners, forbiddenHud });
+    if (index === 0) {
+      const pad = page.locator('[aria-label="Sky Raid two-axis flight stick"]');
+      if (await pad.count()) {
+        const box = await pad.boundingBox();
+        if (box) {
+          await page.mouse.move(box.x + box.width * 0.5, box.y + box.height * 0.5);
+          await page.mouse.down();
+          await page.mouse.move(box.x + box.width * 0.78, box.y + box.height * 0.22, { steps: 8 });
+          await page.waitForTimeout(1100);
+          await captureCanvas(page, canvas, `${outputDir}/raid-act1-flight-stick-maneuver.png`);
+          await page.mouse.up();
+        }
+      }
+    }
+  }
+  report.raid = { acts: actReports, errors, body: (await page.locator("body").innerText()).slice(0, 2500) };
   await context.close();
 }
 await writeFile(`${outputDir}/report.json`, JSON.stringify(report, null, 2));
