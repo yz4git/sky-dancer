@@ -599,12 +599,21 @@ function renderPortrait(instance: CartCutinInstance, canvas: HTMLCanvasElement):
 function hidePresenter(): void {
   if (!presenter) return;
   presenter.root.dataset.visible = "false";
+  if (isSkyRaidPresentationMode()) {
+    presenter.root.hidden = true;
+    presenter.root.setAttribute("aria-hidden", "true");
+  }
   presenter.currentSerial = -1;
 }
 
 function syncPresenter(): void {
   if (typeof window === "undefined") return;
   if (isSkyRaidPresentationMode()) {
+    const staleRoot = typeof document !== "undefined" ? document.getElementById(CUTIN_ROOT_ID) : null;
+    if (staleRoot instanceof HTMLDivElement) {
+      staleRoot.hidden = true;
+      staleRoot.setAttribute("aria-hidden", "true");
+    }
     hidePresenter();
     return;
   }
@@ -614,7 +623,10 @@ function syncPresenter(): void {
     return;
   }
   const view = ensurePresenter();
-  if (!view || view.currentSerial === active.serial) return;
+  if (!view) return;
+  view.root.hidden = false;
+  view.root.removeAttribute("aria-hidden");
+  if (view.currentSerial === active.serial) return;
   const character = CART_CUTIN_CHARACTERS[active.characterId];
   view.currentSerial = active.serial;
   view.root.dataset.side = active.side;

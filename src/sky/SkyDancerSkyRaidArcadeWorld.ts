@@ -5,6 +5,7 @@ import type { SkyDancerSkyRaidAct } from "./SkyDancerSkyRaidRules";
 
 const LEGACY_ENV_PREFIXES = [
   "sky-dancer-v23-",
+  "sky-dancer-v25-",
   "sky-dancer-v28-",
   "sky-dancer-v30-",
   "sky-dancer-v32-",

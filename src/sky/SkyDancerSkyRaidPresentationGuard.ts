@@ -4,7 +4,7 @@ import { skyDancerArcadeStageById, type SkyDancerArcadeStageId } from "./arcade/
 import { ARCADE_FOG_FAR, ARCADE_FOG_NEAR, referenceAtmosphere } from "./arcade/SkyDancerArcadeReferenceMaterials";
 
 const LEGACY_ENV_PREFIXES = [
-  "sky-dancer-v23-", "sky-dancer-v28-", "sky-dancer-v30-", "sky-dancer-v32-",
+  "sky-dancer-v23-", "sky-dancer-v25-", "sky-dancer-v28-", "sky-dancer-v30-", "sky-dancer-v32-",
   "sky-dancer-v35-", "sky-dancer-v36-", "sky-dancer-v38-", "sky-dancer-v40-",
   "sky-dancer-v41-", "sky-dancer-v42-", "sky-dancer-v47-", "sky-dancer-v50-", "sky-dancer-v53-",
 ] as const;
