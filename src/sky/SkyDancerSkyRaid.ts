@@ -160,6 +160,7 @@ function collectLegacyRaidLayers(scene: THREE.Scene): THREE.Object3D[] {
 function applySkyRaidFlight(demo: RaidWebGLDemo, delta: number): SkyDancerSkyRaidFlightSnapshot {
   const base = demo.session.snapshot();
   const flight = flightControllerFor(demo).step(delta, base.heading, demo.steer, base.boostActive);
+  (demo.session as unknown as { skyDancerPlayerAltitudeMeters?: number }).skyDancerPlayerAltitudeMeters = flight.altitude;
   demo.playerVisual.position.y = 0.62 + flight.altitude;
   demo.playerVisual.rotation.x = flight.pitch;
   demo.playerVisual.rotation.z = flight.bank;
@@ -551,8 +552,9 @@ export function installSkyDancerSkyRaid(): void {
     const speed = Math.abs(snapshot.speed);
     const forwardX = Math.sin(snapshot.heading);
     const forwardZ = Math.cos(snapshot.heading);
-    const chaseDistance = 9.6 + Math.min(4.0, speed * 0.085);
-    const lookAhead = 6.8 + Math.min(5.2, speed * 0.105);
+    const turboCamera = snapshot.boostActive ? 1 : 0;
+    const chaseDistance = 9.6 + Math.min(4.0, speed * 0.085) + turboCamera * 2.2;
+    const lookAhead = 6.8 + Math.min(5.2, speed * 0.105) + turboCamera * 3.2;
     // updateVisuals() is followed by older presentation owners that can restore the
     // aircraft to its ground datum. SKY RAID therefore reasserts its full flight pose
     // here, at the final camera/presentation stage, before deriving the chase camera.
@@ -574,6 +576,10 @@ export function installSkyDancerSkyRaid(): void {
       playerPosition.z + forwardZ * lookAhead,
     );
     this.camera.rotateZ(bank * 0.075);
+    if (turboCamera > 0) {
+      this.camera.fov = Math.min(96, this.camera.fov + 2.8);
+      this.camera.updateProjectionMatrix();
+    }
   };
 
   const canvasPrototype = CartRogueCanvasPreview.prototype as unknown as RaidCanvasDemo;

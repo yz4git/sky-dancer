@@ -56,8 +56,11 @@ export interface SkyDancerPlayerLockSnapshotV45 {
   action: string;
   vulnerable: boolean;
   altitudeMeters: number;
+  playerAltitudeMeters: number;
+  altitudeDeltaMeters: number;
   distance: number;
   angle: number;
+  signedAngle: number;
 }
 
 interface PlayerMissileInternal extends SkyDancerPlayerMissileSnapshot {
@@ -84,6 +87,7 @@ interface WeaponState {
 }
 
 interface WeaponSessionView {
+  skyDancerPlayerAltitudeMeters?: number;
   enemies: CartEnemyState[];
   rewardTimer: number;
   lastReward: string | null;
@@ -119,6 +123,11 @@ function normalizeAngle(value: number): number {
   while (angle > Math.PI) angle -= Math.PI * 2;
   while (angle < -Math.PI) angle += Math.PI * 2;
   return angle;
+}
+
+function playerAltitudeMeters(session: WeaponSessionView): number {
+  const altitude = Number(session.skyDancerPlayerAltitudeMeters ?? 0);
+  return Number.isFinite(altitude) ? altitude : 0;
 }
 
 function rotateToward(current: number, target: number, maxTurn: number): number {
@@ -167,20 +176,21 @@ function chooseTarget(session: WeaponSessionView): CartEnemyState | null {
   const px = session.car.position.x;
   const pz = session.car.position.z;
   const heading = session.car.heading;
+  const playerAltitude = playerAltitudeMeters(session);
   let best: CartEnemyState | null = null;
   let bestScore = Number.POSITIVE_INFINITY;
   for (const enemy of currentEnemies(session)) {
     const dx = enemy.x - px;
     const dz = enemy.z - pz;
     const altitude = getSkyDancerEnemyAltitudeMetersV43(enemy);
-    const distance = skyDancerDistance3DV43(px, 0, pz, enemy.x, altitude, enemy.z);
+    const distance = skyDancerDistance3DV43(px, playerAltitude, pz, enemy.x, altitude, enemy.z);
     if (distance > SKY_DANCER_PLAYER_MISSILE_LOCK_DISTANCE) continue;
     // Touch controls keep one forgiving horizontal cone. V45 changes decision
     // timing and target priority, while the missile still solves pitch itself.
     const targetHeading = Math.atan2(dx, dz);
     const angle = Math.abs(normalizeAngle(targetHeading - heading));
     if (angle > 0.78) continue;
-    const verticalPenalty = Math.abs(altitude) * 0.12;
+    const verticalPenalty = Math.abs(altitude - playerAltitude) * 0.12;
     const decision = getSkyDancerEnemyDecisionV45(enemy, session.car.forwardVelocity);
     const score = distance + angle * 18 + verticalPenalty - decision.priority * 1.15;
     if (score < bestScore) {
@@ -200,18 +210,19 @@ function launchRequestedShot(session: WeaponSessionView, state: WeaponState): bo
   const heading = session.car.heading;
   const muzzle = 2.6;
   const launchSpeed = 24 + Math.min(4.5, Math.abs(session.car.forwardVelocity) * 0.14);
-  const targetAltitude = target ? getSkyDancerEnemyAltitudeMetersV43(target) : 0;
+  const playerAltitude = playerAltitudeMeters(session);
+  const targetAltitude = target ? getSkyDancerEnemyAltitudeMetersV43(target) : playerAltitude;
   const horizontalDistance = target
     ? Math.hypot(target.x - session.car.position.x, target.z - session.car.position.z)
     : Number.POSITIVE_INFINITY;
   const initialPitch = target
-    ? clamp(Math.atan2(targetAltitude, Math.max(8, horizontalDistance)) * 0.28, -0.18, 0.18)
+    ? clamp(Math.atan2(targetAltitude - playerAltitude, Math.max(8, horizontalDistance)) * 0.28, -0.18, 0.18)
     : 0;
   const missile: PlayerMissileInternal = {
     id: state.nextMissileId++,
     x: session.car.position.x + Math.sin(heading) * muzzle,
     z: session.car.position.z + Math.cos(heading) * muzzle,
-    altitudeOffsetMeters: 0,
+    altitudeOffsetMeters: playerAltitude,
     heading,
     pitch: initialPitch,
     speed: launchSpeed,
@@ -219,7 +230,7 @@ function launchRequestedShot(session: WeaponSessionView, state: WeaponState): bo
     maxLife: 4.6,
     targetEnemyId: target?.id ?? null,
     distanceToTarget: target
-      ? skyDancerDistance3DV43(session.car.position.x, 0, session.car.position.z, target.x, targetAltitude, target.z)
+      ? skyDancerDistance3DV43(session.car.position.x, playerAltitude, session.car.position.z, target.x, targetAltitude, target.z)
       : Number.POSITIVE_INFINITY,
     turnRate: target ? 2.25 : 0,
     pitchRate: target ? 1.72 : 0,
@@ -430,6 +441,7 @@ export function stepSkyDancerPlayerWeapons(session: CartArenaSession, fixedDelta
 
 export function getSkyDancerPlayerLockSnapshotV45(session: CartArenaSession): SkyDancerPlayerLockSnapshotV45 {
   const view = session as unknown as WeaponSessionView;
+  const playerAltitude = playerAltitudeMeters(view);
   const target = chooseTarget(view);
   if (!target) {
     return {
@@ -439,8 +451,11 @@ export function getSkyDancerPlayerLockSnapshotV45(session: CartArenaSession): Sk
       action: "SEARCH",
       vulnerable: false,
       altitudeMeters: 0,
+      playerAltitudeMeters: playerAltitude,
+      altitudeDeltaMeters: 0,
       distance: Number.POSITIVE_INFINITY,
       angle: 0,
+      signedAngle: 0,
     };
   }
   const dx = target.x - view.car.position.x;
@@ -448,13 +463,14 @@ export function getSkyDancerPlayerLockSnapshotV45(session: CartArenaSession): Sk
   const altitudeMeters = getSkyDancerEnemyAltitudeMetersV43(target);
   const distance = skyDancerDistance3DV43(
     view.car.position.x,
-    0,
+    playerAltitude,
     view.car.position.z,
     target.x,
     altitudeMeters,
     target.z,
   );
-  const angle = Math.abs(normalizeAngle(Math.atan2(dx, dz) - view.car.heading));
+  const signedAngle = normalizeAngle(Math.atan2(dx, dz) - view.car.heading);
+  const angle = Math.abs(signedAngle);
   const decision = getSkyDancerEnemyDecisionV45(target, view.car.forwardVelocity);
   return {
     targetEnemyId: target.id,
@@ -463,8 +479,11 @@ export function getSkyDancerPlayerLockSnapshotV45(session: CartArenaSession): Sk
     action: decision.action,
     vulnerable: decision.vulnerable,
     altitudeMeters,
+    playerAltitudeMeters: playerAltitude,
+    altitudeDeltaMeters: altitudeMeters - playerAltitude,
     distance,
     angle,
+    signedAngle,
   };
 }
 

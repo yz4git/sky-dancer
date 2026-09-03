@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   SKY_DANCER_COMBAT_DECISION_EVENT_V45,
   type SkyDancerCombatDecisionSnapshotV45,
@@ -16,13 +16,31 @@ function altitudeLabel(value: number): string {
 
 export default function SkyDancerHudV45() {
   const [decision, setDecision] = useState<SkyDancerCombatDecisionSnapshotV45 | null>(null);
+  const [hitPulse, setHitPulse] = useState(false);
+  const hitSerialRef = useRef(0);
+  const hitTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
     const onDecision = (event: Event) => {
-      setDecision((event as CustomEvent<SkyDancerCombatDecisionSnapshotV45>).detail ?? null);
+      const detail = (event as CustomEvent<SkyDancerCombatDecisionSnapshotV45>).detail ?? null;
+      if (detail && detail.hitSerial > hitSerialRef.current) {
+        hitSerialRef.current = detail.hitSerial;
+        setHitPulse(true);
+        if (hitTimerRef.current !== null) window.clearTimeout(hitTimerRef.current);
+        hitTimerRef.current = window.setTimeout(() => {
+          hitTimerRef.current = null;
+          setHitPulse(false);
+        }, 180);
+      } else if (detail) {
+        hitSerialRef.current = Math.max(hitSerialRef.current, detail.hitSerial);
+      }
+      setDecision(detail);
     };
     window.addEventListener(SKY_DANCER_COMBAT_DECISION_EVENT_V45, onDecision);
-    return () => window.removeEventListener(SKY_DANCER_COMBAT_DECISION_EVENT_V45, onDecision);
+    return () => {
+      window.removeEventListener(SKY_DANCER_COMBAT_DECISION_EVENT_V45, onDecision);
+      if (hitTimerRef.current !== null) window.clearTimeout(hitTimerRef.current);
+    };
   }, []);
 
   const bossActive = Boolean(decision?.bossActive);
@@ -41,6 +59,22 @@ export default function SkyDancerHudV45() {
   const locked = Boolean(decision?.targetEnemyId);
   return <>
     <style>{`
+      .skyDancerV45Hit {
+        position: fixed;
+        z-index: 140;
+        left: 50%;
+        top: 36%;
+        transform: translate(-50%, -50%);
+        pointer-events: none;
+        padding: 3px 10px 4px;
+        color: #efffff;
+        border: 1px solid rgba(145,255,236,.86);
+        background: rgba(8,66,65,.58);
+        box-shadow: 0 0 22px rgba(94,255,222,.42);
+        font: 950 clamp(13px,2.2vw,20px)/1 system-ui,sans-serif;
+        letter-spacing: .18em;
+        text-shadow: 0 0 8px rgba(116,255,235,.72);
+      }
       .skyDancerV45Lock {
         position: fixed;
         z-index: 136;
@@ -153,12 +187,13 @@ export default function SkyDancerHudV45() {
       >
         <div className="skyDancerV45LockMain">
           <strong>{decision.label}</strong>
-          <span className="skyDancerV45Altitude">{altitudeLabel(decision.altitudeMeters)}</span>
+          <span className="skyDancerV45Altitude">{altitudeLabel(decision.altitudeDeltaMeters)}</span>
           <span className="skyDancerV45Range">{Math.round(decision.distance)}m</span>
         </div>
         <span className="skyDancerV45Action">{decision.action}</span>
       </div>
     )}
+    {hitPulse && <div className="skyDancerV45Hit" aria-label="Sky Raid hit confirmation">HIT</div>}
     {bossDirective && <div className="skyDancerV45BossDirective" aria-label="V45 boss directive">{bossDirective}</div>}
   </>;
 }

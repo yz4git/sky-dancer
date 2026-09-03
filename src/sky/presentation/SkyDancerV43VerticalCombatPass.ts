@@ -13,6 +13,11 @@ interface PlayerMissileVisual {
   flame: THREE.Mesh<THREE.ConeGeometry, THREE.MeshBasicMaterial>;
 }
 
+function verticalWorldOffset(meters: number): number {
+  const skyRaid = typeof document !== "undefined" && document.documentElement.dataset.skyDancerMode === "sky-raid";
+  return skyRaid ? meters : meters / SKY_DANCER_VERTICAL_RENDER_METERS_PER_UNIT;
+}
+
 /**
  * V43 makes the altitude simulation visible without changing chase-camera
  * controls. Enemy roots pitch and climb/dive over a +/-10 m band, enemy missile
@@ -50,7 +55,7 @@ export class SkyDancerV43VerticalCombatPass {
       if (!enemy || !group) continue;
       const vertical = getSkyDancerEnemyVerticalSnapshotV43(enemy);
       const baseY = enemySnapshot.kind === "boss" ? 1.7 : enemySnapshot.kind === "heavy" ? 1.3 : 1.08;
-      const targetY = baseY + vertical.altitudeOffsetMeters / SKY_DANCER_VERTICAL_RENDER_METERS_PER_UNIT;
+      const targetY = baseY + verticalWorldOffset(vertical.altitudeOffsetMeters);
       group.position.y += (targetY - group.position.y) * 0.82;
       group.rotation.x += ((-vertical.pitchRadians) - group.rotation.x) * 0.74;
     }
@@ -74,7 +79,7 @@ export class SkyDancerV43VerticalCombatPass {
         }
       }
       const missile = available.splice(bestIndex, 1)[0];
-      child.position.y = 1.18 + missile.altitudeOffsetMeters / SKY_DANCER_VERTICAL_RENDER_METERS_PER_UNIT;
+      child.position.y = 1.18 + verticalWorldOffset(missile.altitudeOffsetMeters);
       child.rotation.x = -missile.pitch;
       child.userData.skyDancerV43AltitudeMeters = missile.altitudeOffsetMeters;
       child.userData.skyDancerV43Pitch = missile.pitch;
@@ -94,7 +99,7 @@ export class SkyDancerV43VerticalCombatPass {
       visual.root.visible = true;
       visual.root.position.set(
         missile.x,
-        1.02 + missile.altitudeOffsetMeters / SKY_DANCER_VERTICAL_RENDER_METERS_PER_UNIT,
+        1.02 + verticalWorldOffset(missile.altitudeOffsetMeters),
         missile.z,
       );
       visual.root.rotation.set(-missile.pitch, missile.heading, 0, "YXZ");

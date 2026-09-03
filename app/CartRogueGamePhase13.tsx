@@ -75,6 +75,7 @@ export default function CartRogueGamePhase13() {
       <Fragment key={runKey}>
         <CartRogueGame />
         <SkyDancerSkyRaidOverlay />
+        <SkyDancerHudV45 />
         <SkyDancerArcadeVirtualPad />
         <SkyDancerShotControl />
         <SkyDancerCombatPolish />

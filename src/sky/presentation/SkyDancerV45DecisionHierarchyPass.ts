@@ -27,11 +27,18 @@ export interface SkyDancerCombatDecisionSnapshotV45 extends SkyDancerPlayerLockS
   bossActive: boolean;
   bossMode: "orbit" | "strike" | "break" | null;
   bossCoreOpen: boolean;
+  shotSerial: number;
+  hitSerial: number;
 }
 
 interface RibbonPoint {
   position: THREE.Vector3;
   age: number;
+}
+
+function verticalWorldOffset(meters: number): number {
+  const skyRaid = typeof document !== "undefined" && document.documentElement.dataset.skyDancerMode === "sky-raid";
+  return skyRaid ? meters : meters / SKY_DANCER_VERTICAL_RENDER_METERS_PER_UNIT;
 }
 
 class V45MissileRibbon {
@@ -215,7 +222,7 @@ export class SkyDancerV45DecisionHierarchyPass {
       this.playerRibbons.set(missile.id, ribbon);
       ribbon.add(new THREE.Vector3(
         missile.x,
-        1.02 + missile.altitudeOffsetMeters / SKY_DANCER_VERTICAL_RENDER_METERS_PER_UNIT,
+        1.02 + verticalWorldOffset(missile.altitudeOffsetMeters),
         missile.z,
       ));
     }
@@ -323,8 +330,9 @@ export class SkyDancerV45DecisionHierarchyPass {
     }
     this.bossStrikeCueObserved = true;
     const vertical = getSkyDancerEnemyVerticalSnapshotV43(boss);
-    const bossY = 1.7 + vertical.altitudeOffsetMeters / SKY_DANCER_VERTICAL_RENDER_METERS_PER_UNIT;
-    const playerY = 1.02;
+    const bossY = 1.7 + verticalWorldOffset(vertical.altitudeOffsetMeters);
+    const playerAltitude = getSkyDancerPlayerLockSnapshotV45(this.runtime.session).playerAltitudeMeters;
+    const playerY = 1.02 + verticalWorldOffset(playerAltitude);
     const positions = this.bossLane.geometry.getAttribute("position") as THREE.BufferAttribute;
     positions.setXYZ(0, boss.x, bossY, boss.z);
     positions.setXYZ(1, snapshot.x, playerY, snapshot.z);
@@ -341,6 +349,7 @@ export class SkyDancerV45DecisionHierarchyPass {
     if (this.broadcastClock > 0) return;
     this.broadcastClock = 0.08;
     const lock = getSkyDancerPlayerLockSnapshotV45(this.runtime.session);
+    const weapon = getSkyDancerPlayerWeaponState(this.runtime.session);
     const boss = getLatestSkyDancerBossQualityV34();
     this.latestDecision = {
       ...lock,
@@ -348,6 +357,8 @@ export class SkyDancerV45DecisionHierarchyPass {
       bossActive: Boolean(boss?.active),
       bossMode: boss?.active ? boss.mode : null,
       bossCoreOpen: Boolean(boss?.active && boss.coreOpen),
+      shotSerial: weapon.shotSerial,
+      hitSerial: weapon.hitSerial,
     };
     if (typeof window !== "undefined") {
       window.dispatchEvent(new CustomEvent<SkyDancerCombatDecisionSnapshotV45>(
