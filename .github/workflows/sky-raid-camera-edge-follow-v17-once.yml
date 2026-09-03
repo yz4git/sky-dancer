@@ -6,7 +6,9 @@ on:
       - .github/workflows/sky-raid-camera-edge-follow-v17-once.yml
       - app/SkyDancerArcadeVirtualPad.tsx
       - app/SkyDancerArcadeVirtualPad.module.css
+      - app/SkyDancerHudV45.tsx
       - app/SkyDancerSkyRaidOverlay.tsx
+      - src/cart/CartRoguePhase67TurboHunt.ts
       - src/sky/SkyDancerEnemyPopulation.ts
       - src/sky/SkyDancerPlayerWeapons.ts
       - src/sky/SkyDancerWeaponBridge.ts
