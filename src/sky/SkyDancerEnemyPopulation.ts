@@ -37,8 +37,6 @@ const CRUISE_FX_PATCHED_KEY = "__skyDancerCruiseSpeedFxInstalled__";
 const stateBySession = new WeakMap<object, PopulationState>();
 const cruiseSpeedByDemo = new WeakMap<object, CruiseSpeedState>();
 const OPENING_MIN_DISTANCE = 32;
-const DEFAULT_INITIAL_KEEP_RATIO = 0.5;
-const SKY_RAID_INITIAL_KEEP_RATIO = 1;
 
 function isSkyRaidMode(): boolean {
   return typeof document !== "undefined" && document.documentElement.dataset.skyDancerMode === "sky-raid";
@@ -112,13 +110,17 @@ function reduceInitialPopulation(session: PopulationSession, state: PopulationSt
   }
 
   const keep = new Set<string>();
-  const keepRatio = isSkyRaidMode() ? SKY_RAID_INITIAL_KEEP_RATIO : DEFAULT_INITIAL_KEEP_RATIO;
   for (const enemies of byNode.values()) {
     for (const enemy of enemies) state.seenIds.add(enemy.id);
     const bosses = enemies.filter((enemy) => enemy.kind === "boss");
     bosses.forEach((enemy) => keep.add(enemy.id));
     const regular = enemies.filter((enemy) => enemy.kind !== "boss");
-    const target = Math.max(1, Math.ceil(regular.length * keepRatio));
+    // SKY RAID keeps the complete candidate pool so the Hunt director can reach
+    // its authored 10-11 target late-game density. Other modes retain the
+    // original half-density safety contract and opening reaction distance.
+    const target = isSkyRaidMode()
+      ? regular.length
+      : Math.max(1, Math.ceil(regular.length * 0.5));
     const ranked = [...regular].sort((a, b) => {
       const priorityDelta = openingPriority(a) - openingPriority(b);
       if (priorityDelta !== 0) return priorityDelta;
