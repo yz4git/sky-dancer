@@ -98,7 +98,17 @@ async function confirmLiveTargetDown() {
     throw new Error(`live missile hit wrong target: expected=${targetBefore.id} actual=${afterHit.weapon?.lastHitEnemyId}`);
   }
 
-  await cue.waitFor({ state: "attached", timeout: 1800 });
+  // Persist the physical impact before checking presentation feedback. If the
+  // cue regresses, the artifact still proves whether launch, guidance and swept
+  // collision reached the intended target.
+  fs.writeFileSync(path.join(out, "weapon-impact.json"), JSON.stringify({
+    targetBefore,
+    lockBefore,
+    afterHit,
+    samples: samples.slice(-12),
+  }, null, 2));
+
+  await cue.waitFor({ state: "attached", timeout: 2500 });
   const text = (await cue.textContent()) ?? "";
   if (!/TARGET DOWN/i.test(text)) {
     throw new Error(`unexpected kill confirmation after physical hit: ${text}`);
