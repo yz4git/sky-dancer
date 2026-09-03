@@ -45,12 +45,18 @@ export default function SkyDancerSkyRaidOverlay() {
 
   return <>
     <style>{`
-      .${legacyStyles.topHud}, .${legacyStyles.gateOpen}, .${routeStyles.panel}, .${legacyStyles.rendererBadge}, .${phaseStyles.rewardBanner} { display: none !important; }
-      .${legacyStyles.bottomHud} { left: max(8px, env(safe-area-inset-left)) !important; right: max(8px, env(safe-area-inset-right)) !important; bottom: max(6px, env(safe-area-inset-bottom)) !important; grid-template-columns: minmax(138px,.82fr) auto minmax(138px,.82fr) !important; gap: 8px !important; }
-      .${legacyStyles.meterCard} { padding: 6px 8px 7px !important; max-width: 205px !important; border-radius: 10px !important; }
-      .${legacyStyles.turboCard} { width: min(190px,100%) !important; }
+      .${legacyStyles.topHud}, .${legacyStyles.bottomHud}, .${legacyStyles.gateOpen}, .${routeStyles.panel}, .${legacyStyles.rendererBadge}, .${phaseStyles.rewardBanner} { display: none !important; }
       .${legacyStyles.steerZone} span { display: none !important; }
-      .${legacyStyles.actions} { right: max(10px, env(safe-area-inset-right)) !important; bottom: max(52px, calc(env(safe-area-inset-bottom) + 45px)) !important; gap: 8px !important; }
+      .${legacyStyles.actions} { right: max(10px, env(safe-area-inset-right)) !important; bottom: max(12px, calc(env(safe-area-inset-bottom) + 8px)) !important; gap: 8px !important; }
+      .${legacyStyles.brakeButton} { display: none !important; }
+      .${legacyStyles.boostButton} { width: 72px !important; height: 72px !important; border-radius: 18px !important; }
+      .${legacyStyles.boostButton} strong { font-size: 13px !important; }
+      .${legacyStyles.boostButton} small { font-size: 0 !important; }
+      .${legacyStyles.boostButton} small::after { content: "HOLD · RELEASE"; font-size: 6px; letter-spacing: .07em; }
+      @media(max-height:390px) {
+        .${legacyStyles.actions} { bottom: max(8px, calc(env(safe-area-inset-bottom) + 5px)) !important; }
+        .${legacyStyles.boostButton} { width: 64px !important; height: 64px !important; }
+      }
     `}</style>
     <div className={styles.grade} style={vars} data-act={snapshot.actId} aria-hidden="true" />
     <div className={styles.hud} style={vars} aria-label="Sky Raid status">
