@@ -1,4 +1,4 @@
-# Full five-act SKY RAID visual audit V2
+# Full five-act SKY RAID visual audit V3
 name: SKY RAID V2 visual compare
 on:
   push:
@@ -24,6 +24,23 @@ jobs:
         run: |
           npm run test:fast
           npm run lint
+      - name: Inject webdriver-only ACT switcher
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('src/sky/SkyDancerSkyRaid.ts')
+          s = p.read_text()
+          old = 'let latestSkyRaidSnapshot: SkyDancerSkyRaidSnapshot | null = null;\n'
+          new = old + 'let skyRaidAuditForcedActId: SkyDancerSkyRaidAct["id"] | null = null;\n'
+          if old not in s:
+              raise SystemExit('latest snapshot marker missing')
+          s = s.replace(old, new, 1)
+          old = '''  const raid = updateRaid(demo.session as unknown as RaidSession, hunt, 0);\n  publishSkyRaidWorldStyle(raid);\n'''
+          new = '''  const baseRaid = updateRaid(demo.session as unknown as RaidSession, hunt, 0);\n  if (typeof window !== "undefined" && typeof navigator !== "undefined" && navigator.webdriver) {\n    (window as unknown as Record<string, unknown>).__skyRaidAuditForceAct = (actId: SkyDancerSkyRaidAct["id"] | null) => {\n      skyRaidAuditForcedActId = actId && SKY_DANCER_SKY_RAID_ACTS.some((candidate) => candidate.id === actId) ? actId : null;\n    };\n  }\n  const forcedAct = skyRaidAuditForcedActId\n    ? SKY_DANCER_SKY_RAID_ACTS.find((candidate) => candidate.id === skyRaidAuditForcedActId) ?? null\n    : null;\n  const raid: SkyDancerSkyRaidSnapshot = forcedAct\n    ? {\n        ...baseRaid,\n        actIndex: forcedAct.index,\n        actId: forcedAct.id,\n        actLabel: forcedAct.label,\n        actSubtitle: forcedAct.subtitle,\n        setpiece: forcedAct.setpiece,\n        elapsedSeconds: forcedAct.startSeconds + 1,\n        actElapsedSeconds: 1,\n        actSecondsRemaining: Math.max(0, forcedAct.endSeconds - forcedAct.startSeconds - 1),\n        rushActive: false,\n        palette: forcedAct.palette,\n      }\n    : baseRaid;\n  publishSkyRaidWorldStyle(raid);\n  if (forcedAct) broadcast(raid);\n'''
+          if old not in s:
+              raise SystemExit('raid visual marker missing')
+          p.write_text(s.replace(old, new, 1))
+          PY
       - name: Install isolated browser controller
         run: |
           rm -rf .audit-runtime
