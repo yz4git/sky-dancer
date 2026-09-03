@@ -34,7 +34,7 @@ export default function SkyDancerHudV45() {
         hitTimerRef.current = window.setTimeout(() => {
           hitTimerRef.current = null;
           setHitPulse(false);
-        }, 180);
+        }, 280);
       } else if (detail) {
         hitSerialRef.current = Math.max(hitSerialRef.current, detail.hitSerial);
       }
@@ -72,15 +72,16 @@ export default function SkyDancerHudV45() {
       .skyDancerV45Reticle {
         position: fixed;
         z-index: 138;
-        width: 40px;
-        height: 40px;
+        width: 48px;
+        height: 48px;
         transform: translate(-50%, -50%);
         pointer-events: none;
         display: grid;
         place-items: center;
         color: rgba(255,214,116,.96);
         filter: drop-shadow(0 0 7px rgba(255,191,72,.68));
-        transition: left 80ms linear, top 80ms linear, color 100ms linear, transform 100ms ease-out;
+        transition: left 64ms linear, top 64ms linear, color 90ms linear, transform 90ms ease-out;
+        animation: skyDancerV45TrackPulse 720ms ease-in-out infinite;
       }
       .skyDancerV45Reticle::before,
       .skyDancerV45Reticle::after {
@@ -91,7 +92,7 @@ export default function SkyDancerHudV45() {
         clip-path: polygon(0 0, 30% 0, 30% 7%, 7% 7%, 7% 30%, 0 30%, 0 0, 70% 0, 100% 0, 100% 30%, 93% 30%, 93% 7%, 70% 7%, 70% 0, 100% 70%, 100% 100%, 70% 100%, 70% 93%, 93% 93%, 93% 70%, 100% 70%, 30% 100%, 0 100%, 0 70%, 7% 70%, 7% 93%, 30% 93%, 30% 100%);
       }
       .skyDancerV45Reticle::after {
-        inset: 12px;
+        inset: 14px;
         border-width: 1px;
         opacity: .62;
         transform: rotate(45deg);
@@ -103,7 +104,8 @@ export default function SkyDancerHudV45() {
       }
       .skyDancerV45Reticle[data-ready="true"] {
         color: rgba(114,255,222,.98);
-        transform: translate(-50%, -50%) scale(1.08);
+        transform: translate(-50%, -50%) scale(1.12);
+        animation: skyDancerV45LockPulse 410ms ease-in-out infinite;
       }
       .skyDancerV45Hit {
         position: fixed;
@@ -121,6 +123,20 @@ export default function SkyDancerHudV45() {
         letter-spacing: .18em;
         text-shadow: 0 0 8px rgba(116,255,235,.72);
       }
+      @keyframes skyDancerV45TrackPulse {
+      0%,100% { opacity: .72; filter: drop-shadow(0 0 5px rgba(255,191,72,.48)); }
+      50% { opacity: 1; filter: drop-shadow(0 0 10px rgba(255,191,72,.82)); }
+    }
+    @keyframes skyDancerV45LockPulse {
+      0%,100% { filter: drop-shadow(0 0 7px rgba(93,255,221,.64)); }
+      50% { filter: drop-shadow(0 0 15px rgba(93,255,221,.98)); }
+    }
+    .skyDancerV45Hit { animation: skyDancerV45HitConfirm 280ms cubic-bezier(.16,.9,.24,1) both; }
+    @keyframes skyDancerV45HitConfirm {
+      0% { opacity: 0; transform: translate(-50%,-50%) scale(1.65); }
+      28% { opacity: 1; transform: translate(-50%,-50%) scale(.94); }
+      100% { opacity: 0; transform: translate(-50%,-50%) scale(1.08); }
+    }
       .skyDancerV45Lock {
         position: fixed;
         z-index: 136;
@@ -234,7 +250,7 @@ export default function SkyDancerHudV45() {
           top: `calc(43% + ${reticleY.toFixed(2)}vh)`,
         }}
       >
-        <span>◇</span>
+        <span>{decision.vulnerable ? "◆" : "◇"}</span>
       </div>
     )}
     {locked && decision && (
@@ -245,14 +261,14 @@ export default function SkyDancerHudV45() {
         aria-label="V45 target decision"
       >
         <div className="skyDancerV45LockMain">
-          <strong>{decision.label}</strong>
+          <strong>{decision.vulnerable ? "LOCK" : "TRACK"} · {decision.label}</strong>
           <span className="skyDancerV45Altitude">{altitudeLabel(decision.altitudeDeltaMeters)}</span>
           <span className="skyDancerV45Range">{Math.round(decision.distance)}m</span>
         </div>
         <span className="skyDancerV45Action">{decision.action}</span>
       </div>
     )}
-    {hitPulse && <div className="skyDancerV45Hit" aria-label="Sky Raid hit confirmation">HIT</div>}
+    {hitPulse && <div className="skyDancerV45Hit" aria-label="Sky Raid hit confirmation">MISSILE HIT</div>}
     {bossDirective && <div className="skyDancerV45BossDirective" aria-label="V45 boss directive">{bossDirective}</div>}
   </>;
 }

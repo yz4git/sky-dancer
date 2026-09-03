@@ -24,6 +24,11 @@ interface MissileTrail {
 const MAX_TRAIL_POINTS = 42;
 const TRAIL_LINGER_SECONDS = 0.7;
 
+function verticalWorldOffset(meters: number): number {
+  const skyRaid = typeof document !== "undefined" && document.documentElement.dataset.skyDancerMode === "sky-raid";
+  return skyRaid ? meters : meters / SKY_DANCER_VERTICAL_RENDER_METERS_PER_UNIT;
+}
+
 function arrowGeometry(): THREE.BufferGeometry {
   const geometry = new THREE.BufferGeometry();
   geometry.setAttribute("position", new THREE.Float32BufferAttribute([
@@ -58,6 +63,7 @@ export class SkyDancerV44ReadabilityPass {
   private sawUpCue = false;
   private sawDownCue = false;
   private sawCurvedTrail = false;
+  private maxAltitudeDeltaMeters = 0;
 
   constructor(private readonly runtime: SkyDancerFxRuntime) {
     this.cueRoot.name = "sky-dancer-v44-altitude-cues";
@@ -90,29 +96,37 @@ export class SkyDancerV44ReadabilityPass {
       if (!enemy) continue;
       const vertical = getSkyDancerEnemyVerticalSnapshotV43(enemy);
       const altitude = vertical.altitudeOffsetMeters;
-      if (Math.abs(altitude) < 1.5) continue;
+      const playerAltitude = Number((this.runtime.session as unknown as { skyDancerPlayerAltitudeMeters?: number }).skyDancerPlayerAltitudeMeters ?? 0);
+      const skyRaid = typeof document !== "undefined" && document.documentElement.dataset.skyDancerMode === "sky-raid";
+      const altitudeDelta = altitude - playerAltitude;
+      const readableAltitude = skyRaid ? altitudeDelta : altitude;
+      if (Math.abs(readableAltitude) < 1.5) continue;
       const cue = this.cues.get(enemySnapshot.id) ?? this.createAltitudeCue(enemySnapshot.id);
       this.cues.set(enemySnapshot.id, cue);
       this.activeCueIds.add(enemySnapshot.id);
       visible += 1;
 
       const baseY = enemySnapshot.kind === "boss" ? 1.7 : enemySnapshot.kind === "heavy" ? 1.3 : 1.08;
-      const altitudeUnits = altitude / SKY_DANCER_VERTICAL_RENDER_METERS_PER_UNIT;
-      const enemyY = baseY + altitudeUnits;
+      const playerY = 1.02 + verticalWorldOffset(playerAltitude);
+      const enemyY = baseY + verticalWorldOffset(altitude);
+      const cueBaseY = skyRaid ? playerY : baseY;
+      const deltaUnits = skyRaid ? enemyY - playerY : verticalWorldOffset(altitude);
       cue.root.visible = true;
-      cue.root.position.set(enemySnapshot.x, baseY, enemySnapshot.z);
+      cue.root.position.set(enemySnapshot.x, cueBaseY, enemySnapshot.z);
       const stemPositions = cue.stem.geometry.getAttribute("position") as THREE.BufferAttribute;
       stemPositions.setXYZ(0, 0, 0, 0);
-      stemPositions.setXYZ(1, 0, altitudeUnits, 0);
+      stemPositions.setXYZ(1, 0, deltaUnits, 0);
       stemPositions.needsUpdate = true;
-      cue.arrow.position.y = altitudeUnits + Math.sign(altitude) * 0.42;
-      cue.arrow.rotation.z = altitude > 0 ? 0 : Math.PI;
-      cue.arrow.material.opacity = THREE.MathUtils.clamp(0.46 + Math.abs(altitude) / 20, 0.5, 0.9);
-      cue.stem.material.opacity = THREE.MathUtils.clamp(0.22 + Math.abs(altitude) / 30, 0.24, 0.55);
+      cue.arrow.position.y = deltaUnits + Math.sign(readableAltitude) * 0.42;
+      cue.arrow.rotation.z = readableAltitude > 0 ? 0 : Math.PI;
+      cue.arrow.material.opacity = THREE.MathUtils.clamp(0.50 + Math.abs(readableAltitude) / 18, 0.55, 0.96);
+      cue.stem.material.opacity = THREE.MathUtils.clamp(0.28 + Math.abs(readableAltitude) / 26, 0.30, 0.70);
       cue.root.userData.altitudeMeters = altitude;
+      cue.root.userData.altitudeDeltaMeters = altitudeDelta;
       cue.root.userData.enemyY = enemyY;
-      this.sawUpCue ||= altitude > 2;
-      this.sawDownCue ||= altitude < -2;
+      this.maxAltitudeDeltaMeters = Math.max(this.maxAltitudeDeltaMeters, Math.abs(altitudeDelta));
+      this.sawUpCue ||= readableAltitude > 2;
+      this.sawDownCue ||= readableAltitude < -2;
     }
 
     for (const [id, cue] of this.cues) {
@@ -170,7 +184,7 @@ export class SkyDancerV44ReadabilityPass {
         trail,
         new THREE.Vector3(
           missile.x,
-          1.02 + missile.altitudeOffsetMeters / SKY_DANCER_VERTICAL_RENDER_METERS_PER_UNIT,
+          1.02 + verticalWorldOffset(missile.altitudeOffsetMeters),
           missile.z,
         ),
       );
@@ -187,7 +201,7 @@ export class SkyDancerV44ReadabilityPass {
         trail,
         new THREE.Vector3(
           missile.x,
-          1.18 + missile.altitudeOffsetMeters / SKY_DANCER_VERTICAL_RENDER_METERS_PER_UNIT,
+          1.18 + verticalWorldOffset(missile.altitudeOffsetMeters),
           missile.z,
         ),
       );
@@ -252,6 +266,7 @@ export class SkyDancerV44ReadabilityPass {
     (window as unknown as Record<string, unknown>).__skyDancerGetV44Readability = () => ({
       maxVisibleAltitudeCues: this.maxVisibleAltitudeCues,
       maxTrailPoints: this.maxTrailPoints,
+      maxAltitudeDeltaMeters: this.maxAltitudeDeltaMeters,
       sawUpCue: this.sawUpCue,
       sawDownCue: this.sawDownCue,
       sawCurvedTrail: this.sawCurvedTrail,

@@ -23,6 +23,8 @@ import {
 import type { RallyInputState } from "../rally/RallyTypes";
 import { SkyDancerSkyRaidFlightController, type SkyDancerSkyRaidFlightSnapshot } from "./SkyDancerSkyRaidFlight";
 import { SkyDancerSkyRaidArcadeWorld } from "./SkyDancerSkyRaidArcadeWorld";
+import { getSkyDancerTurboState } from "./SkyDancerTurboModel";
+import { getSkyDancerPlayerWeaponState } from "./SkyDancerPlayerWeapons";
 
 export interface SkyDancerSkyRaidSnapshot {
   gameMode: "sky-raid";
@@ -108,9 +110,18 @@ interface RaidVisualState {
   anchorHeading: number;
 }
 
+interface RaidCameraFxState {
+  baseFov: number;
+  lastShotSerial: number;
+  lastHitSerial: number;
+  shotKick: number;
+  hitKick: number;
+}
+
 const raidStateBySession = new WeakMap<object, RaidState>();
 const raidVisualByDemo = new WeakMap<object, RaidVisualState>();
 const raidFlightByDemo = new WeakMap<object, SkyDancerSkyRaidFlightController>();
+const raidCameraFxByDemo = new WeakMap<object, RaidCameraFxState>();
 let latestSkyRaidSnapshot: SkyDancerSkyRaidSnapshot | null = null;
 
 export const SKY_DANCER_SKY_RAID_SNAPSHOT_EVENT = "sky-dancer-sky-raid-snapshot";
@@ -136,6 +147,21 @@ function flightControllerFor(demo: RaidWebGLDemo): SkyDancerSkyRaidFlightControl
   const controller = new SkyDancerSkyRaidFlightController();
   raidFlightByDemo.set(key, controller);
   return controller;
+}
+
+function cameraFxFor(demo: RaidWebGLDemo): RaidCameraFxState {
+  const key = demo as unknown as object;
+  const current = raidCameraFxByDemo.get(key);
+  if (current) return current;
+  const created: RaidCameraFxState = {
+    baseFov: clamp(demo.camera.fov, 50, 70),
+    lastShotSerial: 0,
+    lastHitSerial: 0,
+    shotKick: 0,
+    hitKick: 0,
+  };
+  raidCameraFxByDemo.set(key, created);
+  return created;
 }
 
 const LEGACY_SKY_RAID_GRAPHIC_PREFIXES = [
@@ -543,47 +569,107 @@ export function installSkyDancerSkyRaid(): void {
   // SKY RAID altitude here, at the final presentation stage, so the camera follows
   // the aircraft throughout the much wider vertical flight envelope.
   const previousApplyCameraPresentation = webglPrototype.applyCameraPresentation;
-  webglPrototype.applyCameraPresentation = function skyRaidCameraPresentation(
-    this: RaidWebGLDemo,
-    snapshot: ReturnType<CartArenaSession["snapshot"]>,
-  ): void {
-    previousApplyCameraPresentation.call(this, snapshot);
-    if (!isSkyRaidMode()) return;
-    const altitude = Number(this.scene.userData.skyRaidPlayerAltitude ?? 0);
-    const pitch = Number(this.scene.userData.skyRaidPlayerPitch ?? 0);
-    const bank = Number(this.scene.userData.skyRaidPlayerBank ?? 0);
-    const speed = Math.abs(snapshot.speed);
-    const forwardX = Math.sin(snapshot.heading);
-    const forwardZ = Math.cos(snapshot.heading);
-    const turboCamera = snapshot.boostActive ? 1 : 0;
-    const chaseDistance = 9.6 + Math.min(4.0, speed * 0.085) + turboCamera * 2.2;
-    const lookAhead = 6.8 + Math.min(5.2, speed * 0.105) + turboCamera * 3.2;
-    // updateVisuals() is followed by older presentation owners that can restore the
-    // aircraft to its ground datum. SKY RAID therefore reasserts its full flight pose
-    // here, at the final camera/presentation stage, before deriving the chase camera.
-    this.playerVisual.position.y = 0.62 + altitude;
-    this.playerVisual.rotation.x = pitch;
-    this.playerVisual.rotation.z = bank;
-    this.playerVisual.updateWorldMatrix(true, false);
-    const playerPosition = new THREE.Vector3();
-    this.playerVisual.getWorldPosition(playerPosition);
-    this.camera.position.set(
-      playerPosition.x - forwardX * chaseDistance,
-      playerPosition.y + 4.55,
-      playerPosition.z - forwardZ * chaseDistance,
-    );
-    this.camera.up.set(0, 1, 0);
-    this.camera.lookAt(
-      playerPosition.x + forwardX * lookAhead,
-      playerPosition.y + 0.95,
-      playerPosition.z + forwardZ * lookAhead,
-    );
-    this.camera.rotateZ(bank * 0.075);
-    if (turboCamera > 0) {
-      this.camera.fov = Math.min(96, this.camera.fov + 2.8);
-      this.camera.updateProjectionMatrix();
-    }
-  };
+webglPrototype.applyCameraPresentation = function skyRaidCameraPresentation(
+  this: RaidWebGLDemo,
+  snapshot: ReturnType<CartArenaSession["snapshot"]>,
+): void {
+  previousApplyCameraPresentation.call(this, snapshot);
+  if (!isSkyRaidMode()) return;
+  const altitude = Number(this.scene.userData.skyRaidPlayerAltitude ?? 0);
+  const verticalSpeed = Number(this.scene.userData.skyRaidPlayerVerticalSpeed ?? 0);
+  const pitch = Number(this.scene.userData.skyRaidPlayerPitch ?? 0);
+  const bank = Number(this.scene.userData.skyRaidPlayerBank ?? 0);
+  const speed = Math.abs(snapshot.speed);
+  const forwardX = Math.sin(snapshot.heading);
+  const forwardZ = Math.cos(snapshot.heading);
+  const rightX = Math.cos(snapshot.heading);
+  const rightZ = -Math.sin(snapshot.heading);
+  const turbo = getSkyDancerTurboState(this.session);
+  const weapon = getSkyDancerPlayerWeaponState(this.session);
+  const cameraFx = cameraFxFor(this);
+  if (!snapshot.boostActive && cameraFx.shotKick < 0.03 && cameraFx.hitKick < 0.03) {
+    cameraFx.baseFov += (clamp(this.camera.fov, 50, 70) - cameraFx.baseFov) * 0.12;
+  }
+  if (weapon.shotSerial > cameraFx.lastShotSerial) {
+    cameraFx.lastShotSerial = weapon.shotSerial;
+    cameraFx.shotKick = 1;
+  }
+  if (weapon.hitSerial > cameraFx.lastHitSerial) {
+    cameraFx.lastHitSerial = weapon.hitSerial;
+    cameraFx.hitKick = 1;
+  }
+  cameraFx.shotKick *= 0.82;
+  cameraFx.hitKick *= 0.84;
+  const releaseKick = Number.isFinite(turbo.releaseAgeSeconds)
+    ? Math.exp(-Math.max(0, turbo.releaseAgeSeconds) * 2.35)
+    : 0;
+  const turboCamera = snapshot.boostActive
+    ? 0.44 + releaseKick * (0.72 + turbo.releaseCharge * 0.30)
+    : 0;
+  const chaseDistance = 9.6 + Math.min(4.0, speed * 0.085) + turboCamera * 3.9;
+  const lookAhead = 6.8 + Math.min(5.2, speed * 0.105) + turboCamera * 5.5;
+  const verticalLead = clamp(verticalSpeed * 0.14 + pitch * 4.6, -2.6, 3.0);
+  const cameraLift = 4.45 - pitch * 1.25 + clamp(verticalSpeed * 0.045, -0.52, 0.70) + turboCamera * 0.24;
+  const clock = typeof performance !== "undefined" ? performance.now() : Date.now();
+  const hitShake = Math.sin(clock * 0.055) * cameraFx.hitKick * 0.24;
+  const shotRecoil = cameraFx.shotKick * 0.18;
+
+  this.playerVisual.position.y = 0.62 + altitude;
+  this.playerVisual.rotation.x = pitch;
+  this.playerVisual.rotation.z = bank;
+  this.playerVisual.updateWorldMatrix(true, false);
+  const playerPosition = new THREE.Vector3();
+  this.playerVisual.getWorldPosition(playerPosition);
+  this.camera.position.set(
+    playerPosition.x - forwardX * (chaseDistance + shotRecoil) + rightX * hitShake,
+    playerPosition.y + cameraLift + cameraFx.hitKick * 0.10,
+    playerPosition.z - forwardZ * (chaseDistance + shotRecoil) + rightZ * hitShake,
+  );
+  this.camera.up.set(0, 1, 0);
+  this.camera.lookAt(
+    playerPosition.x + forwardX * lookAhead,
+    playerPosition.y + 0.92 + verticalLead - cameraFx.hitKick * 0.08,
+    playerPosition.z + forwardZ * lookAhead,
+  );
+  this.camera.rotateZ(bank * (0.085 + turboCamera * 0.018) + hitShake * 0.035);
+  const targetFov = clamp(
+    cameraFx.baseFov + turboCamera * (6.6 + turbo.releaseCharge * 3.4) + cameraFx.shotKick * 0.35 - cameraFx.hitKick * 0.75,
+    50,
+    82,
+  );
+  if (Math.abs(this.camera.fov - targetFov) > 0.01) {
+    this.camera.fov = targetFov;
+    this.camera.updateProjectionMatrix();
+  }
+  this.scene.userData.skyRaidCameraVerticalLead = verticalLead;
+  this.scene.userData.skyRaidCameraTurboBlend = turboCamera;
+  this.scene.userData.skyRaidCameraHitKick = cameraFx.hitKick;
+  this.scene.userData.skyRaidCameraShotKick = cameraFx.shotKick;
+  this.scene.userData.skyRaidCameraFov = this.camera.fov;
+  if (typeof window !== "undefined" && typeof navigator !== "undefined" && navigator.webdriver) {
+    (window as unknown as Record<string, unknown>).__skyRaidGetCameraPolish = () => {
+      this.scene.updateMatrixWorld(true);
+      this.camera.updateMatrixWorld(true);
+      const player = new THREE.Vector3();
+      this.playerVisual.getWorldPosition(player);
+      const projected = player.clone().project(this.camera);
+      return {
+        altitude, verticalSpeed, verticalLead,
+        cameraY: this.camera.position.y,
+        playerY: player.y,
+        fov: this.camera.fov,
+        turboBlend: turboCamera,
+        releaseAgeSeconds: turbo.releaseAgeSeconds,
+        releaseCharge: turbo.releaseCharge,
+        shotKick: cameraFx.shotKick,
+        hitKick: cameraFx.hitKick,
+        shotSerial: weapon.shotSerial,
+        hitSerial: weapon.hitSerial,
+        playerVisible: projected.z > -1 && projected.z < 1 && Math.abs(projected.x) < 1 && Math.abs(projected.y) < 1,
+      };
+    };
+  }
+};
 
   const canvasPrototype = CartRogueCanvasPreview.prototype as unknown as RaidCanvasDemo;
   const previousDraw = canvasPrototype.draw;
