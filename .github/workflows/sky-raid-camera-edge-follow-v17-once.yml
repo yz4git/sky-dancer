@@ -1,0 +1,226 @@
+name: SKY RAID camera edge-follow V17
+
+on:
+  push:
+    paths:
+      - .github/workflows/sky-raid-camera-edge-follow-v17-once.yml
+
+permissions:
+  contents: write
+
+jobs:
+  implement-and-audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 16
+    env:
+      SKY_DANCER_CHROME_PATH: /usr/bin/google-chrome
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.13.0
+          cache: npm
+      - name: Implement edge-locked vertical camera follow
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          p = Path('src/sky/SkyDancerSkyRaid.ts')
+          s = p.read_text()
+          old = '''  const verticalLead = clamp(verticalSpeed * 0.14 + pitch * 4.6, -2.6, 3.0);
+  const cameraLift = 4.45 - pitch * 1.25 + clamp(verticalSpeed * 0.045, -0.52, 0.70) + turboCamera * 0.24;'''
+          new = '''  const rawVerticalLead = clamp(verticalSpeed * 0.14 + pitch * 4.6, -2.6, 3.0);
+  // At the top/bottom of the flight envelope the aircraft must remain the visual
+  // anchor. Fade the climb/dive look lead out near either altitude limit instead
+  // of letting the camera continue looking away from the aircraft.
+  const altitudeEdgeBlend = clamp(Math.max((altitude - 48) / 16, (-10 - altitude) / 8, 0), 0, 1);
+  const verticalLead = rawVerticalLead * (1 - altitudeEdgeBlend * 0.88);
+  // Keep the chase eye itself tightly coupled to the aircraft. Pitch/vertical
+  // speed may still influence the shot, but only subtly; the aircraft altitude
+  // remains the dominant camera-Y term over the full -18..64m envelope.
+  const cameraLift = 4.70 - pitch * 0.55 + clamp(verticalSpeed * 0.018, -0.22, 0.28) + turboCamera * 0.24;'''
+          if old not in s:
+              raise SystemExit('camera lead marker missing')
+          s = s.replace(old, new, 1)
+
+          old = '''  this.camera.up.set(0, 1, 0);
+  this.camera.lookAt(
+    playerPosition.x + forwardX * lookAhead,
+    playerPosition.y + 0.92 + verticalLead - cameraFx.hitKick * 0.08,
+    playerPosition.z + forwardZ * lookAhead,
+  );
+  this.camera.rotateZ(bank * (0.085 + turboCamera * 0.018) + hitShake * 0.035);'''
+          new = '''  this.camera.up.set(0, 1, 0);
+  let lookTargetY = playerPosition.y + 0.96 + verticalLead - cameraFx.hitKick * 0.08;
+  this.camera.lookAt(
+    playerPosition.x + forwardX * lookAhead,
+    lookTargetY,
+    playerPosition.z + forwardZ * lookAhead,
+  );
+
+  // Screen-space framing assist: altitude is unbounded from the camera's point of
+  // view, so keep the aircraft in a safe lower-center band even while a climb or
+  // dive input is held against the altitude stop. This is intentionally strongest
+  // near -18m/64m and still lightly active during fast vertical movement.
+  this.camera.updateMatrixWorld(true);
+  const preFrameProjection = playerPosition.clone().project(this.camera);
+  const desiredPlayerNdcY = -0.22;
+  const verticalFrameError = clamp(preFrameProjection.y - desiredPlayerNdcY, -0.70, 0.70);
+  const frameAssist = clamp(0.58 + Math.abs(verticalSpeed) / 16 * 0.20 + altitudeEdgeBlend * 0.34, 0.58, 1.0);
+  const frameCorrection = clamp(verticalFrameError * 3.4 * frameAssist, -1.85, 1.85);
+  if (Math.abs(frameCorrection) > 0.01) {
+    lookTargetY += frameCorrection;
+    this.camera.lookAt(
+      playerPosition.x + forwardX * lookAhead,
+      lookTargetY,
+      playerPosition.z + forwardZ * lookAhead,
+    );
+  }
+  this.camera.rotateZ(bank * (0.085 + turboCamera * 0.018) + hitShake * 0.035);'''
+          if old not in s:
+              raise SystemExit('camera lookAt marker missing')
+          s = s.replace(old, new, 1)
+
+          old = '''  this.scene.userData.skyRaidCameraVerticalLead = verticalLead;
+  this.scene.userData.skyRaidCameraTurboBlend = turboCamera;'''
+          new = '''  this.scene.userData.skyRaidCameraVerticalLead = verticalLead;
+  this.scene.userData.skyRaidCameraAltitudeEdgeBlend = altitudeEdgeBlend;
+  this.scene.userData.skyRaidCameraFrameCorrection = frameCorrection;
+  this.scene.userData.skyRaidCameraTurboBlend = turboCamera;'''
+          if old not in s:
+              raise SystemExit('camera userData marker missing')
+          s = s.replace(old, new, 1)
+
+          old = '''        altitude, verticalSpeed, verticalLead,
+        cameraY: this.camera.position.y,
+        playerY: player.y,
+        fov: this.camera.fov,'''
+          new = '''        altitude, verticalSpeed, verticalLead,
+        altitudeEdgeBlend,
+        frameCorrection,
+        cameraY: this.camera.position.y,
+        playerY: player.y,
+        playerNdcY: projected.y,
+        fov: this.camera.fov,'''
+          if old not in s:
+              raise SystemExit('camera audit helper marker missing')
+          s = s.replace(old, new, 1)
+          p.write_text(s)
+
+          t = Path('tests/sky-sky-raid-reference-world.test.ts')
+          ts = t.read_text()
+          marker = '''  assert.match(raid, /this\\.playerVisual\\.rotation\\.z = bank/);\n  assert.doesNotMatch(raid, /demo\\.camera\\.position\\.y \\+= flight\\.altitude/);'''
+          replacement = '''  assert.match(raid, /this\\.playerVisual\\.rotation\\.z = bank/);\n  assert.match(raid, /altitudeEdgeBlend/);\n  assert.match(raid, /desiredPlayerNdcY = -0\\.22/);\n  assert.match(raid, /frameCorrection/);\n  assert.doesNotMatch(raid, /demo\\.camera\\.position\\.y \\+= flight\\.altitude/);'''
+          if marker not in ts:
+              raise SystemExit('camera regression marker missing')
+          t.write_text(ts.replace(marker, replacement, 1))
+          PY
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Regression checks
+        run: |
+          npm run test:fast
+          npm run lint
+          npm run build:pages
+      - name: Start browser audit server
+        run: |
+          rm -rf .audit-runtime
+          mkdir -p .audit-runtime artifacts/sky-raid-v17
+          printf '{"private":true,"type":"commonjs"}\n' > .audit-runtime/package.json
+          npm install --prefix .audit-runtime --no-package-lock --no-save --ignore-scripts --no-audit --no-fund playwright-core@1.55.0
+          python3 -m http.server 4173 --bind 127.0.0.1 --directory out >/tmp/sky-raid-v17-http.log 2>&1 &
+          for i in {1..30}; do
+            if curl -fsS http://127.0.0.1:4173/ >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          cat /tmp/sky-raid-v17-http.log
+          exit 1
+      - name: Real browser altitude-edge playcheck
+        run: |
+          cat >/tmp/v17.cjs <<'JS'
+          const { chromium } = require(process.cwd() + '/.audit-runtime/node_modules/playwright-core');
+          const fs = require('node:fs');
+          const path = require('node:path');
+          const out = 'artifacts/sky-raid-v17';
+          let browser, context, page, failure;
+          const watchdog = setTimeout(() => process.exit(124), 110000);
+          const shot = async n => { try { await page?.screenshot({path:path.join(out,n),timeout:6000}); } catch {} };
+          const camera = () => page.evaluate(() => window.__skyRaidGetCameraPolish?.());
+          const holdVertical = async (fractionY, milliseconds) => {
+            const pad = page.locator('[aria-label="Sky Raid two-axis flight stick"]');
+            const box = await pad.boundingBox();
+            if (!box) throw new Error('flight pad missing');
+            await page.mouse.move(box.x + box.width * .5, box.y + box.height * .5);
+            await page.mouse.down();
+            await page.mouse.move(box.x + box.width * .5, box.y + box.height * fractionY, {steps:8});
+            const samples = [];
+            const end = Date.now() + milliseconds;
+            while (Date.now() < end) {
+              await page.waitForTimeout(140);
+              const s = await camera();
+              if (s) samples.push(s);
+            }
+            await page.mouse.up();
+            await page.waitForTimeout(100);
+            return samples;
+          };
+          (async()=>{try{
+            browser = await chromium.launch({headless:true,executablePath:process.env.SKY_DANCER_CHROME_PATH||'/usr/bin/google-chrome',args:['--use-angle=swiftshader','--enable-webgl','--enable-unsafe-swiftshader','--ignore-gpu-blocklist','--disable-dev-shm-usage']});
+            context = await browser.newContext({viewport:{width:844,height:390},deviceScaleFactor:2,isMobile:true,hasTouch:true});
+            page = await context.newPage();
+            const errors=[];
+            page.on('pageerror',e=>errors.push(String(e)));
+            page.on('console',m=>{if(m.type()==='error'&&!/404/.test(m.text()))errors.push(m.text())});
+            await page.goto(`http://127.0.0.1:4173?menu=1&v17=${Date.now()}`,{waitUntil:'networkidle',timeout:30000});
+            await page.locator('button').filter({hasText:/^\s*SKY RAID/i}).first().click({force:true,timeout:10000});
+            await page.waitForTimeout(100);
+            await page.locator('button').filter({hasText:/START/i}).last().click({force:true,timeout:10000});
+            await page.locator('canvas[aria-label="Sky Dancer WebGL game view"]').waitFor({state:'visible',timeout:20000});
+            await page.waitForFunction(()=>typeof window.__skyRaidGetCameraPolish==='function',null,{timeout:12000});
+
+            const baseline=await camera();
+            const climbSamples=await holdVertical(.07, 6100);
+            const high=await camera();
+            if(!(high.altitude>=63.5))throw new Error(`did not reach upper altitude stop: ${high.altitude}`);
+            if(!high.playerVisible)throw new Error('aircraft clipped at upper altitude stop');
+            if(Math.abs(high.playerNdcY)>0.52)throw new Error(`upper framing too close to edge: ${high.playerNdcY}`);
+            if(!(high.altitudeEdgeBlend>.92))throw new Error(`upper edge blend inactive: ${high.altitudeEdgeBlend}`);
+            const climbMaxY=Math.max(...climbSamples.map(s=>Math.abs(s.playerNdcY||0)));
+            if(climbMaxY>.68)throw new Error(`aircraft drifted too far during climb: ${climbMaxY}`);
+            await shot('01-upper-altitude-stop.png');
+
+            const diveSamples=await holdVertical(.93, 7600);
+            const low=await camera();
+            if(!(low.altitude<=-17.5))throw new Error(`did not reach lower altitude stop: ${low.altitude}`);
+            if(!low.playerVisible)throw new Error('aircraft clipped at lower altitude stop');
+            if(Math.abs(low.playerNdcY)>0.52)throw new Error(`lower framing too close to edge: ${low.playerNdcY}`);
+            if(!(low.altitudeEdgeBlend>.92))throw new Error(`lower edge blend inactive: ${low.altitudeEdgeBlend}`);
+            const diveMaxY=Math.max(...diveSamples.map(s=>Math.abs(s.playerNdcY||0)));
+            if(diveMaxY>.68)throw new Error(`aircraft drifted too far during dive: ${diveMaxY}`);
+            await shot('02-lower-altitude-stop.png');
+
+            const report={baseline,high,low,climbMaxAbsPlayerNdcY:climbMaxY,diveMaxAbsPlayerNdcY:diveMaxY,errors};
+            fs.writeFileSync(path.join(out,'report.json'),JSON.stringify(report,null,2));
+            if(errors.length)throw new Error(JSON.stringify(errors));
+            console.log('SKY RAID V17 PASS',JSON.stringify(report));
+          }catch(e){failure=e;console.error('SKY RAID V17 FAIL',e?.stack||e);await shot('failure.png');fs.writeFileSync(path.join(out,'failure.txt'),String(e?.stack||e));}finally{clearTimeout(watchdog);try{await context?.close()}catch{}try{await browser?.close()}catch{}}if(failure)process.exitCode=1;})();
+          JS
+          node /tmp/v17.cjs
+      - name: Upload audit artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sky-raid-v17-camera-edge-follow
+          path: artifacts/sky-raid-v17
+          if-no-files-found: warn
+          retention-days: 7
+      - name: Commit verified camera follow
+        if: success()
+        run: |
+          git config user.name "yz4git"
+          git config user.email "65384484+yz4git@users.noreply.github.com"
+          git add src/sky/SkyDancerSkyRaid.ts tests/sky-sky-raid-reference-world.test.ts
+          git commit -m "Keep SKY RAID aircraft framed at altitude limits"
+          git push origin HEAD:main
