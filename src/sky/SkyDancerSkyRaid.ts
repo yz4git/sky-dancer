@@ -608,8 +608,14 @@ webglPrototype.applyCameraPresentation = function skyRaidCameraPresentation(
     : 0;
   const chaseDistance = 9.6 + Math.min(4.0, speed * 0.085) + turboCamera * 3.9;
   const lookAhead = 6.8 + Math.min(5.2, speed * 0.105) + turboCamera * 5.5;
-  const verticalLead = clamp(verticalSpeed * 0.14 + pitch * 4.6, -2.6, 3.0);
-  const cameraLift = 4.45 - pitch * 1.25 + clamp(verticalSpeed * 0.045, -0.52, 0.70) + turboCamera * 0.24;
+  const rawVerticalLead = clamp(verticalSpeed * 0.14 + pitch * 4.6, -2.6, 3.0);
+  // Near either altitude stop, keep the aircraft as the visual anchor instead
+  // of continuing to look farther up/down after the craft can no longer move.
+  const altitudeEdgeBlend = clamp(Math.max((altitude - 48) / 16, (-10 - altitude) / 8, 0), 0, 1);
+  const verticalLead = rawVerticalLead * (1 - altitudeEdgeBlend * 0.88);
+  // Camera Y follows the actual aircraft Y almost one-to-one; pitch and vertical
+  // velocity only add a small cinematic offset.
+  const cameraLift = 4.70 - pitch * 0.55 + clamp(verticalSpeed * 0.018, -0.22, 0.28) + turboCamera * 0.24;
   const clock = typeof performance !== "undefined" ? performance.now() : Date.now();
   const hitShake = Math.sin(clock * 0.055) * cameraFx.hitKick * 0.24;
   const shotRecoil = cameraFx.shotKick * 0.18;
@@ -626,11 +632,29 @@ webglPrototype.applyCameraPresentation = function skyRaidCameraPresentation(
     playerPosition.z - forwardZ * (chaseDistance + shotRecoil) + rightZ * hitShake,
   );
   this.camera.up.set(0, 1, 0);
+  let lookTargetY = playerPosition.y + 0.96 + verticalLead - cameraFx.hitKick * 0.08;
   this.camera.lookAt(
     playerPosition.x + forwardX * lookAhead,
-    playerPosition.y + 0.92 + verticalLead - cameraFx.hitKick * 0.08,
+    lookTargetY,
     playerPosition.z + forwardZ * lookAhead,
   );
+
+  // Screen-space framing assist. Keep the aircraft in a safe lower-center band
+  // even while climb/dive input is held against the altitude limit.
+  this.camera.updateMatrixWorld(true);
+  const preFrameProjection = playerPosition.clone().project(this.camera);
+  const desiredPlayerNdcY = -0.22;
+  const verticalFrameError = clamp(preFrameProjection.y - desiredPlayerNdcY, -0.70, 0.70);
+  const frameAssist = clamp(0.58 + Math.abs(verticalSpeed) / 16 * 0.20 + altitudeEdgeBlend * 0.34, 0.58, 1.0);
+  const frameCorrection = clamp(verticalFrameError * 3.4 * frameAssist, -1.85, 1.85);
+  if (Math.abs(frameCorrection) > 0.01) {
+    lookTargetY += frameCorrection;
+    this.camera.lookAt(
+      playerPosition.x + forwardX * lookAhead,
+      lookTargetY,
+      playerPosition.z + forwardZ * lookAhead,
+    );
+  }
   this.camera.rotateZ(bank * (0.085 + turboCamera * 0.018) + hitShake * 0.035);
   const targetFov = clamp(
     cameraFx.baseFov + turboCamera * (6.6 + turbo.releaseCharge * 3.4) + cameraFx.shotKick * 0.35 - cameraFx.hitKick * 0.75,
@@ -642,6 +666,8 @@ webglPrototype.applyCameraPresentation = function skyRaidCameraPresentation(
     this.camera.updateProjectionMatrix();
   }
   this.scene.userData.skyRaidCameraVerticalLead = verticalLead;
+  this.scene.userData.skyRaidCameraAltitudeEdgeBlend = altitudeEdgeBlend;
+  this.scene.userData.skyRaidCameraFrameCorrection = frameCorrection;
   this.scene.userData.skyRaidCameraTurboBlend = turboCamera;
   this.scene.userData.skyRaidCameraHitKick = cameraFx.hitKick;
   this.scene.userData.skyRaidCameraShotKick = cameraFx.shotKick;
@@ -655,8 +681,11 @@ webglPrototype.applyCameraPresentation = function skyRaidCameraPresentation(
       const projected = player.clone().project(this.camera);
       return {
         altitude, verticalSpeed, verticalLead,
+        altitudeEdgeBlend,
+        frameCorrection,
         cameraY: this.camera.position.y,
         playerY: player.y,
+        playerNdcY: projected.y,
         fov: this.camera.fov,
         turboBlend: turboCamera,
         releaseAgeSeconds: turbo.releaseAgeSeconds,
