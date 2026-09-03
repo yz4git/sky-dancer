@@ -1,4 +1,4 @@
-# Full five-act SKY RAID visual audit V11 — heading chase camera + framing assertion
+# Full five-act SKY RAID visual audit V12 — camera follows rendered aircraft world position
 name: SKY RAID V2 visual compare
 on:
   push:
@@ -20,38 +20,39 @@ jobs:
           node-version: 22.13.0
           cache: npm
       - run: npm ci --no-audit --no-fund
-      - name: Patch SKY RAID heading chase camera
+      - name: Patch camera to rendered aircraft world position
         run: |
           python3 - <<'PY'
           from pathlib import Path
           p = Path('src/sky/SkyDancerSkyRaid.ts')
           s = p.read_text()
-          old = '''    const altitude = Number(this.scene.userData.skyRaidPlayerAltitude ?? 0);\n    const bank = Number(this.scene.userData.skyRaidPlayerBank ?? 0);\n    this.camera.position.y += altitude * 0.94;\n    const lookAhead = 5.8 + Math.min(4.2, Math.abs(snapshot.speed) * 0.12);\n    this.camera.lookAt(\n      snapshot.x + Math.sin(snapshot.heading) * lookAhead,\n      1.25 + altitude * 0.98,\n      snapshot.z + Math.cos(snapshot.heading) * lookAhead,\n    );\n    this.camera.rotateZ(bank * 0.055);\n'''
-          new = '''    const altitude = Number(this.scene.userData.skyRaidPlayerAltitude ?? 0);\n    const verticalSpeed = Number(this.scene.userData.skyRaidPlayerVerticalSpeed ?? 0);\n    const bank = Number(this.scene.userData.skyRaidPlayerBank ?? 0);\n    const speed = Math.abs(snapshot.speed);\n    const forwardX = Math.sin(snapshot.heading);\n    const forwardZ = Math.cos(snapshot.heading);\n    const chaseDistance = 9.6 + Math.min(4.0, speed * 0.085);\n    const chaseHeight = 5.15 + altitude + Math.max(0, verticalSpeed) * 0.025;\n    const lookAhead = 6.8 + Math.min(5.2, speed * 0.105);\n    const lookHeight = 1.55 + altitude + verticalSpeed * 0.018;\n    // SKY RAID is true 360-degree flight, so the final camera must be derived from\n    // aircraft heading in all axes rather than inheriting the car chase X/Z frame.\n    this.camera.position.set(\n      snapshot.x - forwardX * chaseDistance,\n      chaseHeight,\n      snapshot.z - forwardZ * chaseDistance,\n    );\n    this.camera.up.set(0, 1, 0);\n    this.camera.lookAt(\n      snapshot.x + forwardX * lookAhead,\n      lookHeight,\n      snapshot.z + forwardZ * lookAhead,\n    );\n    this.camera.rotateZ(bank * 0.075);\n'''
+          old = '''    const altitude = Number(this.scene.userData.skyRaidPlayerAltitude ?? 0);\n    const verticalSpeed = Number(this.scene.userData.skyRaidPlayerVerticalSpeed ?? 0);\n    const bank = Number(this.scene.userData.skyRaidPlayerBank ?? 0);\n    const speed = Math.abs(snapshot.speed);\n    const forwardX = Math.sin(snapshot.heading);\n    const forwardZ = Math.cos(snapshot.heading);\n    const chaseDistance = 9.6 + Math.min(4.0, speed * 0.085);\n    const chaseHeight = 5.15 + altitude + Math.max(0, verticalSpeed) * 0.025;\n    const lookAhead = 6.8 + Math.min(5.2, speed * 0.105);\n    const lookHeight = 1.55 + altitude + verticalSpeed * 0.018;\n    // SKY RAID is true 360-degree flight, so the final camera must be derived from\n    // aircraft heading in all axes rather than inheriting the car chase X/Z frame.\n    this.camera.position.set(\n      snapshot.x - forwardX * chaseDistance,\n      chaseHeight,\n      snapshot.z - forwardZ * chaseDistance,\n    );\n    this.camera.up.set(0, 1, 0);\n    this.camera.lookAt(\n      snapshot.x + forwardX * lookAhead,\n      lookHeight,\n      snapshot.z + forwardZ * lookAhead,\n    );\n    this.camera.rotateZ(bank * 0.075);\n'''
+          new = '''    const bank = Number(this.scene.userData.skyRaidPlayerBank ?? 0);\n    const speed = Math.abs(snapshot.speed);\n    const forwardX = Math.sin(snapshot.heading);\n    const forwardZ = Math.cos(snapshot.heading);\n    const chaseDistance = 9.6 + Math.min(4.0, speed * 0.085);\n    const lookAhead = 6.8 + Math.min(5.2, speed * 0.105);\n    // Read the rendered aircraft itself. Several late Sky Dancer presentation passes\n    // can own vertical transforms, so inferred altitude is not a reliable camera datum.\n    this.playerVisual.updateWorldMatrix(true, false);\n    const playerPosition = new THREE.Vector3();\n    this.playerVisual.getWorldPosition(playerPosition);\n    this.camera.position.set(\n      playerPosition.x - forwardX * chaseDistance,\n      playerPosition.y + 4.55,\n      playerPosition.z - forwardZ * chaseDistance,\n    );\n    this.camera.up.set(0, 1, 0);\n    this.camera.lookAt(\n      playerPosition.x + forwardX * lookAhead,\n      playerPosition.y + 0.95,\n      playerPosition.z + forwardZ * lookAhead,\n    );\n    this.camera.rotateZ(bank * 0.075);\n'''
           if old not in s:
-              raise SystemExit('old SKY RAID camera block missing')
+              raise SystemExit('V11 camera block missing')
           p.write_text(s.replace(old, new, 1))
 
           t = Path('tests/sky-sky-raid-reference-world.test.ts')
           tests = t.read_text()
-          marker = 'SKY RAID camera derives chase position from aircraft heading'
-          if marker not in tests:
-              tests += '''\n\ntest("SKY RAID camera derives chase position from aircraft heading", async () => {\n  const source = await readFile(new URL("../src/sky/SkyDancerSkyRaid.ts", import.meta.url), "utf8");\n  assert.match(source, /const forwardX = Math\\.sin\\(snapshot\\.heading\\)/);\n  assert.match(source, /const forwardZ = Math\\.cos\\(snapshot\\.heading\\)/);\n  assert.match(source, /this\\.camera\\.position\\.set\\(/);\n  assert.match(source, /snapshot\\.x - forwardX \\* chaseDistance/);\n  assert.match(source, /snapshot\\.z - forwardZ \\* chaseDistance/);\n  assert.doesNotMatch(source, /this\\.camera\\.position\\.y \\+= altitude/);\n});\n'''
-              t.write_text(tests)
+          tests = tests.replace(
+              '  assert.match(source, /snapshot\\.x - forwardX \\* chaseDistance/);\n  assert.match(source, /snapshot\\.z - forwardZ \\* chaseDistance/);',
+              '  assert.match(source, /this\\.playerVisual\\.getWorldPosition\\(playerPosition\\)/);\n  assert.match(source, /playerPosition\\.x - forwardX \\* chaseDistance/);\n  assert.match(source, /playerPosition\\.z - forwardZ \\* chaseDistance/);'
+          )
+          t.write_text(tests)
           PY
       - name: Regression checks
         run: |
           npm run test:fast
           npm run lint
           npm run build:pages
-      - name: Commit camera fix
+      - name: Commit rendered-aircraft camera fix
         run: |
           git config user.name "yz4git"
           git config user.email "65384484+yz4git@users.noreply.github.com"
           git add src/sky/SkyDancerSkyRaid.ts tests/sky-sky-raid-reference-world.test.ts
-          git commit -m "Keep SKY RAID aircraft framed during free flight"
+          git commit -m "Follow rendered SKY RAID aircraft with camera"
           git push origin HEAD:main
-      - name: Inject webdriver-only ACT and framing audit hooks
+      - name: Inject webdriver-only ACT and flight audit hooks
         run: |
           python3 - <<'PY'
           from pathlib import Path
@@ -59,18 +60,15 @@ jobs:
           s = p.read_text()
           old = 'let latestSkyRaidSnapshot: SkyDancerSkyRaidSnapshot | null = null;\n'
           new = old + 'let skyRaidAuditForcedActId: SkyDancerSkyRaidAct["id"] | null = null;\n'
-          if old not in s:
-              raise SystemExit('latest snapshot marker missing')
+          if old not in s: raise SystemExit('snapshot marker missing')
           s = s.replace(old, new, 1)
           old = '''  const raid = updateRaid(demo.session as unknown as RaidSession, hunt, 0);\n  publishSkyRaidWorldStyle(raid);\n'''
-          new = '''  const baseRaid = updateRaid(demo.session as unknown as RaidSession, hunt, 0);\n  if (typeof window !== "undefined" && typeof navigator !== "undefined" && navigator.webdriver) {\n    (window as unknown as Record<string, unknown>).__skyRaidAuditForceAct = (actId: SkyDancerSkyRaidAct["id"] | null) => {\n      skyRaidAuditForcedActId = actId && SKY_DANCER_SKY_RAID_ACTS.some((candidate) => candidate.id === actId) ? actId : null;\n    };\n  }\n  const forcedAct = skyRaidAuditForcedActId\n    ? SKY_DANCER_SKY_RAID_ACTS.find((candidate) => candidate.id === skyRaidAuditForcedActId) ?? null\n    : null;\n  const raid: SkyDancerSkyRaidSnapshot = forcedAct\n    ? {\n        ...baseRaid,\n        actIndex: forcedAct.index,\n        actId: forcedAct.id,\n        actLabel: forcedAct.label,\n        actSubtitle: forcedAct.subtitle,\n        setpiece: forcedAct.setpiece,\n        elapsedSeconds: forcedAct.startSeconds + 1,\n        actElapsedSeconds: 1,\n        actSecondsRemaining: Math.max(0, forcedAct.endSeconds - forcedAct.startSeconds - 1),\n        rushActive: false,\n        palette: forcedAct.palette,\n      }\n    : baseRaid;\n  publishSkyRaidWorldStyle(raid);\n  if (forcedAct) broadcast(raid);\n'''
-          if old not in s:
-              raise SystemExit('raid visual marker missing')
+          new = '''  const baseRaid = updateRaid(demo.session as unknown as RaidSession, hunt, 0);\n  if (typeof window !== "undefined" && typeof navigator !== "undefined" && navigator.webdriver) {\n    (window as unknown as Record<string, unknown>).__skyRaidAuditForceAct = (actId: SkyDancerSkyRaidAct["id"] | null) => {\n      skyRaidAuditForcedActId = actId && SKY_DANCER_SKY_RAID_ACTS.some((candidate) => candidate.id === actId) ? actId : null;\n    };\n  }\n  const forcedAct = skyRaidAuditForcedActId\n    ? SKY_DANCER_SKY_RAID_ACTS.find((candidate) => candidate.id === skyRaidAuditForcedActId) ?? null\n    : null;\n  const raid: SkyDancerSkyRaidSnapshot = forcedAct\n    ? { ...baseRaid, actIndex: forcedAct.index, actId: forcedAct.id, actLabel: forcedAct.label, actSubtitle: forcedAct.subtitle, setpiece: forcedAct.setpiece, elapsedSeconds: forcedAct.startSeconds + 1, actElapsedSeconds: 1, actSecondsRemaining: Math.max(0, forcedAct.endSeconds - forcedAct.startSeconds - 1), rushActive: false, palette: forcedAct.palette }\n    : baseRaid;\n  publishSkyRaidWorldStyle(raid);\n  if (forcedAct) broadcast(raid);\n'''
+          if old not in s: raise SystemExit('raid marker missing')
           s = s.replace(old, new, 1)
           old = '''  visual.arcadeWorld.update(raid.actId, base.x, base.z, base.heading, flight.altitude, raid.elapsedSeconds, delta);\n\n  visual.speedFx.visible = base.boostActive || raid.rushActive;\n'''
-          new = '''  visual.arcadeWorld.update(raid.actId, base.x, base.z, base.heading, flight.altitude, raid.elapsedSeconds, delta);\n  if (typeof window !== "undefined" && typeof navigator !== "undefined" && navigator.webdriver) {\n    (window as unknown as Record<string, unknown>).__skyRaidAuditVisibleMeshes = () => {\n      const rows: Array<{ footprint: number; name: string; geometry: string; size: number[]; colors: Array<string | null>; parents: string[]; userData: string[] }> = [];\n      demo.scene.updateMatrixWorld(true);\n      demo.scene.traverse((object) => {\n        if (!(object instanceof THREE.Mesh)) return;\n        let current: THREE.Object3D | null = object;\n        while (current) {\n          if (!current.visible) return;\n          current = current.parent;\n        }\n        const bounds = new THREE.Box3().setFromObject(object);\n        const size = new THREE.Vector3();\n        bounds.getSize(size);\n        const footprint = Math.max(size.x, size.z);\n        if (!Number.isFinite(footprint) || footprint < 18) return;\n        const materials = Array.isArray(object.material) ? object.material : [object.material];\n        const colors = materials.map((material) => {\n          const colored = material as THREE.Material & { color?: THREE.Color };\n          return colored.color instanceof THREE.Color ? `#${colored.color.getHexString()}` : null;\n        });\n        const parents: string[] = [];\n        let parent = object.parent;\n        while (parent && parents.length < 6) {\n          parents.push(parent.name || "(unnamed)");\n          parent = parent.parent;\n        }\n        rows.push({\n          footprint,\n          name: object.name || "(unnamed)",\n          geometry: object.geometry.type,\n          size: [Number(size.x.toFixed(2)), Number(size.y.toFixed(2)), Number(size.z.toFixed(2))],\n          colors,\n          parents,\n          userData: Object.keys(object.userData),\n        });\n      });\n      return rows.sort((a, b) => b.footprint - a.footprint).slice(0, 120);\n    };\n    (window as unknown as Record<string, unknown>).__skyRaidAuditFlightState = () => {\n      demo.scene.updateMatrixWorld(true);\n      demo.camera.updateMatrixWorld(true);\n      const player = new THREE.Vector3();\n      demo.playerVisual.getWorldPosition(player);\n      const projected = player.clone().project(demo.camera);\n      return {\n        altitude: Number(demo.scene.userData.skyRaidPlayerAltitude ?? 0),\n        verticalSpeed: Number(demo.scene.userData.skyRaidPlayerVerticalSpeed ?? 0),\n        bank: Number(demo.scene.userData.skyRaidPlayerBank ?? 0),\n        freeFlightSectors: Number(demo.scene.userData.skyRaidArcadeFreeFlightSectorCount ?? 0),\n        worldLocked: Boolean(demo.scene.userData.skyRaidArcadeWorldLocked),\n        playerNdc: {\n          x: Number(projected.x.toFixed(4)),\n          y: Number(projected.y.toFixed(4)),\n          z: Number(projected.z.toFixed(4)),\n          visible: projected.z > -1 && projected.z < 1 && Math.abs(projected.x) < 1 && Math.abs(projected.y) < 1,\n        },\n      };\n    };\n  }\n\n  visual.speedFx.visible = base.boostActive || raid.rushActive;\n'''
-          if old not in s:
-              raise SystemExit('arcade world update marker missing')
+          new = '''  visual.arcadeWorld.update(raid.actId, base.x, base.z, base.heading, flight.altitude, raid.elapsedSeconds, delta);\n  if (typeof window !== "undefined" && typeof navigator !== "undefined" && navigator.webdriver) {\n    (window as unknown as Record<string, unknown>).__skyRaidAuditFlightState = () => {\n      demo.scene.updateMatrixWorld(true);\n      demo.camera.updateMatrixWorld(true);\n      const player = new THREE.Vector3();\n      demo.playerVisual.getWorldPosition(player);\n      const projected = player.clone().project(demo.camera);\n      return {\n        altitude: Number(demo.scene.userData.skyRaidPlayerAltitude ?? 0),\n        verticalSpeed: Number(demo.scene.userData.skyRaidPlayerVerticalSpeed ?? 0),\n        bank: Number(demo.scene.userData.skyRaidPlayerBank ?? 0),\n        freeFlightSectors: Number(demo.scene.userData.skyRaidArcadeFreeFlightSectorCount ?? 0),\n        worldLocked: Boolean(demo.scene.userData.skyRaidArcadeWorldLocked),\n        playerWorld: { x: Number(player.x.toFixed(3)), y: Number(player.y.toFixed(3)), z: Number(player.z.toFixed(3)) },\n        playerNdc: { x: Number(projected.x.toFixed(4)), y: Number(projected.y.toFixed(4)), z: Number(projected.z.toFixed(4)), visible: projected.z > -1 && projected.z < 1 && Math.abs(projected.x) < 1 && Math.abs(projected.y) < 1 },\n      };\n    };\n  }\n\n  visual.speedFx.visible = base.boostActive || raid.rushActive;\n'''
+          if old not in s: raise SystemExit('world update marker missing')
           p.write_text(s.replace(old, new, 1))
           PY
       - name: Install isolated browser controller
@@ -93,20 +91,26 @@ jobs:
           exit 1
       - name: Capture Arcade Run and all SKY RAID acts
         run: node scripts/webgl-sky-raid-v2-compare.mjs
-      - name: Assert aircraft remains framed
+      - name: Assert real climb and camera framing
         run: |
           python3 - <<'PY'
           import json
           report = json.load(open('artifacts/sky-raid-v2-compare/report.json'))
           act1 = report['raid']['acts'][0]
-          for key in ('maneuverFlight', 'wideClimbTurnFlight'):
-              state = act1[key]['flight']
+          initial = act1['legacyOwners']['flight']
+          maneuver = act1['maneuverFlight']['flight']
+          wide = act1['wideClimbTurnFlight']['flight']
+          print('initial', initial)
+          print('maneuver', maneuver)
+          print('wide', wide)
+          for name, state in [('maneuver', maneuver), ('wide', wide)]:
               ndc = state['playerNdc']
-              print(key, state)
-              if not ndc['visible']:
-                  raise SystemExit(f'{key}: aircraft left camera frustum: {ndc}')
-              if abs(ndc['x']) > 0.58 or not (-0.72 < ndc['y'] < 0.62):
-                  raise SystemExit(f'{key}: aircraft framing too close to edge: {ndc}')
+              if not ndc['visible'] or abs(ndc['x']) > 0.58 or not (-0.72 < ndc['y'] < 0.62):
+                  raise SystemExit(f'{name}: aircraft framing failed: {ndc}')
+          if maneuver['playerWorld']['y'] < initial['playerWorld']['y'] + 4:
+              raise SystemExit(f'aircraft visual did not climb: {initial["playerWorld"]} -> {maneuver["playerWorld"]}')
+          if wide['playerWorld']['y'] < maneuver['playerWorld']['y'] + 3:
+              raise SystemExit(f'aircraft visual stopped climbing: {maneuver["playerWorld"]} -> {wide["playerWorld"]}')
           if report['raid']['errors']:
               raise SystemExit(f"browser errors: {report['raid']['errors']}")
           PY
