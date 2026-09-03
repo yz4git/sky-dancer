@@ -4,6 +4,9 @@ on:
   push:
     paths:
       - .github/workflows/sky-raid-camera-edge-follow-v17-once.yml
+      - app/SkyDancerArcadeVirtualPad.tsx
+      - app/SkyDancerArcadeVirtualPad.module.css
+      - app/SkyDancerSkyRaidOverlay.tsx
       - src/sky/SkyDancerSkyRaid.ts
       - src/sky/SkyDancerSkyRaidArcadeWorld.ts
       - src/sky/SkyDancerSkyRaidFlight.ts

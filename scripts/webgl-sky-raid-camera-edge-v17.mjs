@@ -62,6 +62,14 @@ try {
   // Judge the actual playable baseline after a short presentation settle window.
   await page.waitForTimeout(450);
 
+  const padBox = await page.locator('[aria-label="Sky Raid two-axis flight stick"]').boundingBox();
+  const captionBox = await page.locator('[aria-label="Flight control"] > span').last().boundingBox();
+  if (!padBox || padBox.width < 100 || padBox.height < 100) throw new Error(`flight pad touch target shrank: ${JSON.stringify(padBox)}`);
+  if (!captionBox) throw new Error("flight pad caption missing");
+  if (captionBox.y < padBox.y - 1 || captionBox.y + captionBox.height > padBox.y + padBox.height + 1) {
+    throw new Error(`flight pad caption escaped touch disc: pad=${JSON.stringify(padBox)} caption=${JSON.stringify(captionBox)}`);
+  }
+
   const baseline = await camera();
   if (!baseline.playerVisible) throw new Error("aircraft not visible after SKY RAID presentation settle");
   if (Math.abs(baseline.playerNdcY - desiredPlayerNdcY) > baselineFrameTolerance) {
@@ -99,7 +107,7 @@ try {
   await page.mouse.up();
   await clearAuditAltitude();
 
-  const report = { desiredPlayerNdcY, baselineFrameTolerance, baseline, realClimb, high, beforeDive, realDive, low, errors };
+  const report = { desiredPlayerNdcY, baselineFrameTolerance, padBox, captionBox, baseline, realClimb, high, beforeDive, realDive, low, errors };
   fs.writeFileSync(path.join(out, "report.json"), JSON.stringify(report, null, 2));
   if (errors.length) throw new Error(JSON.stringify(errors));
   console.log("SKY RAID V18 PASS", JSON.stringify(report));
