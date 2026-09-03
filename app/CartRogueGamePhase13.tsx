@@ -52,10 +52,10 @@ export default function CartRogueGamePhase13() {
   }, [activeRequest?.mode]);
 
   return <>
-    {(activeRequest?.mode === "turbo-hunt" || activeRequest?.mode === "sky-raid") && (
+    {activeRequest?.mode === "turbo-hunt" && (
       <Fragment key={runKey}>
         <CartRogueGame />
-        {activeRequest.mode === "sky-raid" ? <SkyDancerSkyRaidOverlay /> : <CartTurboHuntHudOverlay />}
+        <CartTurboHuntHudOverlay />
         <CartCombatReadabilityPass />
         <SkyDancerArcadeVirtualPad />
         <SkyDancerHudQualityPass />
@@ -69,6 +69,15 @@ export default function CartRogueGamePhase13() {
         <SkyDancerHudV45 />
         <SkyDancerHudV49 />
         <SkyDancerHudV54 />
+      </Fragment>
+    )}
+    {activeRequest?.mode === "sky-raid" && (
+      <Fragment key={runKey}>
+        <CartRogueGame />
+        <SkyDancerSkyRaidOverlay />
+        <SkyDancerArcadeVirtualPad />
+        <SkyDancerShotControl />
+        <SkyDancerCombatPolish />
       </Fragment>
     )}
     {activeRequest && (activeRequest.mode === "arcade-run" || activeRequest.mode === "stage-practice") && (
