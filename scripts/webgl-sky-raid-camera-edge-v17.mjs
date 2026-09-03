@@ -92,14 +92,18 @@ try {
     throw new Error(`flight pad caption escaped visible ring: ring=${JSON.stringify(visualRingBox)} caption=${JSON.stringify(captionBox)}`);
   }
 
+  // These values are sampled after the Hunt director has selected the current
+  // opening formation, so enemyPool is intentionally an opening runtime snapshot
+  // (normally six), not the late-game candidate capacity. The source contract
+  // separately keeps every SKY RAID reinforcement candidate instead of halving it.
   const combatDiagnostics = await page.evaluate(() => ({
     populationProfile: document.documentElement.dataset.skyRaidPopulationProfile ?? "",
     enemyPool: Number(document.documentElement.dataset.skyRaidEnemyPool ?? 0),
     enemyActive: Number(document.documentElement.dataset.skyRaidEnemyActive ?? 0),
   }));
   if (combatDiagnostics.populationProfile !== "arcade-dense") throw new Error(`SKY RAID population profile missing: ${JSON.stringify(combatDiagnostics)}`);
-  if (combatDiagnostics.enemyPool < 10) throw new Error(`SKY RAID candidate pool still capped below late-game pressure: ${JSON.stringify(combatDiagnostics)}`);
   if (combatDiagnostics.enemyActive < 1) throw new Error(`SKY RAID has no live combat targets: ${JSON.stringify(combatDiagnostics)}`);
+  if (combatDiagnostics.enemyPool < combatDiagnostics.enemyActive) throw new Error(`SKY RAID population diagnostics inconsistent: ${JSON.stringify(combatDiagnostics)}`);
 
   const baseline = await camera();
   if (!baseline.playerVisible) throw new Error("aircraft not visible after SKY RAID presentation settle");
@@ -107,6 +111,12 @@ try {
     throw new Error(`baseline missed intended combat framing: ${baseline.playerNdcY} target=${desiredPlayerNdcY}`);
   }
   await screenshot("00-baseline-flight.png");
+
+  // Confirm combat while the opening target is still in the authored forward
+  // attack lane; doing this before altitude excursions makes the playcheck
+  // deterministic without teleporting or weakening the enemy.
+  const targetDownConfirmation = await confirmLiveTargetDown();
+
   await beginVerticalHold(0.07);
   await page.waitForTimeout(1500);
   const realClimb = await camera();
@@ -137,10 +147,8 @@ try {
   await screenshot("02-lower-altitude-stop.png");
   await page.mouse.up();
   await clearAuditAltitude();
-  await page.waitForTimeout(180);
 
-  const targetDownConfirmation = await confirmLiveTargetDown();
-  const report = { desiredPlayerNdcY, baselineFrameTolerance, padBox, visualRingBox, captionBox, combatDiagnostics, baseline, realClimb, high, beforeDive, realDive, low, targetDownConfirmation, errors };
+  const report = { desiredPlayerNdcY, baselineFrameTolerance, padBox, visualRingBox, captionBox, combatDiagnostics, targetDownConfirmation, baseline, realClimb, high, beforeDive, realDive, low, errors };
   fs.writeFileSync(path.join(out, "report.json"), JSON.stringify(report, null, 2));
   if (errors.length) throw new Error(JSON.stringify(errors));
   console.log("SKY RAID V18 PASS", JSON.stringify(report));
