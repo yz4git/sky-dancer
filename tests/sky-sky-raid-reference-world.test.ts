@@ -32,6 +32,7 @@ test("SKY RAID has a substantially wider vertical envelope and final camera trac
   assert.match(raid, /this\.playerVisual\.rotation\.z = bank/);
   assert.match(raid, /altitudeEdgeBlend/);
   assert.match(raid, /desiredPlayerNdcY = -0\.22/);
+  assert.match(raid, /edgeFrameGain/);
   assert.match(raid, /frameCorrection/);
   assert.doesNotMatch(raid, /demo\.camera\.position\.y \+= flight\.altitude/);
 });

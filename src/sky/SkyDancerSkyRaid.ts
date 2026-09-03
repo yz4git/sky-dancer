@@ -646,7 +646,12 @@ webglPrototype.applyCameraPresentation = function skyRaidCameraPresentation(
   const desiredPlayerNdcY = -0.22;
   const verticalFrameError = clamp(preFrameProjection.y - desiredPlayerNdcY, -0.70, 0.70);
   const frameAssist = clamp(0.58 + Math.abs(verticalSpeed) / 16 * 0.20 + altitudeEdgeBlend * 0.34, 0.58, 1.0);
-  const frameCorrection = clamp(verticalFrameError * 3.4 * frameAssist, -1.85, 1.85);
+  // The normal-flight correction stays subtle, but at either hard altitude stop
+  // the camera must decisively follow the aircraft instead of letting it sit at
+  // the top/bottom edge. Edge gain ramps independently so mid-flight framing is
+  // unchanged while the limit case gets enough authority to recenter the craft.
+  const edgeFrameGain = 3.4 + altitudeEdgeBlend * 6.6;
+  const frameCorrection = clamp(verticalFrameError * edgeFrameGain * frameAssist, -6.0, 6.0);
   if (Math.abs(frameCorrection) > 0.01) {
     lookTargetY += frameCorrection;
     this.camera.lookAt(
