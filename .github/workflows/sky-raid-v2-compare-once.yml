@@ -1,4 +1,4 @@
-# SKY RAID V13 — final-owner vertical flight + real browser audit
+# SKY RAID V14 — final source visual/gameplay audit after ACT intro
 name: SKY RAID V2 visual compare
 on:
   push:
@@ -6,7 +6,7 @@ on:
     paths:
       - '.github/workflows/sky-raid-v2-compare-once.yml'
 permissions:
-  contents: write
+  contents: read
 jobs:
   compare:
     runs-on: ubuntu-24.04
@@ -20,44 +20,11 @@ jobs:
           node-version: 22.13.0
           cache: npm
       - run: npm ci --no-audit --no-fund
-      - name: Make SKY RAID own final aircraft altitude
-        run: |
-          python3 - <<'PY'
-          from pathlib import Path
-          p = Path('src/sky/SkyDancerSkyRaid.ts')
-          s = p.read_text()
-          old = '''  demo.scene.userData.skyRaidPlayerAltitude = flight.altitude;\n  demo.scene.userData.skyRaidPlayerVerticalSpeed = flight.verticalSpeed;\n  demo.scene.userData.skyRaidPlayerBank = flight.bank;\n'''
-          new = '''  demo.scene.userData.skyRaidPlayerAltitude = flight.altitude;\n  demo.scene.userData.skyRaidPlayerVerticalSpeed = flight.verticalSpeed;\n  demo.scene.userData.skyRaidPlayerPitch = flight.pitch;\n  demo.scene.userData.skyRaidPlayerBank = flight.bank;\n'''
-          if old not in s:
-              raise SystemExit('flight userData marker missing')
-          s = s.replace(old, new, 1)
-          old = '''    const bank = Number(this.scene.userData.skyRaidPlayerBank ?? 0);\n    const speed = Math.abs(snapshot.speed);\n    const forwardX = Math.sin(snapshot.heading);\n    const forwardZ = Math.cos(snapshot.heading);\n    const chaseDistance = 9.6 + Math.min(4.0, speed * 0.085);\n    const lookAhead = 6.8 + Math.min(5.2, speed * 0.105);\n    // Read the rendered aircraft itself. Several late Sky Dancer presentation passes\n    // can own vertical transforms, so inferred altitude is not a reliable camera datum.\n    this.playerVisual.updateWorldMatrix(true, false);\n    const playerPosition = new THREE.Vector3();\n    this.playerVisual.getWorldPosition(playerPosition);\n'''
-          new = '''    const altitude = Number(this.scene.userData.skyRaidPlayerAltitude ?? 0);\n    const pitch = Number(this.scene.userData.skyRaidPlayerPitch ?? 0);\n    const bank = Number(this.scene.userData.skyRaidPlayerBank ?? 0);\n    const speed = Math.abs(snapshot.speed);\n    const forwardX = Math.sin(snapshot.heading);\n    const forwardZ = Math.cos(snapshot.heading);\n    const chaseDistance = 9.6 + Math.min(4.0, speed * 0.085);\n    const lookAhead = 6.8 + Math.min(5.2, speed * 0.105);\n    // updateVisuals() is followed by older presentation owners that can restore the\n    // aircraft to its ground datum. SKY RAID therefore reasserts its full flight pose\n    // here, at the final camera/presentation stage, before deriving the chase camera.\n    this.playerVisual.position.y = 0.62 + altitude;\n    this.playerVisual.rotation.x = pitch;\n    this.playerVisual.rotation.z = bank;\n    this.playerVisual.updateWorldMatrix(true, false);\n    const playerPosition = new THREE.Vector3();\n    this.playerVisual.getWorldPosition(playerPosition);\n'''
-          if old not in s:
-              raise SystemExit('V12 camera marker missing')
-          s = s.replace(old, new, 1)
-          p.write_text(s)
-
-          t = Path('tests/sky-sky-raid-reference-world.test.ts')
-          tests = t.read_text()
-          old_test = '''  assert.match(raid, /skyRaidCameraPresentation/);\n  assert.match(raid, /this\\.camera\\.position\\.y \\+= altitude \\* 0\\.94/);\n  assert.match(raid, /altitude \\* 0\\.98/);\n  assert.doesNotMatch(raid, /demo\\.camera\\.position\\.y \\+= flight\\.altitude/);\n'''
-          new_test = '''  assert.match(raid, /skyRaidCameraPresentation/);\n  assert.match(raid, /skyRaidPlayerPitch = flight\\.pitch/);\n  assert.match(raid, /this\\.playerVisual\\.position\\.y = 0\\.62 \\+ altitude/);\n  assert.match(raid, /this\\.playerVisual\\.rotation\\.x = pitch/);\n  assert.match(raid, /this\\.playerVisual\\.rotation\\.z = bank/);\n  assert.doesNotMatch(raid, /demo\\.camera\\.position\\.y \\+= flight\\.altitude/);\n'''
-          if old_test not in tests:
-              raise SystemExit('vertical camera test marker missing')
-          t.write_text(tests.replace(old_test, new_test, 1))
-          PY
       - name: Regression checks
         run: |
           npm run test:fast
           npm run lint
           npm run build:pages
-      - name: Commit final-owner vertical flight
-        run: |
-          git config user.name "yz4git"
-          git config user.email "65384484+yz4git@users.noreply.github.com"
-          git add src/sky/SkyDancerSkyRaid.ts tests/sky-sky-raid-reference-world.test.ts
-          git commit -m "Keep SKY RAID aircraft at commanded altitude"
-          git push origin HEAD:main
       - name: Inject webdriver-only ACT and flight audit hooks
         run: |
           python3 - <<'PY'
@@ -69,7 +36,7 @@ jobs:
           if old not in s: raise SystemExit('snapshot marker missing')
           s = s.replace(old, new, 1)
           old = '''  const raid = updateRaid(demo.session as unknown as RaidSession, hunt, 0);\n  publishSkyRaidWorldStyle(raid);\n'''
-          new = '''  const baseRaid = updateRaid(demo.session as unknown as RaidSession, hunt, 0);\n  if (typeof window !== "undefined" && typeof navigator !== "undefined" && navigator.webdriver) {\n    (window as unknown as Record<string, unknown>).__skyRaidAuditForceAct = (actId: SkyDancerSkyRaidAct["id"] | null) => {\n      skyRaidAuditForcedActId = actId && SKY_DANCER_SKY_RAID_ACTS.some((candidate) => candidate.id === actId) ? actId : null;\n    };\n  }\n  const forcedAct = skyRaidAuditForcedActId\n    ? SKY_DANCER_SKY_RAID_ACTS.find((candidate) => candidate.id === skyRaidAuditForcedActId) ?? null\n    : null;\n  const raid: SkyDancerSkyRaidSnapshot = forcedAct\n    ? { ...baseRaid, actIndex: forcedAct.index, actId: forcedAct.id, actLabel: forcedAct.label, actSubtitle: forcedAct.subtitle, setpiece: forcedAct.setpiece, elapsedSeconds: forcedAct.startSeconds + 1, actElapsedSeconds: 1, actSecondsRemaining: Math.max(0, forcedAct.endSeconds - forcedAct.startSeconds - 1), rushActive: false, palette: forcedAct.palette }\n    : baseRaid;\n  publishSkyRaidWorldStyle(raid);\n  if (forcedAct) broadcast(raid);\n'''
+          new = '''  const baseRaid = updateRaid(demo.session as unknown as RaidSession, hunt, 0);\n  if (typeof window !== "undefined" && typeof navigator !== "undefined" && navigator.webdriver) {\n    (window as unknown as Record<string, unknown>).__skyRaidAuditForceAct = (actId: SkyDancerSkyRaidAct["id"] | null) => {\n      skyRaidAuditForcedActId = actId && SKY_DANCER_SKY_RAID_ACTS.some((candidate) => candidate.id === actId) ? actId : null;\n    };\n  }\n  const forcedAct = skyRaidAuditForcedActId\n    ? SKY_DANCER_SKY_RAID_ACTS.find((candidate) => candidate.id === skyRaidAuditForcedActId) ?? null\n    : null;\n  const raid: SkyDancerSkyRaidSnapshot = forcedAct\n    ? { ...baseRaid, actIndex: forcedAct.index, actId: forcedAct.id, actLabel: forcedAct.label, actSubtitle: forcedAct.subtitle, setpiece: forcedAct.setpiece, elapsedSeconds: forcedAct.startSeconds + 6, actElapsedSeconds: 6, actSecondsRemaining: Math.max(0, forcedAct.endSeconds - forcedAct.startSeconds - 6), rushActive: false, palette: forcedAct.palette }\n    : baseRaid;\n  publishSkyRaidWorldStyle(raid);\n  if (forcedAct) broadcast(raid);\n'''
           if old not in s: raise SystemExit('raid marker missing')
           s = s.replace(old, new, 1)
           old = '''  visual.arcadeWorld.update(raid.actId, base.x, base.z, base.heading, flight.altitude, raid.elapsedSeconds, delta);\n\n  visual.speedFx.visible = base.boostActive || raid.rushActive;\n'''
@@ -117,6 +84,8 @@ jobs:
               raise SystemExit(f'aircraft visual did not climb enough: {initial["playerWorld"]} -> {maneuver["playerWorld"]}')
           if wide['playerWorld']['y'] < maneuver['playerWorld']['y'] + 5:
               raise SystemExit(f'aircraft visual stopped climbing: {maneuver["playerWorld"]} -> {wide["playerWorld"]}')
+          if any(act['forbiddenHud'] for act in report['raid']['acts']):
+              raise SystemExit('legacy HUD leaked into SKY RAID')
           if report['raid']['errors']:
               raise SystemExit(f"browser errors: {report['raid']['errors']}")
           PY
