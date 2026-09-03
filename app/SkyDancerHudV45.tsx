@@ -14,6 +14,10 @@ function altitudeLabel(value: number): string {
   return "◆ LEVEL";
 }
 
+function clamp(value: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, value));
+}
+
 export default function SkyDancerHudV45() {
   const [decision, setDecision] = useState<SkyDancerCombatDecisionSnapshotV45 | null>(null);
   const [hitPulse, setHitPulse] = useState(false);
@@ -57,8 +61,50 @@ export default function SkyDancerHudV45() {
   }, [decision]);
 
   const locked = Boolean(decision?.targetEnemyId);
+  const reticleX = decision ? clamp((decision.signedAngle / 0.78) * 26, -26, 26) : 0;
+  const altitudeRatio = decision && Number.isFinite(decision.distance) && decision.distance > 1
+    ? clamp(decision.altitudeDeltaMeters / decision.distance, -0.72, 0.72)
+    : 0;
+  const reticleY = -altitudeRatio * 24;
+
   return <>
     <style>{`
+      .skyDancerV45Reticle {
+        position: fixed;
+        z-index: 138;
+        width: 40px;
+        height: 40px;
+        transform: translate(-50%, -50%);
+        pointer-events: none;
+        display: grid;
+        place-items: center;
+        color: rgba(255,214,116,.96);
+        filter: drop-shadow(0 0 7px rgba(255,191,72,.68));
+        transition: left 80ms linear, top 80ms linear, color 100ms linear, transform 100ms ease-out;
+      }
+      .skyDancerV45Reticle::before,
+      .skyDancerV45Reticle::after {
+        content: "";
+        position: absolute;
+        inset: 2px;
+        border: 2px solid currentColor;
+        clip-path: polygon(0 0, 30% 0, 30% 7%, 7% 7%, 7% 30%, 0 30%, 0 0, 70% 0, 100% 0, 100% 30%, 93% 30%, 93% 7%, 70% 7%, 70% 0, 100% 70%, 100% 100%, 70% 100%, 70% 93%, 93% 93%, 93% 70%, 100% 70%, 30% 100%, 0 100%, 0 70%, 7% 70%, 7% 93%, 30% 93%, 30% 100%);
+      }
+      .skyDancerV45Reticle::after {
+        inset: 12px;
+        border-width: 1px;
+        opacity: .62;
+        transform: rotate(45deg);
+      }
+      .skyDancerV45Reticle span {
+        font: 950 24px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+        transform: translateY(-1px);
+        text-shadow: 0 0 7px currentColor, 0 1px 5px rgba(0,0,0,.9);
+      }
+      .skyDancerV45Reticle[data-ready="true"] {
+        color: rgba(114,255,222,.98);
+        transform: translate(-50%, -50%) scale(1.08);
+      }
       .skyDancerV45Hit {
         position: fixed;
         z-index: 140;
@@ -178,6 +224,19 @@ export default function SkyDancerHudV45() {
         .skyDancerV45BossActive [aria-label="Missile warning"] { top: 105px !important; }
       }
     `}</style>
+    {locked && decision && (
+      <div
+        className="skyDancerV45Reticle"
+        data-ready={decision.vulnerable ? "true" : "false"}
+        aria-label="Sky Raid target reticle"
+        style={{
+          left: `calc(50% + ${reticleX.toFixed(2)}vw)`,
+          top: `calc(43% + ${reticleY.toFixed(2)}vh)`,
+        }}
+      >
+        <span>◇</span>
+      </div>
+    )}
     {locked && decision && (
       <div
         className="skyDancerV45Lock"
