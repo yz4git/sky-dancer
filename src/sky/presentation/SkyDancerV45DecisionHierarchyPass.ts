@@ -345,9 +345,10 @@ export class SkyDancerV45DecisionHierarchyPass {
   }
 
   private publishDecision(snapshot: CartArenaSessionSnapshot, delta: number): void {
+    const skyRaid = typeof document !== "undefined" && document.documentElement.dataset.skyDancerMode === "sky-raid";
     this.broadcastClock -= delta;
-    if (this.broadcastClock > 0) return;
-    this.broadcastClock = 0.08;
+    if (!skyRaid && this.broadcastClock > 0) return;
+    this.broadcastClock = skyRaid ? 0 : 0.08;
     const lock = getSkyDancerPlayerLockSnapshotV45(this.runtime.session);
     const weapon = getSkyDancerPlayerWeaponState(this.runtime.session);
     const boss = getLatestSkyDancerBossQualityV34();

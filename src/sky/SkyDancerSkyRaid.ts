@@ -157,20 +157,21 @@ function collectLegacyRaidLayers(scene: THREE.Scene): THREE.Object3D[] {
   return layers;
 }
 
-function applySkyRaidFlight(demo: RaidWebGLDemo, delta: number): SkyDancerSkyRaidFlightSnapshot {
+function stepSkyRaidFlight(demo: RaidWebGLDemo, delta: number): SkyDancerSkyRaidFlightSnapshot {
   const base = demo.session.snapshot();
   const flight = flightControllerFor(demo).step(delta, base.heading, demo.steer, base.boostActive);
   (demo.session as unknown as { skyDancerPlayerAltitudeMeters?: number }).skyDancerPlayerAltitudeMeters = flight.altitude;
-  demo.playerVisual.position.y = 0.62 + flight.altitude;
-  demo.playerVisual.rotation.x = flight.pitch;
-  demo.playerVisual.rotation.z = flight.bank;
-  // Camera altitude is applied after the base chase-camera copy in
-  // applyCameraPresentation(); doing it here is overwritten by the base renderer.
   demo.scene.userData.skyRaidPlayerAltitude = flight.altitude;
   demo.scene.userData.skyRaidPlayerVerticalSpeed = flight.verticalSpeed;
   demo.scene.userData.skyRaidPlayerPitch = flight.pitch;
   demo.scene.userData.skyRaidPlayerBank = flight.bank;
   return flight;
+}
+
+function applySkyRaidFlightVisuals(demo: RaidWebGLDemo, flight: SkyDancerSkyRaidFlightSnapshot): void {
+  demo.playerVisual.position.y = 0.62 + flight.altitude;
+  demo.playerVisual.rotation.x = flight.pitch;
+  demo.playerVisual.rotation.z = flight.bank;
 }
 
 function suppressTurboHuntBackdrop(scene: THREE.Scene): void {
@@ -460,7 +461,7 @@ function buildRaidVisuals(demo: RaidWebGLDemo): void {
   });
 }
 
-function updateRaidVisuals(demo: RaidWebGLDemo, delta: number): void {
+function updateRaidVisuals(demo: RaidWebGLDemo, delta: number, flight: SkyDancerSkyRaidFlightSnapshot | null = null): void {
   let visual = raidVisualByDemo.get(demo as unknown as object);
   if (!visual && isSkyRaidMode()) {
     buildRaidVisuals(demo);
@@ -490,11 +491,12 @@ function updateRaidVisuals(demo: RaidWebGLDemo, delta: number): void {
   visual.actGroups.forEach((group) => { group.visible = false; });
   visual.root.visible = false;
   visual.legacyLayers.forEach((layer) => { layer.visible = false; });
-  const flight = applySkyRaidFlight(demo, delta);
-  visual.arcadeWorld.update(raid.actId, base.x, base.z, base.heading, flight.altitude, raid.elapsedSeconds, delta);
+  const resolvedFlight = flight ?? stepSkyRaidFlight(demo, delta);
+  applySkyRaidFlightVisuals(demo, resolvedFlight);
+  visual.arcadeWorld.update(raid.actId, base.x, base.z, base.heading, resolvedFlight.altitude, raid.elapsedSeconds, delta);
 
   visual.speedFx.visible = base.boostActive || raid.rushActive;
-  visual.speedFx.position.set(base.x, 1.8 + flight.altitude, base.z);
+  visual.speedFx.position.set(base.x, 1.8 + resolvedFlight.altitude, base.z);
   visual.speedFx.rotation.y = base.heading;
   visual.speedFx.children.forEach((line, index) => {
     line.position.z -= delta * (base.boostActive ? 68 : 42);
@@ -532,8 +534,9 @@ export function installSkyDancerSkyRaid(): void {
   };
   const previousUpdateVisuals = webglPrototype.updateVisuals;
   webglPrototype.updateVisuals = function skyRaidUpdateVisuals(this: RaidWebGLDemo, delta: number): void {
+    const flight = isSkyRaidMode() ? stepSkyRaidFlight(this, delta) : null;
     previousUpdateVisuals.call(this, delta);
-    updateRaidVisuals(this, delta);
+    updateRaidVisuals(this, delta, flight);
   };
 
   // Base animate() copies the chase-camera position after updateVisuals(). Apply
