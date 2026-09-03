@@ -2,19 +2,33 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { readFile } from "node:fs/promises";
 
-test("SKY RAID uses the real Arcade Run environment as a stationary free-flight world", async () => {
+test("SKY RAID uses Arcade Run scenery as a stationary 360-degree free-flight world", async () => {
   const world = await readFile(new URL("../src/sky/SkyDancerSkyRaidArcadeWorld.ts", import.meta.url), "utf8");
   assert.match(world, /SkyDancerArcadeEnvironment/);
   assert.match(world, /this\.anchorX = x/);
   assert.match(world, /this\.anchorZ = z/);
   assert.match(world, /this\.anchorYaw = heading \+ Math\.PI/);
   assert.match(world, /setWorldFrame\(this\.anchorX, 0, this\.anchorZ, this\.anchorYaw\)/);
+  assert.match(world, /FREE_FLIGHT_SECTOR_ANGLES/);
+  assert.match(world, /Math\.PI \* 2 \/ 3/);
+  assert.match(world, /skyRaidArcadeFreeFlightSectors = 3/);
   assert.match(world, /skyRaidFreeFlightWorld = true/);
   assert.match(world, /skyRaidArcadeWorldLocked = true/);
   assert.doesNotMatch(world, /localSeconds \* this\.stage\.courseSpeed/);
   assert.doesNotMatch(world, /desiredYaw/);
   assert.doesNotMatch(world, /dampAngle/);
-  assert.doesNotMatch(world, /InstancedMesh/);
+});
+
+test("SKY RAID has a substantially wider vertical envelope and final camera tracking", async () => {
+  const flight = await readFile(new URL("../src/sky/SkyDancerSkyRaidFlight.ts", import.meta.url), "utf8");
+  const raid = await readFile(new URL("../src/sky/SkyDancerSkyRaid.ts", import.meta.url), "utf8");
+  assert.match(flight, /SKY_RAID_MIN_ALTITUDE = -18/);
+  assert.match(flight, /SKY_RAID_MAX_ALTITUDE = 64/);
+  assert.match(flight, /boost \? 22 : 16/);
+  assert.match(raid, /skyRaidCameraPresentation/);
+  assert.match(raid, /this\.camera\.position\.y \+= altitude \* 0\.94/);
+  assert.match(raid, /altitude \* 0\.98/);
+  assert.doesNotMatch(raid, /demo\.camera\.position\.y \+= flight\.altitude/);
 });
 
 test("SKY RAID final visual owner runs after V53", async () => {
