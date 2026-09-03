@@ -43,6 +43,7 @@ async function readLegacyVisualOwners(page) {
     v36: typeof window.__skyDancerGetV36WorldDebug === "function" ? window.__skyDancerGetV36WorldDebug() : null,
     v39: typeof window.__skyDancerGetReferenceVisualV39 === "function" ? window.__skyDancerGetReferenceVisualV39() : null,
     visibleMeshes: typeof window.__skyRaidAuditVisibleMeshes === "function" ? window.__skyRaidAuditVisibleMeshes() : null,
+    flight: typeof window.__skyRaidAuditFlightState === "function" ? window.__skyRaidAuditFlightState() : null,
   }));
 }
 
@@ -85,7 +86,7 @@ const report = {};
     const state = await raidState(page);
     const legacyOwners = await readLegacyVisualOwners(page);
     const forbiddenHud = ["STAGE 1", "HEAD-ON CROSS", "CITY AIRSPACE", "▲ ABOVE", "▼ BELOW", "GAS 100%", "OPERATOR", "HAPPY", "回復セル確認！"].filter((text) => state.body.includes(text));
-    actReports.push({ index, expected, state: { mode: state.mode, act: state.act, style: state.style }, legacyOwners, forbiddenHud });
+    const entry = { index, expected, state: { mode: state.mode, act: state.act, style: state.style }, legacyOwners, forbiddenHud };
     if (index === 0) {
       const pad = page.locator('[aria-label="Sky Raid two-axis flight stick"]');
       if (await pad.count()) {
@@ -93,13 +94,18 @@ const report = {};
         if (box) {
           await page.mouse.move(box.x + box.width * 0.5, box.y + box.height * 0.5);
           await page.mouse.down();
-          await page.mouse.move(box.x + box.width * 0.78, box.y + box.height * 0.22, { steps: 8 });
+          await page.mouse.move(box.x + box.width * 0.82, box.y + box.height * 0.16, { steps: 8 });
           await page.waitForTimeout(1100);
           await captureCanvas(page, canvas, `${outputDir}/raid-act1-flight-stick-maneuver.png`);
+          entry.maneuverFlight = await readLegacyVisualOwners(page);
+          await page.waitForTimeout(2600);
+          await captureCanvas(page, canvas, `${outputDir}/raid-act1-wide-climb-turn.png`);
+          entry.wideClimbTurnFlight = await readLegacyVisualOwners(page);
           await page.mouse.up();
         }
       }
     }
+    actReports.push(entry);
   }
   await page.evaluate(() => window.__skyRaidAuditForceAct(null));
   report.raid = { acts: actReports, errors, body: (await page.locator("body").innerText()).slice(0, 2500) };
