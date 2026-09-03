@@ -19,8 +19,8 @@ export default function SkyDancerArcadeVirtualPad() {
   const verticalRef = useRef<Direction>(0);
   const [direction, setDirection] = useState<Direction>(0);
   const [active, setActive] = useState(false);
-  const [flightMode, setFlightMode] = useState(false);
   const [knob, setKnob] = useState({ x: 0, y: 0 });
+  const flightMode = typeof document !== "undefined" && document.documentElement.dataset.skyDancerMode === "sky-raid";
 
   const applyHorizontal = useCallback((next: Direction) => {
     const previous = horizontalRef.current;
@@ -52,7 +52,6 @@ export default function SkyDancerArcadeVirtualPad() {
   }, [applyHorizontal, applyVertical]);
 
   useEffect(() => {
-    setFlightMode(document.documentElement.dataset.skyDancerMode === "sky-raid");
     const onBlur = () => reset();
     const onVisibility = () => {
       if (document.visibilityState !== "visible") reset();
