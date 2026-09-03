@@ -390,7 +390,15 @@ function updateMissiles(session: WeaponSessionView, state: WeaponState, delta: n
     if (!hit) continue;
 
     missile.active = false;
-    const damage = missileDamage(hit, session);
+    // A displayed FIRE window authorizes the shot at launch. Preserve that
+    // tactical decision while the guided missile is in flight; otherwise a
+    // target can leave its vulnerability phase milliseconds before impact and
+    // turn a correctly timed player shot into an unexpected glancing hit.
+    // Swept collisions against a different aircraft still use that aircraft's
+    // current decision instead of inheriting the locked target's damage.
+    const damage = missile.targetEnemyId === hit.id
+      ? Math.max(1, missile.damage)
+      : missileDamage(hit, session);
     hit.hp = Math.max(0, hit.hp - damage);
     const destroyed = hit.hp <= 0;
     hit.alive = !destroyed;
