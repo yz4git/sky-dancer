@@ -82,13 +82,16 @@ export class SkyDancerWebGLDemo extends CartRogueWebGLDemo {
       object.visible = false;
     }
 
-    const legacyEnvironmentBefore = new Set(runtime.scene.children);
-    this.buildTerrain150m(runtime.scene);
-    this.buildCloudDeck(runtime.scene);
-    this.buildAirspaceGuides(runtime.scene);
-    for (const object of runtime.scene.children) {
-      if (!legacyEnvironmentBefore.has(object)) object.userData.skyDancerLegacyEnvironment = true;
-    }
+    // Keep every baseline Sky Dancer scenery object under one ownership root.
+    // SKY RAID can then suppress the entire legacy world by hiding the parent,
+    // even if later presentation passes toggle individual child visibility.
+    const legacyEnvironmentRoot = new THREE.Group();
+    legacyEnvironmentRoot.name = "sky-dancer-legacy-environment";
+    legacyEnvironmentRoot.userData.skyDancerLegacyEnvironment = true;
+    this.buildTerrain150m(legacyEnvironmentRoot);
+    this.buildCloudDeck(legacyEnvironmentRoot);
+    this.buildAirspaceGuides(legacyEnvironmentRoot);
+    runtime.scene.add(legacyEnvironmentRoot);
     this.replacePlayerWithFighter(runtime);
     this.replaceEnemiesWithFighters(runtime);
     this.missileRoot.name = "sky-dancer-missile-root";
@@ -391,7 +394,7 @@ export class SkyDancerWebGLDemo extends CartRogueWebGLDemo {
     return new THREE.MeshStandardMaterial({ color, roughness: 0.48, metalness, flatShading: true });
   }
 
-  private buildTerrain150m(scene: THREE.Scene): void {
+  private buildTerrain150m(scene: THREE.Object3D): void {
     const nodes = CART_WORLD_GRAPH.nodes;
     let minX = Number.POSITIVE_INFINITY;
     let maxX = Number.NEGATIVE_INFINITY;
@@ -476,7 +479,7 @@ export class SkyDancerWebGLDemo extends CartRogueWebGLDemo {
     }
   }
 
-  private buildCloudDeck(scene: THREE.Scene): void {
+  private buildCloudDeck(scene: THREE.Object3D): void {
     const nodes = CART_WORLD_GRAPH.nodes;
     const count = Math.max(54, nodes.length * 14);
     const geometry = new THREE.DodecahedronGeometry(1, 0);
@@ -503,7 +506,7 @@ export class SkyDancerWebGLDemo extends CartRogueWebGLDemo {
     scene.add(clouds);
   }
 
-  private buildAirspaceGuides(scene: THREE.Scene): void {
+  private buildAirspaceGuides(scene: THREE.Object3D): void {
     const positions: number[] = [];
     const y = -0.7;
     for (const node of CART_WORLD_GRAPH.nodes) {
