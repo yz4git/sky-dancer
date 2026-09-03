@@ -1,9 +1,11 @@
-name: SKY RAID camera edge-follow V17b audit
+name: SKY RAID final-camera edge-follow V18 audit
 
 on:
   push:
     paths:
       - .github/workflows/sky-raid-camera-edge-follow-v17-once.yml
+      - src/sky/SkyDancerSkyRaid.ts
+      - src/sky/presentation/SkyDancerCameraPresentation.ts
       - scripts/webgl-sky-raid-camera-edge-v17.mjs
       - scripts/inject-sky-raid-v17-audit-hook.py
 
@@ -38,12 +40,12 @@ jobs:
           mkdir -p .audit-runtime artifacts/sky-raid-v17
           printf '{"private":true,"type":"commonjs"}\n' > .audit-runtime/package.json
           npm install --prefix .audit-runtime --no-package-lock --no-save --ignore-scripts --no-audit --no-fund playwright-core@1.55.0
-          python3 -m http.server 4173 --bind 127.0.0.1 --directory out >/tmp/sky-raid-v17-http.log 2>&1 &
+          python3 -m http.server 4173 --bind 127.0.0.1 --directory out >/tmp/sky-raid-v18-http.log 2>&1 &
           for i in {1..30}; do
             if curl -fsS http://127.0.0.1:4173/ >/dev/null; then exit 0; fi
             sleep 1
           done
-          cat /tmp/sky-raid-v17-http.log
+          cat /tmp/sky-raid-v18-http.log
           exit 1
       - name: Real browser altitude-edge playcheck
         run: node scripts/webgl-sky-raid-camera-edge-v17.mjs
@@ -51,7 +53,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: sky-raid-v17b-camera-edge-follow
+          name: sky-raid-v18-final-camera-edge-follow
           path: artifacts/sky-raid-v17
           if-no-files-found: warn
           retention-days: 7
