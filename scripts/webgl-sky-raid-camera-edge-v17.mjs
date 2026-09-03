@@ -56,8 +56,13 @@ try {
   await page.locator("button").filter({ hasText: /START/i }).last().click({ force: true, timeout: 10000 });
   await page.locator('canvas[aria-label="Sky Dancer WebGL game view"]').waitFor({ state: "visible", timeout: 20000 });
   await page.waitForFunction(() => typeof window.__skyRaidGetCameraPolish === "function", null, { timeout: 12000 });
+  // The first rendered frame can still contain the menu-to-flight camera handoff.
+  // Judge the actual playable baseline after a short presentation settle window.
+  await page.waitForTimeout(450);
 
   const baseline = await camera();
+  if (!baseline.playerVisible) throw new Error("aircraft not visible after SKY RAID presentation settle");
+  if (Math.abs(baseline.playerNdcY) > 0.52) throw new Error(`baseline framing too close to edge after settle: ${baseline.playerNdcY}`);
   await screenshot("00-baseline-flight.png");
   await beginVerticalHold(0.07);
   await page.waitForTimeout(1500);
