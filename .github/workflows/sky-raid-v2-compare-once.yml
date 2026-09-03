@@ -1,4 +1,4 @@
-# SKY RAID V15 retry — robust 3D combat altitude integration + browser play audit
+# SKY RAID V15 final — 3D combat altitude integration + browser play audit
 name: SKY RAID V2 visual compare
 on:
   push:
