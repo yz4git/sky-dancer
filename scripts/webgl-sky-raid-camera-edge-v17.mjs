@@ -81,9 +81,9 @@ try {
   const realDive = await camera();
   if (!(realDive.altitude < beforeDive.altitude - 1.0)) throw new Error(`real dive input weak: ${beforeDive.altitude}->${realDive.altitude}`);
 
-  await forceAuditAltitude(0);
+  await forceAuditAltitude(20);
   const low = await camera();
-  if (!(low.altitude >= -0.05 && low.altitude <= 0.05)) throw new Error(`lower altitude audit hook failed: ${low.altitude}`);
+  if (!(low.altitude >= 19.95 && low.altitude <= 20.05)) throw new Error(`lower altitude audit hook failed: ${low.altitude}`);
   if (!low.playerVisible) throw new Error("aircraft clipped at lower altitude stop");
   if (Math.abs(low.playerNdcY) > 0.52) throw new Error(`lower framing too close to edge: ${low.playerNdcY}`);
   await screenshot("02-lower-altitude-stop.png");

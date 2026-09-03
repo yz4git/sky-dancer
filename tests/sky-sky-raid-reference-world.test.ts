@@ -23,12 +23,14 @@ test("SKY RAID uses Arcade Run scenery as a stationary 360-degree free-flight wo
   assert.doesNotMatch(world, /dampAngle/);
 });
 
-test("SKY RAID has a broad above-world vertical envelope and final camera tracking", async () => {
+test("SKY RAID keeps a safe above-city vertical envelope and final camera tracking", async () => {
   const flight = await readFile(new URL("../src/sky/SkyDancerSkyRaidFlight.ts", import.meta.url), "utf8");
   const raid = await readFile(new URL("../src/sky/SkyDancerSkyRaid.ts", import.meta.url), "utf8");
   const camera = await readFile(new URL("../src/sky/presentation/SkyDancerCameraPresentation.ts", import.meta.url), "utf8");
-  assert.match(flight, /SKY_RAID_MIN_ALTITUDE = 0/);
+  assert.match(flight, /SKY_RAID_MIN_ALTITUDE = 20/);
   assert.match(flight, /SKY_RAID_MAX_ALTITUDE = 64/);
+  assert.match(flight, /private altitude = SKY_RAID_MIN_ALTITUDE/);
+  assert.match(flight, /this\.altitude = SKY_RAID_MIN_ALTITUDE/);
   assert.match(flight, /boost \? 22 : 16/);
   assert.match(raid, /skyRaidCameraPresentation/);
   assert.match(raid, /skyRaidPlayerPitch = flight\.pitch/);

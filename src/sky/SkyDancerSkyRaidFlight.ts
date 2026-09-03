@@ -1,4 +1,4 @@
-export const SKY_RAID_MIN_ALTITUDE = 0;
+export const SKY_RAID_MIN_ALTITUDE = 20;
 export const SKY_RAID_MAX_ALTITUDE = 64;
 export const SKY_RAID_MAX_BANK = 0.78;
 export const SKY_RAID_MAX_PITCH = 0.42;
@@ -37,7 +37,7 @@ export function skyRaidPitchTarget(verticalSpeed: number, verticalInput: number,
 
 export class SkyDancerSkyRaidFlightController {
   private verticalInput = 0;
-  private altitude = 0;
+  private altitude = SKY_RAID_MIN_ALTITUDE;
   private verticalSpeed = 0;
   private bank = 0;
   private pitch = 0;
@@ -49,7 +49,7 @@ export class SkyDancerSkyRaidFlightController {
 
   reset(): void {
     this.verticalInput = 0;
-    this.altitude = 0;
+    this.altitude = SKY_RAID_MIN_ALTITUDE;
     this.verticalSpeed = 0;
     this.bank = 0;
     this.pitch = 0;
