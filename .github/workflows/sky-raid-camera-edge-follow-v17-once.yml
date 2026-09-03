@@ -4,6 +4,7 @@ on:
   push:
     paths:
       - .github/workflows/sky-raid-camera-edge-follow-v17-once.yml
+      - scripts/webgl-sky-raid-camera-edge-v17.mjs
 
 permissions:
   contents: read
