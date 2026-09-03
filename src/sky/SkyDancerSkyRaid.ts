@@ -167,6 +167,7 @@ function applySkyRaidFlight(demo: RaidWebGLDemo, delta: number): SkyDancerSkyRai
   // applyCameraPresentation(); doing it here is overwritten by the base renderer.
   demo.scene.userData.skyRaidPlayerAltitude = flight.altitude;
   demo.scene.userData.skyRaidPlayerVerticalSpeed = flight.verticalSpeed;
+  demo.scene.userData.skyRaidPlayerPitch = flight.pitch;
   demo.scene.userData.skyRaidPlayerBank = flight.bank;
   return flight;
 }
@@ -544,14 +545,20 @@ export function installSkyDancerSkyRaid(): void {
   ): void {
     previousApplyCameraPresentation.call(this, snapshot);
     if (!isSkyRaidMode()) return;
+    const altitude = Number(this.scene.userData.skyRaidPlayerAltitude ?? 0);
+    const pitch = Number(this.scene.userData.skyRaidPlayerPitch ?? 0);
     const bank = Number(this.scene.userData.skyRaidPlayerBank ?? 0);
     const speed = Math.abs(snapshot.speed);
     const forwardX = Math.sin(snapshot.heading);
     const forwardZ = Math.cos(snapshot.heading);
     const chaseDistance = 9.6 + Math.min(4.0, speed * 0.085);
     const lookAhead = 6.8 + Math.min(5.2, speed * 0.105);
-    // Read the rendered aircraft itself. Several late Sky Dancer presentation passes
-    // can own vertical transforms, so inferred altitude is not a reliable camera datum.
+    // updateVisuals() is followed by older presentation owners that can restore the
+    // aircraft to its ground datum. SKY RAID therefore reasserts its full flight pose
+    // here, at the final camera/presentation stage, before deriving the chase camera.
+    this.playerVisual.position.y = 0.62 + altitude;
+    this.playerVisual.rotation.x = pitch;
+    this.playerVisual.rotation.z = bank;
     this.playerVisual.updateWorldMatrix(true, false);
     const playerPosition = new THREE.Vector3();
     this.playerVisual.getWorldPosition(playerPosition);
