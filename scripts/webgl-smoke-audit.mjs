@@ -78,6 +78,7 @@ const padRecovery = await pad.evaluate((element) => {
     // Lost element-level pointerup: only the window capture fallback receives it.
     element.dispatchEvent(make("pointerdown", 401, 0.16));
     element.dispatchEvent(make("pointermove", 401, 0.16));
+    await nextFrame();
     const lostReleaseHeld = read();
     window.dispatchEvent(make("pointerup", 401, 0.16));
     await nextFrame();
@@ -96,6 +97,7 @@ const padRecovery = await pad.evaluate((element) => {
     // Browser lifecycle transitions can swallow pointer termination on iOS.
     element.dispatchEvent(make("pointerdown", 601, 0.16));
     element.dispatchEvent(make("pointermove", 601, 0.16));
+    await nextFrame();
     const lifecycleHeld = read();
     window.dispatchEvent(new Event("pagehide"));
     await nextFrame();
