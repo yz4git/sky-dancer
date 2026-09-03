@@ -120,7 +120,7 @@ export default function SkyDancerArcadeVirtualPad() {
         aria-valuenow={direction}
         tabIndex={-1}
         onPointerDown={onPointerDown}
-        onPointerMove={updateFromPointer}
+        onPointerMove={onPointerMove}
         onPointerUp={onPointerEnd}
         onPointerCancel={onPointerEnd}
         onLostPointerCapture={onPointerEnd}
