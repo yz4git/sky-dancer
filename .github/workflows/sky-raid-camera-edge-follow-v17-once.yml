@@ -5,6 +5,7 @@ on:
     paths:
       - .github/workflows/sky-raid-camera-edge-follow-v17-once.yml
       - scripts/webgl-sky-raid-camera-edge-v17.mjs
+      - scripts/inject-sky-raid-v17-audit-hook.py
 
 permissions:
   contents: read
@@ -27,7 +28,10 @@ jobs:
         run: |
           npm run test:fast
           npm run lint
-          npm run build:pages
+      - name: Inject webdriver-only altitude edge hook
+        run: python3 scripts/inject-sky-raid-v17-audit-hook.py
+      - name: Build audited Pages artifact
+        run: npm run build:pages
       - name: Browser setup
         run: |
           rm -rf .audit-runtime
