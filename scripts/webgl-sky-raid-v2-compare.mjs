@@ -42,6 +42,7 @@ async function readLegacyVisualOwners(page) {
     v35: typeof window.__skyDancerGetReferenceVisualV35 === "function" ? window.__skyDancerGetReferenceVisualV35() : null,
     v36: typeof window.__skyDancerGetV36WorldDebug === "function" ? window.__skyDancerGetV36WorldDebug() : null,
     v39: typeof window.__skyDancerGetReferenceVisualV39 === "function" ? window.__skyDancerGetReferenceVisualV39() : null,
+    visibleMeshes: typeof window.__skyRaidAuditVisibleMeshes === "function" ? window.__skyRaidAuditVisibleMeshes() : null,
   }));
 }
 
