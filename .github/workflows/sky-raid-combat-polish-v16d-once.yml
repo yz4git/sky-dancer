@@ -1,0 +1,196 @@
+name: SKY RAID combat polish V16d
+
+on:
+  push:
+    paths:
+      - .github/workflows/sky-raid-combat-polish-v16d-once.yml
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      SKY_DANCER_CHROME_PATH: /usr/bin/google-chrome
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.13.0
+          cache: npm
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Regression checks
+        run: |
+          npm run test:fast
+          npm run lint
+          npm run build:pages
+      - name: Inject deterministic browser-audit target helper
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('src/sky/SkyDancerSkyRaid.ts')
+          s = p.read_text()
+          old = '''  visual.arcadeWorld.update(raid.actId, base.x, base.z, base.heading, resolvedFlight.altitude, raid.elapsedSeconds, delta);
+
+  visual.speedFx.visible = base.boostActive || raid.rushActive;'''
+          new = '''  visual.arcadeWorld.update(raid.actId, base.x, base.z, base.heading, resolvedFlight.altitude, raid.elapsedSeconds, delta);
+          if (typeof window !== "undefined" && typeof navigator !== "undefined" && navigator.webdriver) {
+            (window as unknown as Record<string, unknown>).__skyRaidAuditPrepareCombatTarget = () => {
+              const current = demo.session.snapshot();
+              const enemies = demo.session.enemies.filter((enemy) => enemy.alive && enemy.nodeId === demo.session.location.node.id).slice(0, 3);
+              const sideX = Math.cos(current.heading);
+              const sideZ = -Math.sin(current.heading);
+              enemies.forEach((enemy, index) => {
+                const ahead = 8.0 + index * 1.1;
+                const lateral = (index - 1) * 0.55;
+                enemy.x = current.x + Math.sin(current.heading) * ahead + sideX * lateral;
+                enemy.z = current.z + Math.cos(current.heading) * ahead + sideZ * lateral;
+                enemy.heading = current.heading + Math.PI;
+              });
+              return enemies.map((enemy) => ({ id: enemy.id, kind: enemy.kind }));
+            };
+          }
+
+          visual.speedFx.visible = base.boostActive || raid.rushActive;'''
+          if old not in s:
+              raise SystemExit('audit helper marker missing')
+          p.write_text(s.replace(old, new, 1))
+          PY
+      - name: Browser setup
+        run: |
+          rm -rf .audit-runtime
+          mkdir -p .audit-runtime
+          printf '{"private":true,"type":"commonjs"}\n' > .audit-runtime/package.json
+          npm install --prefix .audit-runtime --no-package-lock --no-save --ignore-scripts --no-audit --no-fund playwright-core@1.55.0
+          npm run build:pages
+          python3 -m http.server 4173 --bind 127.0.0.1 --directory out >/tmp/sky-raid-v16d-http.log 2>&1 &
+          for i in {1..30}; do
+            if curl -fsS http://127.0.0.1:4173/ >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          cat /tmp/sky-raid-v16d-http.log
+          exit 1
+      - name: Real browser combat playcheck
+        run: |
+          mkdir -p artifacts/sky-raid-v16d
+          cat >/tmp/v16d.cjs <<'JS'
+          const { chromium } = require(process.cwd() + '/.audit-runtime/node_modules/playwright-core');
+          const fs = require('node:fs');
+          const path = require('node:path');
+          const out = 'artifacts/sky-raid-v16d';
+          let browser, context, page, failure;
+          const watchdog = setTimeout(() => process.exit(124), 90000);
+          const snap = async n => { try { await page?.screenshot({ path:path.join(out,n), timeout:5000 }); } catch {} };
+          const realPress = async (locator, holdMs=80) => {
+            const box = await locator.boundingBox();
+            if (!box) throw new Error('control bounding box missing');
+            await page.mouse.move(box.x + box.width * .5, box.y + box.height * .5);
+            await page.mouse.down();
+            await page.waitForTimeout(holdMs);
+            await page.mouse.up();
+          };
+          (async()=>{try{
+            browser=await chromium.launch({headless:true,executablePath:process.env.SKY_DANCER_CHROME_PATH||'/usr/bin/google-chrome',args:['--use-angle=swiftshader','--enable-webgl','--enable-unsafe-swiftshader','--ignore-gpu-blocklist','--disable-dev-shm-usage']});
+            context=await browser.newContext({viewport:{width:844,height:390},deviceScaleFactor:2,isMobile:true,hasTouch:true});
+            page=await context.newPage();
+            const errors=[];
+            page.on('pageerror',e=>errors.push(String(e)));
+            page.on('console',m=>{if(m.type()==='error'&&!/404/.test(m.text()))errors.push(m.text())});
+            await page.goto(`http://127.0.0.1:4173?menu=1&v16d=${Date.now()}`,{waitUntil:'networkidle',timeout:30000});
+            await page.locator('button').filter({hasText:/^\s*SKY RAID/i}).first().click({force:true,timeout:10000});
+            await page.waitForTimeout(100);
+            await page.locator('button').filter({hasText:/START/i}).last().click({force:true,timeout:10000});
+            await page.locator('canvas[aria-label="Sky Dancer WebGL game view"]').waitFor({state:'visible',timeout:20000});
+            await page.waitForFunction(()=>typeof window.__skyRaidGetCameraPolish==='function'&&typeof window.__skyRaidAuditPrepareCombatTarget==='function',null,{timeout:12000});
+
+            const baseline=await page.evaluate(()=>window.__skyRaidGetCameraPolish());
+            const pad=page.locator('[aria-label="Sky Raid two-axis flight stick"]');
+            const pb=await pad.boundingBox(); if(!pb)throw new Error('flight pad missing');
+            await page.mouse.move(pb.x+pb.width*.5,pb.y+pb.height*.5);
+            await page.mouse.down();
+            await page.mouse.move(pb.x+pb.width*.51,pb.y+pb.height*.08,{steps:6});
+            await page.waitForTimeout(900);
+            const climb=await page.evaluate(()=>window.__skyRaidGetCameraPolish());
+            await page.mouse.up();
+            const playerRise=climb.playerY-baseline.playerY, cameraRise=climb.cameraY-baseline.cameraY;
+            if(!(climb.altitude>baseline.altitude+3))throw new Error('climb weak');
+            if(!(cameraRise>playerRise*.62))throw new Error(`camera follow weak ${playerRise}/${cameraRise}`);
+            if(!climb.playerVisible)throw new Error('climb framing lost');
+            await snap('01-climb-camera.png');
+
+            await page.evaluate(()=>window.__skyRaidAuditPrepareCombatTarget());
+            await page.waitForTimeout(260);
+            const decision=await page.evaluate(()=>window.__skyDancerGetV45DecisionHierarchy?.()?.decision??null);
+            if(!decision?.targetEnemyId)throw new Error('lock failed');
+            if(!(await page.locator('[aria-label="Sky Raid target reticle"]').count()))throw new Error('reticle missing');
+            const readability=await page.evaluate(()=>window.__skyDancerGetV44Readability?.()??null);
+            if(!(readability?.maxAltitudeDeltaMeters>2.5))throw new Error(`altitude cue weak ${JSON.stringify(readability)}`);
+            await snap('02-high-altitude-lock.png');
+
+            await page.evaluate(()=>window.__skyRaidAuditPrepareCombatTarget());
+            await page.waitForTimeout(100);
+            const before=await page.evaluate(()=>window.__skyRaidGetCameraPolish());
+            const shot=page.locator('button[aria-label="Fire missile"]');
+            await realPress(shot,85);
+            let hit=null;
+            const hitDeadline=Date.now()+5500;
+            while(Date.now()<hitDeadline){
+              await page.waitForTimeout(40);
+              const st=await page.evaluate(()=>window.__skyRaidGetCameraPolish());
+              if(st.hitSerial>before.hitSerial){hit=st;break;}
+            }
+            if(!hit)throw new Error('hit not observed');
+            if(!(hit.hitKick>.1))throw new Error('hit kick weak');
+            await snap('03-missile-hit.png');
+
+            await page.waitForTimeout(360);
+            const turboBase=await page.evaluate(()=>window.__skyRaidGetCameraPolish());
+            const turbo=page.locator('button').filter({hasText:/TURBO/i}).last();
+            const tb=await turbo.boundingBox(); if(!tb)throw new Error('turbo button missing');
+            await page.mouse.move(tb.x+tb.width*.5,tb.y+tb.height*.5);
+            await page.mouse.down();
+            await page.waitForTimeout(720);
+            await page.mouse.up();
+            let peak=turboBase;
+            for(let i=0;i<16;i++){
+              await page.waitForTimeout(35);
+              const st=await page.evaluate(()=>window.__skyRaidGetCameraPolish());
+              if(st.fov>peak.fov)peak=st;
+            }
+            if(!(peak.turboBlend>.55))throw new Error('turbo blend weak');
+            if(!(peak.fov>turboBase.fov+4))throw new Error(`turbo FOV weak ${turboBase.fov}->${peak.fov}`);
+            if(!peak.playerVisible)throw new Error('turbo framing lost');
+
+            const clutter=await page.evaluate(()=>{
+              const visibleText=(needle)=>Array.from(document.querySelectorAll('body *')).filter(el=>{
+                if((el.textContent||'').trim()!==needle)return false;
+                const st=getComputedStyle(el),r=el.getBoundingClientRect();
+                return st.display!=='none'&&st.visibility!=='hidden'&&Number(st.opacity||1)>.02&&r.width>0&&r.height>0;
+              }).map(el=>({text:needle,font:parseFloat(getComputedStyle(el).fontSize)||0,width:el.getBoundingClientRect().width,height:el.getBoundingClientRect().height}));
+              const dawn=Array.from(document.querySelectorAll('body *')).filter(el=>(el.textContent||'').trim()==='DAWN CITY').map(el=>({font:parseFloat(getComputedStyle(el).fontSize)||0,width:el.getBoundingClientRect().width,height:el.getBoundingClientRect().height,display:getComputedStyle(el).display}));
+              return {flow:visibleText('FLOW COMBO!'),boost:visibleText('BOOST STRIKE'),dawn};
+            });
+            if(clutter.flow.length)throw new Error(`FLOW COMBO clutter visible ${JSON.stringify(clutter.flow)}`);
+            if(clutter.boost.length)throw new Error(`BOOST STRIKE clutter visible ${JSON.stringify(clutter.boost)}`);
+            const maxDawnFont=Math.max(0,...clutter.dawn.filter(x=>x.display!=='none').map(x=>x.font));
+            if(maxDawnFont>20)throw new Error(`ACT banner still oversized ${maxDawnFont}`);
+            await snap('04-turbo-camera-clean.png');
+
+            const report={baseline,climb,cameraFollow:{playerRise,cameraRise},decision,readability,hit,turbo:{baseline:turboBase,peak},clutter,errors};
+            fs.writeFileSync(path.join(out,'report.json'),JSON.stringify(report,null,2));
+            if(errors.length)throw new Error(JSON.stringify(errors));
+            console.log('SKY RAID V16d PASS',JSON.stringify(report));
+          }catch(e){failure=e;console.error('SKY RAID V16d FAIL',e?.stack||e);await snap('failure.png');fs.writeFileSync(path.join(out,'failure.txt'),String(e?.stack||e));}finally{clearTimeout(watchdog);try{await context?.close()}catch{}try{await browser?.close()}catch{}}if(failure)process.exitCode=1;})();
+          JS
+          node /tmp/v16d.cjs
+      - name: Upload audit artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sky-raid-v16d-combat-camera
+          path: artifacts/sky-raid-v16d
+          if-no-files-found: warn
+          retention-days: 7
