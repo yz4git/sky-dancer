@@ -5,6 +5,8 @@ on:
     paths:
       - .github/workflows/sky-raid-camera-edge-follow-v17-once.yml
       - src/sky/SkyDancerSkyRaid.ts
+      - src/sky/SkyDancerSkyRaidArcadeWorld.ts
+      - src/sky/SkyDancerSkyRaidFlight.ts
       - src/sky/presentation/SkyDancerCameraPresentation.ts
       - scripts/webgl-sky-raid-camera-edge-v17.mjs
       - scripts/inject-sky-raid-v17-audit-hook.py
