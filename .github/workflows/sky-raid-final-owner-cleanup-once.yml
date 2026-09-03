@@ -1,0 +1,95 @@
+name: SKY RAID final presentation owner cleanup
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/sky-raid-final-owner-cleanup-once.yml'
+permissions:
+  contents: write
+jobs:
+  fix:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.13.0
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Stop V42 and anime cut-ins from reclaiming SKY RAID presentation
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          p = Path('src/sky/presentation/SkyDancerV42ContinuityPass.ts')
+          s = p.read_text()
+          marker = '''  update(snapshot: CartArenaSessionSnapshot): void {\n    if (!this.anchored) this.anchorRiver(snapshot);\n'''
+          replacement = '''  update(snapshot: CartArenaSessionSnapshot): void {\n    if (typeof document !== "undefined" && document.documentElement.dataset.skyDancerMode === "sky-raid") {\n      this.riverRoot.visible = false;\n      this.river.visible = false;\n      const ridgeRoot = this.runtime.scene.getObjectByName("sky-dancer-v38-ridge-root");\n      if (ridgeRoot) ridgeRoot.visible = false;\n      return;\n    }\n    if (!this.anchored) this.anchorRiver(snapshot);\n'''
+          if marker not in s:
+              raise SystemExit('V42 update marker missing')
+          p.write_text(s.replace(marker, replacement, 1))
+
+          p = Path('src/cart/CartRoguePhase102AnimeCutin.ts')
+          s = p.read_text()
+          marker = '''const CUTIN_STYLE_ID = "cart-anime-cutin-style-v1";\nconst CUTIN_ROOT_ID = "cart-anime-cutin-v1";\n'''
+          replacement = marker + '''\nfunction isSkyRaidPresentationMode(): boolean {\n  return typeof document !== "undefined" && document.documentElement.dataset.skyDancerMode === "sky-raid";\n}\n'''
+          if marker not in s:
+              raise SystemExit('cutin constants marker missing')
+          s = s.replace(marker, replacement, 1)
+
+          marker = '''function syncPresenter(): void {\n  if (typeof window === "undefined") return;\n  const active = runtimeQueue.active;\n'''
+          replacement = '''function syncPresenter(): void {\n  if (typeof window === "undefined") return;\n  if (isSkyRaidPresentationMode()) {\n    hidePresenter();\n    return;\n  }\n  const active = runtimeQueue.active;\n'''
+          if marker not in s:
+              raise SystemExit('syncPresenter marker missing')
+          s = s.replace(marker, replacement, 1)
+
+          marker = '''export function enqueueCartAnimeCutin(eventId: CartCutinEventId, now = Date.now()): string {\n  advanceCartCutinQueue(runtimeQueue, now);\n'''
+          replacement = '''export function enqueueCartAnimeCutin(eventId: CartCutinEventId, now = Date.now()): string {\n  if (isSkyRaidPresentationMode()) {\n    resetCartCutinQueue(runtimeQueue);\n    hidePresenter();\n    return "dropped";\n  }\n  advanceCartCutinQueue(runtimeQueue, now);\n'''
+          if marker not in s:
+              raise SystemExit('enqueue cutin marker missing')
+          s = s.replace(marker, replacement, 1)
+
+          marker = '''function processCutinSnapshot(session: CartArenaSession, snapshot: Phase102ExtendedSnapshot): void {\n  if (!isCartTurboHuntEnabled(session)) return;\n'''
+          replacement = '''function processCutinSnapshot(session: CartArenaSession, snapshot: Phase102ExtendedSnapshot): void {\n  if (isSkyRaidPresentationMode()) {\n    resetCartCutinQueue(runtimeQueue);\n    hidePresenter();\n    return;\n  }\n  if (!isCartTurboHuntEnabled(session)) return;\n'''
+          if marker not in s:
+              raise SystemExit('process cutin marker missing')
+          p.write_text(s.replace(marker, replacement, 1))
+
+          p = Path('scripts/webgl-sky-raid-v2-compare.mjs')
+          s = p.read_text()
+          old = '''    const forbiddenHud = ["STAGE 1", "HEAD-ON CROSS", "CITY AIRSPACE", "▲ ABOVE", "▼ BELOW", "GAS 100%"].filter((text) => state.body.includes(text));\n'''
+          new = '''    const forbiddenHud = ["STAGE 1", "HEAD-ON CROSS", "CITY AIRSPACE", "▲ ABOVE", "▼ BELOW", "GAS 100%", "OPERATOR", "HAPPY", "回復セル確認！"].filter((text) => state.body.includes(text));\n'''
+          if old not in s:
+              raise SystemExit('forbidden HUD marker missing')
+          p.write_text(s.replace(old, new, 1))
+
+          p = Path('tests/sky-v42.test.ts')
+          s = p.read_text()
+          marker = '''  assert.match(v42, /sky-dancer-v42-stable-river-root/);\n'''
+          replacement = marker + '''  assert.match(v42, /dataset\\.skyDancerMode === "sky-raid"/);\n  assert.match(v42, /this\\.riverRoot\\.visible = false/);\n'''
+          if marker not in s:
+              raise SystemExit('V42 test marker missing')
+          p.write_text(s.replace(marker, replacement, 1))
+          PY
+      - name: Verify SKY RAID source guards
+        run: |
+          grep -n 'dataset.skyDancerMode === "sky-raid"' src/sky/presentation/SkyDancerV42ContinuityPass.ts
+          grep -n 'isSkyRaidPresentationMode' src/cart/CartRoguePhase102AnimeCutin.ts
+          grep -n '回復セル確認！' scripts/webgl-sky-raid-v2-compare.mjs
+      - name: Regression checks
+        run: |
+          npm run test:fast
+          npm run lint
+          npm run build:pages
+      - name: Commit cleanup and remove one-shot workflow
+        run: |
+          git config user.name 'yz4git'
+          git config user.email '65384484+yz4git@users.noreply.github.com'
+          git add src/sky/presentation/SkyDancerV42ContinuityPass.ts src/cart/CartRoguePhase102AnimeCutin.ts scripts/webgl-sky-raid-v2-compare.mjs tests/sky-v42.test.ts
+          git commit -m 'Finalize SKY RAID presentation ownership'
+          git rm .github/workflows/sky-raid-final-owner-cleanup-once.yml
+          git commit -m 'Remove SKY RAID final cleanup one-shot workflow'
+          git push origin HEAD:main
