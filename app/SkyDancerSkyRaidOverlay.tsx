@@ -45,7 +45,7 @@ export default function SkyDancerSkyRaidOverlay() {
 
   return <>
     <style>{`
-      .${legacyStyles.topHud}, .${legacyStyles.bottomHud}, .${legacyStyles.gateOpen}, .${routeStyles.panel}, .${legacyStyles.rendererBadge}, .${phaseStyles.rewardBanner} { display: none !important; }
+      .${legacyStyles.topHud}, .${legacyStyles.bottomHud}, .${legacyStyles.gateOpen}, .${legacyStyles.combo}, .${legacyStyles.ramBanner}, .${legacyStyles.wallRide}, .${routeStyles.panel}, .${legacyStyles.rendererBadge}, .${phaseStyles.rewardBanner}, .skyDancerV54Cinematic, .skyDancerV49Mission { display: none !important; }
       .${legacyStyles.steerZone} span { display: none !important; }
       .${legacyStyles.actions} { right: max(10px, env(safe-area-inset-right)) !important; bottom: max(12px, calc(env(safe-area-inset-bottom) + 8px)) !important; gap: 8px !important; }
       .${legacyStyles.brakeButton} { display: none !important; }
@@ -53,9 +53,38 @@ export default function SkyDancerSkyRaidOverlay() {
       .${legacyStyles.boostButton} strong { font-size: 13px !important; }
       .${legacyStyles.boostButton} small { font-size: 0 !important; }
       .${legacyStyles.boostButton} small::after { content: "HOLD · RELEASE"; font-size: 6px; letter-spacing: .07em; }
+      .${styles.actBanner}, .${styles.rushBanner}, .${styles.bossCue} {
+        top: 22% !important;
+        min-width: 0 !important;
+        width: auto !important;
+        max-width: min(54vw, 320px) !important;
+        padding: 5px 12px 6px !important;
+        background: linear-gradient(90deg, transparent, rgba(4, 18, 34, .68) 13%, rgba(4, 18, 34, .68) 87%, transparent) !important;
+        border-top-width: 1px !important;
+        border-bottom-width: 1px !important;
+      }
+      .${styles.actBanner} strong, .${styles.rushBanner} strong, .${styles.bossCue} strong {
+        margin-top: 2px !important;
+        font-size: clamp(12px, 2vw, 18px) !important;
+        letter-spacing: .10em !important;
+      }
+      .${styles.actBanner} small, .${styles.rushBanner} small, .${styles.bossCue} small,
+      .${styles.actBanner} span, .${styles.rushBanner} span, .${styles.bossCue} span {
+        font-size: clamp(6px, .72vw, 8px) !important;
+        letter-spacing: .09em !important;
+      }
+      .${styles.rushBanner} { top: 23% !important; }
+      .${styles.bossCue} { top: 24% !important; }
       @media(max-height:390px) {
         .${legacyStyles.actions} { bottom: max(8px, calc(env(safe-area-inset-bottom) + 5px)) !important; }
         .${legacyStyles.boostButton} { width: 64px !important; height: 64px !important; }
+        .${styles.actBanner}, .${styles.rushBanner}, .${styles.bossCue} {
+          top: 21% !important;
+          max-width: min(44vw, 280px) !important;
+          padding: 3px 10px 4px !important;
+        }
+        .${styles.actBanner} strong, .${styles.rushBanner} strong, .${styles.bossCue} strong { font-size: 13px !important; }
+        .${styles.actBanner} span, .${styles.rushBanner} span, .${styles.bossCue} span { display: none !important; }
       }
     `}</style>
     <div className={styles.grade} style={vars} data-act={snapshot.actId} aria-hidden="true" />
