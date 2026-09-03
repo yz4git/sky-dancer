@@ -38,6 +38,25 @@ async function clearAuditAltitude() {
   await page.evaluate(() => { delete window.__skyRaidAuditForcedAltitude; });
 }
 
+async function confirmLiveTargetDown() {
+  const shot = page.locator('button[aria-label="Fire missile"]');
+  await shot.waitFor({ state: "visible", timeout: 5000 });
+  const cue = page.locator('[data-sd-kill-confirm]');
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    await shot.click({ force: true });
+    try {
+      await cue.waitFor({ state: "attached", timeout: 900 });
+      const text = (await cue.textContent()) ?? "";
+      if (!/TARGET DOWN/i.test(text)) throw new Error(`unexpected kill confirmation: ${text}`);
+      await screenshot("03-target-down-confirmation.png");
+      return text.replace(/\s+/g, " ").trim();
+    } catch (error) {
+      if (attempt === 4) throw error;
+    }
+  }
+  throw new Error("target-down confirmation did not appear");
+}
+
 try {
   browser = await chromium.launch({
     headless: true,
@@ -72,6 +91,15 @@ try {
   if (captionBox.y < visualRingBox.y - 1 || captionBox.y + captionBox.height > visualRingBox.y + visualRingBox.height + 1) {
     throw new Error(`flight pad caption escaped visible ring: ring=${JSON.stringify(visualRingBox)} caption=${JSON.stringify(captionBox)}`);
   }
+
+  const combatDiagnostics = await page.evaluate(() => ({
+    populationProfile: document.documentElement.dataset.skyRaidPopulationProfile ?? "",
+    enemyPool: Number(document.documentElement.dataset.skyRaidEnemyPool ?? 0),
+    enemyActive: Number(document.documentElement.dataset.skyRaidEnemyActive ?? 0),
+  }));
+  if (combatDiagnostics.populationProfile !== "arcade-dense") throw new Error(`SKY RAID population profile missing: ${JSON.stringify(combatDiagnostics)}`);
+  if (combatDiagnostics.enemyPool < 10) throw new Error(`SKY RAID candidate pool still capped below late-game pressure: ${JSON.stringify(combatDiagnostics)}`);
+  if (combatDiagnostics.enemyActive < 1) throw new Error(`SKY RAID has no live combat targets: ${JSON.stringify(combatDiagnostics)}`);
 
   const baseline = await camera();
   if (!baseline.playerVisible) throw new Error("aircraft not visible after SKY RAID presentation settle");
@@ -109,8 +137,10 @@ try {
   await screenshot("02-lower-altitude-stop.png");
   await page.mouse.up();
   await clearAuditAltitude();
+  await page.waitForTimeout(180);
 
-  const report = { desiredPlayerNdcY, baselineFrameTolerance, padBox, visualRingBox, captionBox, baseline, realClimb, high, beforeDive, realDive, low, errors };
+  const targetDownConfirmation = await confirmLiveTargetDown();
+  const report = { desiredPlayerNdcY, baselineFrameTolerance, padBox, visualRingBox, captionBox, combatDiagnostics, baseline, realClimb, high, beforeDive, realDive, low, targetDownConfirmation, errors };
   fs.writeFileSync(path.join(out, "report.json"), JSON.stringify(report, null, 2));
   if (errors.length) throw new Error(JSON.stringify(errors));
   console.log("SKY RAID V18 PASS", JSON.stringify(report));
