@@ -1,0 +1,59 @@
+name: SKY RAID free-flight camera once
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/sky-raid-free-flight-camera-once.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Patch final SKY RAID camera presentation
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('src/sky/SkyDancerSkyRaid.ts')
+          s = p.read_text()
+          old = '''  buildWorld(): void;\n  updateVisuals(delta: number): void;\n  setVertical?(value: number): void;'''
+          new = '''  buildWorld(): void;\n  updateVisuals(delta: number): void;\n  applyCameraPresentation(snapshot: ReturnType<CartArenaSession["snapshot"]>): void;\n  setVertical?(value: number): void;'''
+          if old not in s:
+              raise SystemExit('RaidWebGLDemo interface anchor not found')
+          s = s.replace(old, new, 1)
+
+          old = '''  demo.playerVisual.rotation.x = flight.pitch;\n  demo.playerVisual.rotation.z = flight.bank;\n  demo.camera.position.y += flight.altitude * 0.72;\n  demo.camera.rotation.z += flight.bank * 0.055;\n  demo.scene.userData.skyRaidPlayerAltitude = flight.altitude;'''
+          new = '''  demo.playerVisual.rotation.x = flight.pitch;\n  demo.playerVisual.rotation.z = flight.bank;\n  // Camera altitude is applied after the base chase-camera copy in\n  // applyCameraPresentation(); doing it here is overwritten by the base renderer.\n  demo.scene.userData.skyRaidPlayerAltitude = flight.altitude;'''
+          if old not in s:
+              raise SystemExit('applySkyRaidFlight camera anchor not found')
+          s = s.replace(old, new, 1)
+
+          old = '''  webglPrototype.updateVisuals = function skyRaidUpdateVisuals(this: RaidWebGLDemo, delta: number): void {\n    previousUpdateVisuals.call(this, delta);\n    updateRaidVisuals(this, delta);\n  };\n\n  const canvasPrototype = CartRogueCanvasPreview.prototype as unknown as RaidCanvasDemo;'''
+          new = '''  webglPrototype.updateVisuals = function skyRaidUpdateVisuals(this: RaidWebGLDemo, delta: number): void {\n    previousUpdateVisuals.call(this, delta);\n    updateRaidVisuals(this, delta);\n  };\n\n  // Base animate() copies the chase-camera position after updateVisuals(). Apply\n  // SKY RAID altitude here, at the final presentation stage, so the camera follows\n  // the aircraft throughout the much wider vertical flight envelope.\n  const previousApplyCameraPresentation = webglPrototype.applyCameraPresentation;\n  webglPrototype.applyCameraPresentation = function skyRaidCameraPresentation(\n    this: RaidWebGLDemo,\n    snapshot: ReturnType<CartArenaSession["snapshot"]>,\n  ): void {\n    previousApplyCameraPresentation.call(this, snapshot);\n    if (!isSkyRaidMode()) return;\n    const altitude = Number(this.scene.userData.skyRaidPlayerAltitude ?? 0);\n    const bank = Number(this.scene.userData.skyRaidPlayerBank ?? 0);\n    this.camera.position.y += altitude * 0.94;\n    const lookAhead = 5.8 + Math.min(4.2, Math.abs(snapshot.speed) * 0.12);\n    this.camera.lookAt(\n      snapshot.x + Math.sin(snapshot.heading) * lookAhead,\n      1.25 + altitude * 0.98,\n      snapshot.z + Math.cos(snapshot.heading) * lookAhead,\n    );\n    this.camera.rotateZ(bank * 0.055);\n  };\n\n  const canvasPrototype = CartRogueCanvasPreview.prototype as unknown as RaidCanvasDemo;'''
+          if old not in s:
+              raise SystemExit('camera presentation insertion anchor not found')
+          s = s.replace(old, new, 1)
+          p.write_text(s)
+          PY
+      - run: npm run test:fast
+      - run: npm run lint
+      - run: npm run build -- --base=/sky-dancer/
+      - name: Commit patch and remove one-shot workflow
+        run: |
+          rm .github/workflows/sky-raid-free-flight-camera-once.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/sky/SkyDancerSkyRaid.ts .github/workflows/sky-raid-free-flight-camera-once.yml
+          git commit -m "Fix SKY RAID wide-altitude camera tracking"
+          git push
