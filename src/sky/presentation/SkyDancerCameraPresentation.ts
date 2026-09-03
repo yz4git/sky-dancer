@@ -21,15 +21,35 @@ function isSkyRaidMode(): boolean {
  * camera decorator (V35), after the generic Sky Dancer camera has finished its
  * legacy y=-9.5 look target and after the V31/V32 decorators have run.
  *
- * Keeping both camera Y and look target player-relative makes altitude cancel
- * out of screen-space framing: the aircraft remains in the same safe band at
- * -18 m, 0 m and +64 m instead of leaving the top/bottom of the viewport.
+ * The SKY RAID base camera already owns heading chase, turbo FOV, recoil,
+ * hit shake and screen-space edge framing. Rebuilding its full orientation here
+ * would create two competing camera owners and can make the world appear to
+ * rotate or slide independently of the aircraft. Preserve that authored pose
+ * whenever it is already safe, and use the player-relative camera below only as
+ * a final emergency fallback if a later decorator ever pushes the aircraft out
+ * of the safe frame.
  */
 function finalizeSkyRaidCamera(
   runtime: CameraPresentationRuntime,
   snapshot: CartArenaSessionSnapshot,
 ): void {
   const playerPosition = runtime.playerVisual.getWorldPosition(new THREE.Vector3());
+  runtime.camera.updateMatrixWorld(true);
+  const inheritedProjection = playerPosition.clone().project(runtime.camera);
+  const inheritedVisible = Math.abs(inheritedProjection.x) <= 1
+    && Math.abs(inheritedProjection.y) <= 1
+    && inheritedProjection.z >= -1
+    && inheritedProjection.z <= 1;
+  const inheritedSafe = inheritedVisible && Math.abs(inheritedProjection.y) <= 0.52;
+
+  if (inheritedSafe) {
+    runtime.scene.userData.skyRaidFinalCameraOwner = "v35-final-player-relative";
+    runtime.scene.userData.skyRaidFinalCameraFallback = false;
+    runtime.scene.userData.skyRaidFinalCameraPlayerNdcY = inheritedProjection.y;
+    runtime.scene.userData.skyRaidFinalCameraPlayerVisible = true;
+    return;
+  }
+
   const altitude = Number(runtime.scene.userData.skyRaidPlayerAltitude ?? 0);
   const verticalSpeed = Number(runtime.scene.userData.skyRaidPlayerVerticalSpeed ?? 0);
   const pitch = Number(runtime.scene.userData.skyRaidPlayerPitch ?? 0);
@@ -42,8 +62,8 @@ function finalizeSkyRaidCamera(
   const lookAhead = 6.2 + Math.min(4.8, Math.abs(snapshot.speed) * 0.13);
   const cameraHeight = 4.75 + altitudeEdgeBlend * 0.72;
 
-  // Absolute player-relative Y is the key fix. Do not add an altitude delta to
-  // a legacy camera whose own target may have already been overwritten.
+  // Absolute player-relative Y is the safety fallback. Do not add an altitude
+  // delta to a legacy camera whose own target may already have been overwritten.
   runtime.camera.position.y = playerPosition.y + cameraHeight;
   runtime.camera.lookAt(
     playerPosition.x + Math.sin(snapshot.heading) * lookAhead,
@@ -55,6 +75,7 @@ function finalizeSkyRaidCamera(
 
   const playerProjection = playerPosition.clone().project(runtime.camera);
   runtime.scene.userData.skyRaidFinalCameraOwner = "v35-final-player-relative";
+  runtime.scene.userData.skyRaidFinalCameraFallback = true;
   runtime.scene.userData.skyRaidFinalCameraPlayerNdcY = playerProjection.y;
   runtime.scene.userData.skyRaidFinalCameraPlayerVisible = Math.abs(playerProjection.x) <= 1 && Math.abs(playerProjection.y) <= 1 && playerProjection.z >= -1 && playerProjection.z <= 1;
 }
