@@ -1,0 +1,38 @@
+name: SKY RAID camera edge V17b apply
+
+on:
+  push:
+    paths:
+      - .github/workflows/sky-raid-camera-edge-v17b-apply-once.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.13.0
+          cache: npm
+      - name: Apply V17b framing patch
+        run: python3 scripts/sky-raid-camera-edge-follow-v17b.py
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Verify
+        run: |
+          npm run test:fast
+          npm run lint
+          npm run build:pages
+      - name: Commit verified framing patch
+        run: |
+          git config user.name "yz4git"
+          git config user.email "65384484+yz4git@users.noreply.github.com"
+          git add src/sky/SkyDancerSkyRaid.ts tests/sky-sky-raid-reference-world.test.ts
+          git commit -m "Strengthen SKY RAID camera follow at altitude limits"
+          git push origin HEAD:main
