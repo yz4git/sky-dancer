@@ -114,6 +114,8 @@ test("V42 ground scenery stays world anchored instead of snapping every 420m", (
   assert.doesNotMatch(v36, /if \(tileX === this\.tileX && tileZ === this\.tileZ\) return/);
   assert.doesNotMatch(v40, /if \(tileX === this\.tileX && tileZ === this\.tileZ\) return/);
   assert.match(v42, /sky-dancer-v42-stable-river-root/);
+  assert.match(v42, /dataset\.skyDancerMode === "sky-raid"/);
+  assert.match(v42, /this\.riverRoot\.visible = false/);
   assert.match(v42, /sky-dancer-v35-focus-streets/);
   assert.match(v42, /sky-dancer-v35-focus-river/);
   assert.match(v42, /sky-dancer-v31-forest-belts/);

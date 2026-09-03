@@ -59,6 +59,13 @@ export class SkyDancerV42ContinuityPass {
   }
 
   update(snapshot: CartArenaSessionSnapshot): void {
+    if (typeof document !== "undefined" && document.documentElement.dataset.skyDancerMode === "sky-raid") {
+      this.riverRoot.visible = false;
+      this.river.visible = false;
+      const ridgeRoot = this.runtime.scene.getObjectByName("sky-dancer-v38-ridge-root");
+      if (ridgeRoot) ridgeRoot.visible = false;
+      return;
+    }
     if (!this.anchored) this.anchorRiver(snapshot);
     this.riverRoot.visible = true;
     this.river.visible = true;

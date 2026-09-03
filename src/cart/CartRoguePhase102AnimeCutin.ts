@@ -505,6 +505,10 @@ let runtimeSession: object | null = null;
 const CUTIN_STYLE_ID = "cart-anime-cutin-style-v1";
 const CUTIN_ROOT_ID = "cart-anime-cutin-v1";
 
+function isSkyRaidPresentationMode(): boolean {
+  return typeof document !== "undefined" && document.documentElement.dataset.skyDancerMode === "sky-raid";
+}
+
 function ensureCutinStyle(): void {
   if (typeof document === "undefined" || document.getElementById(CUTIN_STYLE_ID)) return;
   const style = document.createElement("style");
@@ -600,6 +604,10 @@ function hidePresenter(): void {
 
 function syncPresenter(): void {
   if (typeof window === "undefined") return;
+  if (isSkyRaidPresentationMode()) {
+    hidePresenter();
+    return;
+  }
   const active = runtimeQueue.active;
   if (!active) {
     hidePresenter();
@@ -638,6 +646,11 @@ function scheduleRuntimeAdvance(): void {
 }
 
 export function enqueueCartAnimeCutin(eventId: CartCutinEventId, now = Date.now()): string {
+  if (isSkyRaidPresentationMode()) {
+    resetCartCutinQueue(runtimeQueue);
+    hidePresenter();
+    return "dropped";
+  }
   advanceCartCutinQueue(runtimeQueue, now);
   const result = enqueueCartCutin(runtimeQueue, CART_CUTIN_EVENTS[eventId], now);
   syncPresenter();
@@ -686,6 +699,11 @@ function newlyCollectedGas(previous: Phase102PreviousSnapshot, snapshot: Phase10
 }
 
 function processCutinSnapshot(session: CartArenaSession, snapshot: Phase102ExtendedSnapshot): void {
+  if (isSkyRaidPresentationMode()) {
+    resetCartCutinQueue(runtimeQueue);
+    hidePresenter();
+    return;
+  }
   if (!isCartTurboHuntEnabled(session)) return;
   const key = session as unknown as object;
   let state = sessionState.get(key);

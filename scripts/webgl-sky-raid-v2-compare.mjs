@@ -84,7 +84,7 @@ const report = {};
     await captureCanvas(page, canvas, `${outputDir}/raid-act${index + 1}-${expected}.png`);
     const state = await raidState(page);
     const legacyOwners = await readLegacyVisualOwners(page);
-    const forbiddenHud = ["STAGE 1", "HEAD-ON CROSS", "CITY AIRSPACE", "▲ ABOVE", "▼ BELOW", "GAS 100%"].filter((text) => state.body.includes(text));
+    const forbiddenHud = ["STAGE 1", "HEAD-ON CROSS", "CITY AIRSPACE", "▲ ABOVE", "▼ BELOW", "GAS 100%", "OPERATOR", "HAPPY", "回復セル確認！"].filter((text) => state.body.includes(text));
     actReports.push({ index, expected, state: { mode: state.mode, act: state.act, style: state.style }, legacyOwners, forbiddenHud });
     if (index === 0) {
       const pad = page.locator('[aria-label="Sky Raid two-axis flight stick"]');
