@@ -1,4 +1,4 @@
-name: SKY RAID camera edge-follow V17 audit
+name: SKY RAID camera edge-follow V17b audit
 
 on:
   push:
@@ -51,7 +51,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: sky-raid-v17-camera-edge-follow
+          name: sky-raid-v17b-camera-edge-follow
           path: artifacts/sky-raid-v17
           if-no-files-found: warn
           retention-days: 7
