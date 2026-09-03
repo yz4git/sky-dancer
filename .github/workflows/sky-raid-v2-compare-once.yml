@@ -1,4 +1,4 @@
-# Full five-act SKY RAID visual audit V12 — camera follows rendered aircraft world position
+# SKY RAID V13 — final-owner vertical flight + real browser audit
 name: SKY RAID V2 visual compare
 on:
   push:
@@ -20,37 +20,43 @@ jobs:
           node-version: 22.13.0
           cache: npm
       - run: npm ci --no-audit --no-fund
-      - name: Patch camera to rendered aircraft world position
+      - name: Make SKY RAID own final aircraft altitude
         run: |
           python3 - <<'PY'
           from pathlib import Path
           p = Path('src/sky/SkyDancerSkyRaid.ts')
           s = p.read_text()
-          old = '''    const altitude = Number(this.scene.userData.skyRaidPlayerAltitude ?? 0);\n    const verticalSpeed = Number(this.scene.userData.skyRaidPlayerVerticalSpeed ?? 0);\n    const bank = Number(this.scene.userData.skyRaidPlayerBank ?? 0);\n    const speed = Math.abs(snapshot.speed);\n    const forwardX = Math.sin(snapshot.heading);\n    const forwardZ = Math.cos(snapshot.heading);\n    const chaseDistance = 9.6 + Math.min(4.0, speed * 0.085);\n    const chaseHeight = 5.15 + altitude + Math.max(0, verticalSpeed) * 0.025;\n    const lookAhead = 6.8 + Math.min(5.2, speed * 0.105);\n    const lookHeight = 1.55 + altitude + verticalSpeed * 0.018;\n    // SKY RAID is true 360-degree flight, so the final camera must be derived from\n    // aircraft heading in all axes rather than inheriting the car chase X/Z frame.\n    this.camera.position.set(\n      snapshot.x - forwardX * chaseDistance,\n      chaseHeight,\n      snapshot.z - forwardZ * chaseDistance,\n    );\n    this.camera.up.set(0, 1, 0);\n    this.camera.lookAt(\n      snapshot.x + forwardX * lookAhead,\n      lookHeight,\n      snapshot.z + forwardZ * lookAhead,\n    );\n    this.camera.rotateZ(bank * 0.075);\n'''
-          new = '''    const bank = Number(this.scene.userData.skyRaidPlayerBank ?? 0);\n    const speed = Math.abs(snapshot.speed);\n    const forwardX = Math.sin(snapshot.heading);\n    const forwardZ = Math.cos(snapshot.heading);\n    const chaseDistance = 9.6 + Math.min(4.0, speed * 0.085);\n    const lookAhead = 6.8 + Math.min(5.2, speed * 0.105);\n    // Read the rendered aircraft itself. Several late Sky Dancer presentation passes\n    // can own vertical transforms, so inferred altitude is not a reliable camera datum.\n    this.playerVisual.updateWorldMatrix(true, false);\n    const playerPosition = new THREE.Vector3();\n    this.playerVisual.getWorldPosition(playerPosition);\n    this.camera.position.set(\n      playerPosition.x - forwardX * chaseDistance,\n      playerPosition.y + 4.55,\n      playerPosition.z - forwardZ * chaseDistance,\n    );\n    this.camera.up.set(0, 1, 0);\n    this.camera.lookAt(\n      playerPosition.x + forwardX * lookAhead,\n      playerPosition.y + 0.95,\n      playerPosition.z + forwardZ * lookAhead,\n    );\n    this.camera.rotateZ(bank * 0.075);\n'''
+          old = '''  demo.scene.userData.skyRaidPlayerAltitude = flight.altitude;\n  demo.scene.userData.skyRaidPlayerVerticalSpeed = flight.verticalSpeed;\n  demo.scene.userData.skyRaidPlayerBank = flight.bank;\n'''
+          new = '''  demo.scene.userData.skyRaidPlayerAltitude = flight.altitude;\n  demo.scene.userData.skyRaidPlayerVerticalSpeed = flight.verticalSpeed;\n  demo.scene.userData.skyRaidPlayerPitch = flight.pitch;\n  demo.scene.userData.skyRaidPlayerBank = flight.bank;\n'''
           if old not in s:
-              raise SystemExit('V11 camera block missing')
-          p.write_text(s.replace(old, new, 1))
+              raise SystemExit('flight userData marker missing')
+          s = s.replace(old, new, 1)
+          old = '''    const bank = Number(this.scene.userData.skyRaidPlayerBank ?? 0);\n    const speed = Math.abs(snapshot.speed);\n    const forwardX = Math.sin(snapshot.heading);\n    const forwardZ = Math.cos(snapshot.heading);\n    const chaseDistance = 9.6 + Math.min(4.0, speed * 0.085);\n    const lookAhead = 6.8 + Math.min(5.2, speed * 0.105);\n    // Read the rendered aircraft itself. Several late Sky Dancer presentation passes\n    // can own vertical transforms, so inferred altitude is not a reliable camera datum.\n    this.playerVisual.updateWorldMatrix(true, false);\n    const playerPosition = new THREE.Vector3();\n    this.playerVisual.getWorldPosition(playerPosition);\n'''
+          new = '''    const altitude = Number(this.scene.userData.skyRaidPlayerAltitude ?? 0);\n    const pitch = Number(this.scene.userData.skyRaidPlayerPitch ?? 0);\n    const bank = Number(this.scene.userData.skyRaidPlayerBank ?? 0);\n    const speed = Math.abs(snapshot.speed);\n    const forwardX = Math.sin(snapshot.heading);\n    const forwardZ = Math.cos(snapshot.heading);\n    const chaseDistance = 9.6 + Math.min(4.0, speed * 0.085);\n    const lookAhead = 6.8 + Math.min(5.2, speed * 0.105);\n    // updateVisuals() is followed by older presentation owners that can restore the\n    // aircraft to its ground datum. SKY RAID therefore reasserts its full flight pose\n    // here, at the final camera/presentation stage, before deriving the chase camera.\n    this.playerVisual.position.y = 0.62 + altitude;\n    this.playerVisual.rotation.x = pitch;\n    this.playerVisual.rotation.z = bank;\n    this.playerVisual.updateWorldMatrix(true, false);\n    const playerPosition = new THREE.Vector3();\n    this.playerVisual.getWorldPosition(playerPosition);\n'''
+          if old not in s:
+              raise SystemExit('V12 camera marker missing')
+          s = s.replace(old, new, 1)
+          p.write_text(s)
 
           t = Path('tests/sky-sky-raid-reference-world.test.ts')
           tests = t.read_text()
-          tests = tests.replace(
-              '  assert.match(source, /snapshot\\.x - forwardX \\* chaseDistance/);\n  assert.match(source, /snapshot\\.z - forwardZ \\* chaseDistance/);',
-              '  assert.match(source, /this\\.playerVisual\\.getWorldPosition\\(playerPosition\\)/);\n  assert.match(source, /playerPosition\\.x - forwardX \\* chaseDistance/);\n  assert.match(source, /playerPosition\\.z - forwardZ \\* chaseDistance/);'
-          )
-          t.write_text(tests)
+          old_test = '''  assert.match(raid, /skyRaidCameraPresentation/);\n  assert.match(raid, /this\\.camera\\.position\\.y \\+= altitude \\* 0\\.94/);\n  assert.match(raid, /altitude \\* 0\\.98/);\n  assert.doesNotMatch(raid, /demo\\.camera\\.position\\.y \\+= flight\\.altitude/);\n'''
+          new_test = '''  assert.match(raid, /skyRaidCameraPresentation/);\n  assert.match(raid, /skyRaidPlayerPitch = flight\\.pitch/);\n  assert.match(raid, /this\\.playerVisual\\.position\\.y = 0\\.62 \\+ altitude/);\n  assert.match(raid, /this\\.playerVisual\\.rotation\\.x = pitch/);\n  assert.match(raid, /this\\.playerVisual\\.rotation\\.z = bank/);\n  assert.doesNotMatch(raid, /demo\\.camera\\.position\\.y \\+= flight\\.altitude/);\n'''
+          if old_test not in tests:
+              raise SystemExit('vertical camera test marker missing')
+          t.write_text(tests.replace(old_test, new_test, 1))
           PY
       - name: Regression checks
         run: |
           npm run test:fast
           npm run lint
           npm run build:pages
-      - name: Commit rendered-aircraft camera fix
+      - name: Commit final-owner vertical flight
         run: |
           git config user.name "yz4git"
           git config user.email "65384484+yz4git@users.noreply.github.com"
           git add src/sky/SkyDancerSkyRaid.ts tests/sky-sky-raid-reference-world.test.ts
-          git commit -m "Follow rendered SKY RAID aircraft with camera"
+          git commit -m "Keep SKY RAID aircraft at commanded altitude"
           git push origin HEAD:main
       - name: Inject webdriver-only ACT and flight audit hooks
         run: |
@@ -67,7 +73,7 @@ jobs:
           if old not in s: raise SystemExit('raid marker missing')
           s = s.replace(old, new, 1)
           old = '''  visual.arcadeWorld.update(raid.actId, base.x, base.z, base.heading, flight.altitude, raid.elapsedSeconds, delta);\n\n  visual.speedFx.visible = base.boostActive || raid.rushActive;\n'''
-          new = '''  visual.arcadeWorld.update(raid.actId, base.x, base.z, base.heading, flight.altitude, raid.elapsedSeconds, delta);\n  if (typeof window !== "undefined" && typeof navigator !== "undefined" && navigator.webdriver) {\n    (window as unknown as Record<string, unknown>).__skyRaidAuditFlightState = () => {\n      demo.scene.updateMatrixWorld(true);\n      demo.camera.updateMatrixWorld(true);\n      const player = new THREE.Vector3();\n      demo.playerVisual.getWorldPosition(player);\n      const projected = player.clone().project(demo.camera);\n      return {\n        altitude: Number(demo.scene.userData.skyRaidPlayerAltitude ?? 0),\n        verticalSpeed: Number(demo.scene.userData.skyRaidPlayerVerticalSpeed ?? 0),\n        bank: Number(demo.scene.userData.skyRaidPlayerBank ?? 0),\n        freeFlightSectors: Number(demo.scene.userData.skyRaidArcadeFreeFlightSectorCount ?? 0),\n        worldLocked: Boolean(demo.scene.userData.skyRaidArcadeWorldLocked),\n        playerWorld: { x: Number(player.x.toFixed(3)), y: Number(player.y.toFixed(3)), z: Number(player.z.toFixed(3)) },\n        playerNdc: { x: Number(projected.x.toFixed(4)), y: Number(projected.y.toFixed(4)), z: Number(projected.z.toFixed(4)), visible: projected.z > -1 && projected.z < 1 && Math.abs(projected.x) < 1 && Math.abs(projected.y) < 1 },\n      };\n    };\n  }\n\n  visual.speedFx.visible = base.boostActive || raid.rushActive;\n'''
+          new = '''  visual.arcadeWorld.update(raid.actId, base.x, base.z, base.heading, flight.altitude, raid.elapsedSeconds, delta);\n  if (typeof window !== "undefined" && typeof navigator !== "undefined" && navigator.webdriver) {\n    (window as unknown as Record<string, unknown>).__skyRaidAuditFlightState = () => {\n      demo.scene.updateMatrixWorld(true);\n      demo.camera.updateMatrixWorld(true);\n      const player = new THREE.Vector3();\n      demo.playerVisual.getWorldPosition(player);\n      const projected = player.clone().project(demo.camera);\n      return {\n        altitude: Number(demo.scene.userData.skyRaidPlayerAltitude ?? 0),\n        verticalSpeed: Number(demo.scene.userData.skyRaidPlayerVerticalSpeed ?? 0),\n        pitch: Number(demo.scene.userData.skyRaidPlayerPitch ?? 0),\n        bank: Number(demo.scene.userData.skyRaidPlayerBank ?? 0),\n        freeFlightSectors: Number(demo.scene.userData.skyRaidArcadeFreeFlightSectorCount ?? 0),\n        worldLocked: Boolean(demo.scene.userData.skyRaidArcadeWorldLocked),\n        playerWorld: { x: Number(player.x.toFixed(3)), y: Number(player.y.toFixed(3)), z: Number(player.z.toFixed(3)) },\n        playerNdc: { x: Number(projected.x.toFixed(4)), y: Number(projected.y.toFixed(4)), z: Number(projected.z.toFixed(4)), visible: projected.z > -1 && projected.z < 1 && Math.abs(projected.x) < 1 && Math.abs(projected.y) < 1 },\n      };\n    };\n  }\n\n  visual.speedFx.visible = base.boostActive || raid.rushActive;\n'''
           if old not in s: raise SystemExit('world update marker missing')
           p.write_text(s.replace(old, new, 1))
           PY
@@ -91,7 +97,7 @@ jobs:
           exit 1
       - name: Capture Arcade Run and all SKY RAID acts
         run: node scripts/webgl-sky-raid-v2-compare.mjs
-      - name: Assert real climb and camera framing
+      - name: Assert real climb and stable framing
         run: |
           python3 - <<'PY'
           import json
@@ -107,9 +113,9 @@ jobs:
               ndc = state['playerNdc']
               if not ndc['visible'] or abs(ndc['x']) > 0.58 or not (-0.72 < ndc['y'] < 0.62):
                   raise SystemExit(f'{name}: aircraft framing failed: {ndc}')
-          if maneuver['playerWorld']['y'] < initial['playerWorld']['y'] + 4:
-              raise SystemExit(f'aircraft visual did not climb: {initial["playerWorld"]} -> {maneuver["playerWorld"]}')
-          if wide['playerWorld']['y'] < maneuver['playerWorld']['y'] + 3:
+          if maneuver['playerWorld']['y'] < initial['playerWorld']['y'] + 7:
+              raise SystemExit(f'aircraft visual did not climb enough: {initial["playerWorld"]} -> {maneuver["playerWorld"]}')
+          if wide['playerWorld']['y'] < maneuver['playerWorld']['y'] + 5:
               raise SystemExit(f'aircraft visual stopped climbing: {maneuver["playerWorld"]} -> {wide["playerWorld"]}')
           if report['raid']['errors']:
               raise SystemExit(f"browser errors: {report['raid']['errors']}")
