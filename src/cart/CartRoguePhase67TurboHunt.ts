@@ -511,6 +511,10 @@ function safeSpawnPoint(
 
 function isSpawnEligible(enemy: CartEnemyState, state: TurboHuntState): boolean {
   if (enemy.alive || enemy.kind === "boss") return false;
+  // A missile can destroy an aircraft just before the Hunt wrapper begins its
+  // frame. Do not recycle that slot until handleEnemyTransitions has observed
+  // the alive -> dead edge and installed the normal respawn cooldown.
+  if (state.previousAlive.get(enemy.id) === true) return false;
   if ((state.enemyRespawn.get(enemy.id) ?? 0) > 0) return false;
   if (enemy.archetype === "bomber" && state.spentBombers.has(enemy.id)) return false;
   return true;

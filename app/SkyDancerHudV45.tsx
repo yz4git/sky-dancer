@@ -66,14 +66,18 @@ export default function SkyDancerHudV45() {
     ? clamp(decision.altitudeDeltaMeters / decision.distance, -0.72, 0.72)
     : 0;
   const reticleY = -altitudeRatio * 24;
+  // Keep doctrine close to the tracked aircraft instead of laying it across
+  // the player's fuselage. The clamp protects the top HUD and thumb controls.
+  const lockX = clamp(reticleX, -18, 18);
+  const lockTopVh = clamp(43 + reticleY - 9, 29, 55);
 
   return <>
     <style>{`
       .skyDancerV45Reticle {
         position: fixed;
         z-index: 138;
-        width: 48px;
-        height: 48px;
+        width: 58px;
+        height: 58px;
         transform: translate(-50%, -50%);
         pointer-events: none;
         display: grid;
@@ -141,19 +145,21 @@ export default function SkyDancerHudV45() {
         position: fixed;
         z-index: 136;
         left: 50%;
-        top: calc(42% + 48px);
+        top: 42%;
         transform: translateX(-50%);
         display: grid;
         justify-items: center;
         gap: 2px;
-        min-width: 152px;
-        max-width: min(54vw, 430px);
-        padding: 3px 9px 4px;
+        min-width: 142px;
+        max-width: min(46vw, 360px);
+        padding: 4px 10px 5px;
         pointer-events: none;
         color: rgba(223,245,250,.76);
         background: linear-gradient(90deg, transparent, rgba(4,31,45,.48) 16%, rgba(4,31,45,.54) 84%, transparent);
-        border-bottom: 1px solid rgba(180,235,247,.20);
-        font: 850 clamp(8px,.92vw,10px)/1.05 system-ui,sans-serif;
+        border-top: 1px solid rgba(180,235,247,.12);
+        border-bottom: 1px solid rgba(180,235,247,.28);
+        box-shadow: 0 4px 18px rgba(0,18,32,.18);
+        font: 900 clamp(8px,.94vw,10px)/1.05 system-ui,sans-serif;
         letter-spacing: .08em;
         text-shadow: 0 1px 5px rgba(0,15,28,.82);
         white-space: nowrap;
@@ -182,8 +188,9 @@ export default function SkyDancerHudV45() {
         overflow: hidden;
         max-width: 46vw;
         text-overflow: ellipsis;
-        font-size: .92em;
-        letter-spacing: .075em;
+        font-size: .98em;
+        font-weight: 950;
+        letter-spacing: .085em;
       }
       .skyDancerV45BossDirective {
         position: fixed;
@@ -259,6 +266,10 @@ export default function SkyDancerHudV45() {
         data-ready={decision.vulnerable ? "true" : "false"}
         data-class={decision.className ?? "none"}
         aria-label="V45 target decision"
+        style={{
+          left: `calc(50% + ${lockX.toFixed(2)}vw)`,
+          top: `${lockTopVh.toFixed(2)}vh`,
+        }}
       >
         <div className="skyDancerV45LockMain">
           <strong>{decision.vulnerable ? "LOCK" : "TRACK"} · {decision.label}</strong>
