@@ -108,14 +108,14 @@ jobs:
           p = Path('src/sky/presentation/SkyDancerV45DecisionHierarchyPass.ts')
           s = p.read_text()
           old = '''  private publishDecision(snapshot: CartArenaSessionSnapshot, delta: number): void {
-            this.broadcastClock -= delta;
-            if (this.broadcastClock > 0) return;
-            this.broadcastClock = 0.08;'''
+              this.broadcastClock -= delta;
+              if (this.broadcastClock > 0) return;
+              this.broadcastClock = 0.08;'''
           new = '''  private publishDecision(snapshot: CartArenaSessionSnapshot, delta: number): void {
-            const skyRaid = typeof document !== "undefined" && document.documentElement.dataset.skyDancerMode === "sky-raid";
-            this.broadcastClock -= delta;
-            if (!skyRaid && this.broadcastClock > 0) return;
-            this.broadcastClock = skyRaid ? 0 : 0.08;'''
+              const skyRaid = typeof document !== "undefined" && document.documentElement.dataset.skyDancerMode === "sky-raid";
+              this.broadcastClock -= delta;
+              if (!skyRaid && this.broadcastClock > 0) return;
+              this.broadcastClock = skyRaid ? 0 : 0.08;'''
           if old in s:
               s = s.replace(old, new, 1)
           elif 'this.broadcastClock = skyRaid ? 0 : 0.08;' not in s:
