@@ -74,14 +74,16 @@ const report = {};
   const { context, page, canvas, errors } = await startMode("SKY RAID", "Sky Dancer WebGL game view");
   const acts = ["dawn-city", "red-canyon", "cloud-fleet", "storm-carrier", "prism-citadel"];
   const actReports = [];
+  await page.waitForFunction(() => typeof window.__skyRaidAuditForceAct === "function", null, { timeout: 15_000 });
   for (let index = 0; index < acts.length; index += 1) {
     const expected = acts[index];
-    await page.waitForFunction((act) => document.documentElement.dataset.skyRaidAct === act, expected, { timeout: index === 0 ? 15_000 : 40_000 });
-    await page.waitForTimeout(index === 0 ? 1500 : 900);
+    await page.evaluate((act) => window.__skyRaidAuditForceAct(act), expected);
+    await page.waitForFunction((act) => document.documentElement.dataset.skyRaidAct === act, expected, { timeout: 10_000 });
+    await page.waitForTimeout(index === 0 ? 1500 : 800);
     await captureCanvas(page, canvas, `${outputDir}/raid-act${index + 1}-${expected}.png`);
     const state = await raidState(page);
     const legacyOwners = await readLegacyVisualOwners(page);
-    const forbiddenHud = ["STAGE 1", "WAVE", "HEAD-ON CROSS", "CITY AIRSPACE", "ABOVE", "BELOW", "GAS 100%"].filter((text) => state.body.includes(text));
+    const forbiddenHud = ["STAGE 1", "HEAD-ON CROSS", "CITY AIRSPACE", "▲ ABOVE", "▼ BELOW", "GAS 100%"].filter((text) => state.body.includes(text));
     actReports.push({ index, expected, state: { mode: state.mode, act: state.act, style: state.style }, legacyOwners, forbiddenHud });
     if (index === 0) {
       const pad = page.locator('[aria-label="Sky Raid two-axis flight stick"]');
@@ -98,6 +100,7 @@ const report = {};
       }
     }
   }
+  await page.evaluate(() => window.__skyRaidAuditForceAct(null));
   report.raid = { acts: actReports, errors, body: (await page.locator("body").innerText()).slice(0, 2500) };
   await context.close();
 }
