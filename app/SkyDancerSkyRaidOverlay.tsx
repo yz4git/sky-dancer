@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type CSSProperties } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import {
   SKY_DANCER_SKY_RAID_SNAPSHOT_EVENT,
   getLatestSkyDancerSkyRaidSnapshot,
@@ -21,15 +21,33 @@ function formatTime(seconds: number): string {
 }
 
 export default function SkyDancerSkyRaidOverlay() {
-  const [snapshot, setSnapshot] = useState<SkyDancerSkyRaidSnapshot | null>(() => getLatestSkyDancerSkyRaidSnapshot());
+  const initialSnapshot = getLatestSkyDancerSkyRaidSnapshot();
+  const [snapshot, setSnapshot] = useState<SkyDancerSkyRaidSnapshot | null>(() => initialSnapshot);
+  const [killCue, setKillCue] = useState<{ serial: number; chain: number } | null>(null);
+  const previousSnapshotRef = useRef<SkyDancerSkyRaidSnapshot | null>(initialSnapshot);
+  const killCueTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
     const handler = (event: Event) => {
       const detail = (event as CustomEvent<SkyDancerSkyRaidSnapshot>).detail;
-      if (detail?.gameMode === "sky-raid") setSnapshot(detail);
+      if (detail?.gameMode !== "sky-raid") return;
+      const previous = previousSnapshotRef.current;
+      if (previous && detail.actIndex === previous.actIndex && detail.actKills > previous.actKills) {
+        setKillCue({ serial: Date.now(), chain: detail.chain });
+        if (killCueTimerRef.current !== null) window.clearTimeout(killCueTimerRef.current);
+        killCueTimerRef.current = window.setTimeout(() => {
+          killCueTimerRef.current = null;
+          setKillCue(null);
+        }, 640);
+      }
+      previousSnapshotRef.current = detail;
+      setSnapshot(detail);
     };
     window.addEventListener(SKY_DANCER_SKY_RAID_SNAPSHOT_EVENT, handler);
-    return () => window.removeEventListener(SKY_DANCER_SKY_RAID_SNAPSHOT_EVENT, handler);
+    return () => {
+      window.removeEventListener(SKY_DANCER_SKY_RAID_SNAPSHOT_EVENT, handler);
+      if (killCueTimerRef.current !== null) window.clearTimeout(killCueTimerRef.current);
+    };
   }, []);
 
   if (!snapshot) return null;
@@ -82,6 +100,50 @@ export default function SkyDancerSkyRaidOverlay() {
       .${styles.actBanner} span { display: none !important; }
       .${styles.rushBanner} { top: 23% !important; }
       .${styles.bossCue} { top: 24% !important; }
+      .${styles.scoreCard}[data-kill="true"] {
+        animation: skyRaidScorePunch .5s cubic-bezier(.16,.84,.28,1) both;
+      }
+      [data-sd-kill-confirm] {
+        position: fixed;
+        right: max(18px, calc(env(safe-area-inset-right) + 10px));
+        top: max(108px, calc(env(safe-area-inset-top) + 96px));
+        z-index: 94;
+        min-width: 112px;
+        padding: 5px 9px 6px;
+        border: 1px solid color-mix(in srgb, var(--raid-accent) 72%, white 28%);
+        border-radius: 5px;
+        background: linear-gradient(90deg, rgba(4,21,35,.82), rgba(4,28,44,.54));
+        box-shadow: 0 5px 18px rgba(0,18,32,.22), inset 2px 0 0 var(--raid-accent);
+        text-align: right;
+        pointer-events: none;
+        animation: skyRaidKillConfirm .64s cubic-bezier(.16,.84,.28,1) both;
+      }
+      [data-sd-kill-confirm] strong {
+        display: block;
+        color: #f7fdff;
+        font-size: 10px;
+        line-height: 1.05;
+        letter-spacing: .12em;
+      }
+      [data-sd-kill-confirm] small {
+        display: block;
+        margin-top: 3px;
+        color: var(--raid-accent);
+        font-size: 7px;
+        font-weight: 900;
+        letter-spacing: .12em;
+      }
+      @keyframes skyRaidScorePunch {
+        0% { transform: scale(1); }
+        20% { transform: scale(1.055); filter: brightness(1.32); }
+        100% { transform: scale(1); filter: brightness(1); }
+      }
+      @keyframes skyRaidKillConfirm {
+        0% { opacity: 0; transform: translate3d(0,7px,0) scale(.90); }
+        18% { opacity: 1; transform: translate3d(0,0,0) scale(1.04); }
+        72% { opacity: .96; transform: translate3d(0,-2px,0) scale(1); }
+        100% { opacity: 0; transform: translate3d(0,-7px,0) scale(.98); }
+      }
       @media(max-height:390px) {
         .${legacyStyles.actions} { bottom: max(8px, calc(env(safe-area-inset-bottom) + 5px)) !important; }
         .${legacyStyles.boostButton} { width: 64px !important; height: 64px !important; }
@@ -94,6 +156,11 @@ export default function SkyDancerSkyRaidOverlay() {
         .${styles.actBanner} strong { font-size: 11px !important; }
         .${styles.rushBanner} strong, .${styles.bossCue} strong { font-size: 13px !important; }
         .${styles.actBanner} span, .${styles.rushBanner} span, .${styles.bossCue} span { display: none !important; }
+        [data-sd-kill-confirm] {
+          top: max(92px, calc(env(safe-area-inset-top) + 82px));
+          min-width: 100px;
+          padding: 4px 8px 5px;
+        }
       }
     `}</style>
     <div className={styles.grade} style={vars} data-act={snapshot.actId} aria-hidden="true" />
@@ -113,11 +180,18 @@ export default function SkyDancerSkyRaidOverlay() {
         <small>{snapshot.actSubtitle} · {snapshot.actSecondsRemaining.toFixed(1)}s</small>
       </div>
 
-      <div className={styles.scoreCard}>
+      <div className={styles.scoreCard} data-kill={killCue ? "true" : "false"}>
         <small>SCORE</small>
         <strong>{snapshot.score.toLocaleString()}</strong>
         <span>{snapshot.chain > 1 ? `CHAIN ×${snapshot.chain} · ` : ""}MULTI ×{snapshot.multiplier.toFixed(2)}</span>
       </div>
+
+      {killCue && (
+        <div key={killCue.serial} data-sd-kill-confirm="true" aria-live="polite">
+          <strong>TARGET DOWN</strong>
+          <small>{killCue.chain > 1 ? `CHAIN ×${killCue.chain}` : "CONFIRMED"}</small>
+        </div>
+      )}
 
       {snapshot.actElapsedSeconds < 1.6 && !snapshot.clear && (
         <div className={styles.actBanner}>
