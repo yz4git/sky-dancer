@@ -33,31 +33,31 @@ jobs:
           from pathlib import Path
           p = Path('src/sky/SkyDancerSkyRaid.ts')
           s = p.read_text()
-          old = '''  visual.arcadeWorld.update(raid.actId, base.x, base.z, base.heading, resolvedFlight.altitude, raid.elapsedSeconds, delta);
-
-  visual.speedFx.visible = base.boostActive || raid.rushActive;'''
-          new = '''  visual.arcadeWorld.update(raid.actId, base.x, base.z, base.heading, resolvedFlight.altitude, raid.elapsedSeconds, delta);
-          if (typeof window !== "undefined" && typeof navigator !== "undefined" && navigator.webdriver) {
-            (window as unknown as Record<string, unknown>).__skyRaidAuditPrepareCombatTarget = () => {
-              const current = demo.session.snapshot();
-              const enemies = demo.session.enemies.filter((enemy) => enemy.alive && enemy.nodeId === demo.session.location.node.id).slice(0, 3);
-              const sideX = Math.cos(current.heading);
-              const sideZ = -Math.sin(current.heading);
-              enemies.forEach((enemy, index) => {
-                const ahead = 8.0 + index * 1.1;
-                const lateral = (index - 1) * 0.55;
-                enemy.x = current.x + Math.sin(current.heading) * ahead + sideX * lateral;
-                enemy.z = current.z + Math.cos(current.heading) * ahead + sideZ * lateral;
-                enemy.heading = current.heading + Math.PI;
-              });
-              return enemies.map((enemy) => ({ id: enemy.id, kind: enemy.kind }));
-            };
-          }
-
-          visual.speedFx.visible = base.boostActive || raid.rushActive;'''
+          old = "  visual.arcadeWorld.update(raid.actId, base.x, base.z, base.heading, resolvedFlight.altitude, raid.elapsedSeconds, delta);\n\n  visual.speedFx.visible = base.boostActive || raid.rushActive;"
+          lines = [
+              "  visual.arcadeWorld.update(raid.actId, base.x, base.z, base.heading, resolvedFlight.altitude, raid.elapsedSeconds, delta);",
+              "  if (typeof window !== \"undefined\" && typeof navigator !== \"undefined\" && navigator.webdriver) {",
+              "    (window as unknown as Record<string, unknown>).__skyRaidAuditPrepareCombatTarget = () => {",
+              "      const current = demo.session.snapshot();",
+              "      const enemies = demo.session.enemies.filter((enemy) => enemy.alive && enemy.nodeId === demo.session.location.node.id).slice(0, 3);",
+              "      const sideX = Math.cos(current.heading);",
+              "      const sideZ = -Math.sin(current.heading);",
+              "      enemies.forEach((enemy, index) => {",
+              "        const ahead = 8.0 + index * 1.1;",
+              "        const lateral = (index - 1) * 0.55;",
+              "        enemy.x = current.x + Math.sin(current.heading) * ahead + sideX * lateral;",
+              "        enemy.z = current.z + Math.cos(current.heading) * ahead + sideZ * lateral;",
+              "        enemy.heading = current.heading + Math.PI;",
+              "      });",
+              "      return enemies.map((enemy) => ({ id: enemy.id, kind: enemy.kind }));",
+              "    };",
+              "  }",
+              "",
+              "  visual.speedFx.visible = base.boostActive || raid.rushActive;",
+          ]
           if old not in s:
               raise SystemExit('audit helper marker missing')
-          p.write_text(s.replace(old, new, 1))
+          p.write_text(s.replace(old, "\n".join(lines), 1))
           PY
       - name: Browser setup
         run: |
@@ -133,8 +133,7 @@ jobs:
             await page.evaluate(()=>window.__skyRaidAuditPrepareCombatTarget());
             await page.waitForTimeout(100);
             const before=await page.evaluate(()=>window.__skyRaidGetCameraPolish());
-            const shot=page.locator('button[aria-label="Fire missile"]');
-            await realPress(shot,85);
+            await realPress(page.locator('button[aria-label="Fire missile"]'),85);
             let hit=null;
             const hitDeadline=Date.now()+5500;
             while(Date.now()<hitDeadline){
@@ -165,13 +164,13 @@ jobs:
             if(!peak.playerVisible)throw new Error('turbo framing lost');
 
             const clutter=await page.evaluate(()=>{
-              const visibleText=(needle)=>Array.from(document.querySelectorAll('body *')).filter(el=>{
-                if((el.textContent||'').trim()!==needle)return false;
+              const visibleContaining=(needle)=>Array.from(document.querySelectorAll('body *')).filter(el=>{
+                if(!(el.textContent||'').includes(needle))return false;
                 const st=getComputedStyle(el),r=el.getBoundingClientRect();
                 return st.display!=='none'&&st.visibility!=='hidden'&&Number(st.opacity||1)>.02&&r.width>0&&r.height>0;
-              }).map(el=>({text:needle,font:parseFloat(getComputedStyle(el).fontSize)||0,width:el.getBoundingClientRect().width,height:el.getBoundingClientRect().height}));
+              }).filter(el=>Array.from(el.children).every(child=>!(child.textContent||'').includes(needle))).map(el=>({text:(el.textContent||'').trim(),font:parseFloat(getComputedStyle(el).fontSize)||0,width:el.getBoundingClientRect().width,height:el.getBoundingClientRect().height}));
               const dawn=Array.from(document.querySelectorAll('body *')).filter(el=>(el.textContent||'').trim()==='DAWN CITY').map(el=>({font:parseFloat(getComputedStyle(el).fontSize)||0,width:el.getBoundingClientRect().width,height:el.getBoundingClientRect().height,display:getComputedStyle(el).display}));
-              return {flow:visibleText('FLOW COMBO!'),boost:visibleText('BOOST STRIKE'),dawn};
+              return {flow:visibleContaining('FLOW COMBO'),boost:visibleContaining('BOOST STRIKE'),dawn};
             });
             if(clutter.flow.length)throw new Error(`FLOW COMBO clutter visible ${JSON.stringify(clutter.flow)}`);
             if(clutter.boost.length)throw new Error(`BOOST STRIKE clutter visible ${JSON.stringify(clutter.boost)}`);
