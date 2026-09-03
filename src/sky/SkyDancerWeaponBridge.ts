@@ -11,10 +11,17 @@ const WEAPON_LOOP_PATCH_KEY = "__skyDancerPlayerWeaponLoopInstalled__";
 const WEAPON_AUDIT_KEY = "__skyDancerGetActiveWeaponDebug";
 
 /**
- * Keep player missiles advancing even when a presentation pass is skipped.
- * The weapon model's getter advances from a shared wall-clock cursor, so using
- * that same path from session.step() cannot double-step when render code also
- * reads the state later in the frame.
+ * Advance guided player missiles at the front of the gameplay frame.
+ *
+ * This ordering is intentional: Turbo Hunt owns the authoritative alive->dead
+ * transition accounting that feeds SKY RAID score, chain, ACT progress and
+ * TARGET DOWN feedback. If missile simulation runs after the inherited Hunt
+ * step, an aircraft can already be dead visually while Hunt has missed the
+ * transition for that frame. Advancing from the shared wall-clock cursor first
+ * lets the existing Hunt director observe the kill in the same frame.
+ *
+ * The weapon getter and presentation reads share one clock cursor, so later
+ * reads do not apply a second full gameplay step.
  */
 function installSkyDancerPlayerWeaponLoop(): void {
   const prototype = CartArenaSession.prototype as unknown as Record<string, unknown> & {
@@ -28,8 +35,8 @@ function installSkyDancerPlayerWeaponLoop(): void {
     input: RallyInputState,
     fixedDelta?: number,
   ): void {
-    baseStep.call(this, input, fixedDelta);
     getSkyDancerPlayerWeaponState(this);
+    baseStep.call(this, input, fixedDelta);
   };
 }
 
