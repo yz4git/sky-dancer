@@ -19,6 +19,7 @@ const screenshot = async (name) => {
   try { await page?.screenshot({ path: path.join(out, name), timeout: 6000 }); } catch {}
 };
 const camera = () => page.evaluate(() => window.__skyRaidGetCameraPolish?.());
+const weaponDebug = () => page.evaluate(() => window.__skyDancerGetActiveWeaponDebug?.() ?? null);
 
 async function beginVerticalHold(fractionY) {
   const pad = page.locator('[aria-label="Sky Raid two-axis flight stick"]');
@@ -41,20 +42,79 @@ async function clearAuditAltitude() {
 async function confirmLiveTargetDown() {
   const shot = page.locator('button[aria-label="Fire missile"]');
   await shot.waitFor({ state: "visible", timeout: 5000 });
+  await page.waitForFunction(() => typeof window.__skyDancerGetActiveWeaponDebug === "function", null, { timeout: 5000 });
   const cue = page.locator('[data-sd-kill-confirm]');
-  for (let attempt = 0; attempt < 5; attempt += 1) {
-    await shot.click({ force: true });
-    try {
-      await cue.waitFor({ state: "attached", timeout: 900 });
-      const text = (await cue.textContent()) ?? "";
-      if (!/TARGET DOWN/i.test(text)) throw new Error(`unexpected kill confirmation: ${text}`);
-      await screenshot("03-target-down-confirmation.png");
-      return text.replace(/\s+/g, " ").trim();
-    } catch (error) {
-      if (attempt === 4) throw error;
+  const samples = [];
+
+  // V45 deliberately makes STRIKER/ORBITER timing meaningful. In a HOLD FIRE
+  // phase those aircraft are mathematically prevented from dying, so the real
+  // browser playcheck follows the on-screen doctrine instead of brute-forcing
+  // five shots into a closed window.
+  const deadline = Date.now() + 10_000;
+  let ready = null;
+  while (Date.now() < deadline) {
+    const debug = await weaponDebug();
+    if (debug) {
+      samples.push({
+        t: Date.now(),
+        action: debug.lock?.action ?? "",
+        vulnerable: Boolean(debug.lock?.vulnerable),
+        className: debug.lock?.className ?? null,
+        target: debug.target ?? null,
+        shotSerial: debug.weapon?.shotSerial ?? 0,
+        hitSerial: debug.weapon?.hitSerial ?? 0,
+        missileCount: debug.weapon?.missiles?.length ?? 0,
+      });
+      const className = debug.lock?.className;
+      if (debug.lock?.vulnerable && debug.target?.alive && className !== "heavy" && className !== "boss") {
+        ready = debug;
+        break;
+      }
     }
+    await page.waitForTimeout(120);
   }
-  throw new Error("target-down confirmation did not appear");
+  if (!ready) {
+    fs.writeFileSync(path.join(out, "weapon-window-failure.json"), JSON.stringify(samples, null, 2));
+    throw new Error(`no vulnerable missile window appeared: ${JSON.stringify(samples.slice(-8))}`);
+  }
+
+  const initialHitSerial = Number(ready.weapon?.hitSerial ?? 0);
+  const initialShotSerial = Number(ready.weapon?.shotSerial ?? 0);
+  const targetBefore = { ...ready.target };
+  const lockBefore = { ...ready.lock };
+  await shot.click({ force: true });
+
+  await page.waitForFunction(
+    (serial) => Number(window.__skyDancerGetActiveWeaponDebug?.()?.weapon?.hitSerial ?? 0) > serial,
+    initialHitSerial,
+    { timeout: 5000, polling: 40 },
+  );
+  const afterHit = await weaponDebug();
+  if (!afterHit) throw new Error("weapon diagnostics disappeared after live missile hit");
+  if (Number(afterHit.weapon?.shotSerial ?? 0) <= initialShotSerial) {
+    throw new Error(`SHOT did not increment shotSerial: before=${initialShotSerial} after=${afterHit.weapon?.shotSerial}`);
+  }
+  if (afterHit.weapon?.lastHitEnemyId !== targetBefore.id) {
+    throw new Error(`live missile hit wrong target: expected=${targetBefore.id} actual=${afterHit.weapon?.lastHitEnemyId}`);
+  }
+
+  await cue.waitFor({ state: "attached", timeout: 1800 });
+  const text = (await cue.textContent()) ?? "";
+  if (!/TARGET DOWN/i.test(text)) {
+    throw new Error(`unexpected kill confirmation after physical hit: ${text}`);
+  }
+  await screenshot("03-target-down-confirmation.png");
+  const result = {
+    text: text.replace(/\s+/g, " ").trim(),
+    targetBefore,
+    lockBefore,
+    shotSerial: afterHit.weapon?.shotSerial ?? 0,
+    hitSerial: afterHit.weapon?.hitSerial ?? 0,
+    lastHitEnemyId: afterHit.weapon?.lastHitEnemyId ?? null,
+    samples: samples.slice(-12),
+  };
+  fs.writeFileSync(path.join(out, "weapon-hit.json"), JSON.stringify(result, null, 2));
+  return result;
 }
 
 try {
@@ -92,10 +152,6 @@ try {
     throw new Error(`flight pad caption escaped visible ring: ring=${JSON.stringify(visualRingBox)} caption=${JSON.stringify(captionBox)}`);
   }
 
-  // These values are sampled after the Hunt director has selected the current
-  // opening formation, so enemyPool is intentionally an opening runtime snapshot
-  // (normally six), not the late-game candidate capacity. The source contract
-  // separately keeps every SKY RAID reinforcement candidate instead of halving it.
   const combatDiagnostics = await page.evaluate(() => ({
     populationProfile: document.documentElement.dataset.skyRaidPopulationProfile ?? "",
     enemyPool: Number(document.documentElement.dataset.skyRaidEnemyPool ?? 0),
@@ -112,9 +168,6 @@ try {
   }
   await screenshot("00-baseline-flight.png");
 
-  // Confirm combat while the opening target is still in the authored forward
-  // attack lane; doing this before altitude excursions makes the playcheck
-  // deterministic without teleporting or weakening the enemy.
   const targetDownConfirmation = await confirmLiveTargetDown();
 
   await beginVerticalHold(0.07);
