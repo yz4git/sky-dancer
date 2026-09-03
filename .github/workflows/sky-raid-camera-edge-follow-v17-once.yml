@@ -1,4 +1,4 @@
-name: SKY RAID camera edge-follow V17 apply
+name: SKY RAID camera edge-follow V17 audit
 
 on:
   push:
@@ -6,33 +6,47 @@ on:
       - .github/workflows/sky-raid-camera-edge-follow-v17-once.yml
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  apply:
+  audit:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 12
+    env:
+      SKY_DANCER_CHROME_PATH: /usr/bin/google-chrome
     steps:
       - uses: actions/checkout@v5
-        with:
-          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: 22.13.0
           cache: npm
-      - name: Apply camera patch
-        run: python3 scripts/sky-raid-camera-edge-follow-v17.py
       - name: Install dependencies
         run: npm ci --no-audit --no-fund
-      - name: Verify
+      - name: Regression checks
         run: |
           npm run test:fast
           npm run lint
           npm run build:pages
-      - name: Commit verified camera follow
+      - name: Browser setup
         run: |
-          git config user.name "yz4git"
-          git config user.email "65384484+yz4git@users.noreply.github.com"
-          git add src/sky/SkyDancerSkyRaid.ts tests/sky-sky-raid-reference-world.test.ts
-          git commit -m "Keep SKY RAID aircraft framed at altitude limits"
-          git push origin HEAD:main
+          rm -rf .audit-runtime
+          mkdir -p .audit-runtime artifacts/sky-raid-v17
+          printf '{"private":true,"type":"commonjs"}\n' > .audit-runtime/package.json
+          npm install --prefix .audit-runtime --no-package-lock --no-save --ignore-scripts --no-audit --no-fund playwright-core@1.55.0
+          python3 -m http.server 4173 --bind 127.0.0.1 --directory out >/tmp/sky-raid-v17-http.log 2>&1 &
+          for i in {1..30}; do
+            if curl -fsS http://127.0.0.1:4173/ >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          cat /tmp/sky-raid-v17-http.log
+          exit 1
+      - name: Real browser altitude-edge playcheck
+        run: node scripts/webgl-sky-raid-camera-edge-v17.cjs
+      - name: Upload audit artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sky-raid-v17-camera-edge-follow
+          path: artifacts/sky-raid-v17
+          if-no-files-found: warn
+          retention-days: 7
