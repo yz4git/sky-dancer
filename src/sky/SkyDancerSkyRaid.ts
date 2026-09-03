@@ -544,28 +544,27 @@ export function installSkyDancerSkyRaid(): void {
   ): void {
     previousApplyCameraPresentation.call(this, snapshot);
     if (!isSkyRaidMode()) return;
-    const altitude = Number(this.scene.userData.skyRaidPlayerAltitude ?? 0);
-    const verticalSpeed = Number(this.scene.userData.skyRaidPlayerVerticalSpeed ?? 0);
     const bank = Number(this.scene.userData.skyRaidPlayerBank ?? 0);
     const speed = Math.abs(snapshot.speed);
     const forwardX = Math.sin(snapshot.heading);
     const forwardZ = Math.cos(snapshot.heading);
     const chaseDistance = 9.6 + Math.min(4.0, speed * 0.085);
-    const chaseHeight = 5.15 + altitude + Math.max(0, verticalSpeed) * 0.025;
     const lookAhead = 6.8 + Math.min(5.2, speed * 0.105);
-    const lookHeight = 1.55 + altitude + verticalSpeed * 0.018;
-    // SKY RAID is true 360-degree flight, so the final camera must be derived from
-    // aircraft heading in all axes rather than inheriting the car chase X/Z frame.
+    // Read the rendered aircraft itself. Several late Sky Dancer presentation passes
+    // can own vertical transforms, so inferred altitude is not a reliable camera datum.
+    this.playerVisual.updateWorldMatrix(true, false);
+    const playerPosition = new THREE.Vector3();
+    this.playerVisual.getWorldPosition(playerPosition);
     this.camera.position.set(
-      snapshot.x - forwardX * chaseDistance,
-      chaseHeight,
-      snapshot.z - forwardZ * chaseDistance,
+      playerPosition.x - forwardX * chaseDistance,
+      playerPosition.y + 4.55,
+      playerPosition.z - forwardZ * chaseDistance,
     );
     this.camera.up.set(0, 1, 0);
     this.camera.lookAt(
-      snapshot.x + forwardX * lookAhead,
-      lookHeight,
-      snapshot.z + forwardZ * lookAhead,
+      playerPosition.x + forwardX * lookAhead,
+      playerPosition.y + 0.95,
+      playerPosition.z + forwardZ * lookAhead,
     );
     this.camera.rotateZ(bank * 0.075);
   };

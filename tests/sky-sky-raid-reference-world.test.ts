@@ -42,7 +42,8 @@ test("SKY RAID camera derives chase position from aircraft heading", async () =>
   assert.match(source, /const forwardX = Math\.sin\(snapshot\.heading\)/);
   assert.match(source, /const forwardZ = Math\.cos\(snapshot\.heading\)/);
   assert.match(source, /this\.camera\.position\.set\(/);
-  assert.match(source, /snapshot\.x - forwardX \* chaseDistance/);
-  assert.match(source, /snapshot\.z - forwardZ \* chaseDistance/);
+  assert.match(source, /this\.playerVisual\.getWorldPosition\(playerPosition\)/);
+  assert.match(source, /playerPosition\.x - forwardX \* chaseDistance/);
+  assert.match(source, /playerPosition\.z - forwardZ \* chaseDistance/);
   assert.doesNotMatch(source, /this\.camera\.position\.y \+= altitude/);
 });
