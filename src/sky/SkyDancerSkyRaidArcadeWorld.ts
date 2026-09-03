@@ -20,10 +20,13 @@ const LEGACY_ENV_PREFIXES = [
   "sky-dancer-v53-",
 ] as const;
 
+const FREE_FLIGHT_SECTOR_ANGLES = [Math.PI * 2 / 3, -Math.PI * 2 / 3] as const;
+const FREE_FLIGHT_COPY_NAME = "sky-raid-arcade-free-flight-sector";
+
 function insideArcadeEnvironment(object: THREE.Object3D): boolean {
   let current: THREE.Object3D | null = object;
   while (current) {
-    if (current.name === "arcade-course-environment") return true;
+    if (current.name === "arcade-course-environment" || current.name === FREE_FLIGHT_COPY_NAME) return true;
     current = current.parent;
   }
   return false;
@@ -43,14 +46,34 @@ function suppressLegacyEnvironment(scene: THREE.Scene): void {
   });
 }
 
+function stripDuplicateAtmosphere(root: THREE.Object3D): void {
+  root.traverse((object) => {
+    if (object instanceof THREE.Light) {
+      object.visible = false;
+      return;
+    }
+    if (object.name === "arcade-product-backdrop" || object.name === "arcade-product-sun") {
+      object.visible = false;
+      return;
+    }
+    if (
+      object instanceof THREE.Mesh
+      && object.geometry instanceof THREE.SphereGeometry
+      && object.geometry.parameters.radius >= 250
+    ) object.visible = false;
+  });
+}
+
 /**
- * SKY RAID reuses Arcade Run's authored scenery as a stationary world, not as a
- * rail-scrolling renderer. The frame is captured once when each ACT begins.
- * Player x/z/heading changes never move or rotate the environment afterward;
- * therefore the Turbo Hunt 360-degree movement remains the actual world motion.
+ * SKY RAID keeps the Arcade Run art language but presents it as a spatial world.
+ * The original authored corridor is one sector; two lightweight geometry clones
+ * are rotated around the ACT anchor so a 360-degree turn still sees the same
+ * architecture, fleets, canyon forms and citadel language instead of empty sky.
+ * Nothing follows aircraft heading or elapsed time, so this remains true free flight.
  */
 export class SkyDancerSkyRaidArcadeWorld {
   private readonly environment: SkyDancerArcadeEnvironment;
+  private readonly freeFlightCopies: THREE.Group[] = [];
   private stage: SkyDancerArcadeStageDefinition | null = null;
   private anchorX = 0;
   private anchorZ = 0;
@@ -62,6 +85,32 @@ export class SkyDancerSkyRaidArcadeWorld {
     scene.userData.skyRaidUsesArcadeReferenceWorld = true;
     scene.userData.skyRaidLegacyEnvironmentSuppressed = true;
     scene.userData.skyRaidFreeFlightWorld = true;
+    scene.userData.skyRaidArcadeFreeFlightSectors = 3;
+  }
+
+  private clearFreeFlightCopies(): void {
+    for (const copy of this.freeFlightCopies) this.scene.remove(copy);
+    this.freeFlightCopies.length = 0;
+  }
+
+  private buildFreeFlightCopies(): void {
+    this.clearFreeFlightCopies();
+    const source = this.scene.getObjectByName("arcade-course-environment");
+    if (!(source instanceof THREE.Group)) return;
+
+    FREE_FLIGHT_SECTOR_ANGLES.forEach((angle, index) => {
+      // clone(true) intentionally shares immutable geometry/material resources with
+      // Arcade Run. We only transform the copied hierarchy, keeping mobile memory sane.
+      const copy = source.clone(true);
+      copy.name = FREE_FLIGHT_COPY_NAME;
+      copy.userData.skyRaidFreeFlightSector = index + 1;
+      copy.userData.skyRaidFreeFlightSectorAngle = angle;
+      copy.position.set(this.anchorX, -0.035 * (index + 1), this.anchorZ);
+      copy.rotation.set(0, this.anchorYaw + angle, 0);
+      stripDuplicateAtmosphere(copy);
+      this.scene.add(copy);
+      this.freeFlightCopies.push(copy);
+    });
   }
 
   update(
@@ -76,28 +125,30 @@ export class SkyDancerSkyRaidArcadeWorld {
     suppressLegacyEnvironment(this.scene);
 
     if (!this.stage || this.stage.id !== actId) {
+      // The clones share geometry/materials with the current Arcade environment,
+      // so remove them before setStage() disposes the previous stage resources.
+      this.clearFreeFlightCopies();
       this.stage = skyDancerArcadeStageById(actId as SkyDancerArcadeStageId);
       this.environment.setStage(this.stage);
 
-      // Arcade Run's local forward is -Z, while Sky Dancer heading 0 travels +Z.
-      // Capture that conversion once per ACT. Never chase the aircraft afterward.
+      // Arcade Run local forward is -Z while Sky Dancer heading 0 travels +Z.
+      // Capture the conversion only once per ACT. The world never chases the plane.
       this.anchorX = x;
       this.anchorZ = z;
       this.anchorYaw = heading + Math.PI;
       this.environment.setWorldFrame(this.anchorX, 0, this.anchorZ, this.anchorYaw);
-
-      // setStage() already initializes distance 0, but reassert the stationary
-      // frame so an ACT transition cannot inherit any previous rail-scroll state.
       this.environment.update(0, 0, 0);
+      this.buildFreeFlightCopies();
       suppressLegacyEnvironment(this.scene);
     }
 
     if (!this.stage) return;
 
-    // Reassert only the captured ACT frame. There is deliberately no elapsed-time
-    // course progression and no heading-follow yaw here: the player flies through
-    // the world instead of the world scrolling/rotating around the player.
     this.environment.setWorldFrame(this.anchorX, 0, this.anchorZ, this.anchorYaw);
+    this.freeFlightCopies.forEach((copy, index) => {
+      copy.position.set(this.anchorX, -0.035 * (index + 1), this.anchorZ);
+      copy.rotation.set(0, this.anchorYaw + FREE_FLIGHT_SECTOR_ANGLES[index], 0);
+    });
 
     this.scene.userData.skyRaidArcadeReferenceStage = this.stage.id;
     this.scene.userData.skyRaidArcadeReferenceDistance = 0;
@@ -105,7 +156,11 @@ export class SkyDancerSkyRaidArcadeWorld {
     this.scene.userData.skyRaidArcadeWorldAnchorX = this.anchorX;
     this.scene.userData.skyRaidArcadeWorldAnchorZ = this.anchorZ;
     this.scene.userData.skyRaidArcadeWorldLocked = true;
+    this.scene.userData.skyRaidArcadeFreeFlightSectorCount = 1 + this.freeFlightCopies.length;
   }
 
-  dispose(): void { this.environment.dispose(); }
+  dispose(): void {
+    this.clearFreeFlightCopies();
+    this.environment.dispose();
+  }
 }
