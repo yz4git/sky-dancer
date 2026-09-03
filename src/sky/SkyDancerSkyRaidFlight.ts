@@ -1,7 +1,7 @@
-export const SKY_RAID_MIN_ALTITUDE = -10;
-export const SKY_RAID_MAX_ALTITUDE = 28;
+export const SKY_RAID_MIN_ALTITUDE = -18;
+export const SKY_RAID_MAX_ALTITUDE = 64;
 export const SKY_RAID_MAX_BANK = 0.78;
-export const SKY_RAID_MAX_PITCH = 0.32;
+export const SKY_RAID_MAX_PITCH = 0.42;
 
 export interface SkyDancerSkyRaidFlightSnapshot {
   altitude: number;
@@ -31,8 +31,8 @@ export function skyRaidBankTarget(turnRate: number, steer: number): number {
 }
 
 export function skyRaidPitchTarget(verticalSpeed: number, verticalInput: number, maxVerticalSpeed: number): number {
-  const velocityPitch = maxVerticalSpeed > 0 ? -(verticalSpeed / maxVerticalSpeed) * 0.25 : 0;
-  return clamp(velocityPitch - verticalInput * 0.045, -SKY_RAID_MAX_PITCH, SKY_RAID_MAX_PITCH);
+  const velocityPitch = maxVerticalSpeed > 0 ? -(verticalSpeed / maxVerticalSpeed) * 0.34 : 0;
+  return clamp(velocityPitch - verticalInput * 0.06, -SKY_RAID_MAX_PITCH, SKY_RAID_MAX_PITCH);
 }
 
 export class SkyDancerSkyRaidFlightController {
@@ -58,10 +58,10 @@ export class SkyDancerSkyRaidFlightController {
 
   step(delta: number, heading: number, steer: number, boost: boolean): SkyDancerSkyRaidFlightSnapshot {
     const dt = clamp(delta, 0, 0.05);
-    const maxVerticalSpeed = boost ? 17.5 : 12.5;
+    const maxVerticalSpeed = boost ? 22 : 16;
     const targetVerticalSpeed = this.verticalInput * maxVerticalSpeed;
-    this.verticalSpeed = damp(this.verticalSpeed, targetVerticalSpeed, this.verticalInput === 0 ? 4.0 : 6.2, dt);
-    if (Math.abs(this.verticalInput) < 0.02) this.verticalSpeed *= Math.exp(-1.25 * dt);
+    this.verticalSpeed = damp(this.verticalSpeed, targetVerticalSpeed, this.verticalInput === 0 ? 4.4 : 7.0, dt);
+    if (Math.abs(this.verticalInput) < 0.02) this.verticalSpeed *= Math.exp(-1.3 * dt);
     this.altitude = clamp(this.altitude + this.verticalSpeed * dt, SKY_RAID_MIN_ALTITUDE, SKY_RAID_MAX_ALTITUDE);
     if ((this.altitude <= SKY_RAID_MIN_ALTITUDE && this.verticalSpeed < 0) || (this.altitude >= SKY_RAID_MAX_ALTITUDE && this.verticalSpeed > 0)) this.verticalSpeed = 0;
 
@@ -74,7 +74,7 @@ export class SkyDancerSkyRaidFlightController {
     const bankResponse = Math.abs(targetBank) > Math.abs(this.bank) ? 7.8 : 4.2;
     this.bank = damp(this.bank, targetBank, bankResponse, dt);
     const targetPitch = skyRaidPitchTarget(this.verticalSpeed, this.verticalInput, maxVerticalSpeed);
-    this.pitch = damp(this.pitch, targetPitch, 5.6, dt);
+    this.pitch = damp(this.pitch, targetPitch, 6.2, dt);
 
     return { altitude: this.altitude, verticalSpeed: this.verticalSpeed, bank: this.bank, pitch: this.pitch, turnRate };
   }
