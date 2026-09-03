@@ -14,6 +14,10 @@ test("SKY RAID uses Arcade Run scenery as a stationary 360-degree free-flight wo
   assert.match(world, /skyRaidArcadeFreeFlightSectors = 3/);
   assert.match(world, /skyRaidFreeFlightWorld = true/);
   assert.match(world, /skyRaidArcadeWorldLocked = true/);
+  assert.match(world, /freeFlightChunkLateralScale/);
+  assert.match(world, /case "city": return 1\.34/);
+  assert.match(world, /child\.scale\.x = lateralScale/);
+  assert.match(world, /skyRaidArcadeChunkLateralScale = lateralScale/);
   assert.doesNotMatch(world, /localSeconds \* this\.stage\.courseSpeed/);
   assert.doesNotMatch(world, /desiredYaw/);
   assert.doesNotMatch(world, /dampAngle/);

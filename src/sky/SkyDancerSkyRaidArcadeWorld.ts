@@ -75,6 +75,17 @@ function freeFlightSectorRadius(stage: SkyDancerArcadeStageDefinition): number {
   }
 }
 
+function freeFlightChunkLateralScale(stage: SkyDancerArcadeStageDefinition): number {
+  // Dawn City's Arcade Run near-pass buildings were authored for a guided route.
+  // In SKY RAID the aircraft can leave that route, so widen only the rigid city
+  // districts to keep visual-only skyscrapers out of the center combat sightline.
+  // The sky, river, distant skyline and all non-city ACTs keep their authored scale.
+  switch (stage.biome) {
+    case "city": return 1.34;
+    default: return 1;
+  }
+}
+
 /**
  * SKY RAID keeps the Arcade Run art language but presents it as a spatial world.
  * The original authored corridor remains the hero sector. Two geometry-sharing
@@ -103,6 +114,18 @@ export class SkyDancerSkyRaidArcadeWorld {
   private clearFreeFlightCopies(): void {
     for (const copy of this.freeFlightCopies) this.scene.remove(copy);
     this.freeFlightCopies.length = 0;
+  }
+
+  private applyFreeFlightChunkClearance(): void {
+    if (!this.stage) return;
+    const source = this.scene.getObjectByName("arcade-course-environment");
+    if (!(source instanceof THREE.Group)) return;
+    const lateralScale = freeFlightChunkLateralScale(this.stage);
+    source.children.forEach((child) => {
+      if (child.name.startsWith("arcade-course-chunk-")) child.scale.x = lateralScale;
+    });
+    source.userData.skyRaidChunkLateralScale = lateralScale;
+    this.scene.userData.skyRaidArcadeChunkLateralScale = lateralScale;
   }
 
   private positionFreeFlightSector(copy: THREE.Group, angle: number, index: number): void {
@@ -167,6 +190,7 @@ export class SkyDancerSkyRaidArcadeWorld {
       this.anchorYaw = heading + Math.PI;
       this.environment.setWorldFrame(this.anchorX, 0, this.anchorZ, this.anchorYaw);
       this.environment.update(0, 0, 0);
+      this.applyFreeFlightChunkClearance();
       this.buildFreeFlightCopies();
       suppressLegacyEnvironment(this.scene);
     }
@@ -174,6 +198,7 @@ export class SkyDancerSkyRaidArcadeWorld {
     if (!this.stage) return;
 
     this.environment.setWorldFrame(this.anchorX, 0, this.anchorZ, this.anchorYaw);
+    this.applyFreeFlightChunkClearance();
     this.freeFlightCopies.forEach((copy, index) => {
       this.positionFreeFlightSector(copy, FREE_FLIGHT_SECTOR_ANGLES[index], index);
     });
