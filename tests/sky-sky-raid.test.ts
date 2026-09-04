@@ -93,3 +93,16 @@ test("SKY RAID valid missile locks keep enough pursuit authority for phone play"
   assert.match(hudSource, /max-width: min\(38vw, 300px\)/);
   assert.match(hudSource, /lockTopVh = clamp\(43 \+ reticleY - 12, 27, 52\)/);
 });
+
+
+test("SKY RAID kill confirmation is carried by authoritative snapshot state", () => {
+  const raidSource = readFileSync(new URL("../src/sky/SkyDancerSkyRaid.ts", import.meta.url), "utf8");
+  const overlaySource = readFileSync(new URL("../app/SkyDancerSkyRaidOverlay.tsx", import.meta.url), "utf8");
+  assert.match(raidSource, /killCueSerial: number/);
+  assert.match(raidSource, /killCueSecondsRemaining: number/);
+  assert.match(raidSource, /state\.killCueSerial \+= killDelta/);
+  assert.match(raidSource, /state\.killCueSecondsRemaining = 1\.18/);
+  assert.match(overlaySource, /snapshot\.killCueSecondsRemaining > 0/);
+  assert.match(overlaySource, /key=\{snapshot\.killCueSerial\}/);
+  assert.doesNotMatch(overlaySource, /previousSnapshotRef/);
+});

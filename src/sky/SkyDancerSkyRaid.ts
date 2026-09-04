@@ -39,6 +39,8 @@ export interface SkyDancerSkyRaidSnapshot {
   actKills: number;
   actKillTarget: number;
   actBreak: boolean;
+  killCueSerial: number;
+  killCueSecondsRemaining: number;
   score: number;
   chain: number;
   multiplier: number;
@@ -69,6 +71,8 @@ interface RaidState {
   actBreak: boolean;
   previousKills: number;
   previousOrders: number;
+  killCueSerial: number;
+  killCueSecondsRemaining: number;
   score: number;
   chain: number;
   chainTimer: number;
@@ -220,6 +224,8 @@ function stateFor(session: RaidSession, hunt: CartTurboHuntSnapshot): RaidState 
     actBreak: false,
     previousKills: hunt.huntKills,
     previousOrders: hunt.huntOrdersCompleted,
+    killCueSerial: 0,
+    killCueSecondsRemaining: 0,
     score: 0,
     chain: 0,
     chainTimer: 0,
@@ -252,6 +258,7 @@ function updateRaid(session: RaidSession, hunt: CartTurboHuntSnapshot, delta: nu
     state.actIndex = act.index;
     state.actKills = 0;
     state.actBreak = false;
+    state.killCueSecondsRemaining = 0;
     session.gas = Math.min(1, session.gas + 0.035);
     session.lastReward = `ACT ${act.index + 1} · ${act.label} · ${act.setpiece}`;
     session.rewardTimer = Math.max(session.rewardTimer, 2.4);
@@ -265,6 +272,10 @@ function updateRaid(session: RaidSession, hunt: CartTurboHuntSnapshot, delta: nu
     state.actKills += 1;
     state.score += skyDancerSkyRaidKillScore(state.chain, session.car.boostActive, rushActive);
   }
+  if (killDelta > 0) {
+    state.killCueSerial += killDelta;
+    state.killCueSecondsRemaining = 1.18;
+  }
   state.previousKills = hunt.huntKills;
 
   const orderDelta = Math.max(0, hunt.huntOrdersCompleted - state.previousOrders);
@@ -272,6 +283,7 @@ function updateRaid(session: RaidSession, hunt: CartTurboHuntSnapshot, delta: nu
   state.previousOrders = hunt.huntOrdersCompleted;
 
   state.chainTimer = Math.max(0, state.chainTimer - delta);
+  state.killCueSecondsRemaining = Math.max(0, state.killCueSecondsRemaining - delta);
   if (state.chainTimer <= 0) state.chain = 0;
   if (state.actKills >= act.killTarget) rewardActBreak(session, state, act);
 
@@ -306,6 +318,8 @@ function updateRaid(session: RaidSession, hunt: CartTurboHuntSnapshot, delta: nu
     actKills: state.actKills,
     actKillTarget: act.killTarget,
     actBreak: state.actBreak,
+    killCueSerial: state.killCueSerial,
+    killCueSecondsRemaining: state.killCueSecondsRemaining,
     score: state.score,
     chain: state.chain,
     multiplier: skyDancerSkyRaidMultiplier(state.chain, rushActive),

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 import {
   SKY_DANCER_SKY_RAID_SNAPSHOT_EVENT,
   getLatestSkyDancerSkyRaidSnapshot,
@@ -23,39 +23,22 @@ function formatTime(seconds: number): string {
 export default function SkyDancerSkyRaidOverlay() {
   const initialSnapshot = getLatestSkyDancerSkyRaidSnapshot();
   const [snapshot, setSnapshot] = useState<SkyDancerSkyRaidSnapshot | null>(() => initialSnapshot);
-  const [killCue, setKillCue] = useState<{ serial: number; chain: number } | null>(null);
-  // Start transition tracking from an explicit zero baseline. During fast
-  // startup the first snapshot the overlay sees can already contain kill #1;
-  // treating that as the baseline used to silently drop the first TARGET DOWN.
-  const previousSnapshotRef = useRef<SkyDancerSkyRaidSnapshot | null>(null);
-  const killCueTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
     const handler = (event: Event) => {
       const detail = (event as CustomEvent<SkyDancerSkyRaidSnapshot>).detail;
       if (detail?.gameMode !== "sky-raid") return;
-      const previous = previousSnapshotRef.current;
-      const previousKills = previous && detail.actIndex === previous.actIndex ? previous.actKills : 0;
-      if (detail.actKills > previousKills) {
-        setKillCue({ serial: Date.now(), chain: detail.chain });
-        if (killCueTimerRef.current !== null) window.clearTimeout(killCueTimerRef.current);
-        killCueTimerRef.current = window.setTimeout(() => {
-          killCueTimerRef.current = null;
-          setKillCue(null);
-        }, 1180);
-      }
-      previousSnapshotRef.current = detail;
       setSnapshot(detail);
     };
     window.addEventListener(SKY_DANCER_SKY_RAID_SNAPSHOT_EVENT, handler);
     return () => {
       window.removeEventListener(SKY_DANCER_SKY_RAID_SNAPSHOT_EVENT, handler);
-      if (killCueTimerRef.current !== null) window.clearTimeout(killCueTimerRef.current);
     };
   }, []);
 
   if (!snapshot) return null;
   const progress = Math.round(Math.min(1, snapshot.actKills / Math.max(1, snapshot.actKillTarget)) * 100);
+  const killCueVisible = snapshot.killCueSecondsRemaining > 0;
   const accent = hex(snapshot.palette.accent);
   const sky = hex(snapshot.palette.sky);
   const enemy = hex(snapshot.palette.enemy);
@@ -185,16 +168,16 @@ export default function SkyDancerSkyRaidOverlay() {
         <small>{snapshot.actSubtitle} · {snapshot.actSecondsRemaining.toFixed(1)}s</small>
       </div>
 
-      <div className={styles.scoreCard} data-kill={killCue ? "true" : "false"}>
+      <div className={styles.scoreCard} data-kill={killCueVisible ? "true" : "false"}>
         <small>SCORE</small>
         <strong>{snapshot.score.toLocaleString()}</strong>
         <span>{snapshot.chain > 1 ? `CHAIN ×${snapshot.chain} · ` : ""}MULTI ×{snapshot.multiplier.toFixed(2)}</span>
       </div>
 
-      {killCue && (
-        <div key={killCue.serial} data-sd-kill-confirm="true" aria-live="polite">
+      {killCueVisible && (
+        <div key={snapshot.killCueSerial} data-sd-kill-confirm="true" aria-live="polite">
           <strong>TARGET DOWN</strong>
-          <small>{killCue.chain > 1 ? `CHAIN ×${killCue.chain}` : "CONFIRMED"}</small>
+          <small>{snapshot.chain > 1 ? `CHAIN ×${snapshot.chain}` : "CONFIRMED"}</small>
         </div>
       )}
 
