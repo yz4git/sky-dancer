@@ -131,7 +131,7 @@ const raidStateBySession = new WeakMap<object, RaidState>();
 const raidVisualByDemo = new WeakMap<object, RaidVisualState>();
 const raidFlightByDemo = new WeakMap<object, SkyDancerSkyRaidFlightController>();
 const raidCameraFxByDemo = new WeakMap<object, RaidCameraFxState>();
-const raidEngagementBySession = new WeakMap<object, { cooldown: number; cursor: number }>();
+const raidEngagementBySession = new WeakMap<object, { cooldown: number; cursor: number; lastBeat: SkyRaidFormationBeat; beatAge: number }>();
 const raidScreenEngagementByDemo = new WeakMap<object, { nextAllowedAt: number; cursor: number; recycles: number }>();
 let latestSkyRaidSnapshot: SkyDancerSkyRaidSnapshot | null = null;
 
@@ -145,35 +145,135 @@ function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
 }
 
-const SKY_RAID_ENGAGEMENT_SLOTS = [
-  { lateral: -9, forward: 26 },
-  { lateral: 9, forward: 31 },
-  { lateral: 0, forward: 38 },
-  { lateral: -14, forward: 42 },
-  { lateral: 14, forward: 36 },
-] as const;
+type SkyRaidFormationBeat = "spearhead" | "pincer" | "regroup" | "crossfire" | "breakaway";
+
+type SkyRaidFormationSlot = { lateral: number; forward: number };
+
+function skyRaidFormationPattern(elapsedSeconds: number): {
+  beat: SkyRaidFormationBeat;
+  progress: number;
+  slots: readonly SkyRaidFormationSlot[];
+  targetCount: number;
+  correctionSpeed: number;
+} {
+  const act = skyDancerSkyRaidActFor(elapsedSeconds);
+  const local = skyDancerSkyRaidActSeconds(elapsedSeconds, act);
+  const rush = skyDancerSkyRaidRushActive(elapsedSeconds, act);
+  const mirror = act.index % 2 === 0 ? 1 : -1;
+  let beat: SkyRaidFormationBeat;
+  let progress: number;
+  if (local < 7) {
+    beat = "spearhead";
+    progress = clamp(local / 7, 0, 1);
+  } else if (local < 13) {
+    beat = "pincer";
+    progress = clamp((local - 7) / 6, 0, 1);
+  } else if (local < 17) {
+    beat = "regroup";
+    progress = clamp((local - 13) / 4, 0, 1);
+  } else if (local < 21) {
+    beat = "crossfire";
+    progress = clamp((local - 17) / 4, 0, 1);
+  } else {
+    beat = "breakaway";
+    progress = clamp((local - 21) / 3, 0, 1);
+  }
+
+  let slots: readonly SkyRaidFormationSlot[];
+  switch (beat) {
+    case "spearhead": {
+      const wing = 5.5 + progress * 2.5;
+      slots = [
+        { lateral: 0, forward: 23 },
+        { lateral: -wing * mirror, forward: 29 },
+        { lateral: wing * mirror, forward: 29 },
+        { lateral: -13 * mirror, forward: 38 },
+        { lateral: 13 * mirror, forward: 38 },
+      ];
+      break;
+    }
+    case "pincer": {
+      const flank = 15 - progress * 7;
+      slots = [
+        { lateral: -flank * mirror, forward: 23 },
+        { lateral: flank * mirror, forward: 25 },
+        { lateral: -(9 - progress * 4) * mirror, forward: 32 },
+        { lateral: (9 - progress * 4) * mirror, forward: 34 },
+        { lateral: 0, forward: 41 },
+      ];
+      break;
+    }
+    case "regroup":
+      slots = [
+        { lateral: -10 * mirror, forward: 29 },
+        { lateral: 10 * mirror, forward: 29 },
+        { lateral: 0, forward: 34 },
+        { lateral: -15 * mirror, forward: 42 },
+        { lateral: 15 * mirror, forward: 42 },
+      ];
+      break;
+    case "crossfire": {
+      const sweep = 13 - progress * 24;
+      slots = [
+        { lateral: sweep * mirror, forward: 23 },
+        { lateral: -sweep * mirror, forward: 28 },
+        { lateral: sweep * 0.58 * mirror, forward: 35 },
+        { lateral: -sweep * 0.58 * mirror, forward: 39 },
+        { lateral: 0, forward: 45 },
+      ];
+      break;
+    }
+    case "breakaway":
+      slots = [
+        { lateral: -16 * mirror, forward: 33 },
+        { lateral: 16 * mirror, forward: 33 },
+        { lateral: -8 * mirror, forward: 40 },
+        { lateral: 8 * mirror, forward: 40 },
+        { lateral: 0, forward: 48 },
+      ];
+      break;
+  }
+
+  return {
+    beat,
+    progress,
+    slots,
+    targetCount: rush ? 4 : 3,
+    correctionSpeed: rush ? 7.4 : 4.6,
+  };
+}
 
 /**
- * SKY RAID is an arcade dogfight, not a simulation where every bandit may
- * disappear behind the camera for long periods. Preserve normal AI while
- * at least three aircraft occupy a broad forward engagement cone. Only
- * aircraft already outside that cone are recycled, so on-screen targets
- * never pop or teleport in front of the player.
+ * V19 authored attack rhythm. Existing AI keeps speed, weapons and avoidance.
+ * Already-visible enemies receive only bounded continuous corrections; only
+ * old offscreen candidates may still be recycled by the established safety net.
  */
-function maintainSkyRaidEnemyPresence(session: CartArenaSession, delta: number): void {
+function maintainSkyRaidEnemyPresence(session: CartArenaSession, delta: number, elapsedSeconds: number): void {
   const snapshot = session.snapshot();
   const live = session.enemies.filter(
     (enemy) => enemy.alive && enemy.kind !== "boss" && enemy.nodeId === snapshot.nodeId,
   );
   if (live.length < 2) return;
 
+  const pattern = skyRaidFormationPattern(elapsedSeconds);
   const key = session as unknown as object;
   let state = raidEngagementBySession.get(key);
   if (!state) {
-    state = { cooldown: 0, cursor: 0 };
+    state = { cooldown: 0, cursor: 0, lastBeat: pattern.beat, beatAge: 0 };
     raidEngagementBySession.set(key, state);
   }
+  if (state.lastBeat !== pattern.beat) {
+    state.lastBeat = pattern.beat;
+    state.beatAge = 0;
+    state.cooldown = 0;
+  } else {
+    state.beatAge += delta;
+  }
   state.cooldown = Math.max(0, state.cooldown - delta);
+  if (typeof document !== "undefined") {
+    document.documentElement.dataset.skyRaidFormationBeat = pattern.beat;
+    document.documentElement.dataset.skyRaidFormationPhase = pattern.progress.toFixed(2);
+  }
 
   const forwardX = Math.sin(snapshot.heading);
   const forwardZ = Math.cos(snapshot.heading);
@@ -189,11 +289,35 @@ function maintainSkyRaidEnemyPresence(session: CartArenaSession, delta: number):
     };
   };
 
+  const choreographed = live.map(local)
+    .filter(({ forward, lateral }) => forward >= 7 && forward <= 58 && Math.abs(lateral) <= 27)
+    .sort((left, right) => left.forward - right.forward)
+    .slice(0, Math.min(pattern.targetCount, live.length));
+  for (let index = 0; index < choreographed.length; index += 1) {
+    const sample = choreographed[index];
+    const slot = pattern.slots[index % pattern.slots.length];
+    const lateralError = slot.lateral - sample.lateral;
+    const forwardError = slot.forward - sample.forward;
+    const sideStep = clamp(lateralError, -pattern.correctionSpeed * delta, pattern.correctionSpeed * delta);
+    const forwardStep = clamp(forwardError, -pattern.correctionSpeed * 0.72 * delta, pattern.correctionSpeed * 0.72 * delta);
+    sample.enemy.x += rightX * sideStep + forwardX * forwardStep;
+    sample.enemy.z += rightZ * sideStep + forwardZ * forwardStep;
+    const aimX = snapshot.x + forwardX * 7 + rightX * slot.lateral * 0.14;
+    const aimZ = snapshot.z + forwardZ * 7 + rightZ * slot.lateral * 0.14;
+    const desiredHeading = Math.atan2(aimX - sample.enemy.x, aimZ - sample.enemy.z);
+    const turnError = Math.atan2(
+      Math.sin(desiredHeading - sample.enemy.heading),
+      Math.cos(desiredHeading - sample.enemy.heading),
+    );
+    sample.enemy.heading += clamp(turnError, -delta * 0.72, delta * 0.72);
+  }
+
   const measured = live.map(local);
+  const targetCount = Math.min(pattern.targetCount, live.length);
   const engaged = measured.filter(
-    ({ forward, lateral }) => forward >= 11 && forward <= 52 && Math.abs(lateral) <= 21,
+    ({ forward, lateral }) => forward >= 10 && forward <= 53 && Math.abs(lateral) <= 22,
   );
-  if (engaged.length >= 3) return;
+  if (engaged.length >= targetCount) return;
   if (state.cooldown > 0) return;
 
   const engagedIds = new Set(engaged.map(({ enemy }) => enemy.id));
@@ -202,22 +326,22 @@ function maintainSkyRaidEnemyPresence(session: CartArenaSession, delta: number):
     .sort((left, right) => {
       const penalty = ({ forward, lateral }: typeof left) =>
         Math.abs(lateral)
-        + Math.max(0, 11 - forward) * 2.2
-        + Math.max(0, forward - 52) * 1.6;
+        + Math.max(0, 10 - forward) * 2.2
+        + Math.max(0, forward - 53) * 1.6;
       return penalty(right) - penalty(left);
     });
-  const needed = Math.min(3 - engaged.length, candidates.length, 2);
+  const needed = Math.min(targetCount - engaged.length, candidates.length, 2);
   for (let index = 0; index < needed; index += 1) {
     const target = candidates[index].enemy;
-    const slot = SKY_RAID_ENGAGEMENT_SLOTS[(state.cursor + index) % SKY_RAID_ENGAGEMENT_SLOTS.length];
+    const slot = pattern.slots[(state.cursor + engaged.length + index) % pattern.slots.length];
     target.x = snapshot.x + forwardX * slot.forward + rightX * slot.lateral;
     target.z = snapshot.z + forwardZ * slot.forward + rightZ * slot.lateral;
     target.heading = Math.atan2(snapshot.x - target.x, snapshot.z - target.z);
     target.aiClock = 0;
     target.chargeTime = 0;
   }
-  state.cursor = (state.cursor + needed) % SKY_RAID_ENGAGEMENT_SLOTS.length;
-  state.cooldown = needed > 0 ? 0.42 : 0.18;
+  state.cursor = (state.cursor + needed) % pattern.slots.length;
+  state.cooldown = needed > 0 ? 0.44 : 0.18;
 }
 
 
@@ -742,9 +866,9 @@ export function installSkyDancerSkyRaid(): void {
     previousStep.call(this, input, fixedDelta);
     if (!isSkyRaidMode()) return;
     const delta = clamp(fixedDelta, 0, 0.05);
-    maintainSkyRaidEnemyPresence(this as unknown as CartArenaSession, delta);
     const hunt = getCartTurboHuntSnapshot(this as unknown as CartArenaSession);
     if (!hunt) return;
+    maintainSkyRaidEnemyPresence(this as unknown as CartArenaSession, delta, hunt.huntElapsedSeconds);
     const snapshot = updateRaid(this, hunt, delta);
     publishSkyRaidWorldStyle(snapshot);
     const state = stateFor(this, hunt);
@@ -948,6 +1072,8 @@ webglPrototype.applyCameraPresentation = function skyRaidCameraPresentation(
         hitSerial: weapon.hitSerial,
         enemyVisible,
         enemyCombatLane,
+        formationBeat: document.documentElement.dataset.skyRaidFormationBeat ?? "",
+        formationPhase: Number(document.documentElement.dataset.skyRaidFormationPhase ?? 0),
         enemyScreenSamples,
         playerVisible: projected.z > -1 && projected.z < 1 && Math.abs(projected.x) < 1 && Math.abs(projected.y) < 1,
       };

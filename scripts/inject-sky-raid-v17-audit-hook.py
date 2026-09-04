@@ -21,14 +21,16 @@ if marker not in source:
     raise SystemExit("SKY RAID combat decision audit injection marker missing")
 path.write_text(source.replace(marker, replacement, 1))
 
-# 3) Force only the presentation cue for the final visual screenshot. The
-# production threat calculation and geometry remain unchanged in committed
-# source; this injected flag lets the audit inspect the exact live warning halo
-# without waiting for randomized enemy missile scheduling.
+# 3) Force only the presentation cue for the final visual screenshot.
 path = Path("src/sky/SkyDancerAirCombatFxV18.ts")
 source = path.read_text()
-marker = """    let nearest = Number.POSITIVE_INFINITY;\n    for (const missile of missiles.missiles) nearest = Math.min(nearest, missile.distanceToPlayer);\n    const threat = Number.isFinite(nearest) && nearest < 30;"""
-replacement = """    let nearest = Number.POSITIVE_INFINITY;\n    for (const missile of missiles.missiles) nearest = Math.min(nearest, missile.distanceToPlayer);\n    const auditThreat = typeof window !== \"undefined\"\n      && typeof navigator !== \"undefined\"\n      && navigator.webdriver\n      && (window as unknown as { __skyRaidAuditForceMissileWarning?: unknown }).__skyRaidAuditForceMissileWarning === true;\n    if (auditThreat) nearest = 6;\n    const threat = auditThreat || (Number.isFinite(nearest) && nearest < 30);"""
+marker = '    const threat = Number.isFinite(nearest) && nearest < 30;'
+replacement = '    const auditThreat = typeof window !== "undefined"
+      && typeof navigator !== "undefined"
+      && navigator.webdriver
+      && (window as unknown as { __skyRaidAuditForceMissileWarning?: unknown }).__skyRaidAuditForceMissileWarning === true;
+    if (auditThreat) nearest = 6;
+    const threat = auditThreat || (Number.isFinite(nearest) && nearest < 30);'
 if marker not in source:
     raise SystemExit("SKY RAID missile warning audit injection marker missing")
 path.write_text(source.replace(marker, replacement, 1))

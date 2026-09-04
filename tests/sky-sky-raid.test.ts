@@ -121,6 +121,10 @@ test("SKY RAID phone feedback stays visible without blocking the combat lane", (
   assert.match(auditSource, /TARGET DOWN has no strong world-space impact burst/);
   assert.match(fxSource, /sky-raid-target-down-burst-v18/);
   assert.match(fxSource, /progress < 0\.08/);
+  assert.match(fxSource, /missileWarningSegments/);
+  assert.match(fxSource, /segmentArc = Math\.PI \* 0\.34/);
+  assert.match(fxSource, /new THREE\.ConeGeometry\(0\.0072, 0\.019, 3\)/);
+  assert.doesNotMatch(fxSource, /new THREE\.TorusGeometry\(0\.078, 0\.0055/);
   assert.match(hudSource, /width: 42px/);
   assert.match(hudSource, /lockSide \* 9\.5/);
 });
@@ -136,7 +140,10 @@ test("SKY RAID keeps live enemies inside the visible flight band", () => {
   assert.match(raidSource, /maintainSkyRaidEnemyPresence/);
   assert.match(raidSource, /maintainSkyRaidScreenPresence/);
   assert.match(raidSource, /SKY_RAID_SCREEN_SLOTS/);
-  assert.match(raidSource, /SKY_RAID_ENGAGEMENT_SLOTS/);
+  assert.match(raidSource, /type SkyRaidFormationBeat = "spearhead" \| "pincer" \| "regroup" \| "crossfire" \| "breakaway"/);
+  assert.match(raidSource, /skyRaidFormationPattern/);
+  assert.match(raidSource, /correctionSpeed: rush \? 7\.4 : 4\.6/);
+  assert.match(raidSource, /dataset\.skyRaidFormationBeat/);
   assert.match(verticalSource, /setSkyDancerEnemyAltitudeReferenceV56/);
   assert.match(verticalSource, /offset \* 0\.45/);
   assert.match(auditSource, /baseline\.enemyVisible[\s\S]{0,40}< 2/);

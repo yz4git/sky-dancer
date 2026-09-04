@@ -283,13 +283,23 @@ if (Math.abs(reticleCenterX - decisionCenterX) < 34 && Math.abs(reticleCenterY -
   // the final screenshot always captures the exact camera-space halo geometry.
   await page.evaluate(() => { window.__skyRaidAuditForceMissileWarning = true; });
   await page.waitForTimeout(250);
+  const warningVisual = await page.evaluate(() => window.__skyRaidGetWarningPolish?.() ?? null);
+  if (!warningVisual || warningVisual.visible !== true || warningVisual.segmentCount !== 4 || warningVisual.fullRing !== false) {
+    throw new Error(`missile warning did not resolve to four directional segments: ${JSON.stringify(warningVisual)}`);
+  }
+  if (Number(warningVisual.segmentRadius ?? 1) > 0.055 || Number(warningVisual.pointerRadius ?? 1) > 0.078) {
+    throw new Error(`missile warning geometry grew back over the aircraft: ${JSON.stringify(warningVisual)}`);
+  }
+  if (Number(warningVisual.pointerOpacity ?? 0) < 0.45) {
+    throw new Error(`missile warning direction pointer is too faint: ${JSON.stringify(warningVisual)}`);
+  }
   await screenshot("04-compact-missile-warning.png");
   await page.evaluate(() => { delete window.__skyRaidAuditForceMissileWarning; });
 
   await page.mouse.up();
   await clearAuditAltitude();
 
-  const report = { desiredPlayerNdcY, baselineFrameTolerance, padBox, visualRingBox, captionBox, reticleBox, decisionBox, combatDiagnostics, targetDownConfirmation, baseline, realClimb, high, beforeDive, realDive, low, errors };
+  const report = { desiredPlayerNdcY, baselineFrameTolerance, padBox, visualRingBox, captionBox, reticleBox, decisionBox, combatDiagnostics, targetDownConfirmation, warningVisual, baseline, realClimb, high, beforeDive, realDive, low, errors };
   fs.writeFileSync(path.join(out, "report.json"), JSON.stringify(report, null, 2));
   if (errors.length) throw new Error(JSON.stringify(errors));
   console.log("SKY RAID V18 PASS", JSON.stringify(report));

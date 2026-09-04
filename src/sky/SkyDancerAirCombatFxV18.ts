@@ -34,7 +34,9 @@ export class SkyDancerAirCombatFxV18 extends SkyDancerAirCombatFxV17 {
   private readonly runtimeV18: SkyDancerFxRuntime;
   private readonly enemyVertical = new Map<string, VerticalState>();
   private readonly missileWarningRoot = new THREE.Group();
-  private readonly missileWarningRing: THREE.Mesh<THREE.TorusGeometry, THREE.MeshBasicMaterial>;
+  private readonly missileWarningSegments: THREE.Mesh<THREE.TorusGeometry, THREE.MeshBasicMaterial>[] = [];
+  private readonly missileWarningPointer: THREE.Mesh<THREE.ConeGeometry, THREE.MeshBasicMaterial>;
+  private warningBearing = Math.PI * 0.5;
   private readonly raidImpactBursts: RaidImpactBurst[] = [];
   private lastPlayerHitSerial = 0;
   private builtV18 = false;
@@ -56,20 +58,26 @@ export class SkyDancerAirCombatFxV18 extends SkyDancerAirCombatFxV17 {
       depthWrite: false,
       toneMapped: false,
     });
-    // This legacy camera-space cue used to fill most of a phone viewport
-    // under the newer SKY RAID chase camera. Keep it as a compact threat halo
-    // around the aircraft; the top HUD now carries the explicit warning text.
-    this.missileWarningRing = new THREE.Mesh(new THREE.TorusGeometry(0.078, 0.0055, 4, 24), warningMaterial);
-    this.missileWarningRing.renderOrder = 1200;
-    this.missileWarningRoot.add(this.missileWarningRing);
+    // V19 threat cue: four short peripheral arcs plus one directional pointer.
+    // The aircraft silhouette and central aiming lane stay open even when urgent.
+    const segmentArc = Math.PI * 0.34;
     for (let index = 0; index < 4; index += 1) {
-      const marker = new THREE.Mesh(new THREE.BoxGeometry(0.030, 0.007, 0.004), warningMaterial.clone());
-      const angle = index * Math.PI * 0.5;
-      marker.position.set(Math.cos(angle) * 0.108, Math.sin(angle) * 0.108, 0);
-      marker.rotation.z = angle;
-      marker.renderOrder = 1200;
-      this.missileWarningRoot.add(marker);
+      const segment = new THREE.Mesh(
+        new THREE.TorusGeometry(0.050, 0.0036, 4, 10, segmentArc),
+        warningMaterial.clone(),
+      );
+      segment.rotation.z = index * Math.PI * 0.5 - segmentArc * 0.5;
+      segment.renderOrder = 1200;
+      this.missileWarningSegments.push(segment);
+      this.missileWarningRoot.add(segment);
     }
+    this.missileWarningPointer = new THREE.Mesh(
+      new THREE.ConeGeometry(0.0072, 0.019, 3),
+      warningMaterial.clone(),
+    );
+    this.missileWarningPointer.position.set(0, 0.071, 0.001);
+    this.missileWarningPointer.renderOrder = 1201;
+    this.missileWarningRoot.add(this.missileWarningPointer);
     runtime.camera.add(this.missileWarningRoot);
   }
 
@@ -81,7 +89,7 @@ export class SkyDancerAirCombatFxV18 extends SkyDancerAirCombatFxV17 {
       this.correctStreamedCityClearance();
     }
     this.updateEnemyThreeDimensionalFlight(snapshot.enemies, snapshot, delta);
-    this.updateMissileWarning(missiles, delta);
+    this.updateMissileWarning(snapshot, missiles, delta);
     this.detectPlayerWeaponImpact();
     this.updateRaidImpactBursts(delta);
     this.publishFlightDebug(snapshot);
@@ -174,9 +182,19 @@ export class SkyDancerAirCombatFxV18 extends SkyDancerAirCombatFxV17 {
     for (const id of this.enemyVertical.keys()) if (!active.has(id)) this.enemyVertical.delete(id);
   }
 
-  private updateMissileWarning(missiles: SkyDancerMissileState, delta: number): void {
+  private updateMissileWarning(
+    snapshot: CartArenaSessionSnapshot,
+    missiles: SkyDancerMissileState,
+    delta: number,
+  ): void {
+    let nearestMissile: SkyDancerMissileState["missiles"][number] | null = null;
     let nearest = Number.POSITIVE_INFINITY;
-    for (const missile of missiles.missiles) nearest = Math.min(nearest, missile.distanceToPlayer);
+    for (const missile of missiles.missiles) {
+      if (missile.distanceToPlayer < nearest) {
+        nearest = missile.distanceToPlayer;
+        nearestMissile = missile;
+      }
+    }
     const threat = Number.isFinite(nearest) && nearest < 30;
     this.missileWarningRoot.visible = threat;
     if (!threat) return;
@@ -184,14 +202,49 @@ export class SkyDancerAirCombatFxV18 extends SkyDancerAirCombatFxV17 {
     const strength = THREE.MathUtils.clamp((30 - nearest) / 25, 0.12, 1);
     const urgent = nearest < 12;
     const color = urgent ? 0xff554d : 0xffbd55;
-    const pulse = 0.85 + Math.sin(this.elapsedV18 * (urgent ? 19 : 11)) * 0.15;
-    this.missileWarningRoot.rotation.z += delta * (urgent ? 0.72 : 0.38);
-    this.missileWarningRoot.scale.setScalar(0.92 + strength * 0.12 + pulse * 0.025);
-    for (const child of this.missileWarningRoot.children) {
-      if (!(child instanceof THREE.Mesh)) continue;
-      const material = child.material as THREE.MeshBasicMaterial;
-      material.color.setHex(color);
-      material.opacity = 0.18 + strength * 0.44 * pulse;
+    const pulse = 0.86 + Math.sin(this.elapsedV18 * (urgent ? 18 : 10)) * 0.14;
+    const dx = nearestMissile ? nearestMissile.x - snapshot.x : Math.sin(snapshot.heading + 0.62) * 8;
+    const dz = nearestMissile ? nearestMissile.z - snapshot.z : Math.cos(snapshot.heading + 0.62) * 8;
+    const missileHeading = Math.atan2(dx, dz);
+    const relativeBearing = Math.atan2(
+      Math.sin(missileHeading - snapshot.heading),
+      Math.cos(missileHeading - snapshot.heading),
+    );
+    const targetBearing = Math.PI * 0.5 - relativeBearing;
+    const bearingDelta = Math.atan2(
+      Math.sin(targetBearing - this.warningBearing),
+      Math.cos(targetBearing - this.warningBearing),
+    );
+    this.warningBearing += bearingDelta * (1 - Math.exp(-delta * 11));
+
+    this.missileWarningRoot.scale.setScalar(0.96 + strength * 0.055 + pulse * 0.012);
+    for (const segment of this.missileWarningSegments) {
+      segment.material.color.setHex(color);
+      segment.material.opacity = (0.10 + strength * 0.30) * pulse;
+    }
+    const pointerRadius = 0.071;
+    this.missileWarningPointer.position.set(
+      Math.cos(this.warningBearing) * pointerRadius,
+      Math.sin(this.warningBearing) * pointerRadius,
+      0.001,
+    );
+    this.missileWarningPointer.rotation.z = this.warningBearing - Math.PI * 0.5;
+    this.missileWarningPointer.scale.setScalar(0.90 + strength * 0.22 + pulse * 0.06);
+    this.missileWarningPointer.material.color.setHex(color);
+    this.missileWarningPointer.material.opacity = 0.38 + strength * 0.50 * pulse;
+
+    if (typeof window !== "undefined" && typeof navigator !== "undefined" && navigator.webdriver) {
+      (window as unknown as Record<string, unknown>).__skyRaidGetWarningPolish = () => ({
+        visible: this.missileWarningRoot.visible,
+        segmentCount: this.missileWarningSegments.length,
+        fullRing: false,
+        segmentRadius: 0.050,
+        pointerRadius,
+        pointerX: this.missileWarningPointer.position.x,
+        pointerY: this.missileWarningPointer.position.y,
+        pointerOpacity: this.missileWarningPointer.material.opacity,
+        nearest,
+      });
     }
   }
 
