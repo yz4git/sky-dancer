@@ -1,3 +1,6 @@
+// SKY RAID flight remains unchanged; this source touch intentionally triggers
+// production CI, Pages and the real-browser combat audit after the Hunt kill
+// accounting pass committed by the review workflow.
 export const SKY_RAID_MIN_ALTITUDE = 20;
 export const SKY_RAID_MAX_ALTITUDE = 64;
 export const SKY_RAID_MAX_BANK = 0.78;
