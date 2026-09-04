@@ -44,10 +44,10 @@ jobs:
                '  assert.match(raidSource, /correctionSpeed: rush \\? profile\\.rushCorrectionSpeed : profile\\.correctionSpeed/);'),
           ]
           for old, new in replacements:
-              count = tests.count(old)
-              if count != 1:
-                  raise SystemExit(f'legacy assertion migration expected 1, found {count}: {old}')
-              tests = tests.replace(old, new, 1)
+              if old in tests:
+                  tests = tests.replace(old, new, 1)
+              elif new not in tests:
+                  raise SystemExit(f'legacy assertion is neither old nor migrated: {old}')
           path.write_text(tests)
           PY
 
