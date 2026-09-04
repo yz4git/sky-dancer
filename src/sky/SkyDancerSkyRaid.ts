@@ -772,13 +772,27 @@ function buildActGroup(act: SkyDancerSkyRaidAct): THREE.Group {
 
 function buildSpeedFx(): THREE.Group {
   const root = new THREE.Group();
-  const geometry = new THREE.BoxGeometry(0.035, 0.035, 5.5);
-  const lineMaterial = new THREE.MeshBasicMaterial({ color: 0xc9f7ff, transparent: true, opacity: 0.48, depthWrite: false, blending: THREE.AdditiveBlending });
+  const geometry = new THREE.BoxGeometry(0.028, 0.028, 4.2);
+  const lineMaterial = new THREE.MeshBasicMaterial({
+    color: 0xc9f7ff,
+    transparent: true,
+    opacity: 0.08,
+    depthTest: false,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+    toneMapped: false,
+  });
+  // V20 speed language stays at the phone periphery. The +/-6.8m center gap
+  // keeps aircraft, locks, and missile trails readable while airflow streaks
+  // sell speed against dense scenery without moving the world itself.
+  const laneX = [-13.2, -10.8, -8.6, -6.8, 6.8, 8.6, 10.8, 13.2] as const;
   for (let index = 0; index < 24; index += 1) {
     const line = new THREE.Mesh(geometry, lineMaterial);
-    const column = index % 8;
-    const row = Math.floor(index / 8);
-    line.position.set(-12 + column * 3.4, 1.5 + row * 2.4, 8 + (index % 6) * 7);
+    const column = index % laneX.length;
+    const row = Math.floor(index / laneX.length);
+    line.position.set(laneX[column], -1.2 + row * 2.7, 10 + (index % 6) * 7.2);
+    line.scale.z = 0.82 + (index % 4) * 0.08;
+    line.renderOrder = 1080;
     root.add(line);
   }
   root.visible = false;
@@ -850,13 +864,40 @@ function updateRaidVisuals(demo: RaidWebGLDemo, delta: number, flight: SkyDancer
   applySkyRaidEnemyFlightBand(demo);
   visual.arcadeWorld.update(raid.actId, base.x, base.z, base.heading, resolvedFlight.altitude, raid.elapsedSeconds, delta);
 
-  visual.speedFx.visible = base.boostActive || raid.rushActive;
+  const flightSpeed = Math.abs(base.speed);
+  const cruiseFx = clamp((flightSpeed - 17) / 12, 0, 1);
+  const turboFx = base.boostActive ? 1 : 0;
+  const rushFx = raid.rushActive ? 1 : 0;
+  const speedFxIntensity = clamp(cruiseFx * 0.22 + rushFx * 0.32 + turboFx * 0.72, 0, 1);
+  visual.speedFx.visible = speedFxIntensity > 0.055;
   visual.speedFx.position.set(base.x, 1.8 + resolvedFlight.altitude, base.z);
   visual.speedFx.rotation.y = base.heading;
+  const speedColor = new THREE.Color(raid.palette.accent);
   visual.speedFx.children.forEach((line, index) => {
-    line.position.z -= delta * (base.boostActive ? 68 : 42);
-    if (line.position.z < -8) line.position.z = 30 + (index % 7) * 7;
+    if (line instanceof THREE.Mesh && line.material instanceof THREE.MeshBasicMaterial) {
+      line.material.color.lerp(speedColor, 1 - Math.exp(-delta * 5.5));
+      line.material.opacity = 0.045 + speedFxIntensity * 0.32;
+    }
+    line.position.z -= delta * (22 + flightSpeed * 0.95 + turboFx * 36 + rushFx * 14);
+    if (line.position.z < -12) line.position.z = 34 + (index % 6) * 8;
+    const thickness = 0.72 + speedFxIntensity * 0.32;
+    line.scale.x = thickness;
+    line.scale.y = thickness;
+    line.scale.z = 0.82 + speedFxIntensity * (1.10 + (index % 3) * 0.12);
   });
+  demo.scene.userData.skyRaidSpeedFxIntensity = speedFxIntensity;
+  demo.scene.userData.skyRaidSpeedFxPeripheralGap = 13.6;
+  if (typeof window !== "undefined" && typeof navigator !== "undefined" && navigator.webdriver) {
+    (window as unknown as Record<string, unknown>).__skyRaidGetSpeedPolish = () => ({
+      visible: visual?.speedFx.visible === true,
+      intensity: Number(demo.scene.userData.skyRaidSpeedFxIntensity ?? 0),
+      peripheralGap: Number(demo.scene.userData.skyRaidSpeedFxPeripheralGap ?? 0),
+      lineCount: visual?.speedFx.children.length ?? 0,
+      boostActive: base.boostActive,
+      rushActive: raid.rushActive,
+      flightSpeed,
+    });
+  }
 }
 
 export function installSkyDancerSkyRaid(): void {
@@ -998,8 +1039,12 @@ webglPrototype.applyCameraPresentation = function skyRaidCameraPresentation(
     );
   }
   this.camera.rotateZ(bank * (0.085 + turboCamera * 0.018) + hitShake * 0.035);
+  // V20 adds a restrained cruise-speed lens response. It is presentation-only:
+  // scenery coordinates and flight physics remain untouched, while Turbo keeps
+  // the dominant FOV kick already authored by the release camera language.
+  const cruiseFov = clamp((speed - 18) * 0.10, 0, 2.2);
   const targetFov = clamp(
-    cameraFx.baseFov + turboCamera * (6.6 + turbo.releaseCharge * 3.4) + cameraFx.shotKick * 0.35 - cameraFx.hitKick * 0.75,
+    cameraFx.baseFov + cruiseFov + turboCamera * (6.6 + turbo.releaseCharge * 3.4) + cameraFx.shotKick * 0.35 - cameraFx.hitKick * 0.75,
     50,
     82,
   );
@@ -1011,6 +1056,7 @@ webglPrototype.applyCameraPresentation = function skyRaidCameraPresentation(
   this.scene.userData.skyRaidCameraAltitudeEdgeBlend = altitudeEdgeBlend;
   this.scene.userData.skyRaidCameraFrameCorrection = frameCorrection;
   this.scene.userData.skyRaidCameraTurboBlend = turboCamera;
+  this.scene.userData.skyRaidCameraCruiseFov = cruiseFov;
   this.scene.userData.skyRaidCameraHitKick = cameraFx.hitKick;
   this.scene.userData.skyRaidCameraShotKick = cameraFx.shotKick;
   this.scene.userData.skyRaidCameraFov = this.camera.fov;

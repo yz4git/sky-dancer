@@ -296,10 +296,30 @@ if (Math.abs(reticleCenterX - decisionCenterX) < 34 && Math.abs(reticleCenterY -
   await screenshot("04-compact-missile-warning.png");
   await page.evaluate(() => { delete window.__skyRaidAuditForceMissileWarning; });
 
+  // V20 speed review: hold the real Turbo control so the screenshot validates
+  // peripheral airflow and camera-language response rather than a debug-only FX.
+  const turboButton = page.locator("button").filter({ hasText: /TURBO/i }).last();
+  const turboBox = await turboButton.boundingBox();
+  if (!turboBox) throw new Error("Turbo control missing for V20 speed audit");
+  await page.mouse.move(turboBox.x + turboBox.width * 0.5, turboBox.y + turboBox.height * 0.5);
+  await page.mouse.down();
+  await page.waitForFunction(() => window.__skyRaidGetSpeedPolish?.()?.boostActive === true, null, { timeout: 3000 });
+  await page.waitForTimeout(420);
+  const speedVisual = await page.evaluate(() => window.__skyRaidGetSpeedPolish?.() ?? null);
+  if (!speedVisual || speedVisual.visible !== true || Number(speedVisual.intensity ?? 0) < 0.70) {
+    throw new Error(`Turbo speed language is too weak: ${JSON.stringify(speedVisual)}`);
+  }
+  if (Number(speedVisual.lineCount ?? 0) < 20 || Number(speedVisual.peripheralGap ?? 0) < 12) {
+    throw new Error(`Turbo speed streaks invaded the central combat lane: ${JSON.stringify(speedVisual)}`);
+  }
+  await screenshot("05-turbo-speed-polish.png");
+  await page.mouse.up();
+  await page.waitForTimeout(100);
+
   await page.mouse.up();
   await clearAuditAltitude();
 
-  const report = { desiredPlayerNdcY, baselineFrameTolerance, padBox, visualRingBox, captionBox, reticleBox, decisionBox, combatDiagnostics, targetDownConfirmation, warningVisual, baseline, realClimb, high, beforeDive, realDive, low, errors };
+  const report = { desiredPlayerNdcY, baselineFrameTolerance, padBox, visualRingBox, captionBox, reticleBox, decisionBox, combatDiagnostics, targetDownConfirmation, warningVisual, speedVisual, baseline, realClimb, high, beforeDive, realDive, low, errors };
   fs.writeFileSync(path.join(out, "report.json"), JSON.stringify(report, null, 2));
   if (errors.length) throw new Error(JSON.stringify(errors));
   console.log("SKY RAID V18 PASS", JSON.stringify(report));

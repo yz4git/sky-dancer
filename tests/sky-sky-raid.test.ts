@@ -151,3 +151,16 @@ test("SKY RAID keeps live enemies inside the visible flight band", () => {
   assert.match(auditSource, /high\.enemyVisible/);
   assert.match(auditSource, /low\.enemyVisible/);
 });
+
+
+test("SKY RAID V20 speed language stays peripheral and presentation-only", () => {
+  const raidSource = readFileSync(new URL("../src/sky/SkyDancerSkyRaid.ts", import.meta.url), "utf8");
+  const auditSource = readFileSync(new URL("../scripts/webgl-sky-raid-camera-edge-v17.mjs", import.meta.url), "utf8");
+  assert.match(raidSource, /const laneX = \[-13\.2, -10\.8, -8\.6, -6\.8, 6\.8, 8\.6, 10\.8, 13\.2\]/);
+  assert.match(raidSource, /speedFxIntensity = clamp\(cruiseFx \* 0\.22 \+ rushFx \* 0\.32 \+ turboFx \* 0\.72/);
+  assert.match(raidSource, /skyRaidSpeedFxPeripheralGap = 13\.6/);
+  assert.match(raidSource, /const cruiseFov = clamp\(\(speed - 18\) \* 0\.10, 0, 2\.2\)/);
+  assert.match(raidSource, /skyRaidCameraCruiseFov = cruiseFov/);
+  assert.match(auditSource, /05-turbo-speed-polish\.png/);
+  assert.match(auditSource, /Turbo speed streaks invaded the central combat lane/);
+});
