@@ -1,4 +1,4 @@
-name: SKY RAID V21c combat handoff robust audit
+name: SKY RAID V21d combat handoff frame-stable audit
 
 on:
   push:
@@ -50,6 +50,21 @@ jobs:
               "state.chainTimer = SKY_DANCER_SKY_RAID_CHAIN_GRACE_SECONDS;",
           )
           replace(
+              "src/sky/SkyDancerSkyRaid.ts",
+              "  anchorHeading: number;\n}",
+              "  anchorHeading: number;\n  lastTurboReleaseSerial: number;\n  turboReleaseVisual: number;\n}",
+          )
+          replace(
+              "src/sky/SkyDancerSkyRaid.ts",
+              "    anchorHeading: 0,\n  });",
+              "    anchorHeading: 0,\n    lastTurboReleaseSerial: 0,\n    turboReleaseVisual: 0,\n  });",
+          )
+          replace(
+              "src/sky/SkyDancerSkyRaid.ts",
+              "  const turboState = getSkyDancerTurboState(demo.session);\n  const turboReleaseFx = Number.isFinite(turboState.releaseAgeSeconds)\n    ? clamp(1 - turboState.releaseAgeSeconds / 1.45, 0, 1)\n    : 0;",
+              "  const turboState = getSkyDancerTurboState(demo.session);\n  // A Turbo release can happen between two expensive WebGL frames. Latch the\n  // release serial into presentation time so the speed tail is guaranteed to\n  // appear for rendered frames instead of expiring entirely on the wall clock.\n  if (turboState.releaseSerial > visual.lastTurboReleaseSerial) {\n    visual.lastTurboReleaseSerial = turboState.releaseSerial;\n    visual.turboReleaseVisual = 1;\n  }\n  const wallReleaseFx = Number.isFinite(turboState.releaseAgeSeconds)\n    ? clamp(1 - turboState.releaseAgeSeconds / 1.45, 0, 1)\n    : 0;\n  const turboReleaseFx = Math.max(wallReleaseFx, visual.turboReleaseVisual);\n  visual.turboReleaseVisual = Math.max(0, visual.turboReleaseVisual - Math.min(delta, 0.05) / 1.45);",
+          )
+          replace(
               "app/SkyDancerSkyRaidOverlay.tsx",
               "} from \"../src/sky/SkyDancerSkyRaid\";",
               "} from \"../src/sky/SkyDancerSkyRaid\";\nimport { skyDancerSkyRaidBossCueActive } from \"../src/sky/SkyDancerSkyRaidRules\";",
@@ -77,7 +92,7 @@ jobs:
           replace(
               "scripts/webgl-sky-raid-camera-edge-v17.mjs",
               "  await screenshot(\"05-turbo-speed-polish.png\");\n  await page.keyboard.up(\"Space\");\n  await page.waitForTimeout(160);\n  const speedReleaseVisual = await page.evaluate(() => window.__skyRaidGetSpeedPolish?.() ?? null);\n  if (!speedReleaseVisual || speedReleaseVisual.turboHeld !== false || Number(speedReleaseVisual.turboReleaseFx ?? 0) < 0.45) {\n    throw new Error(`Turbo release speed tail is missing: ${JSON.stringify(speedReleaseVisual)}`);\n  }",
-              "  await screenshot(\"05-turbo-speed-polish.png\");\n  await page.keyboard.up(\"Space\");\n  // Verify the authoritative input/model state first. The heavy SwiftShader\n  // scene can render fewer frames than wall-clock time suggests, so a fixed\n  // 160 ms delay can still expose the previous presentation snapshot.\n  await page.waitForFunction(\n    () => window.__skyDancerGetTurboState?.()?.held === false,\n    null,\n    { timeout: 3000, polling: 40 },\n  );\n  const turboReleaseState = await page.evaluate(() => window.__skyDancerGetTurboState?.() ?? null);\n  if (!turboReleaseState || Number(turboReleaseState.releaseSerial ?? 0) < 1) {\n    throw new Error(`Turbo release was not registered by the isolated model: ${JSON.stringify(turboReleaseState)}`);\n  }\n  await page.waitForFunction(\n    () => {\n      const visual = window.__skyRaidGetSpeedPolish?.();\n      return visual?.turboHeld === false && Number(visual?.turboReleaseFx ?? 0) >= 0.45;\n    },\n    null,\n    { timeout: 3000, polling: 40 },\n  );\n  const speedReleaseVisual = await page.evaluate(() => window.__skyRaidGetSpeedPolish?.() ?? null);\n  if (!speedReleaseVisual || speedReleaseVisual.turboHeld !== false || Number(speedReleaseVisual.turboReleaseFx ?? 0) < 0.45) {\n    throw new Error(`Turbo release speed tail is missing: ${JSON.stringify(speedReleaseVisual)}`);\n  }",
+              "  await screenshot(\"05-turbo-speed-polish.png\");\n  await page.keyboard.up(\"Space\");\n  await page.waitForFunction(\n    () => window.__skyDancerGetTurboState?.()?.held === false,\n    null,\n    { timeout: 3000, polling: 40 },\n  );\n  const turboReleaseState = await page.evaluate(() => window.__skyDancerGetTurboState?.() ?? null);\n  if (!turboReleaseState || Number(turboReleaseState.releaseSerial ?? 0) < 1) {\n    throw new Error(`Turbo release was not registered by the isolated model: ${JSON.stringify(turboReleaseState)}`);\n  }\n  await page.waitForFunction(\n    () => {\n      const visual = window.__skyRaidGetSpeedPolish?.();\n      return visual?.turboHeld === false && Number(visual?.turboReleaseFx ?? 0) >= 0.45;\n    },\n    null,\n    { timeout: 3000, polling: 40 },\n  );\n  const speedReleaseVisual = await page.evaluate(() => window.__skyRaidGetSpeedPolish?.() ?? null);\n  if (!speedReleaseVisual || speedReleaseVisual.turboHeld !== false || Number(speedReleaseVisual.turboReleaseFx ?? 0) < 0.45) {\n    throw new Error(`Turbo release speed tail is missing: ${JSON.stringify(speedReleaseVisual)}`);\n  }",
           )
           replace(
               "scripts/webgl-sky-raid-camera-edge-v17.mjs",
@@ -95,7 +110,7 @@ jobs:
               "  skyDancerSkyRaidRushActive,\n  skyDancerSkyRaidBossCueActive,\n",
           )
           marker = 'test("SKY RAID scoring rewards chain, Turbo and formation rush", () => {'
-          added = '''test("SKY RAID free-flight chain window supports a bank, reacquire and relock handoff", () => {\n  assert.ok(SKY_DANCER_SKY_RAID_CHAIN_GRACE_SECONDS >= 5);\n  assert.ok(SKY_DANCER_SKY_RAID_CHAIN_GRACE_SECONDS < 7);\n  const raidSource = readFileSync(new URL("../src/sky/SkyDancerSkyRaid.ts", import.meta.url), "utf8");\n  assert.match(raidSource, /state\\.chainTimer = SKY_DANCER_SKY_RAID_CHAIN_GRACE_SECONDS/);\n});\n\ntest("SKY RAID flagship cue is a short entrance card instead of a persistent combat banner", () => {\n  const trigger = SKY_DANCER_SKY_RAID_BOSS_TRIGGER_SECONDS;\n  assert.equal(skyDancerSkyRaidBossCueActive(trigger - 0.01, true), false);\n  assert.equal(skyDancerSkyRaidBossCueActive(trigger, true), true);\n  assert.equal(skyDancerSkyRaidBossCueActive(trigger + SKY_DANCER_SKY_RAID_BOSS_CUE_SECONDS - 0.01, true), true);\n  assert.equal(skyDancerSkyRaidBossCueActive(trigger + SKY_DANCER_SKY_RAID_BOSS_CUE_SECONDS, true), false);\n  assert.equal(skyDancerSkyRaidBossCueActive(trigger, false), false);\n  const overlaySource = readFileSync(new URL("../app/SkyDancerSkyRaidOverlay.tsx", import.meta.url), "utf8");\n  assert.match(overlaySource, /bossCueVisible = skyDancerSkyRaidBossCueActive/);\n  assert.match(overlaySource, /\\{bossCueVisible && !snapshot\\.clear && \\(/);\n  assert.doesNotMatch(overlaySource, /\\{snapshot\\.bossForced && !snapshot\\.clear && \\(/);\n});\n\ntest("SKY RAID phone target reticle keeps distant emphasis below the combat-lane clutter limit", () => {\n  const hudSource = readFileSync(new URL("../app/SkyDancerHudV45.tsx", import.meta.url), "utf8");\n  assert.match(hudSource, /const reticleScale = clamp\\(\\(decision\\?\\.vulnerable \\? 1\\.04 : 1\\) \\+ rangeEmphasis, 1, 1\\.12\\)/);\n});\n\n'''
+          added = '''test("SKY RAID free-flight chain window supports a bank, reacquire and relock handoff", () => {\n  assert.ok(SKY_DANCER_SKY_RAID_CHAIN_GRACE_SECONDS >= 5);\n  assert.ok(SKY_DANCER_SKY_RAID_CHAIN_GRACE_SECONDS < 7);\n  const raidSource = readFileSync(new URL("../src/sky/SkyDancerSkyRaid.ts", import.meta.url), "utf8");\n  assert.match(raidSource, /state\\.chainTimer = SKY_DANCER_SKY_RAID_CHAIN_GRACE_SECONDS/);\n});\n\ntest("SKY RAID flagship cue is a short entrance card instead of a persistent combat banner", () => {\n  const trigger = SKY_DANCER_SKY_RAID_BOSS_TRIGGER_SECONDS;\n  assert.equal(skyDancerSkyRaidBossCueActive(trigger - 0.01, true), false);\n  assert.equal(skyDancerSkyRaidBossCueActive(trigger, true), true);\n  assert.equal(skyDancerSkyRaidBossCueActive(trigger + SKY_DANCER_SKY_RAID_BOSS_CUE_SECONDS - 0.01, true), true);\n  assert.equal(skyDancerSkyRaidBossCueActive(trigger + SKY_DANCER_SKY_RAID_BOSS_CUE_SECONDS, true), false);\n  assert.equal(skyDancerSkyRaidBossCueActive(trigger, false), false);\n  const overlaySource = readFileSync(new URL("../app/SkyDancerSkyRaidOverlay.tsx", import.meta.url), "utf8");\n  assert.match(overlaySource, /bossCueVisible = skyDancerSkyRaidBossCueActive/);\n  assert.match(overlaySource, /\\{bossCueVisible && !snapshot\\.clear && \\(/);\n  assert.doesNotMatch(overlaySource, /\\{snapshot\\.bossForced && !snapshot\\.clear && \\(/);\n});\n\ntest("SKY RAID phone target reticle keeps distant emphasis below the combat-lane clutter limit", () => {\n  const hudSource = readFileSync(new URL("../app/SkyDancerHudV45.tsx", import.meta.url), "utf8");\n  assert.match(hudSource, /const reticleScale = clamp\\(\\(decision\\?\\.vulnerable \\? 1\\.04 : 1\\) \\+ rangeEmphasis, 1, 1\\.12\\)/);\n});\n\ntest("SKY RAID Turbo release tail is frame-latched so a slow render cannot skip the cue", () => {\n  const raidSource = readFileSync(new URL("../src/sky/SkyDancerSkyRaid.ts", import.meta.url), "utf8");\n  assert.match(raidSource, /turboState\\.releaseSerial > visual\\.lastTurboReleaseSerial/);\n  assert.match(raidSource, /visual\\.turboReleaseVisual = 1/);\n  assert.match(raidSource, /Math\\.min\\(delta, 0\\.05\\) \\/ 1\\.45/);\n});\n\n'''
           replace("tests/sky-sky-raid.test.ts", marker, added + marker)
           PY
 
@@ -119,7 +134,7 @@ jobs:
           mkdir -p .audit-runtime artifacts/sky-raid-v17
           printf '{"private":true,"type":"commonjs"}\n' > .audit-runtime/package.json
           npm install --prefix .audit-runtime --no-package-lock --no-save --ignore-scripts --no-audit --no-fund playwright-core@1.55.0
-          python3 -m http.server 4173 --bind 127.0.0.1 --directory out >/tmp/sky-raid-v21c-http.log 2>&1 &
+          python3 -m http.server 4173 --bind 127.0.0.1 --directory out >/tmp/sky-raid-v21d-http.log 2>&1 &
           for i in {1..30}; do
             if curl -fsS http://127.0.0.1:4173/ >/dev/null; then break; fi
             sleep 1
@@ -145,7 +160,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: sky-raid-v21c-combat-handoff-audit
+          name: sky-raid-v21d-combat-handoff-audit
           path: artifacts/sky-raid-v17
           if-no-files-found: warn
           retention-days: 7
