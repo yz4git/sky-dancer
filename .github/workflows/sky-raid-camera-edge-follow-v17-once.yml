@@ -1,5 +1,5 @@
 name: SKY RAID final-camera edge-follow V18 audit
-# Re-run on the forward dogfight re-engagement pass.
+# Re-run with enemy world-space render diagnostics.
 
 on:
   push:
