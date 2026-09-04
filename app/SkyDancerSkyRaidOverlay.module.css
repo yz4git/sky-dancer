@@ -129,6 +129,16 @@
 .bossCue { top: 24%; }
 .clearBanner { top: 44%; padding-top: 16px; padding-bottom: 17px; }
 
+.packageLine {
+  margin-top: 3px;
+  color: rgba(244, 252, 255, .9);
+  font-size: clamp(6px, .72vw, 8px);
+  font-weight: 950;
+  line-height: 1.08;
+  letter-spacing: .105em;
+  white-space: nowrap;
+}
+
 .timeline {
   position: absolute;
   top: max(53px, calc(env(safe-area-inset-top) + 44px));
@@ -164,4 +174,5 @@
   .scoreCard strong { font-size: 14px; }
   .timeline { top: max(45px, calc(env(safe-area-inset-top) + 37px)); }
   .actBanner, .rushBanner, .bossCue { padding-top: 7px; padding-bottom: 8px; }
+  .packageLine { margin-top: 2px; font-size: 6px; letter-spacing: .08em; }
 }

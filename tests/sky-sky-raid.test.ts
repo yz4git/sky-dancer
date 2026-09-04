@@ -345,3 +345,19 @@ test("SKY RAID caps only large steering deflections before inherited quickening"
   assert.match(raidSource, /steer: skyDancerSkyRaidSteerInput\(input\.steer\)/);
   assert.match(raidSource, /const skyRaidActive = isSkyRaidMode\(\)/);
 });
+
+test("SKY RAID V25 gives each enemy class a render-only role silhouette and telegraphs the incoming package", () => {
+  const raidSource = readFileSync(new URL("../src/sky/SkyDancerSkyRaid.ts", import.meta.url), "utf8");
+  const overlaySource = readFileSync(new URL("../app/SkyDancerSkyRaidOverlay.tsx", import.meta.url), "utf8");
+  const cssSource = readFileSync(new URL("../app/SkyDancerSkyRaidOverlay.module.css", import.meta.url), "utf8");
+  assert.match(raidSource, /SKY_RAID_ROLE_KIT_NAME/);
+  assert.match(raidSource, /applySkyRaidEnemyRoleReadability\(this, snapshot\)/);
+  assert.match(raidSource, /__skyRaidGetRoleReadability/);
+  for (const signature of ["dorsal-spine", "swept-fangs", "twin-tail", "wide-canards", "twin-pods", "armor-shoulders"]) {
+    assert.match(raidSource, new RegExp(signature));
+  }
+  assert.match(overlaySource, /skyDancerSkyRaidEnemyDoctrine\(snapshot\.actId\)/);
+  assert.match(overlaySource, /data-sd-enemy-package-cue="true"/);
+  assert.match(overlaySource, /ENEMY PACKAGE/);
+  assert.match(cssSource, /\.packageLine/);
+});

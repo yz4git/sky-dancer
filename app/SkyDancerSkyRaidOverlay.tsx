@@ -6,7 +6,7 @@ import {
   getLatestSkyDancerSkyRaidSnapshot,
   type SkyDancerSkyRaidSnapshot,
 } from "../src/sky/SkyDancerSkyRaid";
-import { skyDancerSkyRaidBossCueActive } from "../src/sky/SkyDancerSkyRaidRules";
+import { skyDancerSkyRaidBossCueActive, skyDancerSkyRaidEnemyDoctrine } from "../src/sky/SkyDancerSkyRaidRules";
 import legacyStyles from "./CartRogueGame.module.css";
 import phaseStyles from "./CartRoguePhase3.module.css";
 import routeStyles from "./CartRunRouteMap.module.css";
@@ -41,6 +41,7 @@ export default function SkyDancerSkyRaidOverlay() {
   const progress = Math.round(Math.min(1, snapshot.actKills / Math.max(1, snapshot.actKillTarget)) * 100);
   const killCueVisible = snapshot.killCueSecondsRemaining > 0;
   const bossCueVisible = skyDancerSkyRaidBossCueActive(snapshot.elapsedSeconds, snapshot.bossForced);
+  const enemyDoctrine = skyDancerSkyRaidEnemyDoctrine(snapshot.actId);
   const accent = hex(snapshot.palette.accent);
   const sky = hex(snapshot.palette.sky);
   const enemy = hex(snapshot.palette.enemy);
@@ -206,10 +207,13 @@ export default function SkyDancerSkyRaidOverlay() {
         </div>
       )}
 
-      {snapshot.actElapsedSeconds < 1.6 && !snapshot.clear && (
+      {snapshot.actElapsedSeconds < 1.9 && !snapshot.clear && (
         <div className={styles.actBanner}>
           <small>ACT {snapshot.actIndex + 1} · {snapshot.setpiece}</small>
           <strong>{snapshot.actLabel}</strong>
+          <div className={styles.packageLine} data-sd-enemy-package-cue="true">
+            ENEMY PACKAGE · {enemyDoctrine.package} · {enemyDoctrine.attackStyle.toUpperCase()}
+          </div>
           <span>{snapshot.actSubtitle}</span>
         </div>
       )}
