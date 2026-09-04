@@ -1,3 +1,3 @@
 Sky Dancer Pages deploy trigger
-SKY RAID V21d Combat Handoff + Frame-Stable Turbo Release
-source-main: 4bdfa8ed497aa0921671478b3c8e652865b60b70
+SKY RAID V22 Act Combat Doctrines
+source-main: a65531690286712b417301c089c01e9599282d6f
