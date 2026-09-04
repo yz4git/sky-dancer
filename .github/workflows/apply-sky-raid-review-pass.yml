@@ -5,6 +5,7 @@ on:
     paths:
       - .github/workflows/apply-sky-raid-review-pass.yml
       - scripts/apply-sky-raid-review-pass.mjs
+      - scripts/apply-sky-raid-final-visual-pass.mjs
 
 permissions:
   contents: write
@@ -21,15 +22,17 @@ jobs:
         with:
           node-version: 22.13.0
       - name: Apply review pass
-        run: node scripts/apply-sky-raid-review-pass.mjs
+        run: |
+          node scripts/apply-sky-raid-review-pass.mjs
+          node scripts/apply-sky-raid-final-visual-pass.mjs
       - name: Commit source improvements
         run: |
-          if git diff --quiet -- src/cart/CartRoguePhase67TurboHunt.ts src/sky/SkyDancerPlayerWeapons.ts app/SkyDancerHudV45.tsx src/sky/SkyDancerAirCombatFxV18.ts src/sky/SkyDancerSkyRaid.ts app/SkyDancerSkyRaidOverlay.tsx tests/sky-sky-raid.test.ts; then
+          if git diff --quiet -- src/cart/CartRoguePhase67TurboHunt.ts src/sky/SkyDancerPlayerWeapons.ts app/SkyDancerHudV45.tsx src/sky/SkyDancerAirCombatFxV18.ts src/sky/SkyDancerSkyRaid.ts app/SkyDancerSkyRaidOverlay.tsx scripts/webgl-sky-raid-camera-edge-v17.mjs tests/sky-sky-raid.test.ts; then
             echo "No source changes required"
             exit 0
           fi
           git config user.name "yz4git"
           git config user.email "65384484+yz4git@users.noreply.github.com"
-          git add src/cart/CartRoguePhase67TurboHunt.ts src/sky/SkyDancerPlayerWeapons.ts app/SkyDancerHudV45.tsx src/sky/SkyDancerAirCombatFxV18.ts src/sky/SkyDancerSkyRaid.ts app/SkyDancerSkyRaidOverlay.tsx tests/sky-sky-raid.test.ts
-          git commit -m "Make SKY RAID kill confirmation state authoritative"
+          git add src/cart/CartRoguePhase67TurboHunt.ts src/sky/SkyDancerPlayerWeapons.ts app/SkyDancerHudV45.tsx src/sky/SkyDancerAirCombatFxV18.ts src/sky/SkyDancerSkyRaid.ts app/SkyDancerSkyRaidOverlay.tsx scripts/webgl-sky-raid-camera-edge-v17.mjs tests/sky-sky-raid.test.ts
+          git commit -m "Polish SKY RAID kill and warning feedback"
           git push origin HEAD:main
