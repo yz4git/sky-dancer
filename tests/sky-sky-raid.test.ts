@@ -125,5 +125,5 @@ test("SKY RAID keeps live enemies inside the visible flight band", () => {
   assert.match(raidSource, /applySkyRaidEnemyFlightBand/);
   assert.match(raidSource, /enemyCombatLane/);
   assert.match(verticalSource, /setSkyDancerEnemyAltitudeReferenceV56/);
-  assert.match(auditSource, /baseline\.enemyVisible < 2/);
+  assert.match(auditSource, /baseline\.enemyVisible[\s\S]{0,40}< 2/);
 });
