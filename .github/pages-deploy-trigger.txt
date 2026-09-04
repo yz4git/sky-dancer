@@ -1,3 +1,3 @@
 Sky Dancer Pages deploy trigger
-Arcade V12.2 Encounter Continuity
-source-main: 779be654c68d37074d90cc2e1f2614be7be38669
+SKY RAID V21d Combat Handoff + Frame-Stable Turbo Release
+source-main: 4bdfa8ed497aa0921671478b3c8e652865b60b70
