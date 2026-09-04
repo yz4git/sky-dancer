@@ -1,5 +1,5 @@
 name: SKY RAID final-camera edge-follow V18 audit
-# Re-run final 20m/64m enemy-visibility verification after final render owner fix.
+# Re-run after screen-space two-enemy presence director landed.
 
 on:
   push:
