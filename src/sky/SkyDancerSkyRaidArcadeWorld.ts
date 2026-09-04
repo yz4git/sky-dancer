@@ -135,25 +135,30 @@ function buildSkyRaidCityRing(
   seedOffset: number,
   color: THREE.Color,
 ): void {
+  const distant = seedOffset >= 100;
   const geometry = new THREE.BoxGeometry(1, 1, 1);
   const material = makeInstancedMaterial(color);
   const towers = new THREE.InstancedMesh(geometry, material, count);
-  towers.name = seedOffset < 100 ? "sky-raid-mid-city-ring" : "sky-raid-distant-city-ring";
+  towers.name = distant ? "sky-raid-distant-city-ring" : "sky-raid-mid-city-ring";
   towers.frustumCulled = false;
+  towers.renderOrder = -1;
   const matrix = new THREE.Object3D();
   for (let i = 0; i < count; i += 1) {
     const a = (i / count) * Math.PI * 2 + deterministicUnit(seedOffset + i * 7) * 0.11;
     const radius = minRadius + deterministicUnit(seedOffset + i * 11 + 3) * (maxRadius - minRadius);
     const h = minHeight + deterministicUnit(seedOffset + i * 17 + 5) * (maxHeight - minHeight);
-    const w = 5 + deterministicUnit(seedOffset + i * 19 + 9) * (seedOffset < 100 ? 10 : 15);
-    const d = 5 + deterministicUnit(seedOffset + i * 23 + 13) * (seedOffset < 100 ? 11 : 16);
-    matrix.position.set(Math.cos(a) * radius, -26 + h * 0.5, Math.sin(a) * radius);
+    const w = (distant ? 9 : 7) + deterministicUnit(seedOffset + i * 19 + 9) * (distant ? 18 : 12);
+    const d = (distant ? 8 : 6) + deterministicUnit(seedOffset + i * 23 + 13) * (distant ? 17 : 11);
+    // Keep the replacement skyline physically attached to the city datum. The old
+    // first pass used tall isolated blocks that rose into the sky at 64m and looked
+    // like another scrolling backdrop. This reads as one low urban belt instead.
+    matrix.position.set(Math.cos(a) * radius, -31 + h * 0.5, Math.sin(a) * radius);
     matrix.scale.set(w, h, d);
     matrix.rotation.set(0, -a + deterministicUnit(seedOffset + i * 29) * 0.22, 0);
     matrix.updateMatrix();
     towers.setMatrixAt(i, matrix.matrix);
     const shade = new THREE.Color(stage.palette.ground)
-      .lerp(color, 0.58 + deterministicUnit(seedOffset + i * 31) * 0.28);
+      .lerp(color, 0.28 + deterministicUnit(seedOffset + i * 31) * 0.18);
     towers.setColorAt(i, shade);
   }
   towers.instanceMatrix.needsUpdate = true;
@@ -333,8 +338,8 @@ export class SkyDancerSkyRaidArcadeWorld {
     mid.userData.skyRaidScrollFactor = 0;
 
     if (this.stage.biome === "city" || this.stage.biome === "night") {
-      buildSkyRaidCityRing(this.stage, distant, 64, 355, 515, 18, 72, 200, atmosphere.fog.clone().lerp(atmosphere.horizon, 0.2));
-      buildSkyRaidCityRing(this.stage, mid, 34, 205, 295, 14, 43, 40, atmosphere.fog.clone().lerp(new THREE.Color(this.stage.palette.secondary), 0.16));
+      buildSkyRaidCityRing(this.stage, distant, 72, 385, 535, 6, 28, 200, atmosphere.fog.clone().lerp(atmosphere.horizon, 0.12));
+      buildSkyRaidCityRing(this.stage, mid, 38, 215, 310, 8, 31, 40, atmosphere.fog.clone().lerp(new THREE.Color(this.stage.palette.secondary), 0.08));
     } else if (this.stage.biome === "cloud" || this.stage.biome === "storm") {
       buildSkyRaidCloudRing(this.stage, distant, 44, 345, 515, 8, 50, 200, atmosphere.cloudLight.clone().lerp(atmosphere.fog, 0.66));
       buildSkyRaidCloudRing(this.stage, mid, 22, 205, 305, 4, 42, 40, atmosphere.cloudLight.clone().lerp(atmosphere.fog, 0.42));
