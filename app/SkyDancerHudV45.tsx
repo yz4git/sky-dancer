@@ -71,6 +71,15 @@ export default function SkyDancerHudV45() {
   const lockSide = reticleX >= 0 ? 1 : -1;
   const lockX = clamp(reticleX + lockSide * 9.5, -28, 28);
   const lockTopVh = clamp(43 + reticleY + 8.5, 37, 60);
+  // Phone playcheck: distant fighters were readable mainly through text because
+  // the aircraft silhouette was only a few pixels wide against Dawn City. Keep
+  // the geometric lock location exact, but scale the reticle slightly with range
+  // and push the doctrine card farther away from the player's fuselage.
+  const rangeEmphasis = decision
+    ? clamp((decision.distance - 20) / 38, 0, 1) * 0.14
+    : 0;
+  const reticleScale = (decision?.vulnerable ? 1.06 : 1) + rangeEmphasis;
+  const lockVisualOffsetVw = lockSide * clamp(4.5 - Math.abs(reticleX) * 0.08, 2.4, 4.5);
 
   return <>
     <style>{`
@@ -84,6 +93,7 @@ export default function SkyDancerHudV45() {
         display: grid;
         place-items: center;
         color: rgba(255,214,116,.96);
+        background: radial-gradient(circle, rgba(2,18,30,.18) 0 28%, transparent 60%);
         filter: drop-shadow(0 0 7px rgba(255,191,72,.68));
         transition: left 64ms linear, top 64ms linear, color 90ms linear, transform 90ms ease-out;
         animation: skyDancerV45TrackPulse 720ms ease-in-out infinite;
@@ -164,6 +174,7 @@ export default function SkyDancerHudV45() {
         letter-spacing: .08em;
         text-shadow: 0 1px 5px rgba(0,15,28,.82);
         white-space: nowrap;
+        transition: left 64ms linear, top 64ms linear, margin-left 64ms linear;
       }
       .skyDancerV45Lock[data-ready="true"] {
         color: rgba(238,255,253,.96);
@@ -257,6 +268,7 @@ export default function SkyDancerHudV45() {
         style={{
           left: `calc(50% + ${reticleX.toFixed(2)}vw)`,
           top: `calc(43% + ${reticleY.toFixed(2)}vh)`,
+          transform: `translate(-50%, -50%) scale(${reticleScale.toFixed(3)})`,
         }}
       >
         <span>{decision.vulnerable ? "◆" : "◇"}</span>
@@ -271,6 +283,7 @@ export default function SkyDancerHudV45() {
         style={{
           left: `calc(50% + ${lockX.toFixed(2)}vw)`,
           top: `${lockTopVh.toFixed(2)}vh`,
+          marginLeft: `${lockVisualOffsetVw.toFixed(2)}vw`,
         }}
       >
         <div className="skyDancerV45LockMain">
