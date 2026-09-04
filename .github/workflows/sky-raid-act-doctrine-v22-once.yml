@@ -1,0 +1,416 @@
+name: SKY RAID V22 act combat doctrine one-shot
+
+on:
+  push:
+    paths:
+      - .github/workflows/sky-raid-act-doctrine-v22-once.yml
+
+permissions:
+  contents: write
+
+jobs:
+  implement:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      SKY_DANCER_CHROME_PATH: /usr/bin/google-chrome
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.13.0
+          cache: npm
+
+      - name: Apply five-act combat doctrine pass
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          def replace_once(path_name, old, new):
+              path = Path(path_name)
+              source = path.read_text()
+              count = source.count(old)
+              if count != 1:
+                  raise SystemExit(f"{path_name}: expected 1 occurrence, found {count}: {old!r}")
+              path.write_text(source.replace(old, new, 1))
+
+          rules_path = Path("src/sky/SkyDancerSkyRaidRules.ts")
+          rules = rules_path.read_text()
+          marker = 'export type SkyDancerSkyRaidWorldStyle = "city" | "mountains" | "clouds" | "storm" | "citadel";'
+          combat_profiles = '''export type SkyDancerSkyRaidCombatBeat = "spearhead" | "pincer" | "regroup" | "crossfire" | "breakaway";
+
+export interface SkyDancerSkyRaidCombatProfile {
+  doctrine: "GATE SPEAR" | "CANYON SCISSOR" | "ESCORT WALL" | "THUNDER PINCER" | "SIEGE ORBIT";
+  beats: readonly [
+    SkyDancerSkyRaidCombatBeat,
+    SkyDancerSkyRaidCombatBeat,
+    SkyDancerSkyRaidCombatBeat,
+    SkyDancerSkyRaidCombatBeat,
+    SkyDancerSkyRaidCombatBeat,
+  ];
+  lateralScale: number;
+  forwardBias: number;
+  baseTargetCount: number;
+  rushTargetCount: number;
+  correctionSpeed: number;
+  rushCorrectionSpeed: number;
+}
+
+const SKY_DANCER_SKY_RAID_COMBAT_PROFILES: Readonly<Record<SkyDancerSkyRaidActId, SkyDancerSkyRaidCombatProfile>> = {
+  "dawn-city": {
+    doctrine: "GATE SPEAR",
+    beats: ["spearhead", "pincer", "regroup", "crossfire", "breakaway"],
+    lateralScale: 0.88,
+    forwardBias: 0,
+    baseTargetCount: 3,
+    rushTargetCount: 4,
+    correctionSpeed: 4.6,
+    rushCorrectionSpeed: 7.4,
+  },
+  "red-canyon": {
+    doctrine: "CANYON SCISSOR",
+    beats: ["crossfire", "pincer", "breakaway", "crossfire", "spearhead"],
+    lateralScale: 0.72,
+    forwardBias: -2.5,
+    baseTargetCount: 3,
+    rushTargetCount: 4,
+    correctionSpeed: 5.2,
+    rushCorrectionSpeed: 7.6,
+  },
+  "cloud-fleet": {
+    doctrine: "ESCORT WALL",
+    beats: ["regroup", "spearhead", "pincer", "regroup", "breakaway"],
+    lateralScale: 1.10,
+    forwardBias: 2,
+    baseTargetCount: 3,
+    rushTargetCount: 4,
+    correctionSpeed: 4.2,
+    rushCorrectionSpeed: 6.6,
+  },
+  "storm-carrier": {
+    doctrine: "THUNDER PINCER",
+    beats: ["pincer", "crossfire", "breakaway", "pincer", "crossfire"],
+    lateralScale: 1.18,
+    forwardBias: -1.5,
+    baseTargetCount: 4,
+    rushTargetCount: 4,
+    correctionSpeed: 5.8,
+    rushCorrectionSpeed: 7.8,
+  },
+  "prism-citadel": {
+    doctrine: "SIEGE ORBIT",
+    beats: ["regroup", "crossfire", "spearhead", "pincer", "regroup"],
+    lateralScale: 0.96,
+    forwardBias: 1.5,
+    baseTargetCount: 3,
+    rushTargetCount: 4,
+    correctionSpeed: 5.0,
+    rushCorrectionSpeed: 7.0,
+  },
+};
+
+export function skyDancerSkyRaidCombatProfile(actId: SkyDancerSkyRaidActId): SkyDancerSkyRaidCombatProfile {
+  return SKY_DANCER_SKY_RAID_COMBAT_PROFILES[actId];
+}
+
+'''
+          if "SKY_DANCER_SKY_RAID_COMBAT_PROFILES" in rules:
+              raise SystemExit("combat profiles already exist")
+          if marker not in rules:
+              raise SystemExit("rules insertion marker missing")
+          rules_path.write_text(rules.replace(marker, combat_profiles + marker, 1))
+
+          replace_once(
+              "src/sky/SkyDancerSkyRaid.ts",
+              "  skyDancerSkyRaidActSeconds,\n  skyDancerSkyRaidKillScore,",
+              "  skyDancerSkyRaidActSeconds,\n  skyDancerSkyRaidCombatProfile,\n  skyDancerSkyRaidKillScore,",
+          )
+          replace_once(
+              "src/sky/SkyDancerSkyRaid.ts",
+              "  type SkyDancerSkyRaidAct,\n  type SkyDancerSkyRaidPalette,",
+              "  type SkyDancerSkyRaidAct,\n  type SkyDancerSkyRaidCombatBeat,\n  type SkyDancerSkyRaidPalette,",
+          )
+          replace_once(
+              "src/sky/SkyDancerSkyRaid.ts",
+              'type SkyRaidFormationBeat = "spearhead" | "pincer" | "regroup" | "crossfire" | "breakaway";',
+              "type SkyRaidFormationBeat = SkyDancerSkyRaidCombatBeat;",
+          )
+
+          raid_path = Path("src/sky/SkyDancerSkyRaid.ts")
+          raid = raid_path.read_text()
+          formation_re = re.compile(
+              r"function skyRaidFormationPattern\(elapsedSeconds: number\): \{.*?\n\}\n\n/\*\*\n \* V19 authored attack rhythm\.",
+              re.S,
+          )
+          new_formation = '''function skyRaidFormationPattern(elapsedSeconds: number): {
+  beat: SkyRaidFormationBeat;
+  progress: number;
+  slots: readonly SkyRaidFormationSlot[];
+  doctrine: string;
+  actId: SkyDancerSkyRaidAct["id"];
+  targetCount: number;
+  correctionSpeed: number;
+} {
+  const act = skyDancerSkyRaidActFor(elapsedSeconds);
+  const profile = skyDancerSkyRaidCombatProfile(act.id);
+  const local = skyDancerSkyRaidActSeconds(elapsedSeconds, act);
+  const rush = skyDancerSkyRaidRushActive(elapsedSeconds, act);
+  const mirror = act.index % 2 === 0 ? 1 : -1;
+  let phaseIndex: 0 | 1 | 2 | 3 | 4;
+  let progress: number;
+  if (local < 7) {
+    phaseIndex = 0;
+    progress = clamp(local / 7, 0, 1);
+  } else if (local < 13) {
+    phaseIndex = 1;
+    progress = clamp((local - 7) / 6, 0, 1);
+  } else if (local < 17) {
+    phaseIndex = 2;
+    progress = clamp((local - 13) / 4, 0, 1);
+  } else if (local < 21) {
+    phaseIndex = 3;
+    progress = clamp((local - 17) / 4, 0, 1);
+  } else {
+    phaseIndex = 4;
+    progress = clamp((local - 21) / 3, 0, 1);
+  }
+
+  const beat = profile.beats[phaseIndex];
+  const slot = (lateral: number, forward: number): SkyRaidFormationSlot => ({
+    lateral: lateral * profile.lateralScale,
+    forward: forward + profile.forwardBias,
+  });
+  let slots: readonly SkyRaidFormationSlot[];
+  switch (beat) {
+    case "spearhead": {
+      const wing = 5.5 + progress * 2.5;
+      slots = [
+        slot(0, 23),
+        slot(-wing * mirror, 29),
+        slot(wing * mirror, 29),
+        slot(-13 * mirror, 38),
+        slot(13 * mirror, 38),
+      ];
+      break;
+    }
+    case "pincer": {
+      const flank = 15 - progress * 7;
+      slots = [
+        slot(-flank * mirror, 23),
+        slot(flank * mirror, 25),
+        slot(-(9 - progress * 4) * mirror, 32),
+        slot((9 - progress * 4) * mirror, 34),
+        slot(0, 41),
+      ];
+      break;
+    }
+    case "regroup":
+      slots = [
+        slot(-10 * mirror, 29),
+        slot(10 * mirror, 29),
+        slot(0, 34),
+        slot(-15 * mirror, 42),
+        slot(15 * mirror, 42),
+      ];
+      break;
+    case "crossfire": {
+      const sweep = 13 - progress * 24;
+      slots = [
+        slot(sweep * mirror, 23),
+        slot(-sweep * mirror, 28),
+        slot(sweep * 0.58 * mirror, 35),
+        slot(-sweep * 0.58 * mirror, 39),
+        slot(0, 45),
+      ];
+      break;
+    }
+    case "breakaway":
+      slots = [
+        slot(-16 * mirror, 33),
+        slot(16 * mirror, 33),
+        slot(-8 * mirror, 40),
+        slot(8 * mirror, 40),
+        slot(0, 48),
+      ];
+      break;
+  }
+
+  return {
+    beat,
+    progress,
+    slots,
+    doctrine: profile.doctrine,
+    actId: act.id,
+    targetCount: rush ? profile.rushTargetCount : profile.baseTargetCount,
+    correctionSpeed: rush ? profile.rushCorrectionSpeed : profile.correctionSpeed,
+  };
+}
+
+/**
+ * V19 authored attack rhythm.'''
+          raid, count = formation_re.subn(new_formation, raid, count=1)
+          if count != 1:
+              raise SystemExit(f"formation function replacement count={count}")
+          raid_path.write_text(raid)
+
+          replace_once(
+              "src/sky/SkyDancerSkyRaid.ts",
+              "    document.documentElement.dataset.skyRaidFormationBeat = pattern.beat;\n    document.documentElement.dataset.skyRaidFormationPhase = pattern.progress.toFixed(2);",
+              "    document.documentElement.dataset.skyRaidFormationBeat = pattern.beat;\n    document.documentElement.dataset.skyRaidFormationPhase = pattern.progress.toFixed(2);\n    document.documentElement.dataset.skyRaidCombatDoctrine = pattern.doctrine;\n    document.documentElement.dataset.skyRaidFormationAct = pattern.actId;",
+          )
+
+          raid = raid_path.read_text()
+          slots_re = re.compile(
+              r"const SKY_RAID_SCREEN_SLOTS = \[.*?\] as const;\n",
+              re.S,
+          )
+          screen_fn = '''function skyRaidScreenSlotsFor(elapsedSeconds: number): readonly SkyRaidFormationSlot[] {
+  // The emergency screen-space recycler follows the same act doctrine as the
+  // simulation director, but compresses the pattern into the phone-safe lane.
+  return skyRaidFormationPattern(elapsedSeconds).slots.map((slot) => ({
+    lateral: clamp(slot.lateral * 0.86, -12.5, 12.5),
+    forward: clamp(slot.forward, 22, 42),
+  }));
+}
+'''
+          raid, count = slots_re.subn(screen_fn, raid, count=1)
+          if count != 1:
+              raise SystemExit(f"screen slots replacement count={count}")
+          raid_path.write_text(raid)
+
+          replace_once(
+              "src/sky/SkyDancerSkyRaid.ts",
+              "  const key = demo as unknown as object;\n  let state = raidScreenEngagementByDemo.get(key);",
+              "  const screenSlots = skyRaidScreenSlotsFor(latestSkyRaidSnapshot?.elapsedSeconds ?? 0);\n  const key = demo as unknown as object;\n  let state = raidScreenEngagementByDemo.get(key);",
+          )
+          replace_once(
+              "src/sky/SkyDancerSkyRaid.ts",
+              "    const slot = SKY_RAID_SCREEN_SLOTS[(state.cursor + index) % SKY_RAID_SCREEN_SLOTS.length];",
+              "    const slot = screenSlots[(state.cursor + index) % screenSlots.length];",
+          )
+          replace_once(
+              "src/sky/SkyDancerSkyRaid.ts",
+              "  state.cursor = (state.cursor + needed) % SKY_RAID_SCREEN_SLOTS.length;",
+              "  state.cursor = (state.cursor + needed) % screenSlots.length;",
+          )
+          replace_once(
+              "src/sky/SkyDancerSkyRaid.ts",
+              "        formationBeat: document.documentElement.dataset.skyRaidFormationBeat ?? \"\",\n        formationPhase: Number(document.documentElement.dataset.skyRaidFormationPhase ?? 0),",
+              "        formationBeat: document.documentElement.dataset.skyRaidFormationBeat ?? \"\",\n        formationPhase: Number(document.documentElement.dataset.skyRaidFormationPhase ?? 0),\n        formationDoctrine: document.documentElement.dataset.skyRaidCombatDoctrine ?? \"\",\n        formationAct: document.documentElement.dataset.skyRaidFormationAct ?? \"\",",
+          )
+
+          replace_once(
+              "tests/sky-sky-raid.test.ts",
+              "  skyDancerSkyRaidActFor,\n  skyDancerSkyRaidKillScore,",
+              "  skyDancerSkyRaidActFor,\n  skyDancerSkyRaidCombatProfile,\n  skyDancerSkyRaidKillScore,",
+          )
+          test_path = Path("tests/sky-sky-raid.test.ts")
+          tests = test_path.read_text()
+          insertion_marker = 'test("SKY RAID free-flight chain window supports a bank, reacquire and relock handoff", () => {'
+          doctrine_test = '''test("SKY RAID gives every act a distinct combat doctrine instead of one repeated formation loop", () => {
+  const profiles = SKY_DANCER_SKY_RAID_ACTS.map((act) => skyDancerSkyRaidCombatProfile(act.id));
+  assert.deepEqual(profiles.map((profile) => profile.doctrine), [
+    "GATE SPEAR",
+    "CANYON SCISSOR",
+    "ESCORT WALL",
+    "THUNDER PINCER",
+    "SIEGE ORBIT",
+  ]);
+  assert.equal(new Set(profiles.map((profile) => profile.beats.join(">"))).size, 5);
+  assert.ok(profiles[1].forwardBias < profiles[0].forwardBias);
+  assert.ok(profiles[2].lateralScale > profiles[0].lateralScale);
+  assert.ok(profiles[3].baseTargetCount > profiles[0].baseTargetCount);
+  assert.ok(profiles.every((profile) => profile.rushCorrectionSpeed >= profile.correctionSpeed));
+});
+
+test("SKY RAID formation and phone recycler both consume the active act doctrine", () => {
+  const raidSource = readFileSync(new URL("../src/sky/SkyDancerSkyRaid.ts", import.meta.url), "utf8");
+  assert.match(raidSource, /skyDancerSkyRaidCombatProfile\(act\.id\)/);
+  assert.match(raidSource, /const beat = profile\.beats\[phaseIndex\]/);
+  assert.match(raidSource, /targetCount: rush \? profile\.rushTargetCount : profile\.baseTargetCount/);
+  assert.match(raidSource, /correctionSpeed: rush \? profile\.rushCorrectionSpeed : profile\.correctionSpeed/);
+  assert.match(raidSource, /skyRaidScreenSlotsFor\(latestSkyRaidSnapshot\?\.elapsedSeconds \?\? 0\)/);
+  assert.match(raidSource, /skyRaidCombatDoctrine = pattern\.doctrine/);
+  assert.match(raidSource, /skyRaidFormationAct = pattern\.actId/);
+});
+
+'''
+          if insertion_marker not in tests:
+              raise SystemExit("test insertion marker missing")
+          tests = tests.replace(insertion_marker, doctrine_test + insertion_marker, 1)
+          tests = tests.replace(
+              'assert.match(raidSource, /SKY_RAID_SCREEN_SLOTS/);',
+              'assert.match(raidSource, /skyRaidScreenSlotsFor/);',
+              1,
+          )
+          tests = tests.replace(
+              'assert.match(raidSource, /type SkyRaidFormationBeat = "spearhead" \\| "pincer" \\| "regroup" \\| "crossfire" \\| "breakaway"/);',
+              'assert.match(raidSource, /type SkyRaidFormationBeat = SkyDancerSkyRaidCombatBeat/);',
+              1,
+          )
+          tests = tests.replace(
+              'assert.match(raidSource, /correctionSpeed: rush \\? 7\\.4 : 4\\.6/);',
+              'assert.match(raidSource, /correctionSpeed: rush \\? profile\\.rushCorrectionSpeed : profile\\.correctionSpeed/);',
+              1,
+          )
+          test_path.write_text(tests)
+
+          replace_once(
+              "scripts/webgl-sky-raid-camera-edge-v17.mjs",
+              "  if (Number(baseline.enemyCombatLane ?? 0) < 1) {\n    throw new Error(`SKY RAID opening has no enemy in the central combat lane: ${JSON.stringify(baseline.enemyScreenSamples ?? [])}`);\n  }",
+              "  if (Number(baseline.enemyCombatLane ?? 0) < 1) {\n    throw new Error(`SKY RAID opening has no enemy in the central combat lane: ${JSON.stringify(baseline.enemyScreenSamples ?? [])}`);\n  }\n  if (baseline.formationAct !== \"dawn-city\" || baseline.formationDoctrine !== \"GATE SPEAR\") {\n    throw new Error(`SKY RAID opening combat doctrine is not active: ${JSON.stringify({ act: baseline.formationAct, doctrine: baseline.formationDoctrine, beat: baseline.formationBeat })}`);\n  }",
+          )
+          PY
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Validate five-act combat doctrine
+        run: |
+          npm run test:fast
+          npm run lint
+
+      - name: Inject visual audit hooks
+        run: python3 scripts/inject-sky-raid-v17-audit-hook.py
+
+      - name: Build Pages artifact
+        run: npm run build:pages
+
+      - name: Run real-browser SKY RAID audit
+        run: |
+          rm -rf .audit-runtime
+          mkdir -p .audit-runtime artifacts/sky-raid-v22
+          printf '{"private":true,"type":"commonjs"}\n' > .audit-runtime/package.json
+          npm install --prefix .audit-runtime --no-package-lock --no-save --ignore-scripts --no-audit --no-fund playwright-core@1.55.0
+          python3 -m http.server 4173 --bind 127.0.0.1 --directory out >/tmp/sky-raid-v22-http.log 2>&1 &
+          for i in {1..30}; do
+            if curl -fsS http://127.0.0.1:4173/ >/dev/null; then break; fi
+            sleep 1
+          done
+          curl -fsS http://127.0.0.1:4173/ >/dev/null
+          node scripts/webgl-sky-raid-camera-edge-v17.mjs
+          cp -R artifacts/sky-raid-v17/. artifacts/sky-raid-v22/
+
+      - name: Restore audit-only injections
+        if: always()
+        run: git restore src/sky/SkyDancerSkyRaidFlight.ts src/sky/SkyDancerCombatDecisionV45.ts src/sky/SkyDancerAirCombatFxV18.ts
+
+      - name: Commit reviewed implementation
+        run: |
+          rm -f .github/workflows/sky-raid-act-doctrine-v22-once.yml
+          git config user.name "yz4git"
+          git config user.email "65384484+yz4git@users.noreply.github.com"
+          git add src/sky/SkyDancerSkyRaidRules.ts src/sky/SkyDancerSkyRaid.ts tests/sky-sky-raid.test.ts scripts/webgl-sky-raid-camera-edge-v17.mjs .github/workflows/sky-raid-act-doctrine-v22-once.yml
+          git diff --cached --check
+          git commit -m "Differentiate SKY RAID act combat doctrines"
+          git push origin HEAD:main
+
+      - name: Upload audit screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sky-raid-v22-act-doctrine-audit
+          path: artifacts/sky-raid-v22
+          if-no-files-found: warn
+          retention-days: 7
