@@ -21,7 +21,9 @@ jobs:
           node-version: 22.13.0
           cache: npm
       - name: Apply V19 warning and formation pass
-        run: python3 .github/skyraid-v19-patch.py
+        run: |
+          python3 .github/fix-skyraid-v19-patch.py
+          python3 .github/skyraid-v19-patch.py
       - name: Install dependencies
         run: npm ci --no-audit --no-fund
       - name: Validate implementation
