@@ -1,4 +1,5 @@
 name: SKY RAID final-camera edge-follow V18 audit
+# Re-run on the latest phone combat readability + missile pursuit pass.
 
 on:
   push:
