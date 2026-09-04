@@ -25,12 +25,12 @@ path.write_text(source.replace(marker, replacement, 1))
 path = Path("src/sky/SkyDancerAirCombatFxV18.ts")
 source = path.read_text()
 marker = '    const threat = Number.isFinite(nearest) && nearest < 30;'
-replacement = '    const auditThreat = typeof window !== "undefined"
+replacement = """    const auditThreat = typeof window !== "undefined"
       && typeof navigator !== "undefined"
       && navigator.webdriver
       && (window as unknown as { __skyRaidAuditForceMissileWarning?: unknown }).__skyRaidAuditForceMissileWarning === true;
     if (auditThreat) nearest = 6;
-    const threat = auditThreat || (Number.isFinite(nearest) && nearest < 30);'
+    const threat = auditThreat || (Number.isFinite(nearest) && nearest < 30);"""
 if marker not in source:
     raise SystemExit("SKY RAID missile warning audit injection marker missing")
 path.write_text(source.replace(marker, replacement, 1))
