@@ -70,6 +70,11 @@ jobs:
               "const reticleScale = clamp((decision?.vulnerable ? 1.04 : 1) + rangeEmphasis, 1, 1.12);",
           )
           replace(
+              "scripts/webgl-sky-raid-camera-edge-v17.mjs",
+              "  await screenshot(\"02-lower-altitude-stop.png\");\n\n  // Force only the live warning presentation",
+              "  await screenshot(\"02-lower-altitude-stop.png\");\n  // The dive check holds the real flight-stick pointer down. Release it before\n  // warning/Turbo isolation so later input audits cannot inherit pointer capture.\n  await page.mouse.up();\n\n  // Force only the live warning presentation",
+          )
+          replace(
               "tests/sky-sky-raid.test.ts",
               "  SKY_DANCER_SKY_RAID_BOSS_TRIGGER_SECONDS,\n",
               "  SKY_DANCER_SKY_RAID_BOSS_TRIGGER_SECONDS,\n  SKY_DANCER_SKY_RAID_BOSS_CUE_SECONDS,\n  SKY_DANCER_SKY_RAID_CHAIN_GRACE_SECONDS,\n",
@@ -121,7 +126,7 @@ jobs:
           rm -f .github/workflows/sky-raid-combat-handoff-v21-once.yml .github/workflows/sky-raid-combat-handoff-v21b-once.yml
           git config user.name "yz4git"
           git config user.email "65384484+yz4git@users.noreply.github.com"
-          git add src/sky/SkyDancerSkyRaidRules.ts src/sky/SkyDancerSkyRaid.ts app/SkyDancerSkyRaidOverlay.tsx app/SkyDancerHudV45.tsx tests/sky-sky-raid.test.ts .github/workflows/sky-raid-combat-handoff-v21-once.yml .github/workflows/sky-raid-combat-handoff-v21b-once.yml
+          git add src/sky/SkyDancerSkyRaidRules.ts src/sky/SkyDancerSkyRaid.ts app/SkyDancerSkyRaidOverlay.tsx app/SkyDancerHudV45.tsx tests/sky-sky-raid.test.ts scripts/webgl-sky-raid-camera-edge-v17.mjs .github/workflows/sky-raid-combat-handoff-v21-once.yml .github/workflows/sky-raid-combat-handoff-v21b-once.yml
           git diff --cached --check
           git commit -m "Polish SKY RAID combat handoff and targeting"
           git push origin HEAD:main
