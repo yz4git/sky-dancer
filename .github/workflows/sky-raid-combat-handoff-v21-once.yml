@@ -48,8 +48,8 @@ jobs:
           )
           replace_once(
               "src/sky/SkyDancerSkyRaid.ts",
-              "      state.chainTimer = 4.2;",
-              "      state.chainTimer = SKY_DANCER_SKY_RAID_CHAIN_GRACE_SECONDS;",
+              "      this.chainTimer = 4.2;",
+              "      this.chainTimer = SKY_DANCER_SKY_RAID_CHAIN_GRACE_SECONDS;",
           )
 
           replace_once(
@@ -80,7 +80,7 @@ jobs:
           )
 
           test_marker = '''test("SKY RAID scoring rewards chain, Turbo and formation rush", () => {'''
-          tests = '''test("SKY RAID free-flight chain window supports a bank, reacquire and relock handoff", () => {\n  assert.ok(SKY_DANCER_SKY_RAID_CHAIN_GRACE_SECONDS >= 5);\n  assert.ok(SKY_DANCER_SKY_RAID_CHAIN_GRACE_SECONDS < 7);\n  const raidSource = readFileSync(new URL("../src/sky/SkyDancerSkyRaid.ts", import.meta.url), "utf8");\n  assert.match(raidSource, /state\\.chainTimer = SKY_DANCER_SKY_RAID_CHAIN_GRACE_SECONDS/);\n});\n\ntest("SKY RAID flagship cue is a short entrance card instead of a persistent combat banner", () => {\n  const trigger = SKY_DANCER_SKY_RAID_BOSS_TRIGGER_SECONDS;\n  assert.equal(skyDancerSkyRaidBossCueActive(trigger - 0.01, true), false);\n  assert.equal(skyDancerSkyRaidBossCueActive(trigger, true), true);\n  assert.equal(skyDancerSkyRaidBossCueActive(trigger + SKY_DANCER_SKY_RAID_BOSS_CUE_SECONDS - 0.01, true), true);\n  assert.equal(skyDancerSkyRaidBossCueActive(trigger + SKY_DANCER_SKY_RAID_BOSS_CUE_SECONDS, true), false);\n  assert.equal(skyDancerSkyRaidBossCueActive(trigger, false), false);\n  const overlaySource = readFileSync(new URL("../app/SkyDancerSkyRaidOverlay.tsx", import.meta.url), "utf8");\n  assert.match(overlaySource, /bossCueVisible = skyDancerSkyRaidBossCueActive/);\n  assert.match(overlaySource, /\\{bossCueVisible && !snapshot\\.clear && \\(/);\n  assert.doesNotMatch(overlaySource, /\\{snapshot\\.bossForced && !snapshot\\.clear && \\(/);\n});\n\n'''
+          tests = '''test("SKY RAID free-flight chain window supports a bank, reacquire and relock handoff", () => {\n  assert.ok(SKY_DANCER_SKY_RAID_CHAIN_GRACE_SECONDS >= 5);\n  assert.ok(SKY_DANCER_SKY_RAID_CHAIN_GRACE_SECONDS < 7);\n  const raidSource = readFileSync(new URL("../src/sky/SkyDancerSkyRaid.ts", import.meta.url), "utf8");\n  assert.match(raidSource, /this\\.chainTimer = SKY_DANCER_SKY_RAID_CHAIN_GRACE_SECONDS/);\n});\n\ntest("SKY RAID flagship cue is a short entrance card instead of a persistent combat banner", () => {\n  const trigger = SKY_DANCER_SKY_RAID_BOSS_TRIGGER_SECONDS;\n  assert.equal(skyDancerSkyRaidBossCueActive(trigger - 0.01, true), false);\n  assert.equal(skyDancerSkyRaidBossCueActive(trigger, true), true);\n  assert.equal(skyDancerSkyRaidBossCueActive(trigger + SKY_DANCER_SKY_RAID_BOSS_CUE_SECONDS - 0.01, true), true);\n  assert.equal(skyDancerSkyRaidBossCueActive(trigger + SKY_DANCER_SKY_RAID_BOSS_CUE_SECONDS, true), false);\n  assert.equal(skyDancerSkyRaidBossCueActive(trigger, false), false);\n  const overlaySource = readFileSync(new URL("../app/SkyDancerSkyRaidOverlay.tsx", import.meta.url), "utf8");\n  assert.match(overlaySource, /bossCueVisible = skyDancerSkyRaidBossCueActive/);\n  assert.match(overlaySource, /\\{bossCueVisible && !snapshot\\.clear && \\(/);\n  assert.doesNotMatch(overlaySource, /\\{snapshot\\.bossForced && !snapshot\\.clear && \\(/);\n});\n\n'''
           replace_once("tests/sky-sky-raid.test.ts", test_marker, tests + test_marker)
           PY
 
