@@ -24,7 +24,10 @@ export default function SkyDancerSkyRaidOverlay() {
   const initialSnapshot = getLatestSkyDancerSkyRaidSnapshot();
   const [snapshot, setSnapshot] = useState<SkyDancerSkyRaidSnapshot | null>(() => initialSnapshot);
   const [killCue, setKillCue] = useState<{ serial: number; chain: number } | null>(null);
-  const previousSnapshotRef = useRef<SkyDancerSkyRaidSnapshot | null>(initialSnapshot);
+  // Start transition tracking from an explicit zero baseline. During fast
+  // startup the first snapshot the overlay sees can already contain kill #1;
+  // treating that as the baseline used to silently drop the first TARGET DOWN.
+  const previousSnapshotRef = useRef<SkyDancerSkyRaidSnapshot | null>(null);
   const killCueTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
@@ -32,7 +35,8 @@ export default function SkyDancerSkyRaidOverlay() {
       const detail = (event as CustomEvent<SkyDancerSkyRaidSnapshot>).detail;
       if (detail?.gameMode !== "sky-raid") return;
       const previous = previousSnapshotRef.current;
-      if (previous && detail.actIndex === previous.actIndex && detail.actKills > previous.actKills) {
+      const previousKills = previous && detail.actIndex === previous.actIndex ? previous.actKills : 0;
+      if (detail.actKills > previousKills) {
         setKillCue({ serial: Date.now(), chain: detail.chain });
         if (killCueTimerRef.current !== null) window.clearTimeout(killCueTimerRef.current);
         killCueTimerRef.current = window.setTimeout(() => {
