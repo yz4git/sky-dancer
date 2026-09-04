@@ -1,5 +1,5 @@
 name: SKY RAID final-camera edge-follow V18 audit
-# Re-run after authoritative V19 kill feedback fix; final visual review gate.
+# V20 final browser gate: peripheral speed language + real Turbo hold.
 
 on:
   push:
