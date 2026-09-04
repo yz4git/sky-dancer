@@ -153,6 +153,60 @@ function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
 }
 
+const SKY_RAID_ENEMY_VISUAL_ASSIST_MIN = 1.03;
+const SKY_RAID_ENEMY_VISUAL_ASSIST_MAX = 1.20;
+
+/**
+ * Phone screens make a physically-sized fighter at 40-58m read smaller than the
+ * targeting UI. SKY RAID applies a restrained presentation-only silhouette assist
+ * to normal enemies. Simulation positions, radii, hitboxes and missile math stay
+ * untouched; close aircraft remain almost exactly authored size.
+ */
+function applySkyRaidEnemySilhouetteAssist(
+  demo: RaidWebGLDemo,
+  snapshot: ReturnType<CartArenaSession["snapshot"]>,
+): void {
+  const playerAltitude = Number(demo.scene.userData.skyRaidPlayerAltitude ?? 20);
+  for (const enemy of snapshot.enemies) {
+    const group = demo.enemyGroups.get(enemy.id);
+    if (!group) continue;
+    if (!Number.isFinite(Number(group.userData.skyRaidBaseScaleX))) {
+      group.userData.skyRaidBaseScaleX = group.scale.x;
+      group.userData.skyRaidBaseScaleY = group.scale.y;
+      group.userData.skyRaidBaseScaleZ = group.scale.z;
+    }
+    const baseX = Number(group.userData.skyRaidBaseScaleX ?? 1);
+    const baseY = Number(group.userData.skyRaidBaseScaleY ?? 1);
+    const baseZ = Number(group.userData.skyRaidBaseScaleZ ?? 1);
+    if (!enemy.alive || enemy.kind === "boss") {
+      group.scale.set(baseX, baseY, baseZ);
+      group.userData.skyRaidVisualAssistScale = 1;
+      continue;
+    }
+    const dx = enemy.x - snapshot.x;
+    const dz = enemy.z - snapshot.z;
+    const dy = getSkyDancerEnemyAltitudeMetersV43(enemy) - playerAltitude;
+    const distance = Math.hypot(dx, dy, dz);
+    const distanceBlend = clamp((distance - 18) / 40, 0, 1);
+    const assist = SKY_RAID_ENEMY_VISUAL_ASSIST_MIN
+      + distanceBlend * (SKY_RAID_ENEMY_VISUAL_ASSIST_MAX - SKY_RAID_ENEMY_VISUAL_ASSIST_MIN);
+    group.scale.set(baseX * assist, baseY * assist, baseZ * assist);
+    group.userData.skyRaidVisualAssistScale = assist;
+  }
+}
+
+function restoreSkyRaidEnemySilhouetteAssist(demo: RaidWebGLDemo): void {
+  for (const group of demo.enemyGroups.values()) {
+    if (!Number.isFinite(Number(group.userData.skyRaidBaseScaleX))) continue;
+    group.scale.set(
+      Number(group.userData.skyRaidBaseScaleX ?? 1),
+      Number(group.userData.skyRaidBaseScaleY ?? 1),
+      Number(group.userData.skyRaidBaseScaleZ ?? 1),
+    );
+    group.userData.skyRaidVisualAssistScale = 1;
+  }
+}
+
 type SkyRaidFormationBeat = "spearhead" | "pincer" | "regroup" | "crossfire" | "breakaway";
 
 type SkyRaidFormationSlot = { lateral: number; forward: number };
@@ -847,6 +901,7 @@ function updateRaidVisuals(demo: RaidWebGLDemo, delta: number, flight: SkyDancer
   if (!isSkyRaidMode()) {
     visual.root.visible = false;
     visual.speedFx.visible = false;
+    restoreSkyRaidEnemySilhouetteAssist(demo);
     return;
   }
   const hunt = getCartTurboHuntSnapshot(demo.session);
@@ -969,6 +1024,7 @@ webglPrototype.applyCameraPresentation = function skyRaidCameraPresentation(
   // its late presentation update. SKY RAID owns the final render altitude, so
   // restore the shared 20-64m combat band here, immediately before camera/render.
   applySkyRaidEnemyFlightBand(this);
+  applySkyRaidEnemySilhouetteAssist(this, snapshot);
   const altitude = Number(this.scene.userData.skyRaidPlayerAltitude ?? 0);
   const verticalSpeed = Number(this.scene.userData.skyRaidPlayerVerticalSpeed ?? 0);
   const pitch = Number(this.scene.userData.skyRaidPlayerPitch ?? 0);
@@ -1089,7 +1145,7 @@ webglPrototype.applyCameraPresentation = function skyRaidCameraPresentation(
       const projected = player.clone().project(this.camera);
       let enemyVisible = 0;
       let enemyCombatLane = 0;
-      const enemyScreenSamples: Array<{ id: string; x: number; y: number; z: number; visible: boolean; worldY: number; localY: number; boundsY: number; relativeY: number; forward: number; lateral: number }> = [];
+      const enemyScreenSamples: Array<{ id: string; x: number; y: number; z: number; visible: boolean; worldY: number; localY: number; boundsY: number; relativeY: number; forward: number; lateral: number; visualScale: number }> = [];
       for (const enemy of snapshot.enemies) {
         if (!enemy.alive || enemy.kind === "boss") continue;
         const group = this.enemyGroups.get(enemy.id);
@@ -1117,6 +1173,7 @@ webglPrototype.applyCameraPresentation = function skyRaidCameraPresentation(
     relativeY: world.y - player.y,
     forward: dx * forwardX + dz * forwardZ,
     lateral: dx * rightX + dz * rightZ,
+    visualScale: Number(group.userData.skyRaidVisualAssistScale ?? 1),
   });
 }
       }

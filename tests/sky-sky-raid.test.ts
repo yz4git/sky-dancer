@@ -145,6 +145,9 @@ test("SKY RAID keeps live enemies inside the visible flight band", () => {
   assert.match(raidSource, /skyRaidFormationPattern/);
   assert.match(raidSource, /correctionSpeed: rush \? 7\.4 : 4\.6/);
   assert.match(raidSource, /dataset\.skyRaidFormationBeat/);
+  assert.match(raidSource, /SKY_RAID_ENEMY_VISUAL_ASSIST_MAX = 1\.20/);
+  assert.match(raidSource, /applySkyRaidEnemySilhouetteAssist\(this, snapshot\)/);
+  assert.match(raidSource, /skyRaidVisualAssistScale = assist/);
   assert.match(verticalSource, /setSkyDancerEnemyAltitudeReferenceV56/);
   assert.match(verticalSource, /offset \* 0\.45/);
   assert.match(auditSource, /baseline\.enemyVisible[\s\S]{0,40}< 2/);
