@@ -1,5 +1,5 @@
 name: SKY RAID final-camera edge-follow V18 audit
-# Re-run after combat-readability and target-down impact pass landed.
+# Re-run after compact-HUD regression expectations were aligned.
 
 on:
   push:
