@@ -256,7 +256,10 @@ private detectPlayerWeaponImpact(): void {
   const enemy = weapon.lastHitEnemyId
     ? this.runtimeV18.session.enemies.find((candidate) => candidate.id === weapon.lastHitEnemyId) ?? null
     : null;
-  const destroyed = Boolean(enemy && !enemy.alive);
+  // The weapon simulation owns the authoritative hit result. Formation/presence
+  // systems may already have recycled an enemy slot by the presentation frame,
+  // so never infer TARGET DOWN only from the current mutable enemy object.
+  const destroyed = weapon.lastHitDestroyed || Boolean(enemy && !enemy.alive);
   const altitude = enemy
     ? getSkyDancerEnemyAltitudeMetersV43(enemy)
     : Number(this.runtimeV18.scene.userData.skyRaidPlayerAltitude ?? 20);

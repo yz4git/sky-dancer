@@ -120,6 +120,7 @@ test("SKY RAID phone feedback stays visible without blocking the combat lane", (
   assert.match(auditSource, /target doctrine still crowds the reticle/);
   assert.match(auditSource, /TARGET DOWN has no strong world-space impact burst/);
   assert.match(fxSource, /sky-raid-target-down-burst-v18/);
+  assert.match(fxSource, /weapon\.lastHitDestroyed \|\| Boolean\(enemy && !enemy\.alive\)/);
   assert.match(fxSource, /progress < 0\.08/);
   assert.match(fxSource, /missileWarningSegments/);
   assert.match(fxSource, /segmentArc = Math\.PI \* 0\.34/);

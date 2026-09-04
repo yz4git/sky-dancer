@@ -46,6 +46,7 @@ export interface SkyDancerPlayerWeaponState {
   shotSerial: number;
   hitSerial: number;
   lastHitEnemyId: string | null;
+  lastHitDestroyed: boolean;
   lastHitX: number;
   lastHitZ: number;
 }
@@ -82,6 +83,7 @@ interface WeaponState {
   shotSerial: number;
   hitSerial: number;
   lastHitEnemyId: string | null;
+  lastHitDestroyed: boolean;
   lastHitX: number;
   lastHitZ: number;
   lastClockMs: number;
@@ -153,6 +155,7 @@ function stateFor(session: WeaponSessionView): WeaponState {
     shotSerial: 0,
     hitSerial: 0,
     lastHitEnemyId: null,
+    lastHitDestroyed: false,
     lastHitX: 0,
     lastHitZ: 0,
     lastClockMs: weaponNowMs(),
@@ -415,6 +418,7 @@ function updateMissiles(session: WeaponSessionView, state: WeaponState, delta: n
     session.rewardTimer = Math.max(session.rewardTimer, destroyed ? 1.45 : 1.0);
     state.hitSerial += 1;
     state.lastHitEnemyId = hit.id;
+    state.lastHitDestroyed = destroyed;
     state.lastHitX = missile.x;
     state.lastHitZ = missile.z;
   }
@@ -521,6 +525,7 @@ export function getSkyDancerPlayerWeaponState(session: CartArenaSession): SkyDan
     shotSerial: state.shotSerial,
     hitSerial: state.hitSerial,
     lastHitEnemyId: state.lastHitEnemyId,
+    lastHitDestroyed: state.lastHitDestroyed,
     lastHitX: state.lastHitX,
     lastHitZ: state.lastHitZ,
   };
