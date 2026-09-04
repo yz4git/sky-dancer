@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 import {
   SKY_DANCER_SKY_RAID_ACTS,
@@ -77,4 +78,18 @@ test("SKY RAID missile defeats are counted once even between Hunt fixed steps", 
   assert.equal(reportCartTurboHuntEnemyDefeat(session, enemy.id), false);
   session.step({ throttle: 0, brake: 0, steer: 0, boost: false }, 1 / 60);
   assert.equal(getCartTurboHuntSnapshot(session)?.huntKills, before + 1);
+});
+
+
+test("SKY RAID valid missile locks keep enough pursuit authority for phone play", () => {
+  const weaponSource = readFileSync(new URL("../src/sky/SkyDancerPlayerWeapons.ts", import.meta.url), "utf8");
+  const hudSource = readFileSync(new URL("../app/SkyDancerHudV45.tsx", import.meta.url), "utf8");
+  assert.match(weaponSource, /life: 5\.2/);
+  assert.match(weaponSource, /turnRate: target \? 2\.72 : 0/);
+  assert.match(weaponSource, /maxSpeed: 46/);
+  assert.match(weaponSource, /ageSeconds \/ 0\.26, 0\.46, 1/);
+  assert.match(weaponSource, /enemy\.id === missile\.targetEnemyId \? 0\.72 : 0\.52/);
+  assert.match(hudSource, /width: 50px/);
+  assert.match(hudSource, /max-width: min\(38vw, 300px\)/);
+  assert.match(hudSource, /lockTopVh = clamp\(43 \+ reticleY - 12, 27, 52\)/);
 });

@@ -227,16 +227,16 @@ function launchRequestedShot(session: WeaponSessionView, state: WeaponState): bo
     heading,
     pitch: initialPitch,
     speed: launchSpeed,
-    life: 4.6,
-    maxLife: 4.6,
+    life: 5.2,
+    maxLife: 5.2,
     targetEnemyId: target?.id ?? null,
     distanceToTarget: target
       ? skyDancerDistance3DV43(session.car.position.x, playerAltitude, session.car.position.z, target.x, targetAltitude, target.z)
       : Number.POSITIVE_INFINITY,
-    turnRate: target ? 2.25 : 0,
-    pitchRate: target ? 1.72 : 0,
-    maxSpeed: 42.5,
-    acceleration: 27,
+    turnRate: target ? 2.72 : 0,
+    pitchRate: target ? 1.98 : 0,
+    maxSpeed: 46,
+    acceleration: 31,
     ageSeconds: 0,
     damage: missileDamage(target, session),
     active: true,
@@ -315,8 +315,8 @@ function updateMissiles(session: WeaponSessionView, state: WeaponState, delta: n
     if (!target) {
       target = chooseTargetFromMissile(missile, enemies);
       missile.targetEnemyId = target?.id ?? null;
-      missile.turnRate = target ? 2.15 : 0;
-      missile.pitchRate = target ? 1.65 : 0;
+      missile.turnRate = target ? 2.58 : 0;
+      missile.pitchRate = target ? 1.9 : 0;
       if (target) missile.damage = missileDamage(target, session);
     }
 
@@ -340,7 +340,7 @@ function updateMissiles(session: WeaponSessionView, state: WeaponState, delta: n
         -SKY_DANCER_PLAYER_MISSILE_MAX_PITCH_V43,
         SKY_DANCER_PLAYER_MISSILE_MAX_PITCH_V43,
       );
-      const authority = clamp(missile.ageSeconds / 0.34, 0.36, 1);
+      const authority = clamp(missile.ageSeconds / 0.26, 0.46, 1);
       missile.heading = rotateToward(missile.heading, Math.atan2(dx, dz), missile.turnRate * authority * delta);
       missile.pitch = moveToward(missile.pitch, desiredPitch, missile.pitchRate * authority * delta);
     } else {
@@ -370,7 +370,7 @@ function updateMissiles(session: WeaponSessionView, state: WeaponState, delta: n
     let hit: CartEnemyState | null = null;
     let bestDistanceSq = Number.POSITIVE_INFINITY;
     for (const enemy of enemies) {
-      const radius = enemy.radius + 0.52;
+      const radius = enemy.radius + (enemy.id === missile.targetEnemyId ? 0.72 : 0.52);
       const altitude = getSkyDancerEnemyAltitudeMetersV43(enemy);
       const distanceSq = pointSegmentDistanceSquared3DV43(
         enemy.x,

@@ -69,15 +69,15 @@ export default function SkyDancerHudV45() {
   // Keep doctrine close to the tracked aircraft instead of laying it across
   // the player's fuselage. The clamp protects the top HUD and thumb controls.
   const lockX = clamp(reticleX, -18, 18);
-  const lockTopVh = clamp(43 + reticleY - 9, 29, 55);
+  const lockTopVh = clamp(43 + reticleY - 12, 27, 52);
 
   return <>
     <style>{`
       .skyDancerV45Reticle {
         position: fixed;
         z-index: 138;
-        width: 58px;
-        height: 58px;
+        width: 50px;
+        height: 50px;
         transform: translate(-50%, -50%);
         pointer-events: none;
         display: grid;
@@ -102,13 +102,13 @@ export default function SkyDancerHudV45() {
         transform: rotate(45deg);
       }
       .skyDancerV45Reticle span {
-        font: 950 24px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+        font: 950 18px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
         transform: translateY(-1px);
         text-shadow: 0 0 7px currentColor, 0 1px 5px rgba(0,0,0,.9);
       }
       .skyDancerV45Reticle[data-ready="true"] {
         color: rgba(114,255,222,.98);
-        transform: translate(-50%, -50%) scale(1.12);
+        transform: translate(-50%, -50%) scale(1.06);
         animation: skyDancerV45LockPulse 410ms ease-in-out infinite;
       }
       .skyDancerV45Hit {
@@ -128,7 +128,7 @@ export default function SkyDancerHudV45() {
         text-shadow: 0 0 8px rgba(116,255,235,.72);
       }
       @keyframes skyDancerV45TrackPulse {
-      0%,100% { opacity: .72; filter: drop-shadow(0 0 5px rgba(255,191,72,.48)); }
+      0%,100% { opacity: .58; filter: drop-shadow(0 0 4px rgba(255,191,72,.42)); }
       50% { opacity: 1; filter: drop-shadow(0 0 10px rgba(255,191,72,.82)); }
     }
     @keyframes skyDancerV45LockPulse {
@@ -150,16 +150,16 @@ export default function SkyDancerHudV45() {
         display: grid;
         justify-items: center;
         gap: 2px;
-        min-width: 142px;
-        max-width: min(46vw, 360px);
-        padding: 4px 10px 5px;
+        min-width: 118px;
+        max-width: min(38vw, 300px);
+        padding: 3px 8px 4px;
         pointer-events: none;
         color: rgba(223,245,250,.76);
         background: linear-gradient(90deg, transparent, rgba(4,31,45,.48) 16%, rgba(4,31,45,.54) 84%, transparent);
         border-top: 1px solid rgba(180,235,247,.12);
         border-bottom: 1px solid rgba(180,235,247,.28);
         box-shadow: 0 4px 18px rgba(0,18,32,.18);
-        font: 900 clamp(8px,.94vw,10px)/1.05 system-ui,sans-serif;
+        font: 900 clamp(7px,.82vw,9px)/1.05 system-ui,sans-serif;
         letter-spacing: .08em;
         text-shadow: 0 1px 5px rgba(0,15,28,.82);
         white-space: nowrap;
@@ -175,20 +175,20 @@ export default function SkyDancerHudV45() {
         display: flex;
         align-items: baseline;
         justify-content: center;
-        gap: 7px;
+        gap: 5px;
       }
       .skyDancerV45LockMain strong {
         color: rgba(248,253,255,.96);
-        font-size: 1.08em;
+        font-size: 1em;
         letter-spacing: .11em;
       }
       .skyDancerV45Altitude { color: #d9f7ff; }
       .skyDancerV45Range { opacity: .62; font-size: .88em; }
       .skyDancerV45Action {
         overflow: hidden;
-        max-width: 46vw;
+        max-width: 34vw;
         text-overflow: ellipsis;
-        font-size: .98em;
+        font-size: .88em;
         font-weight: 950;
         letter-spacing: .085em;
       }
