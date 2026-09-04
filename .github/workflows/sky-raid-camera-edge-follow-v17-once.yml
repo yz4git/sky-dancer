@@ -1,5 +1,5 @@
 name: SKY RAID final-camera edge-follow V18 audit
-# Re-run on the authoritative SKY RAID kill-cue snapshot pass.
+# Re-run on the cleaned final SKY RAID visual feedback pass.
 
 on:
   push:
