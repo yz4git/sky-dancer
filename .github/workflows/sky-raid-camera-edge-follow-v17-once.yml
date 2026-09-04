@@ -1,5 +1,5 @@
 name: SKY RAID final-camera edge-follow V18 audit
-# Re-run after V19 webdriver warning injection was corrected.
+# Re-run after authoritative V19 kill feedback fix; final visual review gate.
 
 on:
   push:
