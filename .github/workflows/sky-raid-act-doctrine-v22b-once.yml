@@ -1,0 +1,104 @@
+name: SKY RAID V22b act combat doctrine retry
+
+on:
+  push:
+    paths:
+      - .github/workflows/sky-raid-act-doctrine-v22b-once.yml
+
+permissions:
+  contents: write
+
+jobs:
+  implement:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      SKY_DANCER_CHROME_PATH: /usr/bin/google-chrome
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.13.0
+          cache: npm
+
+      - name: Apply reviewed V22 implementation
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import base64, re
+          source = Path('.github/workflows/sky-raid-act-doctrine-v22-once.yml').read_text()
+          match = re.search(r'PATCH_B64:\s+([A-Za-z0-9+/=]+)', source)
+          if not match:
+              raise SystemExit('V22 patch payload missing')
+          payload = base64.b64decode(match.group(1))
+          exec(compile(payload, '<sky-raid-v22-patch>', 'exec'))
+
+          path = Path('tests/sky-sky-raid.test.ts')
+          tests = path.read_text()
+          replacements = [
+              ('  assert.match(raidSource, /SKY_RAID_SCREEN_SLOTS/);',
+               '  assert.match(raidSource, /skyRaidScreenSlotsFor/);'),
+              ('  assert.match(raidSource, /type SkyRaidFormationBeat = "spearhead" \\| "pincer" \\| "regroup" \\| "crossfire" \\| "breakaway"/);',
+               '  assert.match(raidSource, /type SkyRaidFormationBeat = SkyDancerSkyRaidCombatBeat/);'),
+              ('  assert.match(raidSource, /correctionSpeed: rush \\? 7\\.4 : 4\\.6/);',
+               '  assert.match(raidSource, /correctionSpeed: rush \\? profile\\.rushCorrectionSpeed : profile\\.correctionSpeed/);'),
+          ]
+          for old, new in replacements:
+              count = tests.count(old)
+              if count != 1:
+                  raise SystemExit(f'legacy assertion migration expected 1, found {count}: {old}')
+              tests = tests.replace(old, new, 1)
+          path.write_text(tests)
+          PY
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Validate five-act combat doctrine
+        run: |
+          npm run test:fast
+          npm run lint
+
+      - name: Inject visual audit hooks
+        run: python3 scripts/inject-sky-raid-v17-audit-hook.py
+
+      - name: Build Pages artifact
+        run: npm run build:pages
+
+      - name: Run real-browser SKY RAID audit
+        run: |
+          rm -rf .audit-runtime
+          mkdir -p .audit-runtime artifacts/sky-raid-v22
+          printf '{"private":true,"type":"commonjs"}\n' > .audit-runtime/package.json
+          npm install --prefix .audit-runtime --no-package-lock --no-save --ignore-scripts --no-audit --no-fund playwright-core@1.55.0
+          python3 -m http.server 4173 --bind 127.0.0.1 --directory out >/tmp/sky-raid-v22-http.log 2>&1 &
+          for i in {1..30}; do
+            if curl -fsS http://127.0.0.1:4173/ >/dev/null; then break; fi
+            sleep 1
+          done
+          curl -fsS http://127.0.0.1:4173/ >/dev/null
+          node scripts/webgl-sky-raid-camera-edge-v17.mjs
+          cp -R artifacts/sky-raid-v17/. artifacts/sky-raid-v22/
+
+      - name: Restore audit-only injections
+        if: always()
+        run: git restore src/sky/SkyDancerSkyRaidFlight.ts src/sky/SkyDancerCombatDecisionV45.ts src/sky/SkyDancerAirCombatFxV18.ts
+
+      - name: Commit reviewed implementation
+        run: |
+          rm -f .github/workflows/sky-raid-act-doctrine-v22-once.yml .github/workflows/sky-raid-act-doctrine-v22b-once.yml
+          git config user.name "yz4git"
+          git config user.email "65384484+yz4git@users.noreply.github.com"
+          git add src/sky/SkyDancerSkyRaidRules.ts src/sky/SkyDancerSkyRaid.ts tests/sky-sky-raid.test.ts scripts/webgl-sky-raid-camera-edge-v17.mjs .github/workflows/sky-raid-act-doctrine-v22-once.yml .github/workflows/sky-raid-act-doctrine-v22b-once.yml
+          git diff --cached --check
+          git commit -m "Differentiate SKY RAID act combat doctrines"
+          git push origin HEAD:main
+
+      - name: Upload audit screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sky-raid-v22-act-doctrine-audit
+          path: artifacts/sky-raid-v22
+          if-no-files-found: warn
+          retention-days: 7
