@@ -30,6 +30,66 @@ replaceExact(hud, "        max-width: 46vw;", "        max-width: 34vw;");
 replaceExact(hud, "        font-size: .98em;", "        font-size: .88em;");
 replaceExact(hud, "      0%,100% { opacity: .72; filter: drop-shadow(0 0 5px rgba(255,191,72,.48)); }", "      0%,100% { opacity: .58; filter: drop-shadow(0 0 4px rgba(255,191,72,.42)); }");
 
+const raid = "src/sky/SkyDancerSkyRaid.ts";
+replaceExact(raid,
+  "  actBreak: boolean;\n  score: number;\n  chain: number;",
+  "  actBreak: boolean;\n  killCueSerial: number;\n  killCueSecondsRemaining: number;\n  score: number;\n  chain: number;",
+);
+replaceExact(raid,
+  "  previousOrders: number;\n  score: number;\n  chain: number;",
+  "  previousOrders: number;\n  killCueSerial: number;\n  killCueSecondsRemaining: number;\n  score: number;\n  chain: number;",
+);
+replaceExact(raid,
+  "    previousOrders: hunt.huntOrdersCompleted,\n    score: 0,",
+  "    previousOrders: hunt.huntOrdersCompleted,\n    killCueSerial: 0,\n    killCueSecondsRemaining: 0,\n    score: 0,",
+);
+replaceExact(raid,
+  "    state.actKills = 0;\n    state.actBreak = false;",
+  "    state.actKills = 0;\n    state.actBreak = false;\n    state.killCueSecondsRemaining = 0;",
+);
+replaceExact(raid,
+  "  }\n  state.previousKills = hunt.huntKills;\n\n  const orderDelta",
+  "  }\n  if (killDelta > 0) {\n    state.killCueSerial += killDelta;\n    state.killCueSecondsRemaining = 1.18;\n  }\n  state.previousKills = hunt.huntKills;\n\n  const orderDelta",
+);
+replaceExact(raid,
+  "  state.chainTimer = Math.max(0, state.chainTimer - delta);\n  if (state.chainTimer <= 0) state.chain = 0;",
+  "  state.chainTimer = Math.max(0, state.chainTimer - delta);\n  state.killCueSecondsRemaining = Math.max(0, state.killCueSecondsRemaining - delta);\n  if (state.chainTimer <= 0) state.chain = 0;",
+);
+replaceExact(raid,
+  "    actKillTarget: act.killTarget,\n    actBreak: state.actBreak,\n    score: state.score,",
+  "    actKillTarget: act.killTarget,\n    actBreak: state.actBreak,\n    killCueSerial: state.killCueSerial,\n    killCueSecondsRemaining: state.killCueSecondsRemaining,\n    score: state.score,",
+);
+
+const overlay = "app/SkyDancerSkyRaidOverlay.tsx";
+replaceExact(overlay,
+  'import { useEffect, useRef, useState, type CSSProperties } from "react";',
+  'import { useEffect, useState, type CSSProperties } from "react";',
+);
+replaceExact(overlay,
+  "  const [snapshot, setSnapshot] = useState<SkyDancerSkyRaidSnapshot | null>(() => initialSnapshot);\n  const [killCue, setKillCue] = useState<{ serial: number; chain: number } | null>(null);\n  // Start transition tracking from an explicit zero baseline. During fast\n  // startup the first snapshot the overlay sees can already contain kill #1;\n  // treating that as the baseline used to silently drop the first TARGET DOWN.\n  const previousSnapshotRef = useRef<SkyDancerSkyRaidSnapshot | null>(null);\n  const killCueTimerRef = useRef<number | null>(null);",
+  "  const [snapshot, setSnapshot] = useState<SkyDancerSkyRaidSnapshot | null>(() => initialSnapshot);",
+);
+replaceExact(overlay,
+  "      const previous = previousSnapshotRef.current;\n      const previousKills = previous && detail.actIndex === previous.actIndex ? previous.actKills : 0;\n      if (detail.actKills > previousKills) {\n        setKillCue({ serial: Date.now(), chain: detail.chain });\n        if (killCueTimerRef.current !== null) window.clearTimeout(killCueTimerRef.current);\n        killCueTimerRef.current = window.setTimeout(() => {\n          killCueTimerRef.current = null;\n          setKillCue(null);\n        }, 1180);\n      }\n      previousSnapshotRef.current = detail;\n      setSnapshot(detail);",
+  "      setSnapshot(detail);",
+);
+replaceExact(overlay,
+  "    return () => {\n      window.removeEventListener(SKY_DANCER_SKY_RAID_SNAPSHOT_EVENT, handler);\n      if (killCueTimerRef.current !== null) window.clearTimeout(killCueTimerRef.current);\n    };",
+  "    return () => {\n      window.removeEventListener(SKY_DANCER_SKY_RAID_SNAPSHOT_EVENT, handler);\n    };",
+);
+replaceExact(overlay,
+  "  const progress = Math.round(Math.min(1, snapshot.actKills / Math.max(1, snapshot.actKillTarget)) * 100);",
+  "  const progress = Math.round(Math.min(1, snapshot.actKills / Math.max(1, snapshot.actKillTarget)) * 100);\n  const killCueVisible = snapshot.killCueSecondsRemaining > 0;",
+);
+replaceExact(overlay,
+  '      <div className={styles.scoreCard} data-kill={killCue ? "true" : "false"}>',
+  '      <div className={styles.scoreCard} data-kill={killCueVisible ? "true" : "false"}>',
+);
+replaceExact(overlay,
+  "      {killCue && (\n        <div key={killCue.serial} data-sd-kill-confirm=\"true\" aria-live=\"polite\">\n          <strong>TARGET DOWN</strong>\n          <small>{killCue.chain > 1 ? `CHAIN ×${killCue.chain}` : \"CONFIRMED\"}</small>\n        </div>\n      )}",
+  "      {killCueVisible && (\n        <div key={snapshot.killCueSerial} data-sd-kill-confirm=\"true\" aria-live=\"polite\">\n          <strong>TARGET DOWN</strong>\n          <small>{snapshot.chain > 1 ? `CHAIN ×${snapshot.chain}` : \"CONFIRMED\"}</small>\n        </div>\n      )}",
+);
+
 const testPath = "tests/sky-sky-raid.test.ts";
 let testSource = fs.readFileSync(testPath, "utf8");
 if (!testSource.includes('import { readFileSync } from "node:fs";')) {
@@ -39,6 +99,10 @@ const marker = 'test("SKY RAID valid missile locks keep enough pursuit authority
 if (!testSource.includes(marker)) {
   testSource += `\n\ntest("SKY RAID valid missile locks keep enough pursuit authority for phone play", () => {\n  const weaponSource = readFileSync(new URL("../src/sky/SkyDancerPlayerWeapons.ts", import.meta.url), "utf8");\n  const hudSource = readFileSync(new URL("../app/SkyDancerHudV45.tsx", import.meta.url), "utf8");\n  assert.match(weaponSource, /life: 5\\.2/);\n  assert.match(weaponSource, /turnRate: target \\? 2\\.72 : 0/);\n  assert.match(weaponSource, /maxSpeed: 46/);\n  assert.match(weaponSource, /ageSeconds \\/ 0\\.26, 0\\.46, 1/);\n  assert.match(weaponSource, /enemy\\.id === missile\\.targetEnemyId \\? 0\\.72 : 0\\.52/);\n  assert.match(hudSource, /width: 50px/);\n  assert.match(hudSource, /max-width: min\\(38vw, 300px\\)/);\n  assert.match(hudSource, /lockTopVh = clamp\\(43 \\+ reticleY - 12, 27, 52\\)/);\n});\n`;
 }
+const cueMarker = 'test("SKY RAID kill confirmation is carried by authoritative snapshot state"';
+if (!testSource.includes(cueMarker)) {
+  testSource += `\n\ntest("SKY RAID kill confirmation is carried by authoritative snapshot state", () => {\n  const raidSource = readFileSync(new URL("../src/sky/SkyDancerSkyRaid.ts", import.meta.url), "utf8");\n  const overlaySource = readFileSync(new URL("../app/SkyDancerSkyRaidOverlay.tsx", import.meta.url), "utf8");\n  assert.match(raidSource, /killCueSerial: number/);\n  assert.match(raidSource, /killCueSecondsRemaining: number/);\n  assert.match(raidSource, /state\\.killCueSerial \\+= killDelta/);\n  assert.match(raidSource, /state\\.killCueSecondsRemaining = 1\\.18/);\n  assert.match(overlaySource, /snapshot\\.killCueSecondsRemaining > 0/);\n  assert.match(overlaySource, /key=\\{snapshot\\.killCueSerial\\}/);\n  assert.doesNotMatch(overlaySource, /previousSnapshotRef/);\n});\n`;
+}
 fs.writeFileSync(testPath, testSource);
 
-console.log("Applied SKY RAID phone combat readability + missile pursuit pass");
+console.log("Applied SKY RAID authoritative kill cue + phone combat readability pass");
