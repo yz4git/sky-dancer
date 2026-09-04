@@ -198,7 +198,7 @@ function stepSkyRaidFlight(demo: RaidWebGLDemo, delta: number): SkyDancerSkyRaid
   (demo.session as unknown as { skyDancerPlayerAltitudeMeters?: number }).skyDancerPlayerAltitudeMeters = flight.altitude;
   // Keep enemy attack runs in the same broad camera band as the player while
   // preserving meaningful vertical separation at the upper altitude limit.
-  const enemyAltitudeReference = 20 + (flight.altitude - 20) * 0.70;
+  const enemyAltitudeReference = flight.altitude;
   setSkyDancerEnemyAltitudeReferenceV56(enemyAltitudeReference);
   demo.scene.userData.skyRaidEnemyAltitudeReference = enemyAltitudeReference;
   demo.scene.userData.skyRaidPlayerAltitude = flight.altitude;

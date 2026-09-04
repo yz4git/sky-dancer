@@ -313,8 +313,9 @@ export function getSkyDancerEnemyVerticalSnapshotV43(enemy: CartEnemyState): Sky
 }
 
 export function getSkyDancerEnemyAltitudeMetersV43(enemy: CartEnemyState): number {
+  const offset = stateFor(enemy).altitudeOffsetMeters;
   const skyRaid = typeof document !== "undefined" && document.documentElement.dataset.skyDancerMode === "sky-raid";
-  return stateFor(enemy).altitudeOffsetMeters + (skyRaid ? skyRaidEnemyAltitudeReferenceMetersV56 : 0);
+  return skyRaid ? skyRaidEnemyAltitudeReferenceMetersV56 + offset * 0.45 : offset;
 }
 
 export function shouldSuppressSkyDancerLegacy2DContactV43(enemy: CartEnemyState): boolean {

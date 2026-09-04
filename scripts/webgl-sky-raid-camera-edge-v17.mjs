@@ -222,6 +222,12 @@ try {
   if (!high.playerVisible) throw new Error("aircraft clipped at upper altitude stop");
   if (Math.abs(high.playerNdcY) > 0.52) throw new Error(`upper framing too close to edge: ${high.playerNdcY}`);
   if (!(high.altitudeEdgeBlend > 0.98)) throw new Error(`upper edge blend inactive: ${high.altitudeEdgeBlend}`);
+  if (Number(high.enemyVisible ?? 0) < 2) {
+    throw new Error(`too few enemies remain visible at the SKY RAID upper altitude stop: ${JSON.stringify(high.enemyScreenSamples ?? [])}`);
+  }
+  if (Number(high.enemyCombatLane ?? 0) < 1) {
+    throw new Error(`upper SKY RAID altitude has no enemy in the central combat lane: ${JSON.stringify(high.enemyScreenSamples ?? [])}`);
+  }
   await screenshot("01-upper-altitude-stop.png");
   await page.mouse.up();
   await clearAuditAltitude();
