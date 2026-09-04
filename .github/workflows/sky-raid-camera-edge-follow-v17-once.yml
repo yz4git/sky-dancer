@@ -1,5 +1,5 @@
 name: SKY RAID final-camera edge-follow V18 audit
-# Re-run after compact-HUD regression expectations were aligned.
+# Re-run after V19 segmented threat cue and authored attack-rhythm pass.
 
 on:
   push:
