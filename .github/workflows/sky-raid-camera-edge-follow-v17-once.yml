@@ -1,5 +1,5 @@
 name: SKY RAID final-camera edge-follow V18 audit
-# Re-run with enemy world-space render diagnostics.
+# Re-run after final render-stage enemy altitude ownership fix.
 
 on:
   push:
