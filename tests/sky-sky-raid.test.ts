@@ -9,6 +9,12 @@ import {
   skyDancerSkyRaidRushActive,
   skyDancerSkyRaidWorldStyle,
 } from "../src/sky/SkyDancerSkyRaidRules";
+import { CartArenaSession } from "../src/cart/CartArenaSession";
+import {
+  enableCartTurboHunt,
+  getCartTurboHuntSnapshot,
+  reportCartTurboHuntEnemyDefeat,
+} from "../src/cart/CartRoguePhase67TurboHunt";
 
 test("SKY RAID spans five arcade acts across the free-flight run", () => {
   assert.equal(SKY_DANCER_SKY_RAID_ACTS.length, 5);
@@ -56,4 +62,19 @@ test("SKY RAID maps every act to a visibly distinct surface world", () => {
     SKY_DANCER_SKY_RAID_ACTS.map((act) => skyDancerSkyRaidWorldStyle(act.id)),
     ["city", "mountains", "clouds", "storm", "citadel"],
   );
+});
+
+test("SKY RAID missile defeats are counted once even between Hunt fixed steps", () => {
+  const session = new CartArenaSession();
+  enableCartTurboHunt(session);
+  const enemy = session.enemies.find((candidate) => candidate.alive && candidate.kind !== "boss");
+  assert.ok(enemy);
+  const before = getCartTurboHuntSnapshot(session)?.huntKills ?? 0;
+  enemy.hp = 0;
+  enemy.alive = false;
+  assert.equal(reportCartTurboHuntEnemyDefeat(session, enemy.id), true);
+  assert.equal(getCartTurboHuntSnapshot(session)?.huntKills, before + 1);
+  assert.equal(reportCartTurboHuntEnemyDefeat(session, enemy.id), false);
+  session.step({ throttle: 0, brake: 0, steer: 0, boost: false }, 1 / 60);
+  assert.equal(getCartTurboHuntSnapshot(session)?.huntKills, before + 1);
 });

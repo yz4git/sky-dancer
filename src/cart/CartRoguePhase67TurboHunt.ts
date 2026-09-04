@@ -74,6 +74,7 @@ interface TurboHuntState {
   bossSpawned: boolean;
   previousAlive: Map<string, boolean>;
   enemyRespawn: Map<string, number>;
+  accountedDeaths: Set<string>;
   spentBombers: Set<string>;
   previousDestroyed: Map<string, boolean>;
   obstacleRespawn: Map<string, number>;
@@ -221,6 +222,7 @@ function stateFor(session: CartArenaSession | MutableHuntSession): TurboHuntStat
     bossSpawned: false,
     previousAlive: new Map<string, boolean>(),
     enemyRespawn: new Map<string, number>(),
+    accountedDeaths: new Set<string>(),
     spentBombers: new Set<string>(),
     previousDestroyed: new Map<string, boolean>(),
     obstacleRespawn: new Map<string, number>(),
@@ -543,6 +545,7 @@ function spawnSupportEnemy(session: MutableHuntSession, state: TurboHuntState, s
   if (!enemy) return false;
   const point = safeSpawnPoint(session, state, slot);
   resetEnemyForSpawn(enemy, point.x, point.z, point.heading);
+  state.accountedDeaths.delete(enemy.id);
   state.previousAlive.set(enemy.id, true);
   state.spawnSerial += 1;
   return true;
@@ -586,22 +589,44 @@ function tickRecycleTimers(session: MutableHuntSession, state: TurboHuntState, d
   }
 }
 
+function collectEnemyDefeat(session: MutableHuntSession, state: TurboHuntState, enemy: CartEnemyState): boolean {
+  if (enemy.alive || state.accountedDeaths.has(enemy.id)) return false;
+  state.accountedDeaths.add(enemy.id);
+  state.previousAlive.set(enemy.id, false);
+  if (enemy.kind === "boss") {
+    addHeat(state, 20);
+    setReward(session, "RAM TITAN DOWN · HUNT CLEAR", 4);
+    return true;
+  }
+  state.kills += 1;
+  addHeat(state, enemy.kind === "heavy" ? 13 : enemy.archetype === "bomber" ? 10 : 7);
+  state.enemyRespawn.set(enemy.id, enemy.kind === "heavy" ? 4.4 : 2.35 + random01(state) * 1.3);
+  if (enemy.archetype === "bomber") state.spentBombers.add(enemy.id);
+  if (state.objective.kind === "HUNT") state.objective.progress += 1;
+  if (state.objective.kind === "ELITE" && enemy.kind === "heavy") state.objective.progress += 1;
+  return true;
+}
+
+/**
+ * Records an externally-produced enemy defeat immediately. Player missiles can
+ * advance between Hunt fixed steps, so relying only on sampled alive edges can
+ * miss an aircraft that becomes active and dies inside one observation window.
+ * The shared accountedDeaths guard makes this safe alongside normal transition
+ * detection and permits the same pooled enemy id to score again after respawn.
+ */
+export function reportCartTurboHuntEnemyDefeat(session: CartArenaSession, enemyId: string): boolean {
+  const raw = session as unknown as MutableHuntSession;
+  const state = stateFor(raw);
+  if (!state.enabled) return false;
+  const enemy = raw.enemies.find((candidate) => candidate.id === enemyId);
+  if (!enemy || enemy.alive) return false;
+  return collectEnemyDefeat(raw, state, enemy);
+}
+
 function handleEnemyTransitions(session: MutableHuntSession, state: TurboHuntState): void {
   for (const enemy of session.enemies) {
     const wasAlive = state.previousAlive.get(enemy.id) ?? false;
-    if (wasAlive && !enemy.alive) {
-      if (enemy.kind === "boss") {
-        addHeat(state, 20);
-        setReward(session, "RAM TITAN DOWN · HUNT CLEAR", 4);
-      } else {
-        state.kills += 1;
-        addHeat(state, enemy.kind === "heavy" ? 13 : enemy.archetype === "bomber" ? 10 : 7);
-        state.enemyRespawn.set(enemy.id, enemy.kind === "heavy" ? 4.4 : 2.35 + random01(state) * 1.3);
-        if (enemy.archetype === "bomber") state.spentBombers.add(enemy.id);
-        if (state.objective.kind === "HUNT") state.objective.progress += 1;
-        if (state.objective.kind === "ELITE" && enemy.kind === "heavy") state.objective.progress += 1;
-      }
-    }
+    if (wasAlive && !enemy.alive) collectEnemyDefeat(session, state, enemy);
     state.previousAlive.set(enemy.id, enemy.alive);
   }
 }
@@ -690,6 +715,7 @@ function spawnBoss(session: MutableHuntSession, state: TurboHuntState): void {
     ),
     Math.PI,
   );
+  state.accountedDeaths.delete(boss.id);
   state.previousAlive.set(boss.id, true);
   addHeat(state, 8);
   setReward(session, "RAM TITAN INBOUND · KEEP THE FLOW ALIVE", 3.2);

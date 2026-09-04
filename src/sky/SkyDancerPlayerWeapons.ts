@@ -1,5 +1,6 @@
 import type { CartEnemyState } from "../cart/CartCombat";
 import { CartArenaSession } from "../cart/CartArenaSession";
+import { reportCartTurboHuntEnemyDefeat } from "../cart/CartRoguePhase67TurboHunt";
 import {
   CART_TURBO_HUNT_WORLD_DEPTH,
   CART_TURBO_HUNT_WORLD_WIDTH,
@@ -402,7 +403,10 @@ function updateMissiles(session: WeaponSessionView, state: WeaponState, delta: n
     hit.hp = Math.max(0, hit.hp - damage);
     const destroyed = hit.hp <= 0;
     hit.alive = !destroyed;
-    if (destroyed) session.car.ramCount += 1;
+    if (destroyed) {
+      session.car.ramCount += 1;
+      reportCartTurboHuntEnemyDefeat(session as unknown as CartArenaSession, hit.id);
+    }
     session.car.collisionImpact = Math.max(session.car.collisionImpact, destroyed ? 1 : 0.72);
     const decision = getSkyDancerEnemyDecisionV45(hit, session.car.forwardVelocity);
     session.lastReward = destroyed
