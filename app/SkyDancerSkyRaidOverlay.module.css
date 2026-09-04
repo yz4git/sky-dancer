@@ -38,9 +38,9 @@
 
 .modeCard {
   left: max(10px, env(safe-area-inset-left));
-  min-width: 164px;
-  padding: 7px 10px 8px;
-  border-radius: 11px;
+  min-width: 154px;
+  padding: 6px 9px 7px;
+  border-radius: 10px;
 }
 
 .modeCard small, .scoreCard small {
@@ -54,7 +54,7 @@
 .modeCard strong {
   display: block;
   margin-top: 1px;
-  font-size: 17px;
+  font-size: 16px;
   font-weight: 1000;
   font-style: italic;
   letter-spacing: .08em;
@@ -71,10 +71,10 @@
 
 .objectiveCard {
   left: 50%;
-  width: min(300px, 38vw);
-  padding: 7px 11px 8px;
+  width: min(248px, 31vw);
+  padding: 5px 9px 6px;
   transform: translateX(-50%);
-  border-radius: 11px;
+  border-radius: 9px;
 }
 
 .objectiveCard[data-break="true"] {
@@ -85,26 +85,26 @@
 .objectiveHead {
   display: flex;
   justify-content: space-between;
-  gap: 10px;
-  font-size: 7px;
+  gap: 9px;
+  font-size: 6.5px;
   font-weight: 1000;
-  letter-spacing: .12em;
+  letter-spacing: .115em;
 }
 
 .objectiveHead span { color: var(--raid-accent); }
-.progress { height: 4px; margin-top: 5px; overflow: hidden; border-radius: 999px; background: rgba(255,255,255,.12); }
-.progress i { display: block; height: 100%; background: var(--raid-accent); box-shadow: 0 0 12px var(--raid-accent); transition: width .18s linear; }
-.objectiveCard > small { display: block; margin-top: 4px; font-size: 6px; font-weight: 800; letter-spacing: .08em; opacity: .72; }
+.progress { height: 3px; margin-top: 4px; overflow: hidden; border-radius: 999px; background: rgba(255,255,255,.12); }
+.progress i { display: block; height: 100%; background: var(--raid-accent); box-shadow: 0 0 10px var(--raid-accent); transition: width .18s linear; }
+.objectiveCard > small { display: block; margin-top: 3px; font-size: 5.5px; font-weight: 800; letter-spacing: .075em; opacity: .7; }
 
 .scoreCard {
   right: max(10px, env(safe-area-inset-right));
-  min-width: 150px;
-  padding: 7px 10px 8px;
-  border-radius: 11px;
+  min-width: 142px;
+  padding: 6px 9px 7px;
+  border-radius: 10px;
   text-align: right;
 }
 
-.scoreCard strong { display: block; font-size: 18px; font-weight: 1000; letter-spacing: .04em; }
+.scoreCard strong { display: block; font-size: 17px; font-weight: 1000; letter-spacing: .04em; }
 .scoreCard span { display: block; margin-top: 1px; font-size: 7px; font-weight: 900; letter-spacing: .08em; color: var(--raid-accent); }
 
 .actBanner, .rushBanner, .bossCue, .clearBanner {
@@ -131,23 +131,23 @@
 
 .timeline {
   position: absolute;
-  top: max(58px, calc(env(safe-area-inset-top) + 48px));
+  top: max(53px, calc(env(safe-area-inset-top) + 44px));
   left: 50%;
   display: flex;
-  gap: 5px;
+  gap: 4px;
   transform: translateX(-50%);
 }
 
 .timeline i {
-  width: 22px;
-  height: 3px;
+  width: 20px;
+  height: 2px;
   border-radius: 999px;
   background: rgba(255,255,255,.14);
   box-shadow: 0 0 0 1px rgba(255,255,255,.06);
 }
 
 .timeline i[data-cleared="true"] { background: rgba(255,255,255,.54); }
-.timeline i[data-active="true"] { width: 38px; background: var(--raid-accent); box-shadow: 0 0 10px var(--raid-accent); }
+.timeline i[data-active="true"] { width: 34px; background: var(--raid-accent); box-shadow: 0 0 9px var(--raid-accent); }
 
 @keyframes raidPunch {
   from { opacity: 0; transform: translate(-50%, -50%) scale(.86); letter-spacing: .2em; }
@@ -155,11 +155,13 @@
 }
 
 @media (max-height: 390px) {
-  .modeCard { min-width: 145px; padding: 5px 8px 6px; }
-  .modeCard strong { font-size: 14px; }
-  .objectiveCard { width: min(272px, 36vw); padding: 5px 9px 6px; }
-  .scoreCard { min-width: 132px; padding: 5px 8px 6px; }
-  .scoreCard strong { font-size: 15px; }
-  .timeline { top: max(49px, calc(env(safe-area-inset-top) + 40px)); }
+  .modeCard { min-width: 138px; padding: 4px 7px 5px; }
+  .modeCard strong { font-size: 13px; }
+  .objectiveCard { width: min(226px, 29vw); padding: 4px 8px 5px; }
+  .objectiveHead { font-size: 6px; }
+  .objectiveCard > small { font-size: 5px; }
+  .scoreCard { min-width: 122px; padding: 4px 7px 5px; }
+  .scoreCard strong { font-size: 14px; }
+  .timeline { top: max(45px, calc(env(safe-area-inset-top) + 37px)); }
   .actBanner, .rushBanner, .bossCue { padding-top: 7px; padding-bottom: 8px; }
 }
