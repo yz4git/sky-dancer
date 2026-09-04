@@ -119,21 +119,12 @@ jobs:
                   raise SystemExit("clamp insertion marker missing")
               source = source.replace(marker, addition)
 
-          old_step = '''    if (!isSkyRaidMode()) return;
-            const hunt = getCartTurboHuntSnapshot(this as unknown as CartArenaSession);
-            if (!hunt) return;
-            const delta = clamp(fixedDelta, 0, 0.05);
-          '''
-          new_step = '''    if (!isSkyRaidMode()) return;
-            const delta = clamp(fixedDelta, 0, 0.05);
-            maintainSkyRaidEnemyPresence(this as unknown as CartArenaSession, delta);
-            const hunt = getCartTurboHuntSnapshot(this as unknown as CartArenaSession);
-            if (!hunt) return;
-          '''
           if "maintainSkyRaidEnemyPresence(this as unknown as CartArenaSession, delta);" not in source:
-              if old_step not in source:
+              old = "    const hunt = getCartTurboHuntSnapshot(this as unknown as CartArenaSession);\n    if (!hunt) return;\n    const delta = clamp(fixedDelta, 0, 0.05);"
+              new = "    const delta = clamp(fixedDelta, 0, 0.05);\n    maintainSkyRaidEnemyPresence(this as unknown as CartArenaSession, delta);\n    const hunt = getCartTurboHuntSnapshot(this as unknown as CartArenaSession);\n    if (!hunt) return;"
+              if old not in source:
                   raise SystemExit("session step insertion marker missing")
-              source = source.replace(old_step, new_step)
+              source = source.replace(old, new, 1)
 
           path.write_text(source)
 
