@@ -131,6 +131,7 @@ const raidStateBySession = new WeakMap<object, RaidState>();
 const raidVisualByDemo = new WeakMap<object, RaidVisualState>();
 const raidFlightByDemo = new WeakMap<object, SkyDancerSkyRaidFlightController>();
 const raidCameraFxByDemo = new WeakMap<object, RaidCameraFxState>();
+const raidEngagementBySession = new WeakMap<object, { cooldown: number; cursor: number }>();
 let latestSkyRaidSnapshot: SkyDancerSkyRaidSnapshot | null = null;
 
 export const SKY_DANCER_SKY_RAID_SNAPSHOT_EVENT = "sky-dancer-sky-raid-snapshot";
@@ -141,6 +142,81 @@ function isSkyRaidMode(): boolean {
 
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
+}
+
+const SKY_RAID_ENGAGEMENT_SLOTS = [
+  { lateral: -9, forward: 26 },
+  { lateral: 9, forward: 31 },
+  { lateral: 0, forward: 38 },
+  { lateral: -14, forward: 42 },
+  { lateral: 14, forward: 36 },
+] as const;
+
+/**
+ * SKY RAID is an arcade dogfight, not a simulation where every bandit may
+ * disappear behind the camera for long periods. Preserve normal AI while
+ * at least three aircraft occupy a broad forward engagement cone. Only
+ * aircraft already outside that cone are recycled, so on-screen targets
+ * never pop or teleport in front of the player.
+ */
+function maintainSkyRaidEnemyPresence(session: CartArenaSession, delta: number): void {
+  const snapshot = session.snapshot();
+  const live = session.enemies.filter(
+    (enemy) => enemy.alive && enemy.kind !== "boss" && enemy.nodeId === snapshot.nodeId,
+  );
+  if (live.length < 2) return;
+
+  const key = session as unknown as object;
+  let state = raidEngagementBySession.get(key);
+  if (!state) {
+    state = { cooldown: 0, cursor: 0 };
+    raidEngagementBySession.set(key, state);
+  }
+  state.cooldown = Math.max(0, state.cooldown - delta);
+
+  const forwardX = Math.sin(snapshot.heading);
+  const forwardZ = Math.cos(snapshot.heading);
+  const rightX = Math.cos(snapshot.heading);
+  const rightZ = -Math.sin(snapshot.heading);
+  const local = (enemy: (typeof live)[number]) => {
+    const dx = enemy.x - snapshot.x;
+    const dz = enemy.z - snapshot.z;
+    return {
+      enemy,
+      forward: dx * forwardX + dz * forwardZ,
+      lateral: dx * rightX + dz * rightZ,
+    };
+  };
+
+  const measured = live.map(local);
+  const engaged = measured.filter(
+    ({ forward, lateral }) => forward >= 11 && forward <= 52 && Math.abs(lateral) <= 21,
+  );
+  if (engaged.length >= 3) return;
+  if (state.cooldown > 0) return;
+
+  const engagedIds = new Set(engaged.map(({ enemy }) => enemy.id));
+  const candidates = measured
+    .filter(({ enemy }) => !engagedIds.has(enemy.id))
+    .sort((left, right) => {
+      const penalty = ({ forward, lateral }: typeof left) =>
+        Math.abs(lateral)
+        + Math.max(0, 11 - forward) * 2.2
+        + Math.max(0, forward - 52) * 1.6;
+      return penalty(right) - penalty(left);
+    });
+  const needed = Math.min(3 - engaged.length, candidates.length, 2);
+  for (let index = 0; index < needed; index += 1) {
+    const target = candidates[index].enemy;
+    const slot = SKY_RAID_ENGAGEMENT_SLOTS[(state.cursor + index) % SKY_RAID_ENGAGEMENT_SLOTS.length];
+    target.x = snapshot.x + forwardX * slot.forward + rightX * slot.lateral;
+    target.z = snapshot.z + forwardZ * slot.forward + rightZ * slot.lateral;
+    target.heading = Math.atan2(snapshot.x - target.x, snapshot.z - target.z);
+    target.aiClock = 0;
+    target.chargeTime = 0;
+  }
+  state.cursor = (state.cursor + needed) % SKY_RAID_ENGAGEMENT_SLOTS.length;
+  state.cooldown = needed > 0 ? 0.42 : 0.18;
 }
 
 function publishSkyRaidWorldStyle(snapshot: SkyDancerSkyRaidSnapshot): void {
@@ -576,9 +652,10 @@ export function installSkyDancerSkyRaid(): void {
   sessionPrototype.step = function skyRaidStep(this: RaidSession, input: RallyInputState, fixedDelta = 1 / 60): void {
     previousStep.call(this, input, fixedDelta);
     if (!isSkyRaidMode()) return;
+    const delta = clamp(fixedDelta, 0, 0.05);
+    maintainSkyRaidEnemyPresence(this as unknown as CartArenaSession, delta);
     const hunt = getCartTurboHuntSnapshot(this as unknown as CartArenaSession);
     if (!hunt) return;
-    const delta = clamp(fixedDelta, 0, 0.05);
     const snapshot = updateRaid(this, hunt, delta);
     publishSkyRaidWorldStyle(snapshot);
     const state = stateFor(this, hunt);
