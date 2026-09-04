@@ -11,11 +11,17 @@ permissions:
 jobs:
   patch:
     runs-on: ubuntu-latest
-    timeout-minutes: 8
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v5
         with:
           fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
       - name: Add distance-based enemy silhouette assist
         run: |
           python3 - <<'PY'
@@ -27,37 +33,37 @@ jobs:
           clamp_anchor = '''function clamp(value: number, min: number, max: number): number {\n  return Math.max(min, Math.min(max, value));\n}\n'''
           assist_block = '''function clamp(value: number, min: number, max: number): number {\n  return Math.max(min, Math.min(max, value));\n}\n\nconst SKY_RAID_ENEMY_VISUAL_ASSIST_MIN = 1.03;\nconst SKY_RAID_ENEMY_VISUAL_ASSIST_MAX = 1.20;\n\n/**\n * Phone screens make a physically-sized fighter at 40-58m read smaller than the\n * targeting UI. SKY RAID applies a restrained presentation-only silhouette assist\n * to normal enemies. Simulation positions, radii, hitboxes and missile math stay\n * untouched; close aircraft remain almost exactly authored size.\n */\nfunction applySkyRaidEnemySilhouetteAssist(\n  demo: RaidWebGLDemo,\n  snapshot: ReturnType<CartArenaSession[\"snapshot\"]>,\n): void {\n  const playerAltitude = Number(demo.scene.userData.skyRaidPlayerAltitude ?? 20);\n  for (const enemy of snapshot.enemies) {\n    const group = demo.enemyGroups.get(enemy.id);\n    if (!group) continue;\n    if (!Number.isFinite(Number(group.userData.skyRaidBaseScaleX))) {\n      group.userData.skyRaidBaseScaleX = group.scale.x;\n      group.userData.skyRaidBaseScaleY = group.scale.y;\n      group.userData.skyRaidBaseScaleZ = group.scale.z;\n    }\n    const baseX = Number(group.userData.skyRaidBaseScaleX ?? 1);\n    const baseY = Number(group.userData.skyRaidBaseScaleY ?? 1);\n    const baseZ = Number(group.userData.skyRaidBaseScaleZ ?? 1);\n    if (!enemy.alive || enemy.kind === \"boss\") {\n      group.scale.set(baseX, baseY, baseZ);\n      group.userData.skyRaidVisualAssistScale = 1;\n      continue;\n    }\n    const dx = enemy.x - snapshot.x;\n    const dz = enemy.z - snapshot.z;\n    const dy = getSkyDancerEnemyAltitudeMetersV43(enemy) - playerAltitude;\n    const distance = Math.hypot(dx, dy, dz);\n    const distanceBlend = clamp((distance - 18) / 40, 0, 1);\n    const assist = SKY_RAID_ENEMY_VISUAL_ASSIST_MIN\n      + distanceBlend * (SKY_RAID_ENEMY_VISUAL_ASSIST_MAX - SKY_RAID_ENEMY_VISUAL_ASSIST_MIN);\n    group.scale.set(baseX * assist, baseY * assist, baseZ * assist);\n    group.userData.skyRaidVisualAssistScale = assist;\n  }\n}\n\nfunction restoreSkyRaidEnemySilhouetteAssist(demo: RaidWebGLDemo): void {\n  for (const group of demo.enemyGroups.values()) {\n    if (!Number.isFinite(Number(group.userData.skyRaidBaseScaleX))) continue;\n    group.scale.set(\n      Number(group.userData.skyRaidBaseScaleX ?? 1),\n      Number(group.userData.skyRaidBaseScaleY ?? 1),\n      Number(group.userData.skyRaidBaseScaleZ ?? 1),\n    );\n    group.userData.skyRaidVisualAssistScale = 1;\n  }\n}\n'''
           if 'SKY_RAID_ENEMY_VISUAL_ASSIST_MAX' not in source:
-            if clamp_anchor not in source:
-              raise SystemExit('clamp anchor missing')
-            source = source.replace(clamp_anchor, assist_block, 1)
+              if clamp_anchor not in source:
+                  raise SystemExit('clamp anchor missing')
+              source = source.replace(clamp_anchor, assist_block, 1)
 
           old_non_mode = '''  if (!isSkyRaidMode()) {\n    visual.root.visible = false;\n    visual.speedFx.visible = false;\n    return;\n  }\n'''
           new_non_mode = '''  if (!isSkyRaidMode()) {\n    visual.root.visible = false;\n    visual.speedFx.visible = false;\n    restoreSkyRaidEnemySilhouetteAssist(demo);\n    return;\n  }\n'''
           if old_non_mode in source:
-            source = source.replace(old_non_mode, new_non_mode, 1)
+              source = source.replace(old_non_mode, new_non_mode, 1)
           elif new_non_mode not in source:
-            raise SystemExit('non-mode reset anchor missing')
+              raise SystemExit('non-mode reset anchor missing')
 
           old_final = '''  applySkyRaidEnemyFlightBand(this);\n  const altitude = Number(this.scene.userData.skyRaidPlayerAltitude ?? 0);\n'''
           new_final = '''  applySkyRaidEnemyFlightBand(this);\n  applySkyRaidEnemySilhouetteAssist(this, snapshot);\n  const altitude = Number(this.scene.userData.skyRaidPlayerAltitude ?? 0);\n'''
           if old_final in source:
-            source = source.replace(old_final, new_final, 1)
+              source = source.replace(old_final, new_final, 1)
           elif new_final not in source:
-            raise SystemExit('final presentation assist anchor missing')
+              raise SystemExit('final presentation assist anchor missing')
 
           old_type = 'const enemyScreenSamples: Array<{ id: string; x: number; y: number; z: number; visible: boolean; worldY: number; localY: number; boundsY: number; relativeY: number; forward: number; lateral: number }> = [];'
           new_type = 'const enemyScreenSamples: Array<{ id: string; x: number; y: number; z: number; visible: boolean; worldY: number; localY: number; boundsY: number; relativeY: number; forward: number; lateral: number; visualScale: number }> = [];'
           if old_type in source:
-            source = source.replace(old_type, new_type, 1)
+              source = source.replace(old_type, new_type, 1)
           elif new_type not in source:
-            raise SystemExit('enemy sample type anchor missing')
+              raise SystemExit('enemy sample type anchor missing')
 
           old_sample = '''    lateral: dx * rightX + dz * rightZ,\n  });\n'''
           new_sample = '''    lateral: dx * rightX + dz * rightZ,\n    visualScale: Number(group.userData.skyRaidVisualAssistScale ?? 1),\n  });\n'''
           if old_sample in source:
-            source = source.replace(old_sample, new_sample, 1)
+              source = source.replace(old_sample, new_sample, 1)
           elif new_sample not in source:
-            raise SystemExit('enemy sample payload anchor missing')
+              raise SystemExit('enemy sample payload anchor missing')
 
           path.write_text(source)
 
@@ -66,10 +72,10 @@ jobs:
           test_anchor = '''  assert.match(raidSource, /dataset\\.skyRaidFormationBeat/);\n'''
           test_insert = '''  assert.match(raidSource, /dataset\\.skyRaidFormationBeat/);\n  assert.match(raidSource, /SKY_RAID_ENEMY_VISUAL_ASSIST_MAX = 1\\.20/);\n  assert.match(raidSource, /applySkyRaidEnemySilhouetteAssist\\(this, snapshot\\)/);\n  assert.match(raidSource, /skyRaidVisualAssistScale = assist/);\n'''
           if 'SKY_RAID_ENEMY_VISUAL_ASSIST_MAX = 1\\.20' not in test:
-            if test_anchor not in test:
-              raise SystemExit('test anchor missing')
-            test = test.replace(test_anchor, test_insert, 1)
-            test_path.write_text(test)
+              if test_anchor not in test:
+                  raise SystemExit('test anchor missing')
+              test = test.replace(test_anchor, test_insert, 1)
+              test_path.write_text(test)
           PY
       - name: Fast tests
         run: npm run test:fast
