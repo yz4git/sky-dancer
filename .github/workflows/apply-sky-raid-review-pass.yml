@@ -16,45 +16,43 @@ jobs:
       - uses: actions/checkout@v5
         with:
           fetch-depth: 0
-      - name: Instrument enemy render altitude
+      - name: Move enemy altitude ownership to final presentation
         run: |
           python3 - <<'PY'
           from pathlib import Path
           path = Path('src/sky/SkyDancerSkyRaid.ts')
           source = path.read_text()
-          old_type = 'const enemyScreenSamples: Array<{ id: string; x: number; y: number; z: number; visible: boolean }> = [];'
-          new_type = 'const enemyScreenSamples: Array<{ id: string; x: number; y: number; z: number; visible: boolean; worldY: number; localY: number; boundsY: number; relativeY: number; forward: number; lateral: number }> = [];'
-          source = source.replace(old_type, new_type)
-          old_push = 'if (enemyScreenSamples.length < 8) enemyScreenSamples.push({ id: enemy.id, x: ndc.x, y: ndc.y, z: ndc.z, visible });'
-          new_push = '''if (enemyScreenSamples.length < 8) {
-            const boundsCenter = new THREE.Vector3();
-            new THREE.Box3().setFromObject(group).getCenter(boundsCenter);
-            const dx = world.x - player.x;
-            const dz = world.z - player.z;
-            enemyScreenSamples.push({
-              id: enemy.id,
-              x: ndc.x,
-              y: ndc.y,
-              z: ndc.z,
-              visible,
-              worldY: world.y,
-              localY: group.position.y,
-              boundsY: boundsCenter.y,
-              relativeY: world.y - player.y,
-              forward: dx * forwardX + dz * forwardZ,
-              lateral: dx * rightX + dz * rightZ,
-            });
-          }'''
-          if old_push not in source and 'boundsY: boundsCenter.y' not in source:
-              raise SystemExit('enemy sample marker missing')
-          source = source.replace(old_push, new_push)
+          old = '''  previousApplyCameraPresentation.call(this, snapshot);
+  if (!isSkyRaidMode()) return;
+  const altitude = Number(this.scene.userData.skyRaidPlayerAltitude ?? 0);'''
+          new = '''  previousApplyCameraPresentation.call(this, snapshot);
+  if (!isSkyRaidMode()) return;
+  // Older aircraft FX still writes the historical ~1m enemy flight plane during
+  // its late presentation update. SKY RAID owns the final render altitude, so
+  // restore the shared 20-64m combat band here, immediately before camera/render.
+  applySkyRaidEnemyFlightBand(this);
+  const altitude = Number(this.scene.userData.skyRaidPlayerAltitude ?? 0);'''
+          if 'immediately before camera/render' not in source:
+              if old not in source:
+                  raise SystemExit('final camera ownership marker missing')
+              source = source.replace(old, new, 1)
           path.write_text(source)
+
+          test_path = Path('tests/sky-sky-raid.test.ts')
+          tests = test_path.read_text()
+          anchor = '  assert.match(raidSource, /applySkyRaidEnemyFlightBand/);\n'
+          check = '  assert.match(raidSource, /previousApplyCameraPresentation[\\s\\S]{0,240}applySkyRaidEnemyFlightBand\\(this\\)/);\n'
+          if check not in tests:
+              if anchor not in tests:
+                  raise SystemExit('test marker missing')
+              tests = tests.replace(anchor, anchor + check, 1)
+          test_path.write_text(tests)
           PY
-      - name: Commit diagnostics
+      - name: Commit final altitude owner
         run: |
-          if git diff --quiet -- src/sky/SkyDancerSkyRaid.ts; then exit 0; fi
+          if git diff --quiet -- src/sky/SkyDancerSkyRaid.ts tests/sky-sky-raid.test.ts; then exit 0; fi
           git config user.name "yz4git"
           git config user.email "65384484+yz4git@users.noreply.github.com"
-          git add src/sky/SkyDancerSkyRaid.ts
-          git commit -m "Expose SKY RAID enemy render altitude diagnostics"
+          git add src/sky/SkyDancerSkyRaid.ts tests/sky-sky-raid.test.ts
+          git commit -m "Keep SKY RAID enemies on the final render flight band"
           git push origin HEAD:main
