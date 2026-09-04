@@ -38,13 +38,16 @@ export class SkyDancerAirCombatFxV18 extends SkyDancerAirCombatFxV17 {
       depthWrite: false,
       toneMapped: false,
     });
-    this.missileWarningRing = new THREE.Mesh(new THREE.TorusGeometry(0.15, 0.008, 4, 28), warningMaterial);
+    // This legacy camera-space cue used to fill most of a phone viewport
+    // under the newer SKY RAID chase camera. Keep it as a compact threat halo
+    // around the aircraft; the top HUD now carries the explicit warning text.
+    this.missileWarningRing = new THREE.Mesh(new THREE.TorusGeometry(0.078, 0.0055, 4, 24), warningMaterial);
     this.missileWarningRing.renderOrder = 1200;
     this.missileWarningRoot.add(this.missileWarningRing);
     for (let index = 0; index < 4; index += 1) {
-      const marker = new THREE.Mesh(new THREE.BoxGeometry(0.052, 0.012, 0.004), warningMaterial.clone());
+      const marker = new THREE.Mesh(new THREE.BoxGeometry(0.030, 0.007, 0.004), warningMaterial.clone());
       const angle = index * Math.PI * 0.5;
-      marker.position.set(Math.cos(angle) * 0.205, Math.sin(angle) * 0.205, 0);
+      marker.position.set(Math.cos(angle) * 0.108, Math.sin(angle) * 0.108, 0);
       marker.rotation.z = angle;
       marker.renderOrder = 1200;
       this.missileWarningRoot.add(marker);
@@ -162,13 +165,13 @@ export class SkyDancerAirCombatFxV18 extends SkyDancerAirCombatFxV17 {
     const urgent = nearest < 12;
     const color = urgent ? 0xff554d : 0xffbd55;
     const pulse = 0.85 + Math.sin(this.elapsedV18 * (urgent ? 19 : 11)) * 0.15;
-    this.missileWarningRoot.rotation.z += delta * (urgent ? 1.8 : 0.8);
-    this.missileWarningRoot.scale.setScalar(0.9 + strength * 0.2 + pulse * 0.05);
+    this.missileWarningRoot.rotation.z += delta * (urgent ? 0.72 : 0.38);
+    this.missileWarningRoot.scale.setScalar(0.92 + strength * 0.12 + pulse * 0.025);
     for (const child of this.missileWarningRoot.children) {
       if (!(child instanceof THREE.Mesh)) continue;
       const material = child.material as THREE.MeshBasicMaterial;
       material.color.setHex(color);
-      material.opacity = 0.28 + strength * 0.68 * pulse;
+      material.opacity = 0.18 + strength * 0.44 * pulse;
     }
   }
 
