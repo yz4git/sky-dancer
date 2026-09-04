@@ -24,12 +24,12 @@ jobs:
         run: node scripts/apply-sky-raid-review-pass.mjs
       - name: Commit source improvements
         run: |
-          if git diff --quiet -- src/cart/CartRoguePhase67TurboHunt.ts app/SkyDancerHudV45.tsx src/sky/SkyDancerAirCombatFxV18.ts; then
+          if git diff --quiet -- src/cart/CartRoguePhase67TurboHunt.ts src/sky/SkyDancerPlayerWeapons.ts app/SkyDancerHudV45.tsx src/sky/SkyDancerAirCombatFxV18.ts tests/sky-sky-raid.test.ts; then
             echo "No source changes required"
             exit 0
           fi
           git config user.name "yz4git"
           git config user.email "65384484+yz4git@users.noreply.github.com"
-          git add src/cart/CartRoguePhase67TurboHunt.ts app/SkyDancerHudV45.tsx src/sky/SkyDancerAirCombatFxV18.ts
-          git commit -m "Improve SKY RAID combat readability and missile warning cue"
+          git add src/cart/CartRoguePhase67TurboHunt.ts src/sky/SkyDancerPlayerWeapons.ts app/SkyDancerHudV45.tsx src/sky/SkyDancerAirCombatFxV18.ts tests/sky-sky-raid.test.ts
+          git commit -m "Make SKY RAID missile defeats count exactly once"
           git push origin HEAD:main
