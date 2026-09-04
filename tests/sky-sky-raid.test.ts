@@ -93,6 +93,34 @@ test("SKY RAID wires enemy packages into Hunt spawning, flight AI and missile en
   assert.match(auditSource, /enemyClasses/);
 });
 
+test("SKY RAID publishes mode ownership before the first inherited population step", () => {
+  const shellSource = readFileSync(new URL("../app/CartRogueGamePhase13.tsx", import.meta.url), "utf8");
+  const populationSource = readFileSync(new URL("../src/sky/SkyDancerEnemyPopulation.ts", import.meta.url), "utf8");
+  assert.match(shellSource, /const startRun[\s\S]*dataset\.skyDancerMode = request\.mode[\s\S]*setActiveRequest\(request\)/);
+  assert.match(shellSource, /useEffect\(\(\) => \{\s*document\.documentElement\.dataset\.skyDancerMode = activeRequest\?\.mode \?\? "title";\s*\}, \[activeRequest\?\.mode\]\)/);
+  assert.match(shellSource, /useEffect\(\(\) => \(\) => \{\s*delete document\.documentElement\.dataset\.skyDancerMode;\s*\}, \[\]\)/);
+  assert.match(shellSource, /const returnToTitle[\s\S]*dataset\.skyDancerMode = "title"[\s\S]*setActiveRequest\(null\)/);
+  assert.doesNotMatch(shellSource, /dataset\.skyDancerMode = activeRequest\?\.mode \?\? "title";\s*return \(\) =>/);
+  assert.match(populationSource, /const target = isSkyRaidMode\(\)\s*\? regular\.length/);
+});
+
+test("SKY RAID bootstraps Hunt gameplay without rebuilding the legacy Hunt world", () => {
+  const raidSource = readFileSync(new URL("../src/sky/SkyDancerSkyRaid.ts", import.meta.url), "utf8");
+  assert.match(raidSource, /enableCartTurboHunt,/);
+  assert.match(raidSource, /if \(isSkyRaidMode\(\)\) \{[\s\S]*enableCartTurboHunt\(this\.session\);[\s\S]*\} else \{[\s\S]*previousBuildWorld\.call\(this\)/);
+  assert.doesNotMatch(raidSource, /if \(!isSkyRaidMode\(\)\) previousBuildWorld\.call\(this\)/);
+});
+
+test("SKY RAID keeps the full roster pool while capping live phone density by act", () => {
+  assert.deepEqual(SKY_DANCER_SKY_RAID_ACTS.map((act) => skyDancerSkyRaidEnemyDoctrine(act.id).activeTargetCount), [6, 6, 7, 7, 7]);
+  const raidSource = readFileSync(new URL("../src/sky/SkyDancerSkyRaid.ts", import.meta.url), "utf8");
+  const huntSource = readFileSync(new URL("../src/cart/CartRoguePhase67TurboHunt.ts", import.meta.url), "utf8");
+  assert.match(raidSource, /setCartTurboHuntActiveTargetCountResolver/);
+  assert.match(raidSource, /activeTargetCount/);
+  assert.match(huntSource, /function resolvedActiveTargetCount\(state: TurboHuntState\)/);
+  assert.match(huntSource, /const desired = resolvedActiveTargetCount\(state\)/);
+});
+
 test("SKY RAID bypasses campaign StageCycle population truncation", () => {
   const source = readFileSync(new URL("../src/sky/SkyDancerStageCycle.ts", import.meta.url), "utf8");
   assert.match(source, /dataset\.skyDancerMode === "sky-raid"/);

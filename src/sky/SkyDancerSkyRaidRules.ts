@@ -203,6 +203,7 @@ export interface SkyDancerSkyRaidEnemyDoctrine {
     SkyDancerSkyRaidEnemyClass,
   ];
   attackStyle: SkyDancerSkyRaidAttackStyle;
+  activeTargetCount: number;
   speedScale: number;
   turnScale: number;
   missileMinRange: number;
@@ -218,6 +219,7 @@ const SKY_DANCER_SKY_RAID_ENEMY_DOCTRINES: Readonly<Record<SkyDancerSkyRaidActId
     package: "CITY INTERCEPTORS",
     roster: ["standard", "striker", "standard", "orbiter", "drifter", "standard"],
     attackStyle: "intercept",
+    activeTargetCount: 6,
     speedScale: 1,
     turnScale: 1,
     missileMinRange: 8,
@@ -231,6 +233,7 @@ const SKY_DANCER_SKY_RAID_ENEMY_DOCTRINES: Readonly<Record<SkyDancerSkyRaidActId
     package: "CANYON KNIVES",
     roster: ["drifter", "striker", "drifter", "striker", "standard", "drifter"],
     attackStyle: "knife",
+    activeTargetCount: 6,
     speedScale: 1.09,
     turnScale: 1.18,
     missileMinRange: 7,
@@ -244,6 +247,7 @@ const SKY_DANCER_SKY_RAID_ENEMY_DOCTRINES: Readonly<Record<SkyDancerSkyRaidActId
     package: "FLEET ESCORT",
     roster: ["orbiter", "bomber", "heavy", "orbiter", "bomber", "standard"],
     attackStyle: "escort",
+    activeTargetCount: 7,
     speedScale: 0.94,
     turnScale: 0.90,
     missileMinRange: 13,
@@ -257,6 +261,7 @@ const SKY_DANCER_SKY_RAID_ENEMY_DOCTRINES: Readonly<Record<SkyDancerSkyRaidActId
     package: "THUNDER HUNTERS",
     roster: ["striker", "drifter", "bomber", "striker", "drifter", "standard"],
     attackStyle: "pincer",
+    activeTargetCount: 7,
     speedScale: 1.12,
     turnScale: 1.15,
     missileMinRange: 8,
@@ -270,6 +275,7 @@ const SKY_DANCER_SKY_RAID_ENEMY_DOCTRINES: Readonly<Record<SkyDancerSkyRaidActId
     package: "PRISM SIEGE WING",
     roster: ["heavy", "orbiter", "bomber", "striker", "heavy", "orbiter"],
     attackStyle: "siege",
+    activeTargetCount: 7,
     speedScale: 1.02,
     turnScale: 1.02,
     missileMinRange: 14,

@@ -40,6 +40,7 @@ export default function CartRogueGamePhase13() {
   useEffect(() => {
     if (!navigator.webdriver || new URLSearchParams(location.search).has("menu")) return undefined;
     const timer = window.setTimeout(() => {
+      document.documentElement.dataset.skyDancerMode = "turbo-hunt";
       setCartRunDifficulty("normal");
       setActiveRequest({ mode: "turbo-hunt", difficulty: "normal" });
     }, 0);
@@ -48,8 +49,19 @@ export default function CartRogueGamePhase13() {
 
   useEffect(() => {
     document.documentElement.dataset.skyDancerMode = activeRequest?.mode ?? "title";
-    return () => { delete document.documentElement.dataset.skyDancerMode; };
   }, [activeRequest?.mode]);
+
+  useEffect(() => () => {
+    delete document.documentElement.dataset.skyDancerMode;
+  }, []);
+
+  const returnToTitle = () => {
+    // Publish title ownership synchronously. startRun already publishes the
+    // requested mode before mounting the renderer, and the keyed mode effect
+    // no longer erases that marker during dependency cleanup.
+    document.documentElement.dataset.skyDancerMode = "title";
+    setActiveRequest(null);
+  };
 
   return <>
     {activeRequest?.mode === "turbo-hunt" && (
@@ -82,13 +94,13 @@ export default function CartRogueGamePhase13() {
       </Fragment>
     )}
     {activeRequest && (activeRequest.mode === "arcade-run" || activeRequest.mode === "stage-practice") && (
-      <SkyDancerArcadeMode key={runKey} request={activeRequest} onReturnTitle={() => setActiveRequest(null)} />
+      <SkyDancerArcadeMode key={runKey} request={activeRequest} onReturnTitle={returnToTitle} />
     )}
     <CartGameMenu
       started={activeRequest !== null}
       activeMode={activeRequest?.mode ?? null}
       onStart={startRun}
-      onReturnTitle={() => setActiveRequest(null)}
+      onReturnTitle={returnToTitle}
     />
   </>;
 }

@@ -3,9 +3,11 @@ import { CartArenaSession } from "../cart/CartArenaSession";
 import { CartRogueCanvasPreview } from "../cart/CartRogueCanvasPreview";
 import { CartRogueWebGLDemo } from "../cart/CartRogueWebGLDemo";
 import {
+  enableCartTurboHunt,
   forceCartTurboHuntBoss,
   getCartTurboHuntSnapshot,
   reseedCartTurboHuntActiveTargets,
+  setCartTurboHuntActiveTargetCountResolver,
   setCartTurboHuntSpawnPreference,
   type CartTurboHuntSnapshot,
 } from "../cart/CartRoguePhase67TurboHunt";
@@ -1027,6 +1029,10 @@ function updateRaidVisuals(demo: RaidWebGLDemo, delta: number, flight: SkyDancer
 }
 
 export function installSkyDancerSkyRaid(): void {
+  setCartTurboHuntActiveTargetCountResolver((context) => {
+    if (!isSkyRaidMode()) return context.defaultCount;
+    return skyDancerSkyRaidEnemyDoctrine(skyDancerSkyRaidActFor(context.elapsedSeconds).id).activeTargetCount;
+  });
   setCartTurboHuntSpawnPreference((enemy, context) => {
     if (!isSkyRaidMode()) return 0;
     return skyDancerSkyRaidSpawnPreference(enemy, context.elapsedSeconds, context.spawnSerial);
@@ -1073,7 +1079,15 @@ export function installSkyDancerSkyRaid(): void {
   };
   const previousBuildWorld = webglPrototype.buildWorld;
   webglPrototype.buildWorld = function skyRaidBuildWorld(this: RaidWebGLDemo): void {
-    if (!isSkyRaidMode()) previousBuildWorld.call(this);
+    if (isSkyRaidMode()) {
+      // Turbo Hunt's buildWorld wrapper owns the gameplay bootstrap as well as
+      // its legacy ground visuals. SKY RAID needs the former but intentionally
+      // replaces the latter, so initialize the Hunt session explicitly instead
+      // of depending on a mode-detection race to enter previousBuildWorld().
+      enableCartTurboHunt(this.session);
+    } else {
+      previousBuildWorld.call(this);
+    }
     buildRaidVisuals(this);
   };
   const previousUpdateVisuals = webglPrototype.updateVisuals;

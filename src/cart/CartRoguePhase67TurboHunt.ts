@@ -182,6 +182,19 @@ export function setCartTurboHuntSpawnPreference(preference: CartTurboHuntSpawnPr
   externalSpawnPreference = preference;
 }
 
+export interface CartTurboHuntActiveTargetCountContext {
+  elapsedSeconds: number;
+  phase: CartTurboHuntPhase;
+  defaultCount: number;
+}
+
+export type CartTurboHuntActiveTargetCountResolver = (context: CartTurboHuntActiveTargetCountContext) => number;
+let externalActiveTargetCountResolver: CartTurboHuntActiveTargetCountResolver | null = null;
+
+export function setCartTurboHuntActiveTargetCountResolver(resolver: CartTurboHuntActiveTargetCountResolver | null): void {
+  externalActiveTargetCountResolver = resolver;
+}
+
 export function setCartTurboHuntExternalProgressionEnabled(enabled: boolean): void {
   externalProgressionEnabled = enabled;
 }
@@ -193,6 +206,17 @@ export function setCartTurboHuntExternalOrdersCompleted(session: CartArenaSessio
 
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
+}
+
+function resolvedActiveTargetCount(state: TurboHuntState): number {
+  const defaultCount = cartTurboHuntActiveTargetCount(state.phase);
+  if (!externalActiveTargetCountResolver) return defaultCount;
+  const resolved = Number(externalActiveTargetCountResolver({
+    elapsedSeconds: state.elapsed,
+    phase: state.phase,
+    defaultCount,
+  }));
+  return Number.isFinite(resolved) ? clamp(Math.floor(resolved), 0, 18) : defaultCount;
 }
 
 function normalizeAngle(angle: number): number {
@@ -600,7 +624,7 @@ export function reseedCartTurboHuntActiveTargets(session: CartArenaSession): num
   state.spentBombers.clear();
   state.spawnSerial = 0;
 
-  const desired = cartTurboHuntActiveTargetCount(state.phase);
+  const desired = resolvedActiveTargetCount(state);
   let spawned = 0;
   while (spawned < desired && spawned < 20) {
     if (!spawnSupportEnemy(raw, state, spawned)) break;
@@ -611,7 +635,7 @@ export function reseedCartTurboHuntActiveTargets(session: CartArenaSession): num
 
 function ensureTargetPopulation(session: MutableHuntSession, state: TurboHuntState): void {
   if (state.phase === "clear") return;
-  const desired = cartTurboHuntActiveTargetCount(state.phase);
+  const desired = resolvedActiveTargetCount(state);
   let active = session.enemies.filter((enemy) => enemy.alive && enemy.kind !== "boss").length;
   let slot = 0;
   while (active < desired && slot < 20) {
