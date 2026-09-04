@@ -296,13 +296,10 @@ if (Math.abs(reticleCenterX - decisionCenterX) < 34 && Math.abs(reticleCenterY -
   await screenshot("04-compact-missile-warning.png");
   await page.evaluate(() => { delete window.__skyRaidAuditForceMissileWarning; });
 
-  // V20 speed review: hold the real Turbo control so the screenshot validates
-  // peripheral airflow and camera-language response rather than a debug-only FX.
-  const turboButton = page.locator("button").filter({ hasText: /TURBO/i }).last();
-  const turboBox = await turboButton.boundingBox();
-  if (!turboBox) throw new Error("Turbo control missing for V20 speed audit");
-  await page.mouse.move(turboBox.x + turboBox.width * 0.5, turboBox.y + turboBox.height * 0.5);
-  await page.mouse.down();
+  // V20 speed review: use the proven real product Turbo input path from the
+  // dedicated Turbo isolation audit. Space enters the same hold/release model
+  // as the touch control while remaining deterministic in headless Chromium.
+  await page.keyboard.down("Space");
   await page.waitForFunction(() => window.__skyRaidGetSpeedPolish?.()?.turboHeld === true, null, { timeout: 3000 });
   await page.waitForTimeout(420);
   const speedVisual = await page.evaluate(() => window.__skyRaidGetSpeedPolish?.() ?? null);
@@ -313,13 +310,17 @@ if (Math.abs(reticleCenterX - decisionCenterX) < 34 && Math.abs(reticleCenterY -
     throw new Error(`Turbo speed streaks invaded the central combat lane: ${JSON.stringify(speedVisual)}`);
   }
   await screenshot("05-turbo-speed-polish.png");
-  await page.mouse.up();
-  await page.waitForTimeout(100);
+  await page.keyboard.up("Space");
+  await page.waitForTimeout(160);
+  const speedReleaseVisual = await page.evaluate(() => window.__skyRaidGetSpeedPolish?.() ?? null);
+  if (!speedReleaseVisual || speedReleaseVisual.turboHeld !== false || Number(speedReleaseVisual.turboReleaseFx ?? 0) < 0.45) {
+    throw new Error(`Turbo release speed tail is missing: ${JSON.stringify(speedReleaseVisual)}`);
+  }
+  await screenshot("06-turbo-release-polish.png");
 
-  await page.mouse.up();
   await clearAuditAltitude();
 
-  const report = { desiredPlayerNdcY, baselineFrameTolerance, padBox, visualRingBox, captionBox, reticleBox, decisionBox, combatDiagnostics, targetDownConfirmation, warningVisual, speedVisual, baseline, realClimb, high, beforeDive, realDive, low, errors };
+  const report = { desiredPlayerNdcY, baselineFrameTolerance, padBox, visualRingBox, captionBox, reticleBox, decisionBox, combatDiagnostics, targetDownConfirmation, warningVisual, speedVisual, speedReleaseVisual, baseline, realClimb, high, beforeDive, realDive, low, errors };
   fs.writeFileSync(path.join(out, "report.json"), JSON.stringify(report, null, 2));
   if (errors.length) throw new Error(JSON.stringify(errors));
   console.log("SKY RAID V18 PASS", JSON.stringify(report));

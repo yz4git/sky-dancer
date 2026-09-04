@@ -162,7 +162,10 @@ test("SKY RAID V20 speed language stays peripheral and presentation-only", () =>
   assert.match(raidSource, /const turboState = getSkyDancerTurboState\(demo\.session\)/);
   assert.match(raidSource, /const turboFx = turboState\.held \? 1 : turboReleaseFx/);
   assert.doesNotMatch(raidSource, /const turboFx = base\.boostActive \? 1 : 0/);
+  assert.match(auditSource, /page\.keyboard\.down\("Space"\)/);
   assert.match(auditSource, /turboHeld === true/);
+  assert.match(auditSource, /06-turbo-release-polish\.png/);
+  assert.match(auditSource, /Turbo release speed tail is missing/);
   assert.match(raidSource, /const cruiseFov = clamp\(\(speed - 18\) \* 0\.10, 0, 2\.2\)/);
   assert.match(raidSource, /skyRaidCameraCruiseFov = cruiseFov/);
   assert.match(auditSource, /05-turbo-speed-polish\.png/);
