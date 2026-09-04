@@ -188,3 +188,112 @@ export function skyDancerSkyRaidMultiplier(chain: number, rush: boolean): number
   const chainMultiplier = 1 + Math.min(9, Math.max(0, Math.floor(chain) - 1)) * 0.15;
   return Math.round(chainMultiplier * (rush ? 2 : 1) * 100) / 100;
 }
+
+export type SkyDancerSkyRaidEnemyClass = "standard" | "striker" | "orbiter" | "drifter" | "bomber" | "heavy";
+export type SkyDancerSkyRaidAttackStyle = "intercept" | "knife" | "escort" | "pincer" | "siege";
+
+export interface SkyDancerSkyRaidEnemyDoctrine {
+  package: "CITY INTERCEPTORS" | "CANYON KNIVES" | "FLEET ESCORT" | "THUNDER HUNTERS" | "PRISM SIEGE WING";
+  roster: readonly [
+    SkyDancerSkyRaidEnemyClass,
+    SkyDancerSkyRaidEnemyClass,
+    SkyDancerSkyRaidEnemyClass,
+    SkyDancerSkyRaidEnemyClass,
+    SkyDancerSkyRaidEnemyClass,
+    SkyDancerSkyRaidEnemyClass,
+  ];
+  attackStyle: SkyDancerSkyRaidAttackStyle;
+  speedScale: number;
+  turnScale: number;
+  missileMinRange: number;
+  missileMaxRange: number;
+  missileAimTolerance: number;
+  missileCooldownScale: number;
+  missileTurnScale: number;
+  missileDamageScale: number;
+}
+
+const SKY_DANCER_SKY_RAID_ENEMY_DOCTRINES: Readonly<Record<SkyDancerSkyRaidActId, SkyDancerSkyRaidEnemyDoctrine>> = {
+  "dawn-city": {
+    package: "CITY INTERCEPTORS",
+    roster: ["standard", "striker", "standard", "orbiter", "drifter", "standard"],
+    attackStyle: "intercept",
+    speedScale: 1,
+    turnScale: 1,
+    missileMinRange: 8,
+    missileMaxRange: 42,
+    missileAimTolerance: 0.56,
+    missileCooldownScale: 1.05,
+    missileTurnScale: 1,
+    missileDamageScale: 0.95,
+  },
+  "red-canyon": {
+    package: "CANYON KNIVES",
+    roster: ["drifter", "striker", "drifter", "striker", "standard", "drifter"],
+    attackStyle: "knife",
+    speedScale: 1.09,
+    turnScale: 1.18,
+    missileMinRange: 7,
+    missileMaxRange: 34,
+    missileAimTolerance: 0.70,
+    missileCooldownScale: 0.92,
+    missileTurnScale: 1.12,
+    missileDamageScale: 0.88,
+  },
+  "cloud-fleet": {
+    package: "FLEET ESCORT",
+    roster: ["orbiter", "bomber", "heavy", "orbiter", "bomber", "standard"],
+    attackStyle: "escort",
+    speedScale: 0.94,
+    turnScale: 0.90,
+    missileMinRange: 13,
+    missileMaxRange: 48,
+    missileAimTolerance: 0.74,
+    missileCooldownScale: 1.14,
+    missileTurnScale: 0.90,
+    missileDamageScale: 1.10,
+  },
+  "storm-carrier": {
+    package: "THUNDER HUNTERS",
+    roster: ["striker", "drifter", "bomber", "striker", "drifter", "standard"],
+    attackStyle: "pincer",
+    speedScale: 1.12,
+    turnScale: 1.15,
+    missileMinRange: 8,
+    missileMaxRange: 45,
+    missileAimTolerance: 0.64,
+    missileCooldownScale: 0.78,
+    missileTurnScale: 1.08,
+    missileDamageScale: 1,
+  },
+  "prism-citadel": {
+    package: "PRISM SIEGE WING",
+    roster: ["heavy", "orbiter", "bomber", "striker", "heavy", "orbiter"],
+    attackStyle: "siege",
+    speedScale: 1.02,
+    turnScale: 1.02,
+    missileMinRange: 14,
+    missileMaxRange: 51,
+    missileAimTolerance: 0.78,
+    missileCooldownScale: 0.86,
+    missileTurnScale: 1.15,
+    missileDamageScale: 1.08,
+  },
+};
+
+export function skyDancerSkyRaidEnemyDoctrine(actId: SkyDancerSkyRaidActId): SkyDancerSkyRaidEnemyDoctrine {
+  return SKY_DANCER_SKY_RAID_ENEMY_DOCTRINES[actId];
+}
+
+export function skyDancerSkyRaidEnemySpawnPriority(
+  actId: SkyDancerSkyRaidActId,
+  enemyClass: SkyDancerSkyRaidEnemyClass,
+  spawnSerial: number,
+): number {
+  const doctrine = skyDancerSkyRaidEnemyDoctrine(actId);
+  const preferred = doctrine.roster[Math.abs(Math.floor(spawnSerial)) % doctrine.roster.length];
+  if (enemyClass === preferred) return 100;
+  const supportingIndex = doctrine.roster.indexOf(enemyClass);
+  if (supportingIndex >= 0) return 36 - supportingIndex * 2;
+  return enemyClass === "heavy" ? -18 : 0;
+}

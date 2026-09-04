@@ -367,6 +367,13 @@ export function installSkyDancerStageCycle(): void {
     input: RallyInputState,
     fixedDelta?: number,
   ): void {
+    // SKY RAID owns its own two-minute Act progression and needs the complete
+    // Turbo Hunt aircraft pool so V23 can select real class-specific airframes.
+    // Campaign StageCycle remains unchanged for every other mode.
+    if (typeof document !== "undefined" && document.documentElement.dataset.skyDancerMode === "sky-raid") {
+      previous.call(this, input, fixedDelta);
+      return;
+    }
     const concrete = this as unknown as CartArenaSession;
     if (!isCartTurboHuntEnabled(concrete)) {
       previous.call(this, input, fixedDelta);

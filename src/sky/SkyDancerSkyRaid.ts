@@ -5,6 +5,8 @@ import { CartRogueWebGLDemo } from "../cart/CartRogueWebGLDemo";
 import {
   forceCartTurboHuntBoss,
   getCartTurboHuntSnapshot,
+  reseedCartTurboHuntActiveTargets,
+  setCartTurboHuntSpawnPreference,
   type CartTurboHuntSnapshot,
 } from "../cart/CartRoguePhase67TurboHunt";
 import {
@@ -14,6 +16,7 @@ import {
   skyDancerSkyRaidActFor,
   skyDancerSkyRaidActSeconds,
   skyDancerSkyRaidCombatProfile,
+  skyDancerSkyRaidEnemyDoctrine,
   skyDancerSkyRaidKillScore,
   skyDancerSkyRaidMultiplier,
   skyDancerSkyRaidPressure,
@@ -26,6 +29,11 @@ import {
 import type { RallyInputState } from "../rally/RallyTypes";
 import { SkyDancerSkyRaidFlightController, type SkyDancerSkyRaidFlightSnapshot } from "./SkyDancerSkyRaidFlight";
 import { SkyDancerSkyRaidArcadeWorld } from "./SkyDancerSkyRaidArcadeWorld";
+import {
+  setSkyDancerSkyRaidEnemyDoctrineElapsed,
+  skyDancerSkyRaidEnemyClassFor,
+  skyDancerSkyRaidSpawnPreference,
+} from "./SkyDancerSkyRaidEnemyDoctrine";
 import { getSkyDancerTurboState } from "./SkyDancerTurboModel";
 import { getSkyDancerPlayerWeaponState } from "./SkyDancerPlayerWeapons";
 import {
@@ -76,6 +84,7 @@ interface RaidState {
   actIndex: number;
   actKills: number;
   actBreak: boolean;
+  enemyRosterActIndex: number;
   previousKills: number;
   previousOrders: number;
   killCueSerial: number;
@@ -519,6 +528,22 @@ function publishSkyRaidWorldStyle(snapshot: SkyDancerSkyRaidSnapshot): void {
   document.documentElement.dataset.skyRaidWorldStyle = skyDancerSkyRaidWorldStyle(snapshot.actId);
 }
 
+function publishSkyRaidEnemyDoctrineDiagnostics(
+  session: CartArenaSession,
+  elapsedSeconds: number,
+): void {
+  if (typeof document === "undefined") return;
+  const act = skyDancerSkyRaidActFor(elapsedSeconds);
+  const doctrine = skyDancerSkyRaidEnemyDoctrine(act.id);
+  const liveClasses = session.enemies
+    .filter((enemy) => enemy.alive && enemy.kind !== "boss")
+    .map((enemy) => skyDancerSkyRaidEnemyClassFor(enemy))
+    .sort();
+  document.documentElement.dataset.skyRaidEnemyPackage = doctrine.package;
+  document.documentElement.dataset.skyRaidEnemyAttackStyle = doctrine.attackStyle;
+  document.documentElement.dataset.skyRaidEnemyClasses = liveClasses.join(",");
+}
+
 function flightControllerFor(demo: RaidWebGLDemo): SkyDancerSkyRaidFlightController {
   const key = demo as unknown as object;
   const current = raidFlightByDemo.get(key);
@@ -617,6 +642,7 @@ function stateFor(session: RaidSession, hunt: CartTurboHuntSnapshot): RaidState 
     actIndex: 0,
     actKills: 0,
     actBreak: false,
+    enemyRosterActIndex: -1,
     previousKills: hunt.huntKills,
     previousOrders: hunt.huntOrdersCompleted,
     killCueSerial: 0,
@@ -1001,22 +1027,39 @@ function updateRaidVisuals(demo: RaidWebGLDemo, delta: number, flight: SkyDancer
 }
 
 export function installSkyDancerSkyRaid(): void {
+  setCartTurboHuntSpawnPreference((enemy, context) => {
+    if (!isSkyRaidMode()) return 0;
+    return skyDancerSkyRaidSpawnPreference(enemy, context.elapsedSeconds, context.spawnSerial);
+  });
   const sessionPrototype = CartArenaSession.prototype as unknown as RaidSession;
   const previousStep = sessionPrototype.step;
   sessionPrototype.step = function skyRaidStep(this: RaidSession, input: RallyInputState, fixedDelta = 1 / 60): void {
     const skyRaidActive = isSkyRaidMode();
+    const typedSession = this as unknown as CartArenaSession;
+    const preHunt = skyRaidActive ? getCartTurboHuntSnapshot(typedSession) : null;
+    setSkyDancerSkyRaidEnemyDoctrineElapsed(skyRaidActive ? preHunt?.huntElapsedSeconds ?? 0 : null);
     const flightInput = skyRaidActive
       ? { ...input, steer: skyDancerSkyRaidSteerInput(input.steer) }
       : input;
     previousStep.call(this, flightInput, fixedDelta);
-    if (!skyRaidActive) return;
+    if (!skyRaidActive) {
+      setSkyDancerSkyRaidEnemyDoctrineElapsed(null);
+      return;
+    }
     const delta = clamp(fixedDelta, 0, 0.05);
-    const hunt = getCartTurboHuntSnapshot(this as unknown as CartArenaSession);
+    const hunt = getCartTurboHuntSnapshot(typedSession);
     if (!hunt) return;
-    maintainSkyRaidEnemyPresence(this as unknown as CartArenaSession, delta, hunt.huntElapsedSeconds);
+    setSkyDancerSkyRaidEnemyDoctrineElapsed(hunt.huntElapsedSeconds);
+    const state = stateFor(this, hunt);
+    const activeAct = skyDancerSkyRaidActFor(hunt.huntElapsedSeconds);
+    if (state.enemyRosterActIndex !== activeAct.index && hunt.huntPhase !== "boss-arrival" && hunt.huntPhase !== "clear") {
+      reseedCartTurboHuntActiveTargets(typedSession);
+      state.enemyRosterActIndex = activeAct.index;
+    }
+    maintainSkyRaidEnemyPresence(typedSession, delta, hunt.huntElapsedSeconds);
     const snapshot = updateRaid(this, hunt, delta);
     publishSkyRaidWorldStyle(snapshot);
-    const state = stateFor(this, hunt);
+    publishSkyRaidEnemyDoctrineDiagnostics(typedSession, hunt.huntElapsedSeconds);
     state.broadcastClock += delta;
     if (state.broadcastClock >= 0.1 || snapshot.actElapsedSeconds < 0.12 || snapshot.clear) {
       state.broadcastClock %= 0.1;

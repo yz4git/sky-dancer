@@ -92,6 +92,10 @@ export const SKY_DANCER_CAMPAIGN_EVENT_V49 = "sky-dancer-campaign-v49";
 export const SKY_DANCER_FLOW_MAX_V46 = 100;
 export const SKY_DANCER_CHOREOGRAPHY_MAX_ACTIVE_THREATS_V46 = 5;
 
+function skyDancerCampaignOwnsEnemyShapeV23(): boolean {
+  return typeof document === "undefined" || document.documentElement.dataset.skyDancerMode !== "sky-raid";
+}
+
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
 }
@@ -416,7 +420,9 @@ export function installSkyDancerCombatChoreographyV46(): void {
     const snapshot = this.snapshot();
     updateFlowAndAccuracy(concrete, state, delta, snapshot);
     const mission = getSkyDancerMissionV49(stage.stage);
-    if (mission) {
+    // Campaign choreography owns enemy archetype conversion in campaign mode.
+    // SKY RAID has its own V23 Act doctrine and must remain the final roster owner.
+    if (mission && skyDancerCampaignOwnsEnemyShapeV23()) {
       const { beat } = getSkyDancerMissionBeatV49(mission, Math.min(stage.stageKills, mission.killTarget));
       shapeFormation(this, stage, beat, mission.activeThreatTarget, state);
       retireLegacyReinforcements(this, stage, mission.killTarget, state);

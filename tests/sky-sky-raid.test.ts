@@ -8,6 +8,8 @@ import {
   SKY_DANCER_SKY_RAID_CHAIN_GRACE_SECONDS,
   skyDancerSkyRaidActFor,
   skyDancerSkyRaidCombatProfile,
+  skyDancerSkyRaidEnemyDoctrine,
+  skyDancerSkyRaidEnemySpawnPriority,
   skyDancerSkyRaidKillScore,
   skyDancerSkyRaidPressure,
   skyDancerSkyRaidRushActive,
@@ -46,6 +48,75 @@ test("SKY RAID gives every act a distinct combat doctrine instead of one repeate
   assert.ok(profiles[2].lateralScale > profiles[0].lateralScale);
   assert.ok(profiles[3].baseTargetCount > profiles[0].baseTargetCount);
   assert.ok(profiles.every((profile) => profile.rushCorrectionSpeed >= profile.correctionSpeed));
+});
+
+test("SKY RAID gives every act its own enemy package and attack geometry", () => {
+  const doctrines = SKY_DANCER_SKY_RAID_ACTS.map((act) => skyDancerSkyRaidEnemyDoctrine(act.id));
+  assert.deepEqual(doctrines.map((doctrine) => doctrine.package), [
+    "CITY INTERCEPTORS",
+    "CANYON KNIVES",
+    "FLEET ESCORT",
+    "THUNDER HUNTERS",
+    "PRISM SIEGE WING",
+  ]);
+  assert.equal(new Set(doctrines.map((doctrine) => doctrine.roster.join(">"))).size, 5);
+  assert.equal(new Set(doctrines.map((doctrine) => doctrine.attackStyle)).size, 5);
+  assert.ok(doctrines[1].turnScale > doctrines[0].turnScale);
+  assert.ok(doctrines[2].missileMinRange > doctrines[0].missileMinRange);
+  assert.ok(doctrines[3].missileCooldownScale < doctrines[0].missileCooldownScale);
+  assert.ok(doctrines[4].missileMaxRange > doctrines[0].missileMaxRange);
+});
+
+test("SKY RAID spawn priority rotates pooled aircraft classes by act", () => {
+  assert.ok(skyDancerSkyRaidEnemySpawnPriority("red-canyon", "drifter", 0) > skyDancerSkyRaidEnemySpawnPriority("red-canyon", "bomber", 0));
+  assert.ok(skyDancerSkyRaidEnemySpawnPriority("cloud-fleet", "bomber", 1) > skyDancerSkyRaidEnemySpawnPriority("cloud-fleet", "striker", 1));
+  assert.ok(skyDancerSkyRaidEnemySpawnPriority("cloud-fleet", "heavy", 2) > skyDancerSkyRaidEnemySpawnPriority("cloud-fleet", "drifter", 2));
+  assert.ok(skyDancerSkyRaidEnemySpawnPriority("storm-carrier", "striker", 0) > skyDancerSkyRaidEnemySpawnPriority("storm-carrier", "heavy", 0));
+  assert.ok(skyDancerSkyRaidEnemySpawnPriority("prism-citadel", "heavy", 0) > skyDancerSkyRaidEnemySpawnPriority("prism-citadel", "standard", 0));
+});
+
+test("SKY RAID wires enemy packages into Hunt spawning, flight AI and missile envelopes", () => {
+  const raidSource = readFileSync(new URL("../src/sky/SkyDancerSkyRaid.ts", import.meta.url), "utf8");
+  const huntSource = readFileSync(new URL("../src/cart/CartRoguePhase67TurboHunt.ts", import.meta.url), "utf8");
+  const flightSource = readFileSync(new URL("../src/sky/SkyDancerFlightCombat.ts", import.meta.url), "utf8");
+  const auditSource = readFileSync(new URL("../scripts/webgl-sky-raid-camera-edge-v17.mjs", import.meta.url), "utf8");
+  assert.match(raidSource, /setCartTurboHuntSpawnPreference/);
+  assert.match(raidSource, /setSkyDancerSkyRaidEnemyDoctrineElapsed/);
+  assert.match(raidSource, /skyRaidEnemyPackage/);
+  assert.match(huntSource, /externalSpawnPreference/);
+  assert.match(huntSource, /elapsedSeconds: state\.elapsed/);
+  assert.match(flightSource, /skyRaidAttackHeading/);
+  assert.match(flightSource, /doctrine\?\.missileMinRange/);
+  assert.match(flightSource, /doctrine\?\.missileMaxRange/);
+  assert.match(flightSource, /baseSpec\.turnRate \* doctrine\.missileTurnScale/);
+  assert.match(auditSource, /CITY INTERCEPTORS/);
+  assert.match(auditSource, /enemyClasses/);
+});
+
+test("SKY RAID bypasses campaign StageCycle population truncation", () => {
+  const source = readFileSync(new URL("../src/sky/SkyDancerStageCycle.ts", import.meta.url), "utf8");
+  assert.match(source, /dataset\.skyDancerMode === "sky-raid"/);
+  assert.match(source, /previous\.call\(this, input, fixedDelta\);\n      return;/);
+  assert.match(source, /session\.enemies\.splice\(0, session\.enemies\.length, \.\.\.initialActive, \.\.\.dormantBoss\)/);
+});
+
+test("SKY RAID owns enemy archetypes instead of campaign choreography", () => {
+  const source = readFileSync(new URL("../src/sky/SkyDancerCombatChoreographyV46.ts", import.meta.url), "utf8");
+  assert.match(source, /skyDancerCampaignOwnsEnemyShapeV23/);
+  assert.match(source, /dataset\.skyDancerMode !== "sky-raid"/);
+  assert.match(source, /if \(mission && skyDancerCampaignOwnsEnemyShapeV23\(\)\)/);
+});
+
+test("SKY RAID re-seeds the inherited live Hunt population at each Act boundary without phantom defeats", () => {
+  const raidSource = readFileSync(new URL("../src/sky/SkyDancerSkyRaid.ts", import.meta.url), "utf8");
+  const huntSource = readFileSync(new URL("../src/cart/CartRoguePhase67TurboHunt.ts", import.meta.url), "utf8");
+  assert.match(raidSource, /enemyRosterActIndex: -1/);
+  assert.match(raidSource, /state\.enemyRosterActIndex !== activeAct\.index/);
+  assert.match(raidSource, /reseedCartTurboHuntActiveTargets\(typedSession\)/);
+  assert.match(huntSource, /export function reseedCartTurboHuntActiveTargets/);
+  assert.match(huntSource, /state\.previousAlive\.set\(enemy\.id, false\)/);
+  assert.match(huntSource, /state\.spawnSerial = 0/);
+  assert.match(huntSource, /spawnSupportEnemy\(raw, state, spawned\)/);
 });
 
 test("SKY RAID formation and phone recycler both consume the active act doctrine", () => {

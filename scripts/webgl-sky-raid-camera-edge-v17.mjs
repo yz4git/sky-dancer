@@ -218,10 +218,22 @@ if (Math.abs(reticleCenterX - decisionCenterX) < 34 && Math.abs(reticleCenterY -
     populationProfile: document.documentElement.dataset.skyRaidPopulationProfile ?? "",
     enemyPool: Number(document.documentElement.dataset.skyRaidEnemyPool ?? 0),
     enemyActive: Number(document.documentElement.dataset.skyRaidEnemyActive ?? 0),
+    enemyPackage: document.documentElement.dataset.skyRaidEnemyPackage ?? "",
+    enemyAttackStyle: document.documentElement.dataset.skyRaidEnemyAttackStyle ?? "",
+    enemyClasses: (document.documentElement.dataset.skyRaidEnemyClasses ?? "").split(",").filter(Boolean),
   }));
   if (combatDiagnostics.populationProfile !== "arcade-dense") throw new Error(`SKY RAID population profile missing: ${JSON.stringify(combatDiagnostics)}`);
   if (combatDiagnostics.enemyActive < 1) throw new Error(`SKY RAID has no live combat targets: ${JSON.stringify(combatDiagnostics)}`);
   if (combatDiagnostics.enemyPool < combatDiagnostics.enemyActive) throw new Error(`SKY RAID population diagnostics inconsistent: ${JSON.stringify(combatDiagnostics)}`);
+  if (combatDiagnostics.enemyPackage !== "CITY INTERCEPTORS" || combatDiagnostics.enemyAttackStyle !== "intercept") {
+    throw new Error(`SKY RAID opening enemy package is not active: ${JSON.stringify(combatDiagnostics)}`);
+  }
+  if (combatDiagnostics.enemyClasses.includes("heavy") || combatDiagnostics.enemyClasses.includes("bomber")) {
+    throw new Error(`SKY RAID opening leaked a late-act aircraft class: ${JSON.stringify(combatDiagnostics)}`);
+  }
+  if (!combatDiagnostics.enemyClasses.includes("standard") || new Set(combatDiagnostics.enemyClasses).size < 3) {
+    throw new Error(`SKY RAID opening package lacks interceptor variety: ${JSON.stringify(combatDiagnostics)}`);
+  }
 
   const baseline = await camera();
   if (!baseline.playerVisible) throw new Error("aircraft not visible after SKY RAID presentation settle");

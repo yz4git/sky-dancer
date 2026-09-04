@@ -17,6 +17,7 @@ import {
   skyDancerDistance3DV43,
   stepSkyDancerEnemyVerticalFlightV43,
 } from "./SkyDancerVerticalFlightV43";
+import { getSkyDancerSkyRaidEnemyDoctrine } from "./SkyDancerSkyRaidEnemyDoctrine";
 
 export interface SkyDancerMissileSnapshot {
   id: number;
@@ -136,7 +137,9 @@ function stableSide(id: string): number {
 
 function initialCooldown(enemy: CartEnemyState): number {
   const base = enemy.kind === "boss" ? 1.1 : enemy.kind === "heavy" ? 1.75 : enemy.kind === "chaser" ? 2.15 : 2.55;
-  return base + (Math.abs(enemy.id.length * 37) % 9) * 0.11;
+  const jittered = base + (Math.abs(enemy.id.length * 37) % 9) * 0.11;
+  const doctrine = getSkyDancerSkyRaidEnemyDoctrine(enemy);
+  return jittered * (doctrine?.missileCooldownScale ?? 1);
 }
 
 function stateFor(session: FlightSessionView): FlightCombatState {
@@ -215,21 +218,77 @@ export function getLatestSkyDancerMissileState(): SkyDancerMissileState | null {
 }
 
 function enemyCruiseSpeed(enemy: CartEnemyState): number {
-  if (enemy.kind === "boss") return 10.4;
-  if (enemy.kind === "heavy") return 8.8;
-  if (enemy.archetype === "striker") return 13.2;
-  if (enemy.archetype === "drifter") return 12.4;
-  if (enemy.archetype === "orbiter") return 11.6;
-  if (enemy.archetype === "bomber") return 10.8;
-  return enemy.kind === "blocker" ? 10.2 : 11.4;
+  const baseSpeed = enemy.kind === "boss"
+    ? 10.4
+    : enemy.kind === "heavy"
+      ? 8.8
+      : enemy.archetype === "striker"
+        ? 13.2
+        : enemy.archetype === "drifter"
+          ? 12.4
+          : enemy.archetype === "orbiter"
+            ? 11.6
+            : enemy.archetype === "bomber"
+              ? 10.8
+              : enemy.kind === "blocker" ? 10.2 : 11.4;
+  const doctrine = getSkyDancerSkyRaidEnemyDoctrine(enemy);
+  return baseSpeed * (doctrine?.speedScale ?? 1);
 }
 
 function enemyTurnRate(enemy: CartEnemyState): number {
-  if (enemy.kind === "boss") return 0.82;
-  if (enemy.kind === "heavy") return 0.92;
-  if (enemy.archetype === "drifter") return 1.42;
-  if (enemy.archetype === "striker") return 1.26;
-  return 1.12;
+  const baseRate = enemy.kind === "boss"
+    ? 0.82
+    : enemy.kind === "heavy"
+      ? 0.92
+      : enemy.archetype === "drifter"
+        ? 1.42
+        : enemy.archetype === "striker"
+          ? 1.26
+          : 1.12;
+  const doctrine = getSkyDancerSkyRaidEnemyDoctrine(enemy);
+  return baseRate * (doctrine?.turnScale ?? 1);
+}
+
+function skyRaidAttackHeading(
+  enemy: CartEnemyState,
+  direct: number,
+  distance: number,
+  memoryClock: number,
+  side: number,
+  playerX: number,
+  playerZ: number,
+  playerHeading: number,
+): number {
+  const doctrine = getSkyDancerSkyRaidEnemyDoctrine(enemy);
+  if (!doctrine || doctrine.attackStyle === "intercept") return Number.NaN;
+  const leadHeading = (leadScale: number, weave: number): number => {
+    const lead = clamp(distance * leadScale, 2, 9);
+    const targetX = playerX + Math.sin(playerHeading) * lead;
+    const targetZ = playerZ + Math.cos(playerHeading) * lead;
+    return normalizeAngle(
+      Math.atan2(targetX - enemy.x, targetZ - enemy.z)
+      + Math.sin(memoryClock * 1.15 + (side > 0 ? 0 : Math.PI)) * weave,
+    );
+  };
+
+  if (doctrine.attackStyle === "knife") {
+    if (distance < 7) return normalizeAngle(direct + side * 1.68);
+    if (distance < 19) return normalizeAngle(direct + side * (0.78 + Math.sin(memoryClock * 2.3) * 0.22));
+    return leadHeading(0.17, 0.08);
+  }
+  if (doctrine.attackStyle === "escort") {
+    if (distance < 14) return normalizeAngle(direct + side * 1.35);
+    if (distance < 30) return normalizeAngle(direct + side * (0.72 + Math.sin(memoryClock * 1.35) * 0.12));
+    return leadHeading(0.12, 0.05);
+  }
+  if (doctrine.attackStyle === "pincer") {
+    if (distance < 6.5) return normalizeAngle(direct + side * 1.55);
+    if (distance < 18) return normalizeAngle(direct + side * (0.28 + Math.sin(memoryClock * 2.0) * 0.16));
+    return leadHeading(0.28, 0.10);
+  }
+  if (distance < 16) return normalizeAngle(direct + side * 1.28);
+  if (distance < 35) return normalizeAngle(direct + side * (0.88 + Math.sin(memoryClock * 1.05) * 0.10));
+  return leadHeading(0.10, 0.04);
 }
 
 function updateAircraftEnemies(session: FlightSessionView, delta: number, state: FlightCombatState): void {
@@ -255,10 +314,22 @@ function updateAircraftEnemies(session: FlightSessionView, delta: number, state:
     const direct = Math.atan2(dx, dz);
     const side = memory.side;
 
-    // Aircraft never stop and pivot in place. They make attack passes, overshoot,
-    // break away, then curve back into another intercept.
+    // Aircraft never stop and pivot in place. SKY RAID can author a distinct
+    // attack sentence per act while every other mode keeps this proven fallback.
+    const authoredSkyRaidHeading = skyRaidAttackHeading(
+      enemy,
+      direct,
+      distance,
+      memory.clock,
+      side,
+      px,
+      pz,
+      playerHeading,
+    );
     let targetHeading = direct;
-    if (distance < 7.5) {
+    if (Number.isFinite(authoredSkyRaidHeading)) {
+      targetHeading = authoredSkyRaidHeading;
+    } else if (distance < 7.5) {
       targetHeading = normalizeAngle(direct + side * (1.55 + Math.sin(memory.clock * 1.7) * 0.18));
     } else if (distance < 15) {
       targetHeading = normalizeAngle(direct + side * (0.42 + Math.sin(memory.clock * 1.35) * 0.24));
@@ -308,11 +379,24 @@ interface MissileSpecV43 {
 }
 
 function missileSpec(enemy: CartEnemyState): MissileSpecV43 {
-  if (enemy.kind === "boss") return { launchSpeed: 19.5, maxSpeed: 29.5, acceleration: 18, turnRate: 1.72, pitchRate: 1.28, damage: 0.105, cooldown: 1.2 };
-  if (enemy.kind === "heavy") return { launchSpeed: 17.5, maxSpeed: 25.5, acceleration: 15, turnRate: 1.48, pitchRate: 1.12, damage: 0.085, cooldown: 2.0 };
-  if (enemy.archetype === "bomber") return { launchSpeed: 16.0, maxSpeed: 23.5, acceleration: 14, turnRate: 1.2, pitchRate: 0.98, damage: 0.078, cooldown: 2.15 };
-  if (enemy.archetype === "striker") return { launchSpeed: 18.5, maxSpeed: 28.0, acceleration: 17, turnRate: 1.62, pitchRate: 1.22, damage: 0.068, cooldown: 2.35 };
-  return { launchSpeed: 17.5, maxSpeed: 26.5, acceleration: 16, turnRate: 1.5, pitchRate: 1.16, damage: 0.062, cooldown: 2.7 };
+  const baseSpec = enemy.kind === "boss"
+    ? { launchSpeed: 19.5, maxSpeed: 29.5, acceleration: 18, turnRate: 1.72, pitchRate: 1.28, damage: 0.105, cooldown: 1.2 }
+    : enemy.kind === "heavy"
+      ? { launchSpeed: 17.5, maxSpeed: 25.5, acceleration: 15, turnRate: 1.48, pitchRate: 1.12, damage: 0.085, cooldown: 2.0 }
+      : enemy.archetype === "bomber"
+        ? { launchSpeed: 16.0, maxSpeed: 23.5, acceleration: 14, turnRate: 1.2, pitchRate: 0.98, damage: 0.078, cooldown: 2.15 }
+        : enemy.archetype === "striker"
+          ? { launchSpeed: 18.5, maxSpeed: 28.0, acceleration: 17, turnRate: 1.62, pitchRate: 1.22, damage: 0.068, cooldown: 2.35 }
+          : { launchSpeed: 17.5, maxSpeed: 26.5, acceleration: 16, turnRate: 1.5, pitchRate: 1.16, damage: 0.062, cooldown: 2.7 };
+  const doctrine = getSkyDancerSkyRaidEnemyDoctrine(enemy);
+  if (!doctrine || enemy.kind === "boss") return baseSpec;
+  return {
+    ...baseSpec,
+    turnRate: baseSpec.turnRate * doctrine.missileTurnScale,
+    pitchRate: baseSpec.pitchRate * (0.92 + doctrine.missileTurnScale * 0.08),
+    damage: baseSpec.damage * doctrine.missileDamageScale,
+    cooldown: baseSpec.cooldown * doctrine.missileCooldownScale,
+  };
 }
 
 function tryLaunchMissiles(session: FlightSessionView, state: FlightCombatState): void {
@@ -330,10 +414,14 @@ function tryLaunchMissiles(session: FlightSessionView, state: FlightCombatState)
     const dz = pz - enemy.z;
     const horizontalDistance = Math.hypot(dx, dz);
     const distance = skyDancerDistance3DV43(enemy.x, vertical.altitudeOffsetMeters, enemy.z, px, 0, pz);
-    if (distance < 8 || distance > (enemy.kind === "boss" ? 52 : 43)) continue;
+    const doctrine = getSkyDancerSkyRaidEnemyDoctrine(enemy);
+    const minRange = enemy.kind === "boss" ? 8 : doctrine?.missileMinRange ?? 8;
+    const maxRange = enemy.kind === "boss" ? 52 : doctrine?.missileMaxRange ?? 43;
+    if (distance < minRange || distance > maxRange) continue;
     const direct = Math.atan2(dx, dz);
     const aimError = Math.abs(normalizeAngle(direct - enemy.heading));
-    if (aimError > (enemy.kind === "boss" ? 0.82 : 0.58)) continue;
+    const aimTolerance = enemy.kind === "boss" ? 0.82 : doctrine?.missileAimTolerance ?? 0.58;
+    if (aimError > aimTolerance) continue;
 
     const spec = missileSpec(enemy);
     const muzzle = enemy.radius + 1.15;

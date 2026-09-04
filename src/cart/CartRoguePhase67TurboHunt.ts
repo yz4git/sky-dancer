@@ -165,6 +165,23 @@ const HUNT_BOSS_MIN_SECONDS = 105;
 const HUNT_BOSS_FALLBACK_SECONDS = 150;
 let externalProgressionEnabled = false;
 
+export interface CartTurboHuntSpawnPreferenceContext {
+  elapsedSeconds: number;
+  phase: CartTurboHuntPhase;
+  spawnSerial: number;
+}
+
+export type CartTurboHuntSpawnPreference = (
+  enemy: CartEnemyState,
+  context: CartTurboHuntSpawnPreferenceContext,
+) => number;
+
+let externalSpawnPreference: CartTurboHuntSpawnPreference | null = null;
+
+export function setCartTurboHuntSpawnPreference(preference: CartTurboHuntSpawnPreference | null): void {
+  externalSpawnPreference = preference;
+}
+
 export function setCartTurboHuntExternalProgressionEnabled(enabled: boolean): void {
   externalProgressionEnabled = enabled;
 }
@@ -525,6 +542,22 @@ function isSpawnEligible(enemy: CartEnemyState, state: TurboHuntState): boolean 
 function chooseSpawnCandidate(session: MutableHuntSession, state: TurboHuntState): CartEnemyState | null {
   const candidates = session.enemies.filter((enemy) => isSpawnEligible(enemy, state));
   if (candidates.length === 0) return null;
+  if (externalSpawnPreference) {
+    const context: CartTurboHuntSpawnPreferenceContext = {
+      elapsedSeconds: state.elapsed,
+      phase: state.phase,
+      spawnSerial: state.spawnSerial,
+    };
+    const scored = candidates.map((enemy) => ({
+      enemy,
+      score: Number(externalSpawnPreference?.(enemy, context) ?? 0),
+    }));
+    const bestScore = Math.max(...scored.map((sample) => sample.score));
+    if (Number.isFinite(bestScore) && bestScore > 0) {
+      const preferred = scored.filter((sample) => sample.score === bestScore);
+      return preferred[state.spawnSerial % preferred.length]?.enemy ?? preferred[0]?.enemy ?? null;
+    }
+  }
   const needHeavy = (state.phase === "elite-invasion" || state.phase === "overdrive" || state.phase === "boss-arrival")
     && !session.enemies.some((enemy) => enemy.alive && enemy.kind === "heavy");
   if (needHeavy) {
@@ -549,6 +582,31 @@ function spawnSupportEnemy(session: MutableHuntSession, state: TurboHuntState, s
   state.previousAlive.set(enemy.id, true);
   state.spawnSerial += 1;
   return true;
+}
+
+export function reseedCartTurboHuntActiveTargets(session: CartArenaSession): number {
+  const raw = session as unknown as MutableHuntSession;
+  const state = stateFor(raw);
+  if (!state.enabled || state.phase === "clear" || state.phase === "boss-arrival") return 0;
+
+  for (const enemy of raw.enemies) {
+    if (enemy.kind === "boss") continue;
+    enemy.alive = false;
+    enemy.hp = enemy.maxHp;
+    state.previousAlive.set(enemy.id, false);
+    state.enemyRespawn.delete(enemy.id);
+    state.accountedDeaths.delete(enemy.id);
+  }
+  state.spentBombers.clear();
+  state.spawnSerial = 0;
+
+  const desired = cartTurboHuntActiveTargetCount(state.phase);
+  let spawned = 0;
+  while (spawned < desired && spawned < 20) {
+    if (!spawnSupportEnemy(raw, state, spawned)) break;
+    spawned += 1;
+  }
+  return spawned;
 }
 
 function ensureTargetPopulation(session: MutableHuntSession, state: TurboHuntState): void {
