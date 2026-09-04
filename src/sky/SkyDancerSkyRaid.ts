@@ -806,10 +806,13 @@ webglPrototype.applyCameraPresentation = function skyRaidCameraPresentation(
   }
   if (weapon.hitSerial > cameraFx.lastHitSerial) {
     cameraFx.lastHitSerial = weapon.hitSerial;
-    cameraFx.hitKick = 1;
+    const impactEnemy = weapon.lastHitEnemyId
+      ? this.session.enemies.find((enemy) => enemy.id === weapon.lastHitEnemyId) ?? null
+      : null;
+    cameraFx.hitKick = impactEnemy && !impactEnemy.alive ? 1.42 : 1.05;
   }
   cameraFx.shotKick *= 0.82;
-  cameraFx.hitKick *= 0.84;
+  cameraFx.hitKick *= 0.86;
   const releaseKick = Number.isFinite(turbo.releaseAgeSeconds)
     ? Math.exp(-Math.max(0, turbo.releaseAgeSeconds) * 2.35)
     : 0;

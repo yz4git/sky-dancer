@@ -111,10 +111,18 @@ test("SKY RAID kill confirmation is carried by authoritative snapshot state", ()
 test("SKY RAID phone feedback stays visible without blocking the combat lane", () => {
   const overlaySource = readFileSync(new URL("../app/SkyDancerSkyRaidOverlay.tsx", import.meta.url), "utf8");
   const auditSource = readFileSync(new URL("../scripts/webgl-sky-raid-camera-edge-v17.mjs", import.meta.url), "utf8");
+  const fxSource = readFileSync(new URL("../src/sky/SkyDancerAirCombatFxV18.ts", import.meta.url), "utf8");
+  const hudSource = readFileSync(new URL("../app/SkyDancerHudV45.tsx", import.meta.url), "utf8");
   assert.match(overlaySource, /opacity: 1 !important/);
-  assert.match(overlaySource, /max-width: min\(42vw, 340px\)/);
-  assert.match(overlaySource, /font-size: clamp\(8px, \.95vw, 10px\)/);
+  assert.match(overlaySource, /max-width: min\(34vw, 250px\)/);
+  assert.match(overlaySource, /font-size: clamp\(7px, \.82vw, 9px\)/);
   assert.match(auditSource, /cueOpacity < 0\.85/);
+  assert.match(auditSource, /target doctrine still crowds the reticle/);
+  assert.match(auditSource, /TARGET DOWN has no strong world-space impact burst/);
+  assert.match(fxSource, /sky-raid-target-down-burst-v18/);
+  assert.match(fxSource, /progress < 0\.08/);
+  assert.match(hudSource, /width: 42px/);
+  assert.match(hudSource, /lockSide \* 9\.5/);
 });
 
 

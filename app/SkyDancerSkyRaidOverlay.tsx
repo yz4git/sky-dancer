@@ -125,14 +125,14 @@ export default function SkyDancerSkyRaidOverlay() {
       html[data-sky-dancer-mode="sky-raid"] [aria-label="Missile warning"] {
         left: 50% !important;
         right: auto !important;
-        top: max(105px, calc(env(safe-area-inset-top) + 95px)) !important;
+        top: max(88px, calc(env(safe-area-inset-top) + 80px)) !important;
         bottom: auto !important;
         transform: translateX(-50%) !important;
         width: auto !important;
-        max-width: min(42vw, 340px) !important;
-        padding: 3px 9px !important;
+        max-width: min(34vw, 250px) !important;
+        padding: 2px 8px !important;
         border-radius: 7px !important;
-        font-size: clamp(8px, .95vw, 10px) !important;
+        font-size: clamp(7px, .82vw, 9px) !important;
         line-height: 1 !important;
         letter-spacing: .08em !important;
         opacity: .86 !important;
@@ -168,8 +168,8 @@ export default function SkyDancerSkyRaidOverlay() {
           padding: 5px 9px 6px;
         }
         html[data-sky-dancer-mode="sky-raid"] [aria-label="Missile warning"] {
-          top: 103px !important;
-          max-width: min(40vw, 320px) !important;
+          top: 86px !important;
+          max-width: min(34vw, 250px) !important;
           padding: 2px 8px !important;
         }
       }

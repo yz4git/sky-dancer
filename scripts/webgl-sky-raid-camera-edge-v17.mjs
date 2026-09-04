@@ -138,6 +138,10 @@ async function confirmLiveTargetDown() {
     };
   });
   fs.writeFileSync(path.join(out, "kill-cue-visual.json"), JSON.stringify(cueVisual, null, 2));
+  const impactVisual = await page.evaluate(() => window.__skyRaidGetImpactPolish?.() ?? null);
+  if (!impactVisual || Number(impactVisual.activeBursts ?? 0) < 1 || Number(impactVisual.lastStrength ?? 0) < 1.2) {
+    throw new Error(`TARGET DOWN has no strong world-space impact burst: ${JSON.stringify(impactVisual)}`);
+  }
   const cueOpacity = Number.parseFloat(cueVisual?.opacity ?? "0");
   if (!cueVisual || cueVisual.width < 110 || cueVisual.height < 20 || cueVisual.display === "none" || cueVisual.visibility === "hidden" || cueOpacity < 0.85) {
     throw new Error(`kill confirmation is not visibly rendered: ${JSON.stringify(cueVisual)}`);
@@ -146,6 +150,7 @@ async function confirmLiveTargetDown() {
   const result = {
     text: text.replace(/\s+/g, " ").trim(),
     cueVisual,
+    impactVisual,
     targetBefore,
     lockBefore,
     shotSerial: afterHit.weapon?.shotSerial ?? 0,
@@ -189,6 +194,25 @@ try {
   if (captionBox.y < visualRingBox.y - 1 || captionBox.y + captionBox.height > visualRingBox.y + visualRingBox.height + 1) {
     throw new Error(`flight pad caption escaped visible ring: ring=${JSON.stringify(visualRingBox)} caption=${JSON.stringify(captionBox)}`);
   }
+
+
+const reticle = page.locator('[aria-label="Sky Raid target reticle"]');
+const decisionCard = page.locator('[aria-label="V45 target decision"]');
+await reticle.waitFor({ state: "visible", timeout: 5000 });
+await decisionCard.waitFor({ state: "visible", timeout: 5000 });
+const reticleBox = await reticle.boundingBox();
+const decisionBox = await decisionCard.boundingBox();
+if (!reticleBox || reticleBox.width > 44 || reticleBox.height > 44) {
+  throw new Error(`target reticle is too visually heavy: ${JSON.stringify(reticleBox)}`);
+}
+if (!decisionBox) throw new Error("target doctrine card missing");
+const reticleCenterX = reticleBox.x + reticleBox.width * 0.5;
+const reticleCenterY = reticleBox.y + reticleBox.height * 0.5;
+const decisionCenterX = decisionBox.x + decisionBox.width * 0.5;
+const decisionCenterY = decisionBox.y + decisionBox.height * 0.5;
+if (Math.abs(reticleCenterX - decisionCenterX) < 34 && Math.abs(reticleCenterY - decisionCenterY) < 26) {
+  throw new Error(`target doctrine still crowds the reticle: reticle=${JSON.stringify(reticleBox)} decision=${JSON.stringify(decisionBox)}`);
+}
 
   const combatDiagnostics = await page.evaluate(() => ({
     populationProfile: document.documentElement.dataset.skyRaidPopulationProfile ?? "",
@@ -265,7 +289,7 @@ try {
   await page.mouse.up();
   await clearAuditAltitude();
 
-  const report = { desiredPlayerNdcY, baselineFrameTolerance, padBox, visualRingBox, captionBox, combatDiagnostics, targetDownConfirmation, baseline, realClimb, high, beforeDive, realDive, low, errors };
+  const report = { desiredPlayerNdcY, baselineFrameTolerance, padBox, visualRingBox, captionBox, reticleBox, decisionBox, combatDiagnostics, targetDownConfirmation, baseline, realClimb, high, beforeDive, realDive, low, errors };
   fs.writeFileSync(path.join(out, "report.json"), JSON.stringify(report, null, 2));
   if (errors.length) throw new Error(JSON.stringify(errors));
   console.log("SKY RAID V18 PASS", JSON.stringify(report));
