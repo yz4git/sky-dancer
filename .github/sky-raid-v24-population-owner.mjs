@@ -8,51 +8,39 @@ function replaceOnce(path, before, after) {
 }
 
 replaceOnce(
-  "src/sky/SkyDancerEnemyPopulation.ts",
-  `interface PopulationSession {\n  enemies: CartEnemyState[];`,
-  `interface PopulationSession {\n  enemies: CartEnemyState[];\n  skyDancerSkyRaidActive?: boolean;`,
+  "app/CartRogueGamePhase13.tsx",
+  `  useEffect(() => {\n    if (!navigator.webdriver || new URLSearchParams(location.search).has("menu")) return undefined;\n    const timer = window.setTimeout(() => {\n      setCartRunDifficulty("normal");\n      setActiveRequest({ mode: "turbo-hunt", difficulty: "normal" });\n    }, 0);`,
+  `  useEffect(() => {\n    if (!navigator.webdriver || new URLSearchParams(location.search).has("menu")) return undefined;\n    const timer = window.setTimeout(() => {\n      document.documentElement.dataset.skyDancerMode = "turbo-hunt";\n      setCartRunDifficulty("normal");\n      setActiveRequest({ mode: "turbo-hunt", difficulty: "normal" });\n    }, 0);`,
 );
 
 replaceOnce(
-  "src/sky/SkyDancerEnemyPopulation.ts",
-  `function isSkyRaidMode(): boolean {\n  return typeof document !== "undefined" && document.documentElement.dataset.skyDancerMode === "sky-raid";\n}\n`,
-  `function isSkyRaidMode(): boolean {\n  return typeof document !== "undefined" && document.documentElement.dataset.skyDancerMode === "sky-raid";\n}\n\nfunction isSkyRaidSession(session: PopulationSession): boolean {\n  // The SKY RAID session wrapper marks the session before entering the inherited\n  // step stack. This is authoritative on the very first simulation frame, while\n  // the DOM mode dataset can still be one render behind. Falling back to the DOM\n  // keeps presentation-only callers and older entry paths compatible.\n  return session.skyDancerSkyRaidActive === true || isSkyRaidMode();\n}\n`,
+  "app/CartRogueGamePhase13.tsx",
+  `  useEffect(() => {\n    document.documentElement.dataset.skyDancerMode = activeRequest?.mode ?? "title";\n    return () => { delete document.documentElement.dataset.skyDancerMode; };\n  }, [activeRequest?.mode]);`,
+  `  useEffect(() => {\n    document.documentElement.dataset.skyDancerMode = activeRequest?.mode ?? "title";\n  }, [activeRequest?.mode]);\n\n  useEffect(() => () => {\n    delete document.documentElement.dataset.skyDancerMode;\n  }, []);`,
 );
 
 replaceOnce(
-  "src/sky/SkyDancerEnemyPopulation.ts",
-  `    const target = isSkyRaidMode()\n      ? regular.length`,
-  `    const target = isSkyRaidSession(session)\n      ? regular.length`,
+  "app/CartRogueGamePhase13.tsx",
+  `  return <>`,
+  `  const returnToTitle = () => {\n    // Publish title ownership synchronously as well. More importantly, startRun\n    // already publishes the requested mode before mounting CartRogueGame, and\n    // the mode-sync effect no longer deletes that marker during dependency cleanup.\n    document.documentElement.dataset.skyDancerMode = "title";\n    setActiveRequest(null);\n  };\n\n  return <>`,
 );
 
 replaceOnce(
-  "src/sky/SkyDancerEnemyPopulation.ts",
-  `  const skyRaid = isSkyRaidMode();\n  for (let index = session.enemies.length - 1; index >= 0; index -= 1) {`,
-  `  const skyRaid = isSkyRaidSession(session);\n  for (let index = session.enemies.length - 1; index >= 0; index -= 1) {`,
+  "app/CartRogueGamePhase13.tsx",
+  `      <SkyDancerArcadeMode key={runKey} request={activeRequest} onReturnTitle={() => setActiveRequest(null)} />`,
+  `      <SkyDancerArcadeMode key={runKey} request={activeRequest} onReturnTitle={returnToTitle} />`,
 );
 
 replaceOnce(
-  "src/sky/SkyDancerEnemyPopulation.ts",
-  `function publishPopulationDiagnostics(session: PopulationSession): void {\n  if (!isSkyRaidMode() || typeof document === "undefined") return;`,
-  `function publishPopulationDiagnostics(session: PopulationSession): void {\n  if (!isSkyRaidSession(session) || typeof document === "undefined") return;`,
-);
-
-replaceOnce(
-  "src/sky/SkyDancerSkyRaid.ts",
-  `interface RaidSession {\n  gas: number;`,
-  `interface RaidSession {\n  gas: number;\n  skyDancerSkyRaidActive?: boolean;`,
-);
-
-replaceOnce(
-  "src/sky/SkyDancerSkyRaid.ts",
-  `    const skyRaidActive = isSkyRaidMode();\n    const typedSession = this as unknown as CartArenaSession;`,
-  `    const skyRaidActive = isSkyRaidMode();\n    // Mark mode ownership before the inherited wrapper stack runs. Population\n    // setup happens inside that stack and must not depend on a later DOM publish.\n    this.skyDancerSkyRaidActive = skyRaidActive;\n    const typedSession = this as unknown as CartArenaSession;`,
+  "app/CartRogueGamePhase13.tsx",
+  `      onReturnTitle={() => setActiveRequest(null)}\n`,
+  `      onReturnTitle={returnToTitle}\n`,
 );
 
 replaceOnce(
   "tests/sky-sky-raid.test.ts",
   `test("SKY RAID bypasses campaign StageCycle population truncation", () => {`,
-  `test("SKY RAID preserves the complete Hunt candidate pool from the first simulation frame", () => {\n  const raidSource = readFileSync(new URL("../src/sky/SkyDancerSkyRaid.ts", import.meta.url), "utf8");\n  const populationSource = readFileSync(new URL("../src/sky/SkyDancerEnemyPopulation.ts", import.meta.url), "utf8");\n  assert.match(raidSource, /this\\.skyDancerSkyRaidActive = skyRaidActive/);\n  assert.match(populationSource, /skyDancerSkyRaidActive\\?: boolean/);\n  assert.match(populationSource, /function isSkyRaidSession\\(session: PopulationSession\\)/);\n  assert.match(populationSource, /const target = isSkyRaidSession\\(session\\)/);\n  assert.match(populationSource, /const skyRaid = isSkyRaidSession\\(session\\)/);\n  assert.doesNotMatch(populationSource, /const target = isSkyRaidMode\\(\\)/);\n});\n\ntest("SKY RAID bypasses campaign StageCycle population truncation", () => {`,
+  `test("SKY RAID publishes mode ownership before the first inherited population step", () => {\n  const shellSource = readFileSync(new URL("../app/CartRogueGamePhase13.tsx", import.meta.url), "utf8");\n  const populationSource = readFileSync(new URL("../src/sky/SkyDancerEnemyPopulation.ts", import.meta.url), "utf8");\n  assert.match(shellSource, /const startRun[\\s\\S]*dataset\\.skyDancerMode = request\\.mode[\\s\\S]*setActiveRequest\\(request\\)/);\n  assert.match(shellSource, /useEffect\\(\\(\\) => \\{\\s*document\\.documentElement\\.dataset\\.skyDancerMode = activeRequest\\?\\.mode \\?\\? "title";\\s*\\}, \\[activeRequest\\?\\.mode\\]\\)/);\n  assert.match(shellSource, /useEffect\\(\\(\\) => \\(\\) => \\{\\s*delete document\\.documentElement\\.dataset\\.skyDancerMode;\\s*\\}, \\[\\]\\)/);\n  assert.match(shellSource, /const returnToTitle[\\s\\S]*dataset\\.skyDancerMode = "title"[\\s\\S]*setActiveRequest\\(null\\)/);\n  assert.doesNotMatch(shellSource, /dataset\\.skyDancerMode = activeRequest\\?\\.mode \\?\\? "title";\\s*return \\(\\) =>/);\n  assert.match(populationSource, /const target = isSkyRaidMode\\(\\)\\s*\\? regular\\.length/);\n});\n\ntest("SKY RAID bypasses campaign StageCycle population truncation", () => {`,
 );
 
-console.log("SKY RAID V24 population ownership patch applied");
+console.log("SKY RAID V24 pre-frame mode ownership patch applied");
