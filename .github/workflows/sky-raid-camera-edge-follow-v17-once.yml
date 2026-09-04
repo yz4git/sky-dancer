@@ -1,5 +1,5 @@
 name: SKY RAID final-camera edge-follow V18 audit
-# Re-run after screen-space two-enemy presence director landed.
+# Re-run after combat-readability and target-down impact pass landed.
 
 on:
   push:
