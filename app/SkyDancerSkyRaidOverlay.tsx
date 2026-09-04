@@ -38,7 +38,7 @@ export default function SkyDancerSkyRaidOverlay() {
         killCueTimerRef.current = window.setTimeout(() => {
           killCueTimerRef.current = null;
           setKillCue(null);
-        }, 640);
+        }, 1180);
       }
       previousSnapshotRef.current = detail;
       setSnapshot(detail);
@@ -108,30 +108,31 @@ export default function SkyDancerSkyRaidOverlay() {
         right: max(18px, calc(env(safe-area-inset-right) + 10px));
         top: max(108px, calc(env(safe-area-inset-top) + 96px));
         z-index: 94;
-        min-width: 112px;
-        padding: 5px 9px 6px;
-        border: 1px solid color-mix(in srgb, var(--raid-accent) 72%, white 28%);
-        border-radius: 5px;
-        background: linear-gradient(90deg, rgba(4,21,35,.82), rgba(4,28,44,.54));
-        box-shadow: 0 5px 18px rgba(0,18,32,.22), inset 2px 0 0 var(--raid-accent);
-        text-align: right;
+        min-width: 138px;
+        padding: 6px 11px 7px;
+        border: 1px solid color-mix(in srgb, var(--raid-accent) 78%, white 22%);
+        border-radius: 7px;
+        background: linear-gradient(90deg, rgba(3,18,31,.94), rgba(4,31,49,.78));
+        box-shadow: 0 7px 24px rgba(0,12,24,.38), 0 0 14px color-mix(in srgb, var(--raid-accent) 22%, transparent), inset 3px 0 0 var(--raid-accent);
+        text-align: center;
         pointer-events: none;
-        animation: skyRaidKillConfirm .64s cubic-bezier(.16,.84,.28,1) both;
+        animation: skyRaidKillConfirm 1.16s cubic-bezier(.16,.84,.28,1) both;
       }
       [data-sd-kill-confirm] strong {
         display: block;
         color: #f7fdff;
-        font-size: 10px;
+        font-size: 12px;
         line-height: 1.05;
-        letter-spacing: .12em;
+        letter-spacing: .14em;
+        text-shadow: 0 1px 8px rgba(0,0,0,.55);
       }
       [data-sd-kill-confirm] small {
         display: block;
-        margin-top: 3px;
+        margin-top: 4px;
         color: var(--raid-accent);
-        font-size: 7px;
+        font-size: 8px;
         font-weight: 900;
-        letter-spacing: .12em;
+        letter-spacing: .14em;
       }
       @keyframes skyRaidScorePunch {
         0% { transform: scale(1); }
@@ -139,10 +140,10 @@ export default function SkyDancerSkyRaidOverlay() {
         100% { transform: scale(1); filter: brightness(1); }
       }
       @keyframes skyRaidKillConfirm {
-        0% { opacity: 0; transform: translate3d(0,7px,0) scale(.90); }
-        18% { opacity: 1; transform: translate3d(0,0,0) scale(1.04); }
-        72% { opacity: .96; transform: translate3d(0,-2px,0) scale(1); }
-        100% { opacity: 0; transform: translate3d(0,-7px,0) scale(.98); }
+        0% { opacity: 0; transform: translate3d(0,8px,0) scale(.90); }
+        12% { opacity: 1; transform: translate3d(0,0,0) scale(1.04); }
+        78% { opacity: 1; transform: translate3d(0,-2px,0) scale(1); }
+        100% { opacity: 0; transform: translate3d(0,-8px,0) scale(.98); }
       }
       @media(max-height:390px) {
         .${legacyStyles.actions} { bottom: max(8px, calc(env(safe-area-inset-bottom) + 5px)) !important; }
@@ -158,8 +159,8 @@ export default function SkyDancerSkyRaidOverlay() {
         .${styles.actBanner} span, .${styles.rushBanner} span, .${styles.bossCue} span { display: none !important; }
         [data-sd-kill-confirm] {
           top: max(92px, calc(env(safe-area-inset-top) + 82px));
-          min-width: 100px;
-          padding: 4px 8px 5px;
+          min-width: 124px;
+          padding: 5px 9px 6px;
         }
       }
     `}</style>
