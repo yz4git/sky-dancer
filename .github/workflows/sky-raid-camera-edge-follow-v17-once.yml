@@ -1,5 +1,5 @@
 name: SKY RAID final-camera edge-follow V18 audit
-# V20.2 final browser gate: proven Space Turbo hold + release speed language.
+# Re-run after SKY RAID distance-based enemy silhouette readability pass.
 
 on:
   push:
