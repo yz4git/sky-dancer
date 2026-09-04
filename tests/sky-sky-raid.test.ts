@@ -171,3 +171,12 @@ test("SKY RAID V20 speed language stays peripheral and presentation-only", () =>
   assert.match(auditSource, /05-turbo-speed-polish\.png/);
   assert.match(auditSource, /Turbo speed streaks invaded the central combat lane/);
 });
+
+
+test("SKY RAID caps only large steering deflections before inherited quickening", () => {
+  const raidSource = readFileSync(new URL("../src/sky/SkyDancerSkyRaid.ts", import.meta.url), "utf8");
+  assert.match(raidSource, /SKY_DANCER_SKY_RAID_MAX_STEER_INPUT = 0\.46/);
+  assert.match(raidSource, /return clamp\(value, -SKY_DANCER_SKY_RAID_MAX_STEER_INPUT, SKY_DANCER_SKY_RAID_MAX_STEER_INPUT\)/);
+  assert.match(raidSource, /steer: skyDancerSkyRaidSteerInput\(input\.steer\)/);
+  assert.match(raidSource, /const skyRaidActive = isSkyRaidMode\(\)/);
+});

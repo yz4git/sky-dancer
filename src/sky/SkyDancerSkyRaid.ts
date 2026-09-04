@@ -136,6 +136,14 @@ const raidScreenEngagementByDemo = new WeakMap<object, { nextAllowedAt: number; 
 let latestSkyRaidSnapshot: SkyDancerSkyRaidSnapshot | null = null;
 
 export const SKY_DANCER_SKY_RAID_SNAPSHOT_EVENT = "sky-dancer-sky-raid-snapshot";
+export const SKY_DANCER_SKY_RAID_MAX_STEER_INPUT = 0.46;
+
+export function skyDancerSkyRaidSteerInput(value: number): number {
+  // The inherited Cart controller aggressively quickens steering after this
+  // point. Keep fine stick movement unchanged, but cap large deflections so
+  // the aircraft cannot snap-turn on a phone-sized virtual stick.
+  return clamp(value, -SKY_DANCER_SKY_RAID_MAX_STEER_INPUT, SKY_DANCER_SKY_RAID_MAX_STEER_INPUT);
+}
 
 function isSkyRaidMode(): boolean {
   return typeof document !== "undefined" && document.documentElement.dataset.skyDancerMode === "sky-raid";
@@ -911,8 +919,12 @@ export function installSkyDancerSkyRaid(): void {
   const sessionPrototype = CartArenaSession.prototype as unknown as RaidSession;
   const previousStep = sessionPrototype.step;
   sessionPrototype.step = function skyRaidStep(this: RaidSession, input: RallyInputState, fixedDelta = 1 / 60): void {
-    previousStep.call(this, input, fixedDelta);
-    if (!isSkyRaidMode()) return;
+    const skyRaidActive = isSkyRaidMode();
+    const flightInput = skyRaidActive
+      ? { ...input, steer: skyDancerSkyRaidSteerInput(input.steer) }
+      : input;
+    previousStep.call(this, flightInput, fixedDelta);
+    if (!skyRaidActive) return;
     const delta = clamp(fixedDelta, 0, 0.05);
     const hunt = getCartTurboHuntSnapshot(this as unknown as CartArenaSession);
     if (!hunt) return;
