@@ -113,6 +113,15 @@ async function confirmLiveTargetDown() {
   if (!/TARGET DOWN/i.test(text)) {
     throw new Error(`unexpected kill confirmation after physical hit: ${text}`);
   }
+  // Capture after the entrance fade has become visually readable instead of
+  // taking the screenshot on the DOM-attachment frame where opacity is zero.
+  await page.waitForFunction(() => {
+    const element = document.querySelector('[data-sd-kill-confirm]');
+    if (!(element instanceof HTMLElement)) return false;
+    const opacity = Number.parseFloat(getComputedStyle(element).opacity || "0");
+    const rect = element.getBoundingClientRect();
+    return opacity >= 0.9 && rect.width >= 110 && rect.height >= 20 && rect.right > 0 && rect.left < innerWidth;
+  }, null, { timeout: 1000, polling: 20 });
   await screenshot("03-target-down-confirmation.png");
   const result = {
     text: text.replace(/\s+/g, " ").trim(),
