@@ -123,6 +123,7 @@ test("SKY RAID keeps live enemies inside the visible flight band", () => {
   const verticalSource = readFileSync(new URL("../src/sky/SkyDancerVerticalFlightV43.ts", import.meta.url), "utf8");
   const auditSource = readFileSync(new URL("../scripts/webgl-sky-raid-camera-edge-v17.mjs", import.meta.url), "utf8");
   assert.match(raidSource, /applySkyRaidEnemyFlightBand/);
+  assert.match(raidSource, /previousApplyCameraPresentation[\s\S]{0,240}applySkyRaidEnemyFlightBand\(this\)/);
   assert.match(raidSource, /enemyCombatLane/);
   assert.match(raidSource, /maintainSkyRaidEnemyPresence/);
   assert.match(raidSource, /SKY_RAID_ENGAGEMENT_SLOTS/);

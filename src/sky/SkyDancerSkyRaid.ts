@@ -692,6 +692,10 @@ webglPrototype.applyCameraPresentation = function skyRaidCameraPresentation(
 ): void {
   previousApplyCameraPresentation.call(this, snapshot);
   if (!isSkyRaidMode()) return;
+  // Older aircraft FX still writes the historical ~1m enemy flight plane during
+  // its late presentation update. SKY RAID owns the final render altitude, so
+  // restore the shared 20-64m combat band here, immediately before camera/render.
+  applySkyRaidEnemyFlightBand(this);
   const altitude = Number(this.scene.userData.skyRaidPlayerAltitude ?? 0);
   const verticalSpeed = Number(this.scene.userData.skyRaidPlayerVerticalSpeed ?? 0);
   const pitch = Number(this.scene.userData.skyRaidPlayerPitch ?? 0);
