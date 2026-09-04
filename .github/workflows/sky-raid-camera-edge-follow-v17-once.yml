@@ -1,5 +1,5 @@
 name: SKY RAID final-camera edge-follow V18 audit
-# Re-run on the cleaned final SKY RAID visual feedback pass.
+# Re-run on the enemy-presence reconstruction pass.
 
 on:
   push:
@@ -17,6 +17,7 @@ on:
       - src/sky/SkyDancerSkyRaid.ts
       - src/sky/SkyDancerSkyRaidArcadeWorld.ts
       - src/sky/SkyDancerSkyRaidFlight.ts
+      - src/sky/SkyDancerVerticalFlightV43.ts
       - src/sky/presentation/SkyDancerCameraPresentation.ts
       - scripts/webgl-sky-raid-camera-edge-v17.mjs
       - scripts/inject-sky-raid-v17-audit-hook.py
