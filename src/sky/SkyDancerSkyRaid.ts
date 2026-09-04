@@ -803,7 +803,7 @@ webglPrototype.applyCameraPresentation = function skyRaidCameraPresentation(
       const projected = player.clone().project(this.camera);
       let enemyVisible = 0;
       let enemyCombatLane = 0;
-      const enemyScreenSamples: Array<{ id: string; x: number; y: number; z: number; visible: boolean }> = [];
+      const enemyScreenSamples: Array<{ id: string; x: number; y: number; z: number; visible: boolean; worldY: number; localY: number; boundsY: number; relativeY: number; forward: number; lateral: number }> = [];
       for (const enemy of snapshot.enemies) {
         if (!enemy.alive || enemy.kind === "boss") continue;
         const group = this.enemyGroups.get(enemy.id);
@@ -814,7 +814,25 @@ webglPrototype.applyCameraPresentation = function skyRaidCameraPresentation(
         const visible = ndc.z > -1 && ndc.z < 1 && Math.abs(ndc.x) < 0.96 && Math.abs(ndc.y) < 0.94;
         if (visible) enemyVisible += 1;
         if (visible && Math.abs(ndc.x) < 0.70 && ndc.y > -0.72 && ndc.y < 0.70) enemyCombatLane += 1;
-        if (enemyScreenSamples.length < 8) enemyScreenSamples.push({ id: enemy.id, x: ndc.x, y: ndc.y, z: ndc.z, visible });
+        if (enemyScreenSamples.length < 8) {
+  const boundsCenter = new THREE.Vector3();
+  new THREE.Box3().setFromObject(group).getCenter(boundsCenter);
+  const dx = world.x - player.x;
+  const dz = world.z - player.z;
+  enemyScreenSamples.push({
+    id: enemy.id,
+    x: ndc.x,
+    y: ndc.y,
+    z: ndc.z,
+    visible,
+    worldY: world.y,
+    localY: group.position.y,
+    boundsY: boundsCenter.y,
+    relativeY: world.y - player.y,
+    forward: dx * forwardX + dz * forwardZ,
+    lateral: dx * rightX + dz * rightZ,
+  });
+}
       }
       return {
         altitude, verticalSpeed, verticalLead,
