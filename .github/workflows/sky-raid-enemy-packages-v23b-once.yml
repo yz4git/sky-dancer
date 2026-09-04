@@ -1,4 +1,4 @@
-name: SKY RAID V23d enemy packages final one-shot
+name: SKY RAID V23e full-pool enemy packages one-shot
 
 on:
   push:
@@ -28,9 +28,11 @@ jobs:
           node --check .github/sky-raid-v23b-patch.mjs
           node --check .github/sky-raid-v23c-roster-seed.mjs
           node --check .github/sky-raid-v23d-choreography-owner.mjs
+          node --check .github/sky-raid-v23e-stagecycle-owner.mjs
           node .github/sky-raid-v23b-patch.mjs
           node .github/sky-raid-v23c-roster-seed.mjs
           node .github/sky-raid-v23d-choreography-owner.mjs
+          node .github/sky-raid-v23e-stagecycle-owner.mjs
           git diff --check
 
       - name: Install dependencies
@@ -54,12 +56,12 @@ jobs:
           mkdir -p .audit-runtime artifacts/sky-raid-v17
           printf '{"private":true,"type":"commonjs"}\n' > .audit-runtime/package.json
           npm install --prefix .audit-runtime --no-package-lock --no-save --ignore-scripts --no-audit --no-fund playwright-core@1.55.0
-          python3 -m http.server 4173 --bind 127.0.0.1 --directory out >/tmp/sky-raid-v23d-http.log 2>&1 &
+          python3 -m http.server 4173 --bind 127.0.0.1 --directory out >/tmp/sky-raid-v23e-http.log 2>&1 &
           for i in {1..30}; do
             if curl -fsS http://127.0.0.1:4173/ >/dev/null; then exit 0; fi
             sleep 1
           done
-          cat /tmp/sky-raid-v23d-http.log
+          cat /tmp/sky-raid-v23e-http.log
           exit 1
 
       - name: Real browser WebGL playcheck
@@ -76,9 +78,10 @@ jobs:
           rm .github/sky-raid-v23b-patch.mjs
           rm .github/sky-raid-v23c-roster-seed.mjs
           rm .github/sky-raid-v23d-choreography-owner.mjs
+          rm .github/sky-raid-v23e-stagecycle-owner.mjs
           git config user.name "yz4git"
           git config user.email "65384484+yz4git@users.noreply.github.com"
-          git add src/sky/SkyDancerSkyRaidRules.ts src/sky/SkyDancerSkyRaidEnemyDoctrine.ts src/cart/CartRoguePhase67TurboHunt.ts src/sky/SkyDancerFlightCombat.ts src/sky/SkyDancerSkyRaid.ts src/sky/SkyDancerCombatChoreographyV46.ts tests/sky-sky-raid.test.ts scripts/webgl-sky-raid-camera-edge-v17.mjs .github/workflows/sky-raid-enemy-packages-v23b-once.yml .github/workflows/sky-raid-enemy-packages-v23-once.yml .github/sky-raid-v23b-patch.mjs .github/sky-raid-v23c-roster-seed.mjs .github/sky-raid-v23d-choreography-owner.mjs
+          git add src/sky/SkyDancerSkyRaidRules.ts src/sky/SkyDancerSkyRaidEnemyDoctrine.ts src/cart/CartRoguePhase67TurboHunt.ts src/sky/SkyDancerFlightCombat.ts src/sky/SkyDancerSkyRaid.ts src/sky/SkyDancerCombatChoreographyV46.ts src/sky/SkyDancerStageCycle.ts tests/sky-sky-raid.test.ts scripts/webgl-sky-raid-camera-edge-v17.mjs .github/workflows/sky-raid-enemy-packages-v23b-once.yml .github/workflows/sky-raid-enemy-packages-v23-once.yml .github/sky-raid-v23b-patch.mjs .github/sky-raid-v23c-roster-seed.mjs .github/sky-raid-v23d-choreography-owner.mjs .github/sky-raid-v23e-stagecycle-owner.mjs
           git diff --cached --check
           git commit -m "Differentiate SKY RAID enemy packages by act"
           git push origin HEAD:main
@@ -87,7 +90,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: sky-raid-v23d-enemy-packages-audit
+          name: sky-raid-v23e-enemy-packages-audit
           path: artifacts/sky-raid-v17
           if-no-files-found: warn
           retention-days: 7
