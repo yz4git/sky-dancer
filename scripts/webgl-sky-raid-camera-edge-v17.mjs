@@ -247,6 +247,12 @@ try {
   if (!(low.altitude >= 19.95 && low.altitude <= 20.05)) throw new Error(`lower altitude audit hook failed: ${low.altitude}`);
   if (!low.playerVisible) throw new Error("aircraft clipped at lower altitude stop");
   if (Math.abs(low.playerNdcY) > 0.52) throw new Error(`lower framing too close to edge: ${low.playerNdcY}`);
+  if (Number(low.enemyVisible ?? 0) < 2) {
+    throw new Error(`too few enemies remain visible at the SKY RAID lower altitude stop: ${JSON.stringify(low.enemyScreenSamples ?? [])}`);
+  }
+  if (Number(low.enemyCombatLane ?? 0) < 1) {
+    throw new Error(`lower SKY RAID altitude has no enemy in the central combat lane: ${JSON.stringify(low.enemyScreenSamples ?? [])}`);
+  }
   await screenshot("02-lower-altitude-stop.png");
 
   // Force only the live warning presentation in this injected audit build so

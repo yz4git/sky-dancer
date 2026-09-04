@@ -132,6 +132,7 @@ const raidVisualByDemo = new WeakMap<object, RaidVisualState>();
 const raidFlightByDemo = new WeakMap<object, SkyDancerSkyRaidFlightController>();
 const raidCameraFxByDemo = new WeakMap<object, RaidCameraFxState>();
 const raidEngagementBySession = new WeakMap<object, { cooldown: number; cursor: number }>();
+const raidScreenEngagementByDemo = new WeakMap<object, { nextAllowedAt: number; cursor: number; recycles: number }>();
 let latestSkyRaidSnapshot: SkyDancerSkyRaidSnapshot | null = null;
 
 export const SKY_DANCER_SKY_RAID_SNAPSHOT_EVENT = "sky-dancer-sky-raid-snapshot";
@@ -217,6 +218,94 @@ function maintainSkyRaidEnemyPresence(session: CartArenaSession, delta: number):
   }
   state.cursor = (state.cursor + needed) % SKY_RAID_ENGAGEMENT_SLOTS.length;
   state.cooldown = needed > 0 ? 0.42 : 0.18;
+}
+
+
+const SKY_RAID_SCREEN_SLOTS = [
+  { lateral: -7, forward: 24 },
+  { lateral: 7, forward: 29 },
+  { lateral: 0, forward: 34 },
+  { lateral: -11, forward: 31 },
+  { lateral: 11, forward: 36 },
+] as const;
+
+/**
+ * Simulation-space engagement cannot guarantee phone-screen visibility
+ * after pitch, bank, camera framing, and altitude transitions. Use the
+ * final camera projection as a second-stage arcade engagement director.
+ * Only already-offscreen aircraft are recycled, so visible targets never pop.
+ */
+function maintainSkyRaidScreenPresence(
+  demo: RaidWebGLDemo,
+  snapshot: ReturnType<CartArenaSession["snapshot"]>,
+): void {
+  const live = demo.session.enemies.filter(
+    (enemy) => enemy.alive && enemy.kind !== "boss" && enemy.nodeId === snapshot.nodeId,
+  );
+  if (live.length < 2) return;
+
+  const key = demo as unknown as object;
+  let state = raidScreenEngagementByDemo.get(key);
+  if (!state) {
+    state = { nextAllowedAt: 0, cursor: 0, recycles: 0 };
+    raidScreenEngagementByDemo.set(key, state);
+  }
+
+  demo.scene.updateMatrixWorld(true);
+  demo.camera.updateMatrixWorld(true);
+  const measured = live.flatMap((enemy) => {
+    const group = demo.enemyGroups.get(enemy.id);
+    if (!group) return [];
+    const world = new THREE.Vector3();
+    group.getWorldPosition(world);
+    const ndc = world.clone().project(demo.camera);
+    const visible = ndc.z > -1 && ndc.z < 1 && Math.abs(ndc.x) < 0.96 && Math.abs(ndc.y) < 0.94;
+    return [{ enemy, group, ndc, visible }];
+  });
+  const visible = measured.filter((sample) => sample.visible);
+  demo.scene.userData.skyRaidScreenPresenceVisible = visible.length;
+  demo.scene.userData.skyRaidScreenPresenceRecycles = state.recycles;
+  if (visible.length >= 2) {
+    state.nextAllowedAt = 0;
+    return;
+  }
+
+  const now = typeof performance !== "undefined" ? performance.now() * 0.001 : Date.now() * 0.001;
+  if (now < state.nextAllowedAt) return;
+
+  const forwardX = Math.sin(snapshot.heading);
+  const forwardZ = Math.cos(snapshot.heading);
+  const rightX = Math.cos(snapshot.heading);
+  const rightZ = -Math.sin(snapshot.heading);
+  const candidates = measured
+    .filter((sample) => !sample.visible)
+    .sort((left, right) => {
+      const leftPenalty = Math.abs(left.ndc.x) + Math.abs(left.ndc.y) + Math.abs(left.ndc.z) * 0.12;
+      const rightPenalty = Math.abs(right.ndc.x) + Math.abs(right.ndc.y) + Math.abs(right.ndc.z) * 0.12;
+      return rightPenalty - leftPenalty;
+    });
+  const needed = Math.min(2 - visible.length, candidates.length);
+  for (let index = 0; index < needed; index += 1) {
+    const sample = candidates[index];
+    const slot = SKY_RAID_SCREEN_SLOTS[(state.cursor + index) % SKY_RAID_SCREEN_SLOTS.length];
+    const x = snapshot.x + forwardX * slot.forward + rightX * slot.lateral;
+    const z = snapshot.z + forwardZ * slot.forward + rightZ * slot.lateral;
+    sample.enemy.x = x;
+    sample.enemy.z = z;
+    sample.enemy.heading = Math.atan2(snapshot.x - x, snapshot.z - z);
+    sample.enemy.aiClock = 0;
+    sample.enemy.chargeTime = 0;
+    sample.group.position.x = x;
+    sample.group.position.z = z;
+    sample.group.position.y = 0.62 + getSkyDancerEnemyAltitudeMetersV43(sample.enemy);
+    sample.group.userData.lastX = x;
+    sample.group.userData.lastZ = z;
+    sample.group.updateMatrixWorld(true);
+    state.recycles += 1;
+  }
+  state.cursor = (state.cursor + needed) % SKY_RAID_SCREEN_SLOTS.length;
+  state.nextAllowedAt = now + (needed > 0 ? 0.28 : 0.12);
+  demo.scene.userData.skyRaidScreenPresenceRecycles = state.recycles;
 }
 
 function publishSkyRaidWorldStyle(snapshot: SkyDancerSkyRaidSnapshot): void {
@@ -798,6 +887,7 @@ webglPrototype.applyCameraPresentation = function skyRaidCameraPresentation(
   this.scene.userData.skyRaidCameraHitKick = cameraFx.hitKick;
   this.scene.userData.skyRaidCameraShotKick = cameraFx.shotKick;
   this.scene.userData.skyRaidCameraFov = this.camera.fov;
+  maintainSkyRaidScreenPresence(this, snapshot);
   if (typeof window !== "undefined" && typeof navigator !== "undefined" && navigator.webdriver) {
     (window as unknown as Record<string, unknown>).__skyRaidGetCameraPolish = () => {
       this.scene.updateMatrixWorld(true);
