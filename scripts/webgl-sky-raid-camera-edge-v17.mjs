@@ -135,8 +135,9 @@ async function confirmLiveTargetDown() {
     };
   });
   fs.writeFileSync(path.join(out, "kill-cue-visual.json"), JSON.stringify(cueVisual, null, 2));
-  if (!cueVisual || cueVisual.width < 110 || cueVisual.height < 20 || cueVisual.display === "none" || cueVisual.visibility === "hidden") {
-    throw new Error(`kill confirmation has no visible layout box: ${JSON.stringify(cueVisual)}`);
+  const cueOpacity = Number.parseFloat(cueVisual?.opacity ?? "0");
+  if (!cueVisual || cueVisual.width < 110 || cueVisual.height < 20 || cueVisual.display === "none" || cueVisual.visibility === "hidden" || cueOpacity < 0.85) {
+    throw new Error(`kill confirmation is not visibly rendered: ${JSON.stringify(cueVisual)}`);
   }
   await screenshot("03-target-down-confirmation.png");
   const result = {

@@ -106,3 +106,13 @@ test("SKY RAID kill confirmation is carried by authoritative snapshot state", ()
   assert.match(overlaySource, /key=\{snapshot\.killCueSerial\}/);
   assert.doesNotMatch(overlaySource, /previousSnapshotRef/);
 });
+
+
+test("SKY RAID phone feedback stays visible without blocking the combat lane", () => {
+  const overlaySource = readFileSync(new URL("../app/SkyDancerSkyRaidOverlay.tsx", import.meta.url), "utf8");
+  const auditSource = readFileSync(new URL("../scripts/webgl-sky-raid-camera-edge-v17.mjs", import.meta.url), "utf8");
+  assert.match(overlaySource, /opacity: 1 !important/);
+  assert.match(overlaySource, /max-width: min\(42vw, 340px\)/);
+  assert.match(overlaySource, /font-size: clamp\(8px, \.95vw, 10px\)/);
+  assert.match(auditSource, /cueOpacity < 0\.85/);
+});

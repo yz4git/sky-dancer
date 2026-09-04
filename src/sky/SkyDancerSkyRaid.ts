@@ -259,6 +259,7 @@ function updateRaid(session: RaidSession, hunt: CartTurboHuntSnapshot, delta: nu
     state.actKills = 0;
     state.actBreak = false;
     state.killCueSecondsRemaining = 0;
+    state.killCueSecondsRemaining = 0;
     session.gas = Math.min(1, session.gas + 0.035);
     session.lastReward = `ACT ${act.index + 1} · ${act.label} · ${act.setpiece}`;
     session.rewardTimer = Math.max(session.rewardTimer, 2.4);
@@ -271,6 +272,10 @@ function updateRaid(session: RaidSession, hunt: CartTurboHuntSnapshot, delta: nu
     state.chainTimer = 4.2;
     state.actKills += 1;
     state.score += skyDancerSkyRaidKillScore(state.chain, session.car.boostActive, rushActive);
+  }
+  if (killDelta > 0) {
+    state.killCueSerial += killDelta;
+    state.killCueSecondsRemaining = 1.18;
   }
   if (killDelta > 0) {
     state.killCueSerial += killDelta;

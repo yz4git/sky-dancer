@@ -39,6 +39,7 @@ export default function SkyDancerSkyRaidOverlay() {
   if (!snapshot) return null;
   const progress = Math.round(Math.min(1, snapshot.actKills / Math.max(1, snapshot.actKillTarget)) * 100);
   const killCueVisible = snapshot.killCueSecondsRemaining > 0;
+  const killCueVisible = snapshot.killCueSecondsRemaining > 0;
   const accent = hex(snapshot.palette.accent);
   const sky = hex(snapshot.palette.sky);
   const enemy = hex(snapshot.palette.enemy);
@@ -103,6 +104,7 @@ export default function SkyDancerSkyRaidOverlay() {
         box-shadow: 0 7px 24px rgba(0,12,24,.38), 0 0 14px color-mix(in srgb, var(--raid-accent) 22%, transparent), inset 3px 0 0 var(--raid-accent);
         text-align: center;
         pointer-events: none;
+        opacity: 1 !important;
         animation: skyRaidKillConfirm 1.16s cubic-bezier(.16,.84,.28,1) both;
       }
       [data-sd-kill-confirm] strong {
@@ -120,6 +122,23 @@ export default function SkyDancerSkyRaidOverlay() {
         font-size: 8px;
         font-weight: 900;
         letter-spacing: .14em;
+      }
+      html[data-sky-dancer-mode="sky-raid"] [aria-label="Missile warning"] {
+        left: 50% !important;
+        right: auto !important;
+        top: max(105px, calc(env(safe-area-inset-top) + 95px)) !important;
+        bottom: auto !important;
+        transform: translateX(-50%) !important;
+        width: auto !important;
+        max-width: min(42vw, 340px) !important;
+        padding: 3px 9px !important;
+        border-radius: 7px !important;
+        font-size: clamp(8px, .95vw, 10px) !important;
+        line-height: 1 !important;
+        letter-spacing: .08em !important;
+        opacity: .86 !important;
+        box-shadow: 0 3px 12px rgba(70,0,0,.22) !important;
+        white-space: nowrap !important;
       }
       @keyframes skyRaidScorePunch {
         0% { transform: scale(1); }
@@ -148,6 +167,11 @@ export default function SkyDancerSkyRaidOverlay() {
           top: max(92px, calc(env(safe-area-inset-top) + 82px));
           min-width: 124px;
           padding: 5px 9px 6px;
+        }
+        html[data-sky-dancer-mode="sky-raid"] [aria-label="Missile warning"] {
+          top: 103px !important;
+          max-width: min(40vw, 320px) !important;
+          padding: 2px 8px !important;
         }
       }
     `}</style>
