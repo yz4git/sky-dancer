@@ -1,5 +1,5 @@
 name: SKY RAID final-camera edge-follow V18 audit
-# V20.1 final browser gate: authoritative Turbo hold + release speed language.
+# V20.2 final browser gate: proven Space Turbo hold + release speed language.
 
 on:
   push:
