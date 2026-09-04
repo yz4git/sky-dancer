@@ -1,5 +1,5 @@
 name: SKY RAID final-camera edge-follow V18 audit
-# Re-run after fixing the visible-enemy source assertion.
+# Re-run on the full-altitude visible-enemy reconstruction pass.
 
 on:
   push:
