@@ -4,10 +4,13 @@ import test from "node:test";
 import {
   SKY_DANCER_SKY_RAID_ACTS,
   SKY_DANCER_SKY_RAID_BOSS_TRIGGER_SECONDS,
+  SKY_DANCER_SKY_RAID_BOSS_CUE_SECONDS,
+  SKY_DANCER_SKY_RAID_CHAIN_GRACE_SECONDS,
   skyDancerSkyRaidActFor,
   skyDancerSkyRaidKillScore,
   skyDancerSkyRaidPressure,
   skyDancerSkyRaidRushActive,
+  skyDancerSkyRaidBossCueActive,
   skyDancerSkyRaidWorldStyle,
 } from "../src/sky/SkyDancerSkyRaidRules";
 import { CartArenaSession } from "../src/cart/CartArenaSession";
@@ -26,6 +29,38 @@ test("SKY RAID spans five arcade acts across the free-flight run", () => {
   assert.equal(skyDancerSkyRaidActFor(96).id, "prism-citadel");
   assert.ok(SKY_DANCER_SKY_RAID_BOSS_TRIGGER_SECONDS > 96);
   assert.ok(SKY_DANCER_SKY_RAID_BOSS_TRIGGER_SECONDS < 120);
+});
+
+test("SKY RAID free-flight chain window supports a bank, reacquire and relock handoff", () => {
+  assert.ok(SKY_DANCER_SKY_RAID_CHAIN_GRACE_SECONDS >= 5);
+  assert.ok(SKY_DANCER_SKY_RAID_CHAIN_GRACE_SECONDS < 7);
+  const raidSource = readFileSync(new URL("../src/sky/SkyDancerSkyRaid.ts", import.meta.url), "utf8");
+  assert.match(raidSource, /state\.chainTimer = SKY_DANCER_SKY_RAID_CHAIN_GRACE_SECONDS/);
+});
+
+test("SKY RAID flagship cue is a short entrance card instead of a persistent combat banner", () => {
+  const trigger = SKY_DANCER_SKY_RAID_BOSS_TRIGGER_SECONDS;
+  assert.equal(skyDancerSkyRaidBossCueActive(trigger - 0.01, true), false);
+  assert.equal(skyDancerSkyRaidBossCueActive(trigger, true), true);
+  assert.equal(skyDancerSkyRaidBossCueActive(trigger + SKY_DANCER_SKY_RAID_BOSS_CUE_SECONDS - 0.01, true), true);
+  assert.equal(skyDancerSkyRaidBossCueActive(trigger + SKY_DANCER_SKY_RAID_BOSS_CUE_SECONDS, true), false);
+  assert.equal(skyDancerSkyRaidBossCueActive(trigger, false), false);
+  const overlaySource = readFileSync(new URL("../app/SkyDancerSkyRaidOverlay.tsx", import.meta.url), "utf8");
+  assert.match(overlaySource, /bossCueVisible = skyDancerSkyRaidBossCueActive/);
+  assert.match(overlaySource, /\{bossCueVisible && !snapshot\.clear && \(/);
+  assert.doesNotMatch(overlaySource, /\{snapshot\.bossForced && !snapshot\.clear && \(/);
+});
+
+test("SKY RAID phone target reticle keeps distant emphasis below the combat-lane clutter limit", () => {
+  const hudSource = readFileSync(new URL("../app/SkyDancerHudV45.tsx", import.meta.url), "utf8");
+  assert.match(hudSource, /const reticleScale = clamp\(\(decision\?\.vulnerable \? 1\.04 : 1\) \+ rangeEmphasis, 1, 1\.12\)/);
+});
+
+test("SKY RAID Turbo release tail is frame-latched so a slow render cannot skip the cue", () => {
+  const raidSource = readFileSync(new URL("../src/sky/SkyDancerSkyRaid.ts", import.meta.url), "utf8");
+  assert.match(raidSource, /turboState\.releaseSerial > visual\.lastTurboReleaseSerial/);
+  assert.match(raidSource, /visual\.turboReleaseVisual = 1/);
+  assert.match(raidSource, /Math\.min\(delta, 0\.05\) \/ 1\.45/);
 });
 
 test("SKY RAID scoring rewards chain, Turbo and formation rush", () => {

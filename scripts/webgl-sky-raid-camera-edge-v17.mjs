@@ -278,6 +278,9 @@ if (Math.abs(reticleCenterX - decisionCenterX) < 34 && Math.abs(reticleCenterY -
     throw new Error(`lower SKY RAID altitude has no enemy in the central combat lane: ${JSON.stringify(low.enemyScreenSamples ?? [])}`);
   }
   await screenshot("02-lower-altitude-stop.png");
+  // The dive check holds the real flight-stick pointer down. Release it before
+  // warning/Turbo isolation so later input audits cannot inherit pointer capture.
+  await page.mouse.up();
 
   // Force only the live warning presentation in this injected audit build so
   // the final screenshot always captures the exact camera-space halo geometry.
@@ -311,7 +314,23 @@ if (Math.abs(reticleCenterX - decisionCenterX) < 34 && Math.abs(reticleCenterY -
   }
   await screenshot("05-turbo-speed-polish.png");
   await page.keyboard.up("Space");
-  await page.waitForTimeout(160);
+  await page.waitForFunction(
+    () => window.__skyDancerGetTurboState?.()?.held === false,
+    null,
+    { timeout: 3000, polling: 40 },
+  );
+  const turboReleaseState = await page.evaluate(() => window.__skyDancerGetTurboState?.() ?? null);
+  if (!turboReleaseState || Number(turboReleaseState.releaseSerial ?? 0) < 1) {
+    throw new Error(`Turbo release was not registered by the isolated model: ${JSON.stringify(turboReleaseState)}`);
+  }
+  await page.waitForFunction(
+    () => {
+      const visual = window.__skyRaidGetSpeedPolish?.();
+      return visual?.turboHeld === false && Number(visual?.turboReleaseFx ?? 0) >= 0.45;
+    },
+    null,
+    { timeout: 3000, polling: 40 },
+  );
   const speedReleaseVisual = await page.evaluate(() => window.__skyRaidGetSpeedPolish?.() ?? null);
   if (!speedReleaseVisual || speedReleaseVisual.turboHeld !== false || Number(speedReleaseVisual.turboReleaseFx ?? 0) < 0.45) {
     throw new Error(`Turbo release speed tail is missing: ${JSON.stringify(speedReleaseVisual)}`);
@@ -320,7 +339,7 @@ if (Math.abs(reticleCenterX - decisionCenterX) < 34 && Math.abs(reticleCenterY -
 
   await clearAuditAltitude();
 
-  const report = { desiredPlayerNdcY, baselineFrameTolerance, padBox, visualRingBox, captionBox, reticleBox, decisionBox, combatDiagnostics, targetDownConfirmation, warningVisual, speedVisual, speedReleaseVisual, baseline, realClimb, high, beforeDive, realDive, low, errors };
+  const report = { desiredPlayerNdcY, baselineFrameTolerance, padBox, visualRingBox, captionBox, reticleBox, decisionBox, combatDiagnostics, targetDownConfirmation, warningVisual, speedVisual, turboReleaseState, speedReleaseVisual, baseline, realClimb, high, beforeDive, realDive, low, errors };
   fs.writeFileSync(path.join(out, "report.json"), JSON.stringify(report, null, 2));
   if (errors.length) throw new Error(JSON.stringify(errors));
   console.log("SKY RAID V18 PASS", JSON.stringify(report));

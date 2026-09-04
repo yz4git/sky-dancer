@@ -6,6 +6,7 @@ import {
   getLatestSkyDancerSkyRaidSnapshot,
   type SkyDancerSkyRaidSnapshot,
 } from "../src/sky/SkyDancerSkyRaid";
+import { skyDancerSkyRaidBossCueActive } from "../src/sky/SkyDancerSkyRaidRules";
 import legacyStyles from "./CartRogueGame.module.css";
 import phaseStyles from "./CartRoguePhase3.module.css";
 import routeStyles from "./CartRunRouteMap.module.css";
@@ -39,6 +40,7 @@ export default function SkyDancerSkyRaidOverlay() {
   if (!snapshot) return null;
   const progress = Math.round(Math.min(1, snapshot.actKills / Math.max(1, snapshot.actKillTarget)) * 100);
   const killCueVisible = snapshot.killCueSecondsRemaining > 0;
+  const bossCueVisible = skyDancerSkyRaidBossCueActive(snapshot.elapsedSeconds, snapshot.bossForced);
   const accent = hex(snapshot.palette.accent);
   const sky = hex(snapshot.palette.sky);
   const enemy = hex(snapshot.palette.enemy);
@@ -220,7 +222,7 @@ export default function SkyDancerSkyRaidOverlay() {
         </div>
       )}
 
-      {snapshot.bossForced && !snapshot.clear && (
+      {bossCueVisible && !snapshot.clear && (
         <div className={styles.bossCue}>
           <small>FINAL SETPIECE</small>
           <strong>PRISM TITAN</strong>

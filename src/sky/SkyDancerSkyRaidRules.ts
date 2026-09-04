@@ -53,6 +53,19 @@ export const SKY_DANCER_SKY_RAID_ACTS: readonly SkyDancerSkyRaidAct[] = [
 export const SKY_DANCER_SKY_RAID_BOSS_TRIGGER_SECONDS = 104;
 export const SKY_DANCER_SKY_RAID_TARGET_SECONDS = 120;
 
+// Free-flight kills need enough time for a real bank/reacquire/lock handoff on phone.
+// Longer than the old 4.2 s timer, but still short enough to reward momentum.
+export const SKY_DANCER_SKY_RAID_CHAIN_GRACE_SECONDS = 5.6;
+
+// The flagship card is an entrance cue, not a persistent combat overlay.
+export const SKY_DANCER_SKY_RAID_BOSS_CUE_SECONDS = 2.4;
+
+export function skyDancerSkyRaidBossCueActive(elapsedSeconds: number, bossForced: boolean): boolean {
+  if (!bossForced) return false;
+  const local = elapsedSeconds - SKY_DANCER_SKY_RAID_BOSS_TRIGGER_SECONDS;
+  return local >= 0 && local < SKY_DANCER_SKY_RAID_BOSS_CUE_SECONDS;
+}
+
 export type SkyDancerSkyRaidWorldStyle = "city" | "mountains" | "clouds" | "storm" | "citadel";
 
 export function skyDancerSkyRaidWorldStyle(actId: SkyDancerSkyRaidActId): SkyDancerSkyRaidWorldStyle {

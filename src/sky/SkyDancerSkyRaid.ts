@@ -10,6 +10,7 @@ import {
 import {
   SKY_DANCER_SKY_RAID_ACTS,
   SKY_DANCER_SKY_RAID_BOSS_TRIGGER_SECONDS,
+  SKY_DANCER_SKY_RAID_CHAIN_GRACE_SECONDS,
   skyDancerSkyRaidActFor,
   skyDancerSkyRaidActSeconds,
   skyDancerSkyRaidKillScore,
@@ -117,6 +118,8 @@ interface RaidVisualState {
   anchorX: number;
   anchorZ: number;
   anchorHeading: number;
+  lastTurboReleaseSerial: number;
+  turboReleaseVisual: number;
 }
 
 interface RaidCameraFxState {
@@ -644,7 +647,7 @@ function updateRaid(session: RaidSession, hunt: CartTurboHuntSnapshot, delta: nu
   const killDelta = Math.max(0, hunt.huntKills - state.previousKills);
   for (let index = 0; index < killDelta; index += 1) {
     state.chain = Math.min(12, state.chain + 1);
-    state.chainTimer = 4.2;
+    state.chainTimer = SKY_DANCER_SKY_RAID_CHAIN_GRACE_SECONDS;
     state.actKills += 1;
     state.score += skyDancerSkyRaidKillScore(state.chain, session.car.boostActive, rushActive);
   }
@@ -888,6 +891,8 @@ function buildRaidVisuals(demo: RaidWebGLDemo): void {
     anchorX: Number.NaN,
     anchorZ: Number.NaN,
     anchorHeading: 0,
+    lastTurboReleaseSerial: 0,
+    turboReleaseVisual: 0,
   });
 }
 
@@ -930,9 +935,18 @@ function updateRaidVisuals(demo: RaidWebGLDemo, delta: number, flight: SkyDancer
   const flightSpeed = Math.abs(base.speed);
   const cruiseFx = clamp((flightSpeed - 17) / 12, 0, 1);
   const turboState = getSkyDancerTurboState(demo.session);
-  const turboReleaseFx = Number.isFinite(turboState.releaseAgeSeconds)
+  // A Turbo release can happen between two expensive WebGL frames. Latch the
+  // release serial into presentation time so the speed tail is guaranteed to
+  // appear for rendered frames instead of expiring entirely on the wall clock.
+  if (turboState.releaseSerial > visual.lastTurboReleaseSerial) {
+    visual.lastTurboReleaseSerial = turboState.releaseSerial;
+    visual.turboReleaseVisual = 1;
+  }
+  const wallReleaseFx = Number.isFinite(turboState.releaseAgeSeconds)
     ? clamp(1 - turboState.releaseAgeSeconds / 1.45, 0, 1)
     : 0;
+  const turboReleaseFx = Math.max(wallReleaseFx, visual.turboReleaseVisual);
+  visual.turboReleaseVisual = Math.max(0, visual.turboReleaseVisual - Math.min(delta, 0.05) / 1.45);
   const turboFx = turboState.held ? 1 : turboReleaseFx * (0.72 + turboState.releaseCharge * 0.18);
   const rushFx = raid.rushActive ? 1 : 0;
   const speedFxIntensity = clamp(cruiseFx * 0.22 + rushFx * 0.32 + turboFx * 0.72, 0, 1);

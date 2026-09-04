@@ -78,7 +78,7 @@ export default function SkyDancerHudV45() {
   const rangeEmphasis = decision
     ? clamp((decision.distance - 20) / 38, 0, 1) * 0.14
     : 0;
-  const reticleScale = (decision?.vulnerable ? 1.06 : 1) + rangeEmphasis;
+  const reticleScale = clamp((decision?.vulnerable ? 1.04 : 1) + rangeEmphasis, 1, 1.12);
   const lockVisualOffsetVw = lockSide * clamp(4.5 - Math.abs(reticleX) * 0.08, 2.4, 4.5);
 
   return <>
