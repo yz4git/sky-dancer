@@ -1,0 +1,95 @@
+name: SKY RAID V24 five-act WebGL audit one-shot
+
+on:
+  push:
+    paths:
+      - .github/workflows/sky-raid-five-act-v24-once.yml
+
+permissions:
+  contents: write
+
+jobs:
+  audit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    env:
+      SKY_DANCER_CHROME_PATH: /usr/bin/google-chrome
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 1
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.13.0
+          cache: npm
+
+      - name: Inject webdriver-only elapsed control
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path("src/cart/CartRoguePhase67TurboHunt.ts")
+          source = path.read_text()
+          marker = """function updateDirector(session: MutableHuntSession, state: TurboHuntState, delta: number): void {\n  state.elapsed += delta;"""
+          replacement = """function updateDirector(session: MutableHuntSession, state: TurboHuntState, delta: number): void {\n  // Webdriver-only clock positioning for the five-Act visual audit. This is\n  // injected in CI and restored before any commit. Product timing is untouched.\n  if (typeof window !== \"undefined\" && typeof navigator !== \"undefined\" && navigator.webdriver) {\n    const forcedElapsed = (window as unknown as { __skyRaidAuditElapsedSeconds?: unknown }).__skyRaidAuditElapsedSeconds;\n    if (typeof forcedElapsed === \"number\" && Number.isFinite(forcedElapsed)) state.elapsed = Math.max(0, forcedElapsed);\n  }\n  state.elapsed += delta;"""
+          if marker not in source:
+              raise SystemExit("Turbo Hunt audit elapsed injection marker missing")
+          path.write_text(source.replace(marker, replacement, 1))
+          PY
+          git diff --check
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Validate product
+        run: |
+          npm run test:fast
+          npm run check:arcade
+          npm run lint
+
+      - name: Build Pages audit artifact
+        run: npm run build:pages
+
+      - name: Browser setup
+        run: |
+          rm -rf .audit-runtime
+          mkdir -p .audit-runtime artifacts/sky-raid-five-act-v24
+          printf '{"private":true,"type":"commonjs"}\n' > .audit-runtime/package.json
+          npm install --prefix .audit-runtime --no-package-lock --no-save --ignore-scripts --no-audit --no-fund playwright-core@1.55.0
+          python3 -m http.server 4173 --bind 127.0.0.1 --directory out >/tmp/sky-raid-v24-http.log 2>&1 &
+          for i in {1..30}; do
+            if curl -fsS http://127.0.0.1:4173/ >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          cat /tmp/sky-raid-v24-http.log
+          exit 1
+
+      - name: Five-Act real-browser playcheck
+        run: node scripts/webgl-sky-raid-five-act-v24.mjs
+
+      - name: Restore audit-only injection
+        if: always()
+        run: git restore src/cart/CartRoguePhase67TurboHunt.ts
+
+      - name: Upload five-Act screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sky-raid-five-act-v24-audit
+          path: artifacts/sky-raid-five-act-v24
+          if-no-files-found: warn
+          retention-days: 7
+
+      - name: Remove successful one-shot harness
+        if: success()
+        run: |
+          rm .github/workflows/sky-raid-five-act-v24-once.yml
+          rm scripts/webgl-sky-raid-five-act-v24.mjs
+          git config user.name "yz4git"
+          git config user.email "65384484+yz4git@users.noreply.github.com"
+          git add .github/workflows/sky-raid-five-act-v24-once.yml scripts/webgl-sky-raid-five-act-v24.mjs
+          git diff --cached --check
+          git commit -m "Remove SKY RAID five-act audit harness"
+          git push origin HEAD:main
