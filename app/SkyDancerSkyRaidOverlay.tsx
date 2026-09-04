@@ -39,7 +39,6 @@ export default function SkyDancerSkyRaidOverlay() {
   if (!snapshot) return null;
   const progress = Math.round(Math.min(1, snapshot.actKills / Math.max(1, snapshot.actKillTarget)) * 100);
   const killCueVisible = snapshot.killCueSecondsRemaining > 0;
-  const killCueVisible = snapshot.killCueSecondsRemaining > 0;
   const accent = hex(snapshot.palette.accent);
   const sky = hex(snapshot.palette.sky);
   const enemy = hex(snapshot.palette.enemy);
