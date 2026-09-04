@@ -108,7 +108,10 @@ async function confirmLiveTargetDown() {
     samples: samples.slice(-12),
   }, null, 2));
 
-  await cue.waitFor({ state: "attached", timeout: 2500 });
+  // The hit event is authoritative and can precede React's snapshot/cue mount
+  // by a few seconds under headless SwiftShader. Wait for the real UI rather
+  // than treating that render scheduling delay as a gameplay failure.
+  await cue.waitFor({ state: "attached", timeout: 5000 });
   const text = (await cue.textContent()) ?? "";
   if (!/TARGET DOWN/i.test(text)) {
     throw new Error(`unexpected kill confirmation after physical hit: ${text}`);
