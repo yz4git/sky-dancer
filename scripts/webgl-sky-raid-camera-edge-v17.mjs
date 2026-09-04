@@ -113,18 +113,35 @@ async function confirmLiveTargetDown() {
   if (!/TARGET DOWN/i.test(text)) {
     throw new Error(`unexpected kill confirmation after physical hit: ${text}`);
   }
-  // Capture after the entrance fade has become visually readable instead of
-  // taking the screenshot on the DOM-attachment frame where opacity is zero.
-  await page.waitForFunction(() => {
+  // The cue animation reaches its fully-visible keyframe about 140 ms after
+  // mount and remains on screen for more than a second. Capture in that stable
+  // visual window instead of depending on browser-specific computed animation
+  // opacity reporting, which proved unreliable under headless SwiftShader.
+  await page.waitForTimeout(180);
+  const cueVisual = await page.evaluate(() => {
     const element = document.querySelector('[data-sd-kill-confirm]');
-    if (!(element instanceof HTMLElement)) return false;
-    const opacity = Number.parseFloat(getComputedStyle(element).opacity || "0");
+    if (!(element instanceof HTMLElement)) return null;
+    const style = getComputedStyle(element);
     const rect = element.getBoundingClientRect();
-    return opacity >= 0.9 && rect.width >= 110 && rect.height >= 20 && rect.right > 0 && rect.left < innerWidth;
-  }, null, { timeout: 1000, polling: 20 });
+    return {
+      opacity: style.opacity,
+      display: style.display,
+      visibility: style.visibility,
+      width: rect.width,
+      height: rect.height,
+      left: rect.left,
+      top: rect.top,
+      text: element.textContent?.replace(/\s+/g, " ").trim() ?? "",
+    };
+  });
+  fs.writeFileSync(path.join(out, "kill-cue-visual.json"), JSON.stringify(cueVisual, null, 2));
+  if (!cueVisual || cueVisual.width < 110 || cueVisual.height < 20 || cueVisual.display === "none" || cueVisual.visibility === "hidden") {
+    throw new Error(`kill confirmation has no visible layout box: ${JSON.stringify(cueVisual)}`);
+  }
   await screenshot("03-target-down-confirmation.png");
   const result = {
     text: text.replace(/\s+/g, " ").trim(),
+    cueVisual,
     targetBefore,
     lockBefore,
     shotSerial: afterHit.weapon?.shotSerial ?? 0,
