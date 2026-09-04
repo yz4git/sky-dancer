@@ -20,16 +20,16 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22.13.0
-      - name: Apply final visual pass
+      - name: Apply SKY RAID enemy presence pass
         run: node scripts/apply-sky-raid-final-visual-pass.mjs
       - name: Commit source improvements
         run: |
-          if git diff --quiet -- src/sky/SkyDancerSkyRaid.ts app/SkyDancerSkyRaidOverlay.tsx scripts/webgl-sky-raid-camera-edge-v17.mjs tests/sky-sky-raid.test.ts; then
+          if git diff --quiet -- src/sky/SkyDancerSkyRaid.ts src/sky/SkyDancerVerticalFlightV43.ts app/SkyDancerSkyRaidOverlay.tsx scripts/webgl-sky-raid-camera-edge-v17.mjs tests/sky-sky-raid.test.ts; then
             echo "No source changes required"
             exit 0
           fi
           git config user.name "yz4git"
           git config user.email "65384484+yz4git@users.noreply.github.com"
-          git add src/sky/SkyDancerSkyRaid.ts app/SkyDancerSkyRaidOverlay.tsx scripts/webgl-sky-raid-camera-edge-v17.mjs tests/sky-sky-raid.test.ts
-          git commit -m "Clean SKY RAID final visual feedback pass"
+          git add src/sky/SkyDancerSkyRaid.ts src/sky/SkyDancerVerticalFlightV43.ts app/SkyDancerSkyRaidOverlay.tsx scripts/webgl-sky-raid-camera-edge-v17.mjs tests/sky-sky-raid.test.ts
+          git commit -m "Keep SKY RAID enemies in the visible combat band"
           git push origin HEAD:main
