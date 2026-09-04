@@ -89,9 +89,9 @@ test("SKY RAID valid missile locks keep enough pursuit authority for phone play"
   assert.match(weaponSource, /maxSpeed: 46/);
   assert.match(weaponSource, /ageSeconds \/ 0\.26, 0\.46, 1/);
   assert.match(weaponSource, /enemy\.id === missile\.targetEnemyId \? 0\.72 : 0\.52/);
-  assert.match(hudSource, /width: 50px/);
-  assert.match(hudSource, /max-width: min\(38vw, 300px\)/);
-  assert.match(hudSource, /lockTopVh = clamp\(43 \+ reticleY - 12, 27, 52\)/);
+  assert.match(hudSource, /width: 42px/);
+  assert.match(hudSource, /max-width: min\(31vw, 238px\)/);
+  assert.match(hudSource, /lockTopVh = clamp\(43 \+ reticleY \+ 8\.5, 37, 60\)/);
 });
 
 
