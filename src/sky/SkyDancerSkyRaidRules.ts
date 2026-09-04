@@ -66,6 +66,82 @@ export function skyDancerSkyRaidBossCueActive(elapsedSeconds: number, bossForced
   return local >= 0 && local < SKY_DANCER_SKY_RAID_BOSS_CUE_SECONDS;
 }
 
+export type SkyDancerSkyRaidCombatBeat = "spearhead" | "pincer" | "regroup" | "crossfire" | "breakaway";
+
+export interface SkyDancerSkyRaidCombatProfile {
+  doctrine: "GATE SPEAR" | "CANYON SCISSOR" | "ESCORT WALL" | "THUNDER PINCER" | "SIEGE ORBIT";
+  beats: readonly [
+    SkyDancerSkyRaidCombatBeat,
+    SkyDancerSkyRaidCombatBeat,
+    SkyDancerSkyRaidCombatBeat,
+    SkyDancerSkyRaidCombatBeat,
+    SkyDancerSkyRaidCombatBeat,
+  ];
+  lateralScale: number;
+  forwardBias: number;
+  baseTargetCount: number;
+  rushTargetCount: number;
+  correctionSpeed: number;
+  rushCorrectionSpeed: number;
+}
+
+const SKY_DANCER_SKY_RAID_COMBAT_PROFILES: Readonly<Record<SkyDancerSkyRaidActId, SkyDancerSkyRaidCombatProfile>> = {
+  "dawn-city": {
+    doctrine: "GATE SPEAR",
+    beats: ["spearhead", "pincer", "regroup", "crossfire", "breakaway"],
+    lateralScale: 0.88,
+    forwardBias: 0,
+    baseTargetCount: 3,
+    rushTargetCount: 4,
+    correctionSpeed: 4.6,
+    rushCorrectionSpeed: 7.4,
+  },
+  "red-canyon": {
+    doctrine: "CANYON SCISSOR",
+    beats: ["crossfire", "pincer", "breakaway", "crossfire", "spearhead"],
+    lateralScale: 0.72,
+    forwardBias: -2.5,
+    baseTargetCount: 3,
+    rushTargetCount: 4,
+    correctionSpeed: 5.2,
+    rushCorrectionSpeed: 7.6,
+  },
+  "cloud-fleet": {
+    doctrine: "ESCORT WALL",
+    beats: ["regroup", "spearhead", "pincer", "regroup", "breakaway"],
+    lateralScale: 1.10,
+    forwardBias: 2,
+    baseTargetCount: 3,
+    rushTargetCount: 4,
+    correctionSpeed: 4.2,
+    rushCorrectionSpeed: 6.6,
+  },
+  "storm-carrier": {
+    doctrine: "THUNDER PINCER",
+    beats: ["pincer", "crossfire", "breakaway", "pincer", "crossfire"],
+    lateralScale: 1.18,
+    forwardBias: -1.5,
+    baseTargetCount: 4,
+    rushTargetCount: 4,
+    correctionSpeed: 5.8,
+    rushCorrectionSpeed: 7.8,
+  },
+  "prism-citadel": {
+    doctrine: "SIEGE ORBIT",
+    beats: ["regroup", "crossfire", "spearhead", "pincer", "regroup"],
+    lateralScale: 0.96,
+    forwardBias: 1.5,
+    baseTargetCount: 3,
+    rushTargetCount: 4,
+    correctionSpeed: 5.0,
+    rushCorrectionSpeed: 7.0,
+  },
+};
+
+export function skyDancerSkyRaidCombatProfile(actId: SkyDancerSkyRaidActId): SkyDancerSkyRaidCombatProfile {
+  return SKY_DANCER_SKY_RAID_COMBAT_PROFILES[actId];
+}
+
 export type SkyDancerSkyRaidWorldStyle = "city" | "mountains" | "clouds" | "storm" | "citadel";
 
 export function skyDancerSkyRaidWorldStyle(actId: SkyDancerSkyRaidActId): SkyDancerSkyRaidWorldStyle {

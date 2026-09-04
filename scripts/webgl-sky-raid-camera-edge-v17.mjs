@@ -234,6 +234,9 @@ if (Math.abs(reticleCenterX - decisionCenterX) < 34 && Math.abs(reticleCenterY -
   if (Number(baseline.enemyCombatLane ?? 0) < 1) {
     throw new Error(`SKY RAID opening has no enemy in the central combat lane: ${JSON.stringify(baseline.enemyScreenSamples ?? [])}`);
   }
+  if (baseline.formationAct !== "dawn-city" || baseline.formationDoctrine !== "GATE SPEAR") {
+    throw new Error(`SKY RAID opening combat doctrine is not active: ${JSON.stringify({ act: baseline.formationAct, doctrine: baseline.formationDoctrine, beat: baseline.formationBeat })}`);
+  }
   await screenshot("00-baseline-flight.png");
 
   const targetDownConfirmation = await confirmLiveTargetDown();

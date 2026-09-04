@@ -7,6 +7,7 @@ import {
   SKY_DANCER_SKY_RAID_BOSS_CUE_SECONDS,
   SKY_DANCER_SKY_RAID_CHAIN_GRACE_SECONDS,
   skyDancerSkyRaidActFor,
+  skyDancerSkyRaidCombatProfile,
   skyDancerSkyRaidKillScore,
   skyDancerSkyRaidPressure,
   skyDancerSkyRaidRushActive,
@@ -29,6 +30,33 @@ test("SKY RAID spans five arcade acts across the free-flight run", () => {
   assert.equal(skyDancerSkyRaidActFor(96).id, "prism-citadel");
   assert.ok(SKY_DANCER_SKY_RAID_BOSS_TRIGGER_SECONDS > 96);
   assert.ok(SKY_DANCER_SKY_RAID_BOSS_TRIGGER_SECONDS < 120);
+});
+
+test("SKY RAID gives every act a distinct combat doctrine instead of one repeated formation loop", () => {
+  const profiles = SKY_DANCER_SKY_RAID_ACTS.map((act) => skyDancerSkyRaidCombatProfile(act.id));
+  assert.deepEqual(profiles.map((profile) => profile.doctrine), [
+    "GATE SPEAR",
+    "CANYON SCISSOR",
+    "ESCORT WALL",
+    "THUNDER PINCER",
+    "SIEGE ORBIT",
+  ]);
+  assert.equal(new Set(profiles.map((profile) => profile.beats.join(">"))).size, 5);
+  assert.ok(profiles[1].forwardBias < profiles[0].forwardBias);
+  assert.ok(profiles[2].lateralScale > profiles[0].lateralScale);
+  assert.ok(profiles[3].baseTargetCount > profiles[0].baseTargetCount);
+  assert.ok(profiles.every((profile) => profile.rushCorrectionSpeed >= profile.correctionSpeed));
+});
+
+test("SKY RAID formation and phone recycler both consume the active act doctrine", () => {
+  const raidSource = readFileSync(new URL("../src/sky/SkyDancerSkyRaid.ts", import.meta.url), "utf8");
+  assert.match(raidSource, /skyDancerSkyRaidCombatProfile\(act\.id\)/);
+  assert.match(raidSource, /const beat = profile\.beats\[phaseIndex\]/);
+  assert.match(raidSource, /targetCount: rush \? profile\.rushTargetCount : profile\.baseTargetCount/);
+  assert.match(raidSource, /correctionSpeed: rush \? profile\.rushCorrectionSpeed : profile\.correctionSpeed/);
+  assert.match(raidSource, /skyRaidScreenSlotsFor\(latestSkyRaidSnapshot\?\.elapsedSeconds \?\? 0\)/);
+  assert.match(raidSource, /skyRaidCombatDoctrine = pattern\.doctrine/);
+  assert.match(raidSource, /skyRaidFormationAct = pattern\.actId/);
 });
 
 test("SKY RAID free-flight chain window supports a bank, reacquire and relock handoff", () => {
@@ -175,10 +203,10 @@ test("SKY RAID keeps live enemies inside the visible flight band", () => {
   assert.match(raidSource, /enemyCombatLane/);
   assert.match(raidSource, /maintainSkyRaidEnemyPresence/);
   assert.match(raidSource, /maintainSkyRaidScreenPresence/);
-  assert.match(raidSource, /SKY_RAID_SCREEN_SLOTS/);
-  assert.match(raidSource, /type SkyRaidFormationBeat = "spearhead" \| "pincer" \| "regroup" \| "crossfire" \| "breakaway"/);
+  assert.match(raidSource, /skyRaidScreenSlotsFor/);
+  assert.match(raidSource, /type SkyRaidFormationBeat = SkyDancerSkyRaidCombatBeat/);
   assert.match(raidSource, /skyRaidFormationPattern/);
-  assert.match(raidSource, /correctionSpeed: rush \? 7\.4 : 4\.6/);
+  assert.match(raidSource, /correctionSpeed: rush \? profile\.rushCorrectionSpeed : profile\.correctionSpeed/);
   assert.match(raidSource, /dataset\.skyRaidFormationBeat/);
   assert.match(raidSource, /SKY_RAID_ENEMY_VISUAL_ASSIST_MAX = 1\.20/);
   assert.match(raidSource, /applySkyRaidEnemySilhouetteAssist\(this, snapshot\)/);
