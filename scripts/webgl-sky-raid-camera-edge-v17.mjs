@@ -74,8 +74,8 @@ async function confirmLiveTargetDown() {
     }
     await page.waitForTimeout(120);
   }
-  await page.evaluate(() => { delete window.__skyRaidAuditForceVulnerable; });
   if (!ready) {
+    await page.evaluate(() => { delete window.__skyRaidAuditForceVulnerable; });
     fs.writeFileSync(path.join(out, "weapon-window-failure.json"), JSON.stringify(samples, null, 2));
     throw new Error(`no audited vulnerable missile window appeared: ${JSON.stringify(samples.slice(-8))}`);
   }
@@ -92,6 +92,7 @@ async function confirmLiveTargetDown() {
     { timeout: 5000, polling: 40 },
   );
   const afterHit = await weaponDebug();
+  await page.evaluate(() => { delete window.__skyRaidAuditForceVulnerable; });
   if (!afterHit) throw new Error("weapon diagnostics disappeared after live missile hit");
   if (Number(afterHit.weapon?.shotSerial ?? 0) <= initialShotSerial) {
     throw new Error(`SHOT did not increment shotSerial: before=${initialShotSerial} after=${afterHit.weapon?.shotSerial}`);
