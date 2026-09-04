@@ -65,6 +65,11 @@ jobs:
               "bossCueVisible && !snapshot.clear",
           )
           replace(
+              "app/SkyDancerHudV45.tsx",
+              "const reticleScale = (decision?.vulnerable ? 1.06 : 1) + rangeEmphasis;",
+              "const reticleScale = clamp((decision?.vulnerable ? 1.04 : 1) + rangeEmphasis, 1, 1.12);",
+          )
+          replace(
               "tests/sky-sky-raid.test.ts",
               "  SKY_DANCER_SKY_RAID_BOSS_TRIGGER_SECONDS,\n",
               "  SKY_DANCER_SKY_RAID_BOSS_TRIGGER_SECONDS,\n  SKY_DANCER_SKY_RAID_BOSS_CUE_SECONDS,\n  SKY_DANCER_SKY_RAID_CHAIN_GRACE_SECONDS,\n",
@@ -75,7 +80,7 @@ jobs:
               "  skyDancerSkyRaidRushActive,\n  skyDancerSkyRaidBossCueActive,\n",
           )
           marker = 'test("SKY RAID scoring rewards chain, Turbo and formation rush", () => {'
-          added = '''test("SKY RAID free-flight chain window supports a bank, reacquire and relock handoff", () => {\n  assert.ok(SKY_DANCER_SKY_RAID_CHAIN_GRACE_SECONDS >= 5);\n  assert.ok(SKY_DANCER_SKY_RAID_CHAIN_GRACE_SECONDS < 7);\n  const raidSource = readFileSync(new URL("../src/sky/SkyDancerSkyRaid.ts", import.meta.url), "utf8");\n  assert.match(raidSource, /state\\.chainTimer = SKY_DANCER_SKY_RAID_CHAIN_GRACE_SECONDS/);\n});\n\ntest("SKY RAID flagship cue is a short entrance card instead of a persistent combat banner", () => {\n  const trigger = SKY_DANCER_SKY_RAID_BOSS_TRIGGER_SECONDS;\n  assert.equal(skyDancerSkyRaidBossCueActive(trigger - 0.01, true), false);\n  assert.equal(skyDancerSkyRaidBossCueActive(trigger, true), true);\n  assert.equal(skyDancerSkyRaidBossCueActive(trigger + SKY_DANCER_SKY_RAID_BOSS_CUE_SECONDS - 0.01, true), true);\n  assert.equal(skyDancerSkyRaidBossCueActive(trigger + SKY_DANCER_SKY_RAID_BOSS_CUE_SECONDS, true), false);\n  assert.equal(skyDancerSkyRaidBossCueActive(trigger, false), false);\n  const overlaySource = readFileSync(new URL("../app/SkyDancerSkyRaidOverlay.tsx", import.meta.url), "utf8");\n  assert.match(overlaySource, /bossCueVisible = skyDancerSkyRaidBossCueActive/);\n  assert.match(overlaySource, /\\{bossCueVisible && !snapshot\\.clear && \\(/);\n  assert.doesNotMatch(overlaySource, /\\{snapshot\\.bossForced && !snapshot\\.clear && \\(/);\n});\n\n'''
+          added = '''test("SKY RAID free-flight chain window supports a bank, reacquire and relock handoff", () => {\n  assert.ok(SKY_DANCER_SKY_RAID_CHAIN_GRACE_SECONDS >= 5);\n  assert.ok(SKY_DANCER_SKY_RAID_CHAIN_GRACE_SECONDS < 7);\n  const raidSource = readFileSync(new URL("../src/sky/SkyDancerSkyRaid.ts", import.meta.url), "utf8");\n  assert.match(raidSource, /state\\.chainTimer = SKY_DANCER_SKY_RAID_CHAIN_GRACE_SECONDS/);\n});\n\ntest("SKY RAID flagship cue is a short entrance card instead of a persistent combat banner", () => {\n  const trigger = SKY_DANCER_SKY_RAID_BOSS_TRIGGER_SECONDS;\n  assert.equal(skyDancerSkyRaidBossCueActive(trigger - 0.01, true), false);\n  assert.equal(skyDancerSkyRaidBossCueActive(trigger, true), true);\n  assert.equal(skyDancerSkyRaidBossCueActive(trigger + SKY_DANCER_SKY_RAID_BOSS_CUE_SECONDS - 0.01, true), true);\n  assert.equal(skyDancerSkyRaidBossCueActive(trigger + SKY_DANCER_SKY_RAID_BOSS_CUE_SECONDS, true), false);\n  assert.equal(skyDancerSkyRaidBossCueActive(trigger, false), false);\n  const overlaySource = readFileSync(new URL("../app/SkyDancerSkyRaidOverlay.tsx", import.meta.url), "utf8");\n  assert.match(overlaySource, /bossCueVisible = skyDancerSkyRaidBossCueActive/);\n  assert.match(overlaySource, /\\{bossCueVisible && !snapshot\\.clear && \\(/);\n  assert.doesNotMatch(overlaySource, /\\{snapshot\\.bossForced && !snapshot\\.clear && \\(/);\n});\n\ntest("SKY RAID phone target reticle keeps distant emphasis below the combat-lane clutter limit", () => {\n  const hudSource = readFileSync(new URL("../app/SkyDancerHudV45.tsx", import.meta.url), "utf8");\n  assert.match(hudSource, /const reticleScale = clamp\\(\\(decision\\?\\.vulnerable \\? 1\\.04 : 1\\) \\+ rangeEmphasis, 1, 1\\.12\\)/);\n});\n\n'''
           replace("tests/sky-sky-raid.test.ts", marker, added + marker)
           PY
 
@@ -116,9 +121,9 @@ jobs:
           rm -f .github/workflows/sky-raid-combat-handoff-v21-once.yml .github/workflows/sky-raid-combat-handoff-v21b-once.yml
           git config user.name "yz4git"
           git config user.email "65384484+yz4git@users.noreply.github.com"
-          git add src/sky/SkyDancerSkyRaidRules.ts src/sky/SkyDancerSkyRaid.ts app/SkyDancerSkyRaidOverlay.tsx tests/sky-sky-raid.test.ts .github/workflows/sky-raid-combat-handoff-v21-once.yml .github/workflows/sky-raid-combat-handoff-v21b-once.yml
+          git add src/sky/SkyDancerSkyRaidRules.ts src/sky/SkyDancerSkyRaid.ts app/SkyDancerSkyRaidOverlay.tsx app/SkyDancerHudV45.tsx tests/sky-sky-raid.test.ts .github/workflows/sky-raid-combat-handoff-v21-once.yml .github/workflows/sky-raid-combat-handoff-v21b-once.yml
           git diff --cached --check
-          git commit -m "Polish SKY RAID combat handoff rhythm"
+          git commit -m "Polish SKY RAID combat handoff and targeting"
           git push origin HEAD:main
 
       - name: Upload audit screenshots
