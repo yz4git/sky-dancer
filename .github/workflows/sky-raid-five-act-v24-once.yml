@@ -26,11 +26,12 @@ jobs:
           node-version: 22.13.0
           cache: npm
 
-      - name: Apply explicit SKY RAID gameplay bootstrap fix
+      - name: Apply SKY RAID full-pool and live-density fix
         run: |
           node --check .github/sky-raid-v24-population-owner.mjs
           node .github/sky-raid-v24-population-owner.mjs
           git diff --check
+          cp src/cart/CartRoguePhase67TurboHunt.ts /tmp/CartRoguePhase67TurboHunt.product.ts
 
       - name: Inject webdriver-only elapsed control
         run: |
@@ -75,9 +76,13 @@ jobs:
       - name: Five-Act real-browser playcheck
         run: node scripts/webgl-sky-raid-five-act-v24.mjs
 
-      - name: Restore audit-only injection
+      - name: Restore audit-only injection to product state
         if: always()
-        run: git restore src/cart/CartRoguePhase67TurboHunt.ts
+        run: |
+          if [ -f /tmp/CartRoguePhase67TurboHunt.product.ts ]; then
+            cp /tmp/CartRoguePhase67TurboHunt.product.ts src/cart/CartRoguePhase67TurboHunt.ts
+          fi
+          git diff --check
 
       - name: Upload five-Act screenshots
         if: always()
@@ -96,7 +101,7 @@ jobs:
           rm .github/sky-raid-v24-population-owner.mjs
           git config user.name "yz4git"
           git config user.email "65384484+yz4git@users.noreply.github.com"
-          git add app/CartRogueGamePhase13.tsx src/sky/SkyDancerSkyRaid.ts tests/sky-sky-raid.test.ts .github/workflows/sky-raid-five-act-v24-once.yml scripts/webgl-sky-raid-five-act-v24.mjs .github/sky-raid-v24-population-owner.mjs
+          git add app/CartRogueGamePhase13.tsx src/cart/CartRoguePhase67TurboHunt.ts src/sky/SkyDancerSkyRaid.ts src/sky/SkyDancerSkyRaidRules.ts tests/sky-sky-raid.test.ts .github/workflows/sky-raid-five-act-v24-once.yml scripts/webgl-sky-raid-five-act-v24.mjs .github/sky-raid-v24-population-owner.mjs
           git diff --cached --check
-          git commit -m "Fix SKY RAID full roster initialization"
+          git commit -m "Fix SKY RAID full roster and live density"
           git push origin HEAD:main
