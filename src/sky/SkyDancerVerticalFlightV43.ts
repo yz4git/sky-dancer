@@ -7,6 +7,19 @@ export const SKY_DANCER_VERTICAL_COLLISION_CLEARANCE_METERS = 3.2;
 export const SKY_DANCER_VERTICAL_RENDER_METERS_PER_UNIT = 150 / 38;
 export const SKY_DANCER_VERTICAL_MAX_PITCH_RADIANS = 0.30;
 
+let skyRaidEnemyAltitudeReferenceMetersV56 = 0;
+
+/**
+ * SKY RAID moves the player through a much wider 20-64 m flight envelope than
+ * the historical fixed-altitude combat model. Enemy tactical altitude remains
+ * a local +/-10 m maneuver offset; this reference lifts that local band into
+ * the current SKY RAID engagement layer without changing other game modes.
+ */
+export function setSkyDancerEnemyAltitudeReferenceV56(altitudeMeters: number): void {
+  if (!Number.isFinite(altitudeMeters)) return;
+  skyRaidEnemyAltitudeReferenceMetersV56 = altitudeMeters;
+}
+
 interface VerticalState {
   altitudeOffsetMeters: number;
   verticalSpeedMetersPerSecond: number;
@@ -300,7 +313,8 @@ export function getSkyDancerEnemyVerticalSnapshotV43(enemy: CartEnemyState): Sky
 }
 
 export function getSkyDancerEnemyAltitudeMetersV43(enemy: CartEnemyState): number {
-  return stateFor(enemy).altitudeOffsetMeters;
+  const skyRaid = typeof document !== "undefined" && document.documentElement.dataset.skyDancerMode === "sky-raid";
+  return stateFor(enemy).altitudeOffsetMeters + (skyRaid ? skyRaidEnemyAltitudeReferenceMetersV56 : 0);
 }
 
 export function shouldSuppressSkyDancerLegacy2DContactV43(enemy: CartEnemyState): boolean {

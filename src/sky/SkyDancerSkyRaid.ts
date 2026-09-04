@@ -25,6 +25,10 @@ import { SkyDancerSkyRaidFlightController, type SkyDancerSkyRaidFlightSnapshot }
 import { SkyDancerSkyRaidArcadeWorld } from "./SkyDancerSkyRaidArcadeWorld";
 import { getSkyDancerTurboState } from "./SkyDancerTurboModel";
 import { getSkyDancerPlayerWeaponState } from "./SkyDancerPlayerWeapons";
+import {
+  getSkyDancerEnemyAltitudeMetersV43,
+  setSkyDancerEnemyAltitudeReferenceV56,
+} from "./SkyDancerVerticalFlightV43";
 
 export interface SkyDancerSkyRaidSnapshot {
   gameMode: "sky-raid";
@@ -88,6 +92,7 @@ interface RaidWebGLDemo {
   scene: THREE.Scene;
   camera: THREE.PerspectiveCamera;
   playerVisual: THREE.Group;
+  enemyGroups: Map<string, THREE.Group>;
   steer: number;
   buildWorld(): void;
   updateVisuals(delta: number): void;
@@ -191,6 +196,11 @@ function stepSkyRaidFlight(demo: RaidWebGLDemo, delta: number): SkyDancerSkyRaid
   const base = demo.session.snapshot();
   const flight = flightControllerFor(demo).step(delta, base.heading, demo.steer, base.boostActive);
   (demo.session as unknown as { skyDancerPlayerAltitudeMeters?: number }).skyDancerPlayerAltitudeMeters = flight.altitude;
+  // Keep enemy attack runs in the same broad camera band as the player while
+  // preserving meaningful vertical separation at the upper altitude limit.
+  const enemyAltitudeReference = 20 + (flight.altitude - 20) * 0.70;
+  setSkyDancerEnemyAltitudeReferenceV56(enemyAltitudeReference);
+  demo.scene.userData.skyRaidEnemyAltitudeReference = enemyAltitudeReference;
   demo.scene.userData.skyRaidPlayerAltitude = flight.altitude;
   demo.scene.userData.skyRaidPlayerVerticalSpeed = flight.verticalSpeed;
   demo.scene.userData.skyRaidPlayerPitch = flight.pitch;
@@ -202,6 +212,21 @@ function applySkyRaidFlightVisuals(demo: RaidWebGLDemo, flight: SkyDancerSkyRaid
   demo.playerVisual.position.y = 0.62 + flight.altitude;
   demo.playerVisual.rotation.x = flight.pitch;
   demo.playerVisual.rotation.z = flight.bank;
+}
+
+function applySkyRaidEnemyFlightBand(demo: RaidWebGLDemo): void {
+  const snapshot = demo.session.snapshot();
+  for (const enemy of snapshot.enemies) {
+    if (!enemy.alive) continue;
+    const group = demo.enemyGroups.get(enemy.id);
+    if (!group) continue;
+    // V18's inherited aircraft presentation still writes enemy Y around the
+    // old y=1 flight plane. SKY RAID is the final visual owner, so lift every
+    // live aircraft to the shared engagement altitude after inherited FX run.
+    group.position.y = 0.62 + getSkyDancerEnemyAltitudeMetersV43(
+      demo.session.enemies.find((candidate) => candidate.id === enemy.id) ?? enemy as never,
+    );
+  }
 }
 
 function suppressTurboHuntBackdrop(scene: THREE.Scene): void {
@@ -533,6 +558,7 @@ function updateRaidVisuals(demo: RaidWebGLDemo, delta: number, flight: SkyDancer
   visual.legacyLayers.forEach((layer) => { layer.visible = false; });
   const resolvedFlight = flight ?? stepSkyRaidFlight(demo, delta);
   applySkyRaidFlightVisuals(demo, resolvedFlight);
+  applySkyRaidEnemyFlightBand(demo);
   visual.arcadeWorld.update(raid.actId, base.x, base.z, base.heading, resolvedFlight.altitude, raid.elapsedSeconds, delta);
 
   visual.speedFx.visible = base.boostActive || raid.rushActive;
@@ -698,6 +724,21 @@ webglPrototype.applyCameraPresentation = function skyRaidCameraPresentation(
       const player = new THREE.Vector3();
       this.playerVisual.getWorldPosition(player);
       const projected = player.clone().project(this.camera);
+      let enemyVisible = 0;
+      let enemyCombatLane = 0;
+      const enemyScreenSamples: Array<{ id: string; x: number; y: number; z: number; visible: boolean }> = [];
+      for (const enemy of snapshot.enemies) {
+        if (!enemy.alive || enemy.kind === "boss") continue;
+        const group = this.enemyGroups.get(enemy.id);
+        if (!group) continue;
+        const world = new THREE.Vector3();
+        group.getWorldPosition(world);
+        const ndc = world.clone().project(this.camera);
+        const visible = ndc.z > -1 && ndc.z < 1 && Math.abs(ndc.x) < 0.96 && Math.abs(ndc.y) < 0.94;
+        if (visible) enemyVisible += 1;
+        if (visible && Math.abs(ndc.x) < 0.70 && ndc.y > -0.72 && ndc.y < 0.70) enemyCombatLane += 1;
+        if (enemyScreenSamples.length < 8) enemyScreenSamples.push({ id: enemy.id, x: ndc.x, y: ndc.y, z: ndc.z, visible });
+      }
       return {
         altitude, verticalSpeed, verticalLead,
         altitudeEdgeBlend,
@@ -713,6 +754,9 @@ webglPrototype.applyCameraPresentation = function skyRaidCameraPresentation(
         hitKick: cameraFx.hitKick,
         shotSerial: weapon.shotSerial,
         hitSerial: weapon.hitSerial,
+        enemyVisible,
+        enemyCombatLane,
+        enemyScreenSamples,
         playerVisible: projected.z > -1 && projected.z < 1 && Math.abs(projected.x) < 1 && Math.abs(projected.y) < 1,
       };
     };

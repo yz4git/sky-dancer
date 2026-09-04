@@ -201,6 +201,12 @@ try {
   if (Math.abs(baseline.playerNdcY - desiredPlayerNdcY) > baselineFrameTolerance) {
     throw new Error(`baseline missed intended combat framing: ${baseline.playerNdcY} target=${desiredPlayerNdcY}`);
   }
+  if (Number(baseline.enemyVisible ?? 0) < 2) {
+    throw new Error(`too few enemies are actually visible in the SKY RAID opening frame: ${JSON.stringify(baseline.enemyScreenSamples ?? [])}`);
+  }
+  if (Number(baseline.enemyCombatLane ?? 0) < 1) {
+    throw new Error(`SKY RAID opening has no enemy in the central combat lane: ${JSON.stringify(baseline.enemyScreenSamples ?? [])}`);
+  }
   await screenshot("00-baseline-flight.png");
 
   const targetDownConfirmation = await confirmLiveTargetDown();

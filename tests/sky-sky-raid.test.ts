@@ -116,3 +116,14 @@ test("SKY RAID phone feedback stays visible without blocking the combat lane", (
   assert.match(overlaySource, /font-size: clamp\(8px, \.95vw, 10px\)/);
   assert.match(auditSource, /cueOpacity < 0\.85/);
 });
+
+
+test("SKY RAID keeps live enemies inside the visible flight band", () => {
+  const raidSource = readFileSync(new URL("../src/sky/SkyDancerSkyRaid.ts", import.meta.url), "utf8");
+  const verticalSource = readFileSync(new URL("../src/sky/SkyDancerVerticalFlightV43.ts", import.meta.url), "utf8");
+  const auditSource = readFileSync(new URL("../scripts/webgl-sky-raid-camera-edge-v17.mjs", import.meta.url), "utf8");
+  assert.match(raidSource, /applySkyRaidEnemyFlightBand/);
+  assert.match(raidSource, /enemyCombatLane/);
+  assert.match(verticalSource, /setSkyDancerEnemyAltitudeReferenceV56/);
+  assert.match(auditSource, /baseline\.enemyVisible < 2/);
+});
