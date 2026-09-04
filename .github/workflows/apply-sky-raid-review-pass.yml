@@ -22,16 +22,8 @@ jobs:
           from pathlib import Path
           path = Path('src/sky/SkyDancerSkyRaid.ts')
           source = path.read_text()
-          old = '''  previousApplyCameraPresentation.call(this, snapshot);
-  if (!isSkyRaidMode()) return;
-  const altitude = Number(this.scene.userData.skyRaidPlayerAltitude ?? 0);'''
-          new = '''  previousApplyCameraPresentation.call(this, snapshot);
-  if (!isSkyRaidMode()) return;
-  // Older aircraft FX still writes the historical ~1m enemy flight plane during
-  // its late presentation update. SKY RAID owns the final render altitude, so
-  // restore the shared 20-64m combat band here, immediately before camera/render.
-  applySkyRaidEnemyFlightBand(this);
-  const altitude = Number(this.scene.userData.skyRaidPlayerAltitude ?? 0);'''
+          old = "  previousApplyCameraPresentation.call(this, snapshot);\n  if (!isSkyRaidMode()) return;\n  const altitude = Number(this.scene.userData.skyRaidPlayerAltitude ?? 0);"
+          new = "  previousApplyCameraPresentation.call(this, snapshot);\n  if (!isSkyRaidMode()) return;\n  // Older aircraft FX still writes the historical ~1m enemy flight plane during\n  // its late presentation update. SKY RAID owns the final render altitude, so\n  // restore the shared 20-64m combat band here, immediately before camera/render.\n  applySkyRaidEnemyFlightBand(this);\n  const altitude = Number(this.scene.userData.skyRaidPlayerAltitude ?? 0);"
           if 'immediately before camera/render' not in source:
               if old not in source:
                   raise SystemExit('final camera ownership marker missing')
@@ -40,8 +32,8 @@ jobs:
 
           test_path = Path('tests/sky-sky-raid.test.ts')
           tests = test_path.read_text()
-          anchor = '  assert.match(raidSource, /applySkyRaidEnemyFlightBand/);\n'
-          check = '  assert.match(raidSource, /previousApplyCameraPresentation[\\s\\S]{0,240}applySkyRaidEnemyFlightBand\\(this\\)/);\n'
+          anchor = "  assert.match(raidSource, /applySkyRaidEnemyFlightBand/);\n"
+          check = "  assert.match(raidSource, /previousApplyCameraPresentation[\\s\\S]{0,240}applySkyRaidEnemyFlightBand\\(this\\)/);\n"
           if check not in tests:
               if anchor not in tests:
                   raise SystemExit('test marker missing')
