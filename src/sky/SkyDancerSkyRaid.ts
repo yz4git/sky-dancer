@@ -866,7 +866,11 @@ function updateRaidVisuals(demo: RaidWebGLDemo, delta: number, flight: SkyDancer
 
   const flightSpeed = Math.abs(base.speed);
   const cruiseFx = clamp((flightSpeed - 17) / 12, 0, 1);
-  const turboFx = base.boostActive ? 1 : 0;
+  const turboState = getSkyDancerTurboState(demo.session);
+  const turboReleaseFx = Number.isFinite(turboState.releaseAgeSeconds)
+    ? clamp(1 - turboState.releaseAgeSeconds / 1.45, 0, 1)
+    : 0;
+  const turboFx = turboState.held ? 1 : turboReleaseFx * (0.72 + turboState.releaseCharge * 0.18);
   const rushFx = raid.rushActive ? 1 : 0;
   const speedFxIntensity = clamp(cruiseFx * 0.22 + rushFx * 0.32 + turboFx * 0.72, 0, 1);
   visual.speedFx.visible = speedFxIntensity > 0.055;
@@ -893,7 +897,10 @@ function updateRaidVisuals(demo: RaidWebGLDemo, delta: number, flight: SkyDancer
       intensity: Number(demo.scene.userData.skyRaidSpeedFxIntensity ?? 0),
       peripheralGap: Number(demo.scene.userData.skyRaidSpeedFxPeripheralGap ?? 0),
       lineCount: visual?.speedFx.children.length ?? 0,
-      boostActive: base.boostActive,
+      turboHeld: turboState.held,
+      turboCharge: turboState.charge,
+      turboReleaseFx,
+      legacyBoostActive: base.boostActive,
       rushActive: raid.rushActive,
       flightSpeed,
     });

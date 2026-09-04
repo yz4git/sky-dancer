@@ -303,7 +303,7 @@ if (Math.abs(reticleCenterX - decisionCenterX) < 34 && Math.abs(reticleCenterY -
   if (!turboBox) throw new Error("Turbo control missing for V20 speed audit");
   await page.mouse.move(turboBox.x + turboBox.width * 0.5, turboBox.y + turboBox.height * 0.5);
   await page.mouse.down();
-  await page.waitForFunction(() => window.__skyRaidGetSpeedPolish?.()?.boostActive === true, null, { timeout: 3000 });
+  await page.waitForFunction(() => window.__skyRaidGetSpeedPolish?.()?.turboHeld === true, null, { timeout: 3000 });
   await page.waitForTimeout(420);
   const speedVisual = await page.evaluate(() => window.__skyRaidGetSpeedPolish?.() ?? null);
   if (!speedVisual || speedVisual.visible !== true || Number(speedVisual.intensity ?? 0) < 0.70) {
