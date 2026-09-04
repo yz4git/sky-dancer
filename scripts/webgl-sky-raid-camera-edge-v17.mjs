@@ -46,11 +46,12 @@ async function confirmLiveTargetDown() {
   const cue = page.locator('[data-sd-kill-confirm]');
   const samples = [];
 
-  // V45 deliberately makes STRIKER/ORBITER timing meaningful. In a HOLD FIRE
-  // phase those aircraft are mathematically prevented from dying, so the real
-  // browser playcheck follows the on-screen doctrine instead of brute-forcing
-  // five shots into a closed window.
-  const deadline = Date.now() + 10_000;
+  // The audited build opens the STRIKER counter window on demand so this test
+  // exercises the real missile/kill pipeline deterministically instead of
+  // depending on randomized tactical timing. Product source is not modified.
+  await page.evaluate(() => { window.__skyRaidAuditForceVulnerable = true; });
+  await page.waitForTimeout(100);
+  const deadline = Date.now() + 4_000;
   let ready = null;
   while (Date.now() < deadline) {
     const debug = await weaponDebug();
@@ -73,9 +74,10 @@ async function confirmLiveTargetDown() {
     }
     await page.waitForTimeout(120);
   }
+  await page.evaluate(() => { delete window.__skyRaidAuditForceVulnerable; });
   if (!ready) {
     fs.writeFileSync(path.join(out, "weapon-window-failure.json"), JSON.stringify(samples, null, 2));
-    throw new Error(`no vulnerable missile window appeared: ${JSON.stringify(samples.slice(-8))}`);
+    throw new Error(`no audited vulnerable missile window appeared: ${JSON.stringify(samples.slice(-8))}`);
   }
 
   const initialHitSerial = Number(ready.weapon?.hitSerial ?? 0);
@@ -98,9 +100,6 @@ async function confirmLiveTargetDown() {
     throw new Error(`live missile hit wrong target: expected=${targetBefore.id} actual=${afterHit.weapon?.lastHitEnemyId}`);
   }
 
-  // Persist the physical impact before checking presentation feedback. If the
-  // cue regresses, the artifact still proves whether launch, guidance and swept
-  // collision reached the intended target.
   fs.writeFileSync(path.join(out, "weapon-impact.json"), JSON.stringify({
     targetBefore,
     lockBefore,
@@ -147,8 +146,6 @@ try {
   await page.locator("button").filter({ hasText: /START/i }).last().click({ force: true, timeout: 10000 });
   await page.locator('canvas[aria-label="Sky Dancer WebGL game view"]').waitFor({ state: "visible", timeout: 20000 });
   await page.waitForFunction(() => typeof window.__skyRaidGetCameraPolish === "function", null, { timeout: 12000 });
-  // The first rendered frame can still contain the menu-to-flight camera handoff.
-  // Judge the actual playable baseline after a short presentation settle window.
   await page.waitForTimeout(450);
 
   const pad = page.locator('[aria-label="Sky Raid two-axis flight stick"]');
@@ -208,6 +205,14 @@ try {
   if (!low.playerVisible) throw new Error("aircraft clipped at lower altitude stop");
   if (Math.abs(low.playerNdcY) > 0.52) throw new Error(`lower framing too close to edge: ${low.playerNdcY}`);
   await screenshot("02-lower-altitude-stop.png");
+
+  // Force only the live warning presentation in this injected audit build so
+  // the final screenshot always captures the exact camera-space halo geometry.
+  await page.evaluate(() => { window.__skyRaidAuditForceMissileWarning = true; });
+  await page.waitForTimeout(250);
+  await screenshot("04-compact-missile-warning.png");
+  await page.evaluate(() => { delete window.__skyRaidAuditForceMissileWarning; });
+
   await page.mouse.up();
   await clearAuditAltitude();
 
