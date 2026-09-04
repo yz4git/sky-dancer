@@ -26,7 +26,7 @@ jobs:
           node-version: 22.13.0
           cache: npm
 
-      - name: Apply pre-frame mode ownership fix
+      - name: Apply explicit SKY RAID gameplay bootstrap fix
         run: |
           node --check .github/sky-raid-v24-population-owner.mjs
           node .github/sky-raid-v24-population-owner.mjs
@@ -96,7 +96,7 @@ jobs:
           rm .github/sky-raid-v24-population-owner.mjs
           git config user.name "yz4git"
           git config user.email "65384484+yz4git@users.noreply.github.com"
-          git add app/CartRogueGamePhase13.tsx tests/sky-sky-raid.test.ts .github/workflows/sky-raid-five-act-v24-once.yml scripts/webgl-sky-raid-five-act-v24.mjs .github/sky-raid-v24-population-owner.mjs
+          git add app/CartRogueGamePhase13.tsx src/sky/SkyDancerSkyRaid.ts tests/sky-sky-raid.test.ts .github/workflows/sky-raid-five-act-v24-once.yml scripts/webgl-sky-raid-five-act-v24.mjs .github/sky-raid-v24-population-owner.mjs
           git diff --cached --check
-          git commit -m "Preserve SKY RAID act enemy roster pool"
+          git commit -m "Fix SKY RAID full roster initialization"
           git push origin HEAD:main
