@@ -1,5 +1,5 @@
 name: SKY RAID final-camera edge-follow V18 audit
-# Re-run after V19 segmented threat cue and authored attack-rhythm pass.
+# Re-run after V19 webdriver warning injection was corrected.
 
 on:
   push:
