@@ -1,0 +1,99 @@
+name: SKY RAID V29 long Acts retry
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/sky-raid-long-acts-v29-retry.yml
+
+permissions:
+  contents: write
+
+jobs:
+  implement:
+    runs-on: ubuntu-24.04
+    env:
+      SKY_DANCER_CHROME_PATH: /usr/bin/google-chrome
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.13.0
+          cache: npm
+
+      - name: Apply V29 product patch
+        run: |
+          node --check .github/sky-raid-v29-long-acts.mjs
+          node .github/sky-raid-v29-long-acts.mjs
+          node --check .github/sky-raid-v29-boundary-fix.mjs
+          node .github/sky-raid-v29-boundary-fix.mjs
+          git diff --check
+
+      - name: Inject webdriver-only audit clock
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path("src/cart/CartRoguePhase67TurboHunt.ts")
+          source = path.read_text()
+          marker = """function updateDirector(session: MutableHuntSession, state: TurboHuntState, delta: number): void {\n  state.elapsed += delta;"""
+          replacement = """function updateDirector(session: MutableHuntSession, state: TurboHuntState, delta: number): void {\n  if (typeof window !== \"undefined\" && typeof navigator !== \"undefined\" && navigator.webdriver) {\n    const forcedElapsed = (window as unknown as { __skyRaidAuditElapsedSeconds?: unknown }).__skyRaidAuditElapsedSeconds;\n    if (typeof forcedElapsed === \"number\" && Number.isFinite(forcedElapsed)) state.elapsed = Math.max(0, forcedElapsed);\n  }\n  state.elapsed += delta;"""
+          if marker not in source:
+              raise SystemExit("V29 audit clock marker missing")
+          path.write_text(source.replace(marker, replacement, 1))
+          PY
+          git diff --check
+
+      - name: Install and validate
+        run: |
+          npm ci --no-audit --no-fund
+          npm run test:fast
+          npm run check:arcade
+          npm run lint
+          npm run build:pages
+
+      - name: Browser setup
+        run: |
+          rm -rf .audit-runtime
+          mkdir -p .audit-runtime artifacts/sky-raid-long-acts-v29
+          printf '{"private":true,"type":"commonjs"}\n' > .audit-runtime/package.json
+          npm install --prefix .audit-runtime --no-package-lock --no-save --ignore-scripts --no-audit --no-fund playwright-core@1.55.0
+          python3 -m http.server 4173 --bind 127.0.0.1 --directory out >/tmp/sky-raid-v29-http.log 2>&1 &
+          for i in {1..30}; do
+            if curl -fsS http://127.0.0.1:4173/ >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          cat /tmp/sky-raid-v29-http.log
+          exit 1
+
+      - name: Long-Act WebGL playcheck
+        run: node scripts/webgl-sky-raid-long-acts-v29.mjs
+
+      - name: Restore audit-only clock
+        if: always()
+        run: git restore src/cart/CartRoguePhase67TurboHunt.ts
+
+      - name: Upload V29 playcheck
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sky-raid-long-acts-v29-audit
+          path: artifacts/sky-raid-long-acts-v29
+          if-no-files-found: warn
+          retention-days: 7
+
+      - name: Commit product and remove one-shot harnesses
+        if: success()
+        run: |
+          rm -f .github/workflows/sky-raid-long-acts-v29-once.yml
+          rm -f .github/workflows/sky-raid-long-acts-v29-retry.yml
+          rm -f .github/sky-raid-v29-long-acts.mjs
+          rm -f .github/sky-raid-v29-boundary-fix.mjs
+          rm -f scripts/webgl-sky-raid-long-acts-v29.mjs
+          git config user.name "yz4git"
+          git config user.email "65384484+yz4git@users.noreply.github.com"
+          git add src/sky/SkyDancerSkyRaidRules.ts src/sky/SkyDancerSkyRaid.ts app/SkyDancerSkyRaidOverlay.tsx tests/sky-sky-raid.test.ts .github scripts/webgl-sky-raid-long-acts-v29.mjs
+          git diff --cached --check
+          git commit -m "Double SKY RAID Act duration"
+          git push origin HEAD:main
