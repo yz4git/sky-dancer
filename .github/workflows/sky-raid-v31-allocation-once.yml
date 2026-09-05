@@ -1,0 +1,380 @@
+name: SKY RAID V31 allocation performance pass
+
+on:
+  push:
+    paths:
+      - '.github/workflows/sky-raid-v31-allocation-once.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  implement:
+    runs-on: ubuntu-24.04
+    env:
+      SKY_DANCER_CHROME_PATH: /usr/bin/google-chrome
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.13.0
+          cache: npm
+      - name: Install dependencies and browser runtime
+        run: |
+          npm ci --no-audit --no-fund
+          rm -rf .audit-runtime artifacts/sky-raid-v31-performance
+          mkdir -p .audit-runtime artifacts/sky-raid-v31-performance
+          printf '{"private":true,"type":"commonjs"}\n' > .audit-runtime/package.json
+          npm install --prefix .audit-runtime --no-package-lock --no-save --ignore-scripts --no-audit --no-fund playwright-core@1.55.0
+      - name: Add webdriver-only clock and performance harness
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('src/cart/CartRoguePhase67TurboHunt.ts')
+          source = path.read_text()
+          marker = '''function updateDirector(session: MutableHuntSession, state: TurboHuntState, delta: number): void {\n  state.elapsed += delta;'''
+          replacement = '''function updateDirector(session: MutableHuntSession, state: TurboHuntState, delta: number): void {\n  if (typeof window !== "undefined" && typeof navigator !== "undefined" && navigator.webdriver) {\n    const forcedElapsed = (window as unknown as { __skyRaidAuditElapsedSeconds?: unknown }).__skyRaidAuditElapsedSeconds;\n    if (typeof forcedElapsed === "number" && Number.isFinite(forcedElapsed)) state.elapsed = Math.max(0, forcedElapsed);\n  }\n  state.elapsed += delta;'''
+          if marker not in source:
+              raise SystemExit('V31 audit clock marker missing')
+          path.write_text(source.replace(marker, replacement, 1))
+          PY
+          cat > /tmp/sky-raid-v31-perf.mjs <<'EOF'
+          import fs from 'node:fs';
+          import path from 'node:path';
+          import { createRequire } from 'node:module';
+          const require = createRequire(import.meta.url);
+          const { chromium } = require(path.join(process.cwd(), '.audit-runtime/node_modules/playwright-core'));
+          const label = process.env.SKY_RAID_PERF_LABEL || 'sample';
+          const port = Number(process.env.SKY_RAID_PERF_PORT || 4173);
+          const checkpoints = process.env.SKY_RAID_PERF_CHECKPOINTS === '1';
+          const outDir = path.join(process.cwd(), 'artifacts/sky-raid-v31-performance');
+          fs.mkdirSync(outDir, { recursive: true });
+          const browser = await chromium.launch({
+            executablePath: process.env.SKY_DANCER_CHROME_PATH || '/usr/bin/google-chrome',
+            headless: true,
+            args: ['--use-gl=swiftshader','--enable-webgl','--ignore-gpu-blocklist','--disable-dev-shm-usage','--no-sandbox'],
+          });
+          const context = await browser.newContext({ viewport: { width: 844, height: 390 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
+          const page = await context.newPage();
+          const errors = [];
+          page.on('pageerror', (error) => errors.push(String(error)));
+          page.on('console', (message) => { if (message.type() === 'error') errors.push(message.text()); });
+          await page.goto(`http://127.0.0.1:${port}/?menu=1`, { waitUntil: 'domcontentloaded', timeout: 30000 });
+          await page.locator('button').filter({ hasText: 'SKY RAID' }).first().click();
+          await page.getByRole('button', { name: /START SKY RAID/i }).click();
+          await page.waitForSelector('canvas', { timeout: 20000 });
+          await page.evaluate(() => { window.__skyRaidAuditElapsedSeconds = 20; });
+          await page.waitForTimeout(3500);
+          await page.screenshot({ path: path.join(outDir, `${label}-opening.png`) });
+          const cdp = await context.newCDPSession(page);
+          await cdp.send('Performance.enable');
+          const metrics = async () => Object.fromEntries((await cdp.send('Performance.getMetrics')).metrics.map((m) => [m.name, m.value]));
+          const before = await metrics();
+          await page.evaluate(() => {
+            window.__v31PerfFrames = [];
+            window.__v31PerfActive = true;
+            let previous = performance.now();
+            const tick = (now) => {
+              if (!window.__v31PerfActive) return;
+              window.__v31PerfFrames.push(now - previous);
+              previous = now;
+              requestAnimationFrame(tick);
+            };
+            requestAnimationFrame(tick);
+          });
+          const wallStart = Date.now();
+          await page.waitForTimeout(12000);
+          const wallSeconds = (Date.now() - wallStart) / 1000;
+          const after = await metrics();
+          const frameTimes = await page.evaluate(() => { window.__v31PerfActive = false; return window.__v31PerfFrames || []; });
+          const sorted = frameTimes.filter((v) => Number.isFinite(v) && v > 0).sort((a,b) => a-b);
+          const meanFrameMs = sorted.length ? sorted.reduce((a,b) => a+b, 0) / sorted.length : 0;
+          const p95FrameMs = sorted.length ? sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * 0.95))] : 0;
+          const fps = meanFrameMs > 0 ? 1000 / meanFrameMs : 0;
+          const result = {
+            label,
+            fps,
+            meanFrameMs,
+            p95FrameMs,
+            frameSamples: sorted.length,
+            taskMsPerSecond: ((after.TaskDuration || 0) - (before.TaskDuration || 0)) * 1000 / wallSeconds,
+            scriptMsPerSecond: ((after.ScriptDuration || 0) - (before.ScriptDuration || 0)) * 1000 / wallSeconds,
+            heapUsedMB: (after.JSHeapUsedSize || 0) / 1048576,
+            errors,
+          };
+          if (checkpoints) {
+            result.checkpoints = [];
+            for (const second of [54, 89, 91]) {
+              await page.evaluate((value) => { window.__skyRaidAuditElapsedSeconds = value; }, second);
+              await page.waitForTimeout(2400);
+              const camera = await page.evaluate(() => typeof window.__skyRaidGetCameraPolish === 'function' ? window.__skyRaidGetCameraPolish() : null);
+              result.checkpoints.push({ second, camera });
+              await page.screenshot({ path: path.join(outDir, `${label}-${second}s.png`) });
+            }
+          }
+          fs.writeFileSync(path.join(outDir, `${label}.json`), JSON.stringify(result, null, 2));
+          console.log(`SKY RAID V31 PERF ${label.toUpperCase()}`, JSON.stringify(result));
+          if (errors.length) throw new Error(`browser errors: ${errors.join(' | ')}`);
+          if (checkpoints) {
+            for (const checkpoint of result.checkpoints) {
+              if (!checkpoint.camera?.playerVisible) throw new Error(`player not visible at ${checkpoint.second}s`);
+              if ((checkpoint.camera?.enemyVisible ?? 0) > 8) throw new Error(`phone enemy clutter at ${checkpoint.second}s`);
+              if ((checkpoint.camera?.enemyCombatLane ?? 0) < 1) throw new Error(`empty combat lane at ${checkpoint.second}s`);
+            }
+          }
+          await browser.close();
+          EOF
+      - name: Build and profile V30 baseline
+        run: |
+          npm run build:pages
+          python3 -m http.server 4173 --bind 127.0.0.1 --directory out >/tmp/v31-baseline.log 2>&1 &
+          echo $! >/tmp/v31-baseline.pid
+          for i in {1..30}; do curl -fsS http://127.0.0.1:4173/ >/dev/null && break; sleep 1; done
+          SKY_RAID_PERF_LABEL=baseline SKY_RAID_PERF_PORT=4173 node /tmp/sky-raid-v31-perf.mjs
+          kill $(cat /tmp/v31-baseline.pid) || true
+      - name: Apply V31 hot-path allocation pass
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('src/sky/SkyDancerSkyRaid.ts')
+          source = path.read_text()
+
+          def rep(before, after, label):
+              global source
+              if before not in source:
+                  raise SystemExit(f'V31 marker missing: {label}')
+              source = source.replace(before, after, 1)
+
+          rep(
+              'import { CartArenaSession } from "../cart/CartArenaSession";\n',
+              'import { CartArenaSession } from "../cart/CartArenaSession";\nimport type { CartEnemyState } from "../cart/CartCombat";\n',
+              'enemy state import',
+          )
+
+          rep(
+          '''interface RaidSession {\n  gas: number;\n  rewardTimer: number;\n  lastReward: string | null;\n  car: {\n    boostActive: boolean;\n    boostCharges: number;\n    addBoostCharge(amount: number): void;\n    definition: { maxSpeed: number; handling: number };\n  };\n  step(input: RallyInputState, fixedDelta?: number): void;\n}''',
+          '''interface RaidSession {\n  gas: number;\n  rewardTimer: number;\n  lastReward: string | null;\n  location: { node: { id: string } };\n  car: {\n    position: { x: number; z: number };\n    heading: number;\n    speed: number;\n    boostActive: boolean;\n    boostCharges: number;\n    addBoostCharge(amount: number): void;\n    definition: { maxSpeed: number; handling: number };\n  };\n  step(input: RallyInputState, fixedDelta?: number): void;\n}''',
+          'runtime scalar view')
+
+          rep(
+          '''  speedColor: THREE.Color;\n  turboBackdrop: THREE.Object3D | null;''',
+          '''  speedColor: THREE.Color;\n  attackTelegraphs: Map<string, SkyDancerEnemyAttackTelegraphSnapshot>;\n  turboBackdrop: THREE.Object3D | null;''',
+          'telegraph map cache')
+
+          rep(
+          '''const raidStateBySession = new WeakMap<object, RaidState>();''',
+          '''interface RaidScreenCandidate {\n  enemy: CartEnemyState | null;\n  group: THREE.Group | null;\n  penalty: number;\n}\n\ninterface RaidScreenEngagementState {\n  nextAllowedAt: number;\n  cursor: number;\n  recycles: number;\n  projection: THREE.Vector3;\n  candidates: [RaidScreenCandidate, RaidScreenCandidate, RaidScreenCandidate];\n}\n\nconst raidStateBySession = new WeakMap<object, RaidState>();''',
+          'screen scratch types')
+
+          rep(
+          '''const raidScreenEngagementByDemo = new WeakMap<object, { nextAllowedAt: number; cursor: number; recycles: number }>();\nconst skyRaidCameraPlayerPosition = new THREE.Vector3();''',
+          '''const raidScreenEngagementByDemo = new WeakMap<object, RaidScreenEngagementState>();\nconst raidInputBySession = new WeakMap<object, RallyInputState>();\nconst raidRoleKitByEnemyGroup = new WeakMap<THREE.Group, THREE.Group>();\nconst raidAttackTelegraphObjectsByKit = new WeakMap<THREE.Group, readonly THREE.Object3D[]>();\nconst skyRaidCameraPlayerPosition = new THREE.Vector3();''',
+          'scratch weakmaps')
+
+          rep(
+          '''export function skyDancerSkyRaidSteerInput(value: number): number {\n  // The inherited Cart controller aggressively quickens steering after this\n  // point. Keep fine stick movement unchanged, but cap large deflections so\n  // the aircraft cannot snap-turn on a phone-sized virtual stick.\n  return clamp(value, -SKY_DANCER_SKY_RAID_MAX_STEER_INPUT, SKY_DANCER_SKY_RAID_MAX_STEER_INPUT);\n}\n\nfunction isSkyRaidMode(): boolean {''',
+          '''export function skyDancerSkyRaidSteerInput(value: number): number {\n  // The inherited Cart controller aggressively quickens steering after this\n  // point. Keep fine stick movement unchanged, but cap large deflections so\n  // the aircraft cannot snap-turn on a phone-sized virtual stick.\n  return clamp(value, -SKY_DANCER_SKY_RAID_MAX_STEER_INPUT, SKY_DANCER_SKY_RAID_MAX_STEER_INPUT);\n}\n\nfunction skyRaidInputFor(session: RaidSession, input: RallyInputState): RallyInputState {\n  const key = session as unknown as object;\n  let scratch = raidInputBySession.get(key);\n  if (!scratch) {\n    scratch = { throttle: 0, brake: 0, steer: 0, strafe: 0, boost: false };\n    raidInputBySession.set(key, scratch);\n  }\n  scratch.throttle = input.throttle;\n  scratch.brake = input.brake;\n  scratch.steer = skyDancerSkyRaidSteerInput(input.steer);\n  scratch.strafe = input.strafe;\n  scratch.boost = input.boost;\n  return scratch;\n}\n\nfunction isSkyRaidMode(): boolean {''',
+          'reusable input')
+
+          rep(
+          '''  root.userData.skyRaidAttackTelegraphCount = root.children.reduce(\n    (count, child) => count + (child.name === SKY_RAID_ATTACK_TELEGRAPH_NAME ? 1 : 0),\n    0,\n  );''',
+          '''  const attackTelegraphObjects = root.children.filter((child) => child.name === SKY_RAID_ATTACK_TELEGRAPH_NAME);\n  root.userData.skyRaidAttackTelegraphCount = attackTelegraphObjects.length;\n  raidAttackTelegraphObjectsByKit.set(root, attackTelegraphObjects);''',
+          'telegraph child cache')
+
+          rep(
+          '''  const active = Boolean(telegraph) && Number(kit.userData.skyRaidAttackTelegraphCount ?? 0) > 0;\n  const intensity = telegraph?.intensity ?? 0;\n  const pulse = active ? 0.72 + Math.sin(pulseClock * 19 + intensity * 3.4) * 0.28 : 0;\n  for (const object of kit.children) {\n    if (object.name !== SKY_RAID_ATTACK_TELEGRAPH_NAME) continue;''',
+          '''  const objects = raidAttackTelegraphObjectsByKit.get(kit) ?? [];\n  const active = Boolean(telegraph) && objects.length > 0;\n  const intensity = telegraph?.intensity ?? 0;\n  const pulse = active ? 0.72 + Math.sin(pulseClock * 19 + intensity * 3.4) * 0.28 : 0;\n  for (const object of objects) {''',
+          'telegraph iteration cache')
+
+          rep(
+          '''  const attackTelegraphs = new Map(\n    getSkyDancerEnemyAttackTelegraphs(demo.session).map((telegraph) => [telegraph.enemyId, telegraph] as const),\n  );''',
+          '''  const visual = raidVisualByDemo.get(demo as unknown as object);\n  if (!visual) return;\n  const attackTelegraphs = visual.attackTelegraphs;\n  attackTelegraphs.clear();\n  for (const telegraph of getSkyDancerEnemyAttackTelegraphs(demo.session)) {\n    attackTelegraphs.set(telegraph.enemyId, telegraph);\n  }''',
+          'reusable telegraph map')
+
+          rep(
+          '''    let kit = group.getObjectByName(SKY_RAID_ROLE_KIT_NAME) as THREE.Group | undefined;\n    if (!kit || kit.userData.skyRaidRoleClass !== roleClass) {\n      if (kit) group.remove(kit);\n      kit = buildSkyRaidEnemyRoleKit(roleClass);\n      group.add(kit);\n    }''',
+          '''    let kit = raidRoleKitByEnemyGroup.get(group);\n    if (!kit || kit.userData.skyRaidRoleClass !== roleClass) {\n      if (kit) group.remove(kit);\n      kit = buildSkyRaidEnemyRoleKit(roleClass);\n      group.add(kit);\n      raidRoleKitByEnemyGroup.set(group, kit);\n    }''',
+          'role kit cache')
+
+          rep(
+          '''          const kit = group?.getObjectByName(SKY_RAID_ROLE_KIT_NAME) as THREE.Group | undefined;''',
+          '''          const kit = group ? raidRoleKitByEnemyGroup.get(group) : undefined;''',
+          'webdriver role cache')
+
+          start = source.index('function maintainSkyRaidEnemyPresence(')
+          end = source.index('\n\nfunction skyRaidScreenSlotsFor', start)
+          block = source[start:end]
+          old = '''  const snapshot = session.snapshot();\n  const live = session.enemies.filter(\n    (enemy) => enemy.alive && enemy.kind !== "boss" && enemy.nodeId === snapshot.nodeId,\n  );'''
+          new = '''  const runtime = session as unknown as RaidSession;\n  const nodeId = runtime.location.node.id;\n  const playerX = runtime.car.position.x;\n  const playerZ = runtime.car.position.z;\n  const playerHeading = runtime.car.heading;\n  const live = session.enemies.filter(\n    (enemy) => enemy.alive && enemy.kind !== "boss" && enemy.nodeId === nodeId,\n  );'''
+          if old not in block:
+              raise SystemExit('V31 marker missing: formation snapshot')
+          block = block.replace(old, new, 1)
+          block = block.replace('snapshot.heading', 'playerHeading')
+          block = block.replace('snapshot.x', 'playerX')
+          block = block.replace('snapshot.z', 'playerZ')
+          block = block.replace('snapshot.nodeId', 'nodeId')
+          source = source[:start] + block + source[end:]
+
+          start = source.index('function skyRaidScreenSlotsFor(')
+          end = source.index('/**\n * Simulation-space engagement', start)
+          source = source[:start] + source[end:]
+
+          start = source.index('function maintainSkyRaidScreenPresence(')
+          end = source.index('\n\nfunction publishSkyRaidWorldStyle', start)
+          new_screen = '''function maintainSkyRaidScreenPresence(\n  demo: RaidWebGLDemo,\n  snapshot: ReturnType<CartArenaSession["snapshot"]>,\n): void {\n  const key = demo as unknown as object;\n  let state = raidScreenEngagementByDemo.get(key);\n  if (!state) {\n    state = {\n      nextAllowedAt: 0,\n      cursor: 0,\n      recycles: 0,\n      projection: new THREE.Vector3(),\n      candidates: [\n        { enemy: null, group: null, penalty: -Infinity },\n        { enemy: null, group: null, penalty: -Infinity },\n        { enemy: null, group: null, penalty: -Infinity },\n      ],\n    };\n    raidScreenEngagementByDemo.set(key, state);\n  }\n\n  for (const candidate of state.candidates) {\n    candidate.enemy = null;\n    candidate.group = null;\n    candidate.penalty = -Infinity;\n  }\n\n  demo.camera.updateMatrixWorld(true);\n  let liveCount = 0;\n  let visibleCount = 0;\n  let candidateCount = 0;\n  for (const enemy of demo.session.enemies) {\n    if (!enemy.alive || enemy.kind === "boss" || enemy.nodeId !== snapshot.nodeId) continue;\n    liveCount += 1;\n    const group = demo.enemyGroups.get(enemy.id);\n    if (!group) continue;\n    group.getWorldPosition(state.projection);\n    state.projection.project(demo.camera);\n    const visible = state.projection.z > -1 && state.projection.z < 1\n      && Math.abs(state.projection.x) < 0.96 && Math.abs(state.projection.y) < 0.94;\n    if (visible) {\n      visibleCount += 1;\n      continue;\n    }\n    candidateCount += 1;\n    const penalty = Math.abs(state.projection.x) + Math.abs(state.projection.y) + Math.abs(state.projection.z) * 0.12;\n    let insertAt = 0;\n    while (insertAt < state.candidates.length && state.candidates[insertAt].enemy && penalty <= state.candidates[insertAt].penalty) {\n      insertAt += 1;\n    }\n    if (insertAt >= state.candidates.length) continue;\n    for (let index = state.candidates.length - 1; index > insertAt; index -= 1) {\n      const target = state.candidates[index];\n      const previous = state.candidates[index - 1];\n      target.enemy = previous.enemy;\n      target.group = previous.group;\n      target.penalty = previous.penalty;\n    }\n    const target = state.candidates[insertAt];\n    target.enemy = enemy;\n    target.group = group;\n    target.penalty = penalty;\n  }\n  if (liveCount < 2) return;\n\n  demo.scene.userData.skyRaidScreenPresenceVisible = visibleCount;\n  demo.scene.userData.skyRaidScreenPresenceRecycles = state.recycles;\n  if (visibleCount >= 3) {\n    state.nextAllowedAt = 0;\n    return;\n  }\n\n  const now = typeof performance !== "undefined" ? performance.now() * 0.001 : Date.now() * 0.001;\n  if (now < state.nextAllowedAt) return;\n\n  const pattern = skyRaidFormationPattern(latestSkyRaidSnapshot?.elapsedSeconds ?? 0);\n  const forwardX = Math.sin(snapshot.heading);\n  const forwardZ = Math.cos(snapshot.heading);\n  const rightX = Math.cos(snapshot.heading);\n  const rightZ = -Math.sin(snapshot.heading);\n  const needed = Math.min(3 - visibleCount, candidateCount, state.candidates.length);\n  for (let index = 0; index < needed; index += 1) {\n    const sample = state.candidates[index];\n    if (!sample.enemy || !sample.group) continue;\n    const authoredSlot = pattern.slots[(state.cursor + index) % pattern.slots.length];\n    const lateral = clamp(authoredSlot.lateral * 0.86, -12.5, 12.5);\n    const forward = clamp(authoredSlot.forward, 22, 42);\n    const x = snapshot.x + forwardX * forward + rightX * lateral;\n    const z = snapshot.z + forwardZ * forward + rightZ * lateral;\n    sample.enemy.x = x;\n    sample.enemy.z = z;\n    sample.enemy.heading = Math.atan2(snapshot.x - x, snapshot.z - z);\n    sample.enemy.aiClock = 0;\n    sample.enemy.chargeTime = 0;\n    sample.group.position.x = x;\n    sample.group.position.z = z;\n    sample.group.position.y = 0.62 + getSkyDancerEnemyAltitudeMetersV43(sample.enemy);\n    sample.group.userData.lastX = x;\n    sample.group.userData.lastZ = z;\n    sample.group.updateMatrixWorld(true);\n    state.recycles += 1;\n  }\n  state.cursor = (state.cursor + needed) % pattern.slots.length;\n  state.nextAllowedAt = now + (needed > 0 ? 0.28 : 0.12);\n  demo.scene.userData.skyRaidScreenPresenceRecycles = state.recycles;\n}'''
+          source = source[:start] + new_screen + source[end:]
+
+          rep(
+          '''function stepSkyRaidFlight(demo: RaidWebGLDemo, delta: number): SkyDancerSkyRaidFlightSnapshot {\n  const base = demo.session.snapshot();\n  const flight = flightControllerFor(demo).step(delta, base.heading, demo.steer, base.boostActive);''',
+          '''function stepSkyRaidFlight(demo: RaidWebGLDemo, delta: number): SkyDancerSkyRaidFlightSnapshot {\n  const car = demo.session.car;\n  const flight = flightControllerFor(demo).step(delta, car.heading, demo.steer, car.boostActive);''',
+          'flight snapshot removal')
+
+          rep(
+          '''    speedColor: new THREE.Color(SKY_DANCER_SKY_RAID_ACTS[0].palette.accent),\n    turboBackdrop,''',
+          '''    speedColor: new THREE.Color(SKY_DANCER_SKY_RAID_ACTS[0].palette.accent),\n    attackTelegraphs: new Map(),\n    turboBackdrop,''',
+          'telegraph map init')
+
+          start = source.index('function updateRaidVisuals(')
+          end = source.index('\n\nexport function installSkyDancerSkyRaid()', start)
+          block = source[start:end]
+          old = '''  const base = demo.session.snapshot();\n  const movedFar = !Number.isFinite(visual.anchorX) || Math.hypot(base.x - visual.anchorX, base.z - visual.anchorZ) > 105;'''
+          new = '''  const car = demo.session.car;\n  const playerX = car.position.x;\n  const playerZ = car.position.z;\n  const playerHeading = car.heading;\n  const playerSpeed = car.speed;\n  const playerBoostActive = car.boostActive;\n  const movedFar = !Number.isFinite(visual.anchorX) || Math.hypot(playerX - visual.anchorX, playerZ - visual.anchorZ) > 105;'''
+          if old not in block:
+              raise SystemExit('V31 marker missing: visual snapshot')
+          block = block.replace(old, new, 1)
+          block = block.replace('base.x', 'playerX')
+          block = block.replace('base.z', 'playerZ')
+          block = block.replace('base.heading', 'playerHeading')
+          block = block.replace('base.speed', 'playerSpeed')
+          block = block.replace('base.boostActive', 'playerBoostActive')
+          block = block.replace('  visual.actGroups.forEach((group) => { group.visible = false; });', '  for (const group of visual.actGroups) group.visible = false;')
+          block = block.replace('  visual.legacyLayers.forEach((layer) => { layer.visible = false; });', '  for (const layer of visual.legacyLayers) layer.visible = false;')
+          old_loop = '''  visual.speedFx.children.forEach((line, index) => {\n    line.position.z -= delta * (22 + flightSpeed * 0.95 + turboFx * 36 + rushFx * 14);\n    if (line.position.z < -12) line.position.z = 34 + (index % 6) * 8;\n    const thickness = 0.72 + speedFxIntensity * 0.32;\n    line.scale.x = thickness;\n    line.scale.y = thickness;\n    line.scale.z = 0.82 + speedFxIntensity * (1.10 + (index % 3) * 0.12);\n  });'''
+          new_loop = '''  for (let index = 0; index < visual.speedFx.children.length; index += 1) {\n    const line = visual.speedFx.children[index];\n    line.position.z -= delta * (22 + flightSpeed * 0.95 + turboFx * 36 + rushFx * 14);\n    if (line.position.z < -12) line.position.z = 34 + (index % 6) * 8;\n    const thickness = 0.72 + speedFxIntensity * 0.32;\n    line.scale.x = thickness;\n    line.scale.y = thickness;\n    line.scale.z = 0.82 + speedFxIntensity * (1.10 + (index % 3) * 0.12);\n  }'''
+          if old_loop not in block:
+              raise SystemExit('V31 marker missing: speed loop')
+          block = block.replace(old_loop, new_loop, 1)
+          source = source[:start] + block + source[end:]
+
+          rep(
+          '''    const flightInput = skyRaidActive\n      ? { ...input, steer: skyDancerSkyRaidSteerInput(input.steer) }\n      : input;''',
+          '''    const flightInput = skyRaidActive ? skyRaidInputFor(this, input) : input;''',
+          'input allocation removal')
+
+          rep(
+          '''    publishSkyRaidWorldStyle(snapshot);\n    publishSkyRaidEnemyDoctrineDiagnostics(typedSession, hunt.huntElapsedSeconds);\n    state.broadcastClock += delta;\n    if (state.broadcastClock >= 0.1 || snapshot.actElapsedSeconds < 0.12 || snapshot.clear) {\n      state.broadcastClock %= 0.1;\n      broadcast(snapshot);\n    }''',
+          '''    publishSkyRaidWorldStyle(snapshot);\n    state.broadcastClock += delta;\n    if (state.broadcastClock >= 0.1 || snapshot.actElapsedSeconds < 0.12 || snapshot.clear) {\n      state.broadcastClock %= 0.1;\n      publishSkyRaidEnemyDoctrineDiagnostics(typedSession, hunt.huntElapsedSeconds);\n      broadcast(snapshot);\n    }''',
+          'diagnostics throttle')
+
+          path.write_text(source)
+
+          test_path = Path('tests/sky-sky-raid.test.ts')
+          tests = test_path.read_text()
+          tests = tests.replace('assert.match(raidSource, /if \\(visible\\.length >= 3\\)/);', 'assert.match(raidSource, /if \\(visibleCount >= 3\\)/);')
+          tests = tests.replace('assert.match(raidSource, /Math\\.min\\(3 - visible\\.length, candidates\\.length\\)/);', 'assert.match(raidSource, /Math\\.min\\(3 - visibleCount, candidateCount, state\\.candidates\\.length\\)/);')
+          addition = r'''
+
+test("SKY RAID V31 removes hot-path copies without reducing presentation", () => {
+  const raidSource = readFileSync(new URL("../src/sky/SkyDancerSkyRaid.ts", import.meta.url), "utf8");
+  const formationStart = raidSource.indexOf("function maintainSkyRaidEnemyPresence(");
+  const formationEnd = raidSource.indexOf("function maintainSkyRaidScreenPresence(", formationStart);
+  const formationBlock = raidSource.slice(formationStart, formationEnd);
+  const flightStart = raidSource.indexOf("function stepSkyRaidFlight(");
+  const flightEnd = raidSource.indexOf("function applySkyRaidFlightVisuals(", flightStart);
+  const flightBlock = raidSource.slice(flightStart, flightEnd);
+  const visualStart = raidSource.indexOf("function updateRaidVisuals(");
+  const visualEnd = raidSource.indexOf("export function installSkyDancerSkyRaid()", visualStart);
+  const visualBlock = raidSource.slice(visualStart, visualEnd);
+  const screenStart = raidSource.indexOf("function maintainSkyRaidScreenPresence(");
+  const screenEnd = raidSource.indexOf("function publishSkyRaidWorldStyle(", screenStart);
+  const screenBlock = raidSource.slice(screenStart, screenEnd);
+
+  assert.doesNotMatch(formationBlock, /session\.snapshot\(\)/);
+  assert.doesNotMatch(flightBlock, /session\.snapshot\(\)/);
+  assert.doesNotMatch(visualBlock, /session\.snapshot\(\)/);
+  assert.match(raidSource, /raidInputBySession/);
+  assert.match(raidSource, /attackTelegraphs\.clear\(\)/);
+  assert.match(raidSource, /raidRoleKitByEnemyGroup/);
+  assert.match(raidSource, /raidAttackTelegraphObjectsByKit/);
+  assert.match(screenBlock, /projection: new THREE\.Vector3\(\)/);
+  assert.doesNotMatch(screenBlock, /new THREE\.Vector3\(\);[\s\S]*new THREE\.Vector3\(\)/);
+  assert.doesNotMatch(screenBlock, /\.filter\(/);
+  assert.match(screenBlock, /visibleCount/);
+  assert.match(screenBlock, /candidateCount/);
+  assert.match(raidSource, /publishSkyRaidEnemyDoctrineDiagnostics[\s\S]*broadcast\(snapshot\)/);
+  assert.match(visualBlock, /for \(let index = 0; index < visual\.speedFx\.children\.length; index \+= 1\)/);
+});
+'''
+          if 'SKY RAID V31 removes hot-path copies without reducing presentation' in tests:
+              raise SystemExit('V31 test already present')
+          test_path.write_text(tests + addition)
+          PY
+          git diff --check
+      - name: Validate optimized product
+        run: |
+          npm run test:fast
+          npm run check:arcade
+          npm run lint
+          npm run build:pages
+      - name: Profile and playcheck optimized product
+        run: |
+          python3 -m http.server 4174 --bind 127.0.0.1 --directory out >/tmp/v31-optimized.log 2>&1 &
+          echo $! >/tmp/v31-optimized.pid
+          for i in {1..30}; do curl -fsS http://127.0.0.1:4174/ >/dev/null && break; sleep 1; done
+          SKY_RAID_PERF_LABEL=optimized SKY_RAID_PERF_PORT=4174 SKY_RAID_PERF_CHECKPOINTS=1 node /tmp/sky-raid-v31-perf.mjs
+          kill $(cat /tmp/v31-optimized.pid) || true
+      - name: Compare performance
+        run: |
+          node - <<'NODE'
+          const fs = require('fs');
+          const base = JSON.parse(fs.readFileSync('artifacts/sky-raid-v31-performance/baseline.json', 'utf8'));
+          const opt = JSON.parse(fs.readFileSync('artifacts/sky-raid-v31-performance/optimized.json', 'utf8'));
+          const comparison = {
+            baseline: base,
+            optimized: opt,
+            fpsGain: base.fps > 0 ? (opt.fps - base.fps) / base.fps : 0,
+            frameGain: base.meanFrameMs > 0 ? (base.meanFrameMs - opt.meanFrameMs) / base.meanFrameMs : 0,
+            heapGain: base.heapUsedMB > 0 ? (base.heapUsedMB - opt.heapUsedMB) / base.heapUsedMB : 0,
+          };
+          fs.writeFileSync('artifacts/sky-raid-v31-performance/comparison.json', JSON.stringify(comparison, null, 2));
+          console.log('SKY RAID V31 PERF COMPARISON', JSON.stringify(comparison));
+          if (opt.fps < base.fps * 0.88) throw new Error('V31 FPS regressed more than 12%');
+          if (opt.meanFrameMs > base.meanFrameMs * 1.12) throw new Error('V31 frame time regressed more than 12%');
+          if (opt.heapUsedMB > base.heapUsedMB * 1.15) throw new Error('V31 heap regressed more than 15%');
+          NODE
+          python3 - <<'PY'
+          from pathlib import Path
+          source = Path('src/sky/SkyDancerSkyRaid.ts').read_text()
+          blocks = []
+          for start_name, end_name in [
+              ('function maintainSkyRaidEnemyPresence(', 'function maintainSkyRaidScreenPresence('),
+              ('function stepSkyRaidFlight(', 'function applySkyRaidFlightVisuals('),
+              ('function updateRaidVisuals(', 'export function installSkyDancerSkyRaid()'),
+          ]:
+              start = source.index(start_name)
+              end = source.index(end_name, start)
+              blocks.append(source[start:end])
+          calls = sum(block.count('session.snapshot()') for block in blocks)
+          print(f'SKY RAID V31 HOT SNAPSHOT CALLS {calls}')
+          if calls != 0:
+              raise SystemExit('hot-path snapshot copy remains')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sky-raid-v31-performance-audit
+          path: artifacts/sky-raid-v31-performance
+          retention-days: 7
+      - name: Restore audit hook and commit product
+        run: |
+          git restore src/cart/CartRoguePhase67TurboHunt.ts
+          rm -f .github/workflows/sky-raid-v31-allocation-once.yml
+          git diff --check
+          git config user.name "yz4git"
+          git config user.email "65384484+yz4git@users.noreply.github.com"
+          git add src/sky/SkyDancerSkyRaid.ts tests/sky-sky-raid.test.ts .github/workflows/sky-raid-v31-allocation-once.yml
+          git diff --cached --check
+          git commit -m "Reduce SKY RAID frame allocations"
+          git push origin HEAD:main
