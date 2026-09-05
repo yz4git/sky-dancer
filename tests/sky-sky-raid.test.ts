@@ -461,3 +461,19 @@ test("SKY RAID V31 removes hot-path copies without reducing presentation", () =>
   assert.match(screenBlock, /candidateCount/);
   assert.match(visualBlock, /for \(let index = 0; index < visual\.speedFx\.children\.length; index \+= 1\)/);
 });
+
+test("SKY RAID V32 gives phone combat controls a full touch target and one critical alert lane", () => {
+  const overlaySource = readFileSync(new URL("../app/SkyDancerSkyRaidOverlay.tsx", import.meta.url), "utf8");
+  const shotCss = readFileSync(new URL("../app/SkyDancerShotControl.module.css", import.meta.url), "utf8");
+  const shotSource = readFileSync(new URL("../app/SkyDancerShotControl.tsx", import.meta.url), "utf8");
+  assert.match(shotSource, /aria-label="Fire missile"/);
+  assert.match(shotSource, /fireWithRuntimeRetry\(\)/);
+  assert.match(shotCss, /min-width: 72px/);
+  assert.match(shotCss, /min-height: 72px/);
+  assert.match(overlaySource, /\[aria-label="Fire missile"\][\s\S]{0,180}min-width: 72px !important/);
+  assert.match(overlaySource, /data-sd-noncritical-alert="act"/);
+  assert.match(overlaySource, /data-sd-noncritical-alert="rush"/);
+  assert.match(overlaySource, /data-sd-noncritical-alert="boss"/);
+  assert.match(overlaySource, /:has\(\[aria-label="Missile warning"\]\) \[data-sd-noncritical-alert\][\s\S]{0,80}display: none !important/);
+  assert.match(overlaySource, /opacity: \.98 !important/);
+});

@@ -85,11 +85,13 @@
     bottom: max(62px, calc(env(safe-area-inset-bottom) + 52px));
   }
   .shotButton {
-    width: 57px;
-    height: 57px;
-    border-radius: 7px 13px 7px 13px;
+    width: 72px;
+    height: 72px;
+    min-width: 72px;
+    min-height: 72px;
+    border-radius: 9px 15px 9px 15px;
   }
-  .shotButton strong { font-size: 11px; }
+  .shotButton strong { font-size: 13px; }
   .shotButton small { font-size: 7px; }
 }
 

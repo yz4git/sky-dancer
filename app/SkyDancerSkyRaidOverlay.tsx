@@ -126,6 +126,15 @@ export default function SkyDancerSkyRaidOverlay() {
         font-weight: 900;
         letter-spacing: .14em;
       }
+      html[data-sky-dancer-mode="sky-raid"]:has([aria-label="Missile warning"]) [data-sd-noncritical-alert] {
+        display: none !important;
+      }
+      html[data-sky-dancer-mode="sky-raid"] [aria-label="Fire missile"] {
+        width: 72px !important;
+        height: 72px !important;
+        min-width: 72px !important;
+        min-height: 72px !important;
+      }
       html[data-sky-dancer-mode="sky-raid"] [aria-label="Missile warning"] {
         left: 50% !important;
         right: auto !important;
@@ -139,8 +148,10 @@ export default function SkyDancerSkyRaidOverlay() {
         font-size: clamp(7px, .82vw, 9px) !important;
         line-height: 1 !important;
         letter-spacing: .08em !important;
-        opacity: .86 !important;
-        box-shadow: 0 3px 12px rgba(70,0,0,.22) !important;
+        opacity: .98 !important;
+        border: 1px solid rgba(255, 108, 94, .72) !important;
+        background: linear-gradient(90deg, rgba(74, 8, 13, .9), rgba(34, 6, 12, .86)) !important;
+        box-shadow: 0 3px 16px rgba(70,0,0,.34), 0 0 16px rgba(255,70,50,.16) !important;
         white-space: nowrap !important;
       }
       @keyframes skyRaidScorePunch {
@@ -209,7 +220,7 @@ export default function SkyDancerSkyRaidOverlay() {
       )}
 
       {snapshot.actElapsedSeconds < 1.9 && !snapshot.clear && (
-        <div className={styles.actBanner}>
+        <div className={styles.actBanner} data-sd-noncritical-alert="act">
           <small>ACT {snapshot.actIndex + 1} · {snapshot.setpiece}</small>
           <strong>{snapshot.actLabel}</strong>
           <div className={styles.packageLine} data-sd-enemy-package-cue="true">
@@ -220,7 +231,7 @@ export default function SkyDancerSkyRaidOverlay() {
       )}
 
       {snapshot.rushActive && !snapshot.clear && (
-        <div className={styles.rushBanner}>
+        <div className={styles.rushBanner} data-sd-noncritical-alert="rush">
           <small>FORMATION RUSH</small>
           <strong>SCORE ×2</strong>
           <span>BREAK THE WAVE · KEEP MOVING</span>
@@ -228,7 +239,7 @@ export default function SkyDancerSkyRaidOverlay() {
       )}
 
       {bossCueVisible && !snapshot.clear && (
-        <div className={styles.bossCue}>
+        <div className={styles.bossCue} data-sd-noncritical-alert="boss">
           <small>FINAL SETPIECE</small>
           <strong>PRISM TITAN</strong>
           <span>BREAK ARMOR · DODGE · COUNTER · RAM CORE</span>
