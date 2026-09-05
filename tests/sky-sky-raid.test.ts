@@ -383,3 +383,26 @@ test("SKY RAID V26 carries threat identity from airframe trail through lock HUD 
   assert.match(polishSource, /HEAVY MISSILE/);
   assert.match(polishSource, /data-source-class=/);
 });
+
+
+test("SKY RAID V27 exposes real pre-attack timing without changing launch rules", () => {
+  const raidSource = readFileSync(new URL("../src/sky/SkyDancerSkyRaid.ts", import.meta.url), "utf8");
+  const flightSource = readFileSync(new URL("../src/sky/SkyDancerFlightCombat.ts", import.meta.url), "utf8");
+  const hudSource = readFileSync(new URL("../app/SkyDancerHudV45.tsx", import.meta.url), "utf8");
+  assert.match(flightSource, /SKY_DANCER_ATTACK_TELEGRAPH_EVENT/);
+  assert.match(flightSource, /striker-dive/);
+  assert.match(flightSource, /bomber-salvo/);
+  assert.match(flightSource, /heavy-charge/);
+  assert.match(flightSource, /memory\.cooldown > chargeWindow/);
+  assert.doesNotMatch(flightSource, /memory\.cooldown <= 0\.04/);
+  assert.doesNotMatch(flightSource, /doctrine\.missileAimTolerance \+ 0\.34/);
+  assert.match(flightSource, /tryLaunchMissiles\(session, state\)/);
+  assert.match(flightSource, /tryLaunchMissiles\(session, state\)/);
+  assert.match(raidSource, /SKY_RAID_ATTACK_TELEGRAPH_NAME/);
+  assert.match(raidSource, /applySkyRaidAttackTelegraphVisual/);
+  assert.match(raidSource, /attackCue/);
+  assert.match(hudSource, /DIVE BREAK/);
+  assert.match(hudSource, /SALVO CHARGE/);
+  assert.match(hudSource, /HEAVY CHARGE/);
+  assert.match(hudSource, /data-threat-cue=/);
+});

@@ -5,6 +5,11 @@ import {
   SKY_DANCER_COMBAT_DECISION_EVENT_V45,
   type SkyDancerCombatDecisionSnapshotV45,
 } from "../src/sky/presentation/SkyDancerV45DecisionHierarchyPass";
+import {
+  SKY_DANCER_ATTACK_TELEGRAPH_EVENT,
+  type SkyDancerEnemyAttackTelegraphSnapshot,
+  type SkyDancerEnemyAttackTelegraphState,
+} from "../src/sky/SkyDancerFlightCombat";
 import huntStyles from "./CartTurboHuntHudOverlay.module.css";
 
 function altitudeLabel(value: number): string {
@@ -27,6 +32,14 @@ function skyRaidRoleCue(className: SkyDancerCombatDecisionSnapshotV45["className
   }
 }
 
+function skyRaidAttackTelegraphLabel(cue: SkyDancerEnemyAttackTelegraphSnapshot["cue"]): string {
+  switch (cue) {
+    case "striker-dive": return "DIVE BREAK";
+    case "bomber-salvo": return "SALVO CHARGE";
+    case "heavy-charge": return "HEAVY CHARGE";
+  }
+}
+
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
 }
@@ -34,6 +47,7 @@ function clamp(value: number, min: number, max: number): number {
 export default function SkyDancerHudV45() {
   const [decision, setDecision] = useState<SkyDancerCombatDecisionSnapshotV45 | null>(null);
   const [hitPulse, setHitPulse] = useState(false);
+  const [attackTelegraphs, setAttackTelegraphs] = useState<SkyDancerEnemyAttackTelegraphSnapshot[]>([]);
   const hitSerialRef = useRef(0);
   const hitTimerRef = useRef<number | null>(null);
 
@@ -60,6 +74,15 @@ export default function SkyDancerHudV45() {
     };
   }, []);
 
+  useEffect(() => {
+    const onTelegraph = (event: Event) => {
+      const detail = (event as CustomEvent<SkyDancerEnemyAttackTelegraphState>).detail;
+      setAttackTelegraphs(detail?.telegraphs ?? []);
+    };
+    window.addEventListener(SKY_DANCER_ATTACK_TELEGRAPH_EVENT, onTelegraph);
+    return () => window.removeEventListener(SKY_DANCER_ATTACK_TELEGRAPH_EVENT, onTelegraph);
+  }, []);
+
   const bossActive = Boolean(decision?.bossActive);
   useEffect(() => {
     document.body.classList.toggle("skyDancerV45BossActive", bossActive);
@@ -74,6 +97,9 @@ export default function SkyDancerHudV45() {
   }, [decision]);
 
   const locked = Boolean(decision?.targetEnemyId);
+  const targetTelegraph = decision?.targetEnemyId
+    ? attackTelegraphs.find((telegraph) => telegraph.enemyId === decision.targetEnemyId) ?? null
+    : null;
   const reticleX = decision ? clamp((decision.signedAngle / 0.78) * 26, -26, 26) : 0;
   const altitudeRatio = decision && Number.isFinite(decision.distance) && decision.distance > 1
     ? clamp(decision.altitudeDeltaMeters / decision.distance, -0.72, 0.72)
@@ -226,6 +252,21 @@ export default function SkyDancerHudV45() {
       .skyDancerV45Lock[data-class="bomber"] .skyDancerV45Role { color: #ffdc72; }
       .skyDancerV45Lock[data-class="heavy"] .skyDancerV45Role { color: #ff8589; }
       .skyDancerV45Lock[data-class="standard"] .skyDancerV45Role { color: #a8efff; }
+      .skyDancerV27Telegraph {
+        color: #ffe6a0;
+        font-size: .86em;
+        font-weight: 1000;
+        letter-spacing: .13em;
+        text-shadow: 0 0 8px currentColor;
+        animation: skyDancerV27ThreatPulse 360ms ease-in-out infinite;
+      }
+      .skyDancerV45Lock[data-class="striker"] .skyDancerV27Telegraph { color: #ffb66f; }
+      .skyDancerV45Lock[data-class="bomber"] .skyDancerV27Telegraph { color: #ffdc72; }
+      .skyDancerV45Lock[data-class="heavy"] .skyDancerV27Telegraph { color: #ff8589; }
+      @keyframes skyDancerV27ThreatPulse {
+        0%,100% { opacity: .56; transform: scale(.96); }
+        50% { opacity: 1; transform: scale(1.03); }
+      }
       .skyDancerV45Action {
         overflow: hidden;
         max-width: 27vw;
@@ -311,6 +352,7 @@ export default function SkyDancerHudV45() {
         data-ready={decision.vulnerable ? "true" : "false"}
         data-class={decision.className ?? "none"}
         data-role-cue={skyRaidRoleCue(decision.className)}
+        data-threat-cue={targetTelegraph?.cue ?? ""}
         aria-label="V45 target decision"
         style={{
           left: `calc(50% + ${lockX.toFixed(2)}vw)`,
@@ -323,6 +365,11 @@ export default function SkyDancerHudV45() {
           <span className="skyDancerV45Altitude">{altitudeLabel(decision.altitudeDeltaMeters)}</span>
           <span className="skyDancerV45Range">{Math.round(decision.distance)}m</span>
         </div>
+        {targetTelegraph && (
+          <span className="skyDancerV27Telegraph" aria-label="Sky Raid pre-attack cue">
+            {skyRaidAttackTelegraphLabel(targetTelegraph.cue)}
+          </span>
+        )}
         <span className="skyDancerV45Action"><b className="skyDancerV45Role" aria-label="Sky Raid target role">{skyRaidRoleCue(decision.className)}</b>{decision.action}</span>
       </div>
     )}

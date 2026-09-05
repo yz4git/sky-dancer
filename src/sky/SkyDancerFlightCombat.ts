@@ -110,6 +110,23 @@ export const SKY_DANCER_ALTITUDE_METERS = 150;
 export const SKY_DANCER_MAX_ACTIVE_MISSILES = 8;
 export const SKY_DANCER_V43_MISSILE_MAX_PITCH = 0.62;
 
+export type SkyDancerEnemyAttackTelegraphCue = "striker-dive" | "bomber-salvo" | "heavy-charge";
+
+export interface SkyDancerEnemyAttackTelegraphSnapshot {
+  enemyId: string;
+  sourceClass: "striker" | "bomber" | "heavy";
+  cue: SkyDancerEnemyAttackTelegraphCue;
+  intensity: number;
+  secondsToReady: number;
+  distanceToPlayer: number;
+}
+
+export interface SkyDancerEnemyAttackTelegraphState {
+  telegraphs: SkyDancerEnemyAttackTelegraphSnapshot[];
+}
+
+export const SKY_DANCER_ATTACK_TELEGRAPH_EVENT = "sky-dancer-attack-telegraph";
+
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
 }
@@ -215,6 +232,8 @@ function broadcast(session: FlightSessionView, state: FlightCombatState): void {
   latestState = snapshot;
   if (typeof window !== "undefined") {
     window.dispatchEvent(new CustomEvent<SkyDancerMissileState>(SKY_DANCER_MISSILE_EVENT, { detail: snapshot }));
+    const telegraphs: SkyDancerEnemyAttackTelegraphState = { telegraphs: enemyAttackTelegraphs(session, state) };
+    window.dispatchEvent(new CustomEvent<SkyDancerEnemyAttackTelegraphState>(SKY_DANCER_ATTACK_TELEGRAPH_EVENT, { detail: telegraphs }));
   }
 }
 
@@ -226,6 +245,79 @@ export function getSkyDancerMissileState(session: CartArenaSession): SkyDancerMi
 export function getLatestSkyDancerMissileState(): SkyDancerMissileState | null {
   if (!latestState) return null;
   return { ...latestState, missiles: latestState.missiles.map((missile) => ({ ...missile })) };
+}
+
+function enemyAttackTelegraphs(
+  session: FlightSessionView,
+  state: FlightCombatState,
+): SkyDancerEnemyAttackTelegraphSnapshot[] {
+  const result: SkyDancerEnemyAttackTelegraphSnapshot[] = [];
+  const nodeId = session.location.node.id;
+  const px = session.car.position.x;
+  const pz = session.car.position.z;
+
+  for (const enemy of session.enemies) {
+    if (!enemy.alive || enemy.kind === "boss" || enemy.nodeId !== nodeId) continue;
+    const doctrine = getSkyDancerSkyRaidEnemyDoctrine(enemy);
+    if (!doctrine) continue;
+    const sourceClass = skyDancerSkyRaidEnemyClassFor(enemy);
+    if (sourceClass !== "striker" && sourceClass !== "bomber" && sourceClass !== "heavy") continue;
+    const memory = state.enemyMemory.get(enemy.id);
+    if (!memory) continue;
+
+    const vertical = getSkyDancerEnemyVerticalSnapshotV43(enemy);
+    const dx = px - enemy.x;
+    const dz = pz - enemy.z;
+    const distance = skyDancerDistance3DV43(enemy.x, vertical.altitudeOffsetMeters, enemy.z, px, 0, pz);
+    const direct = Math.atan2(dx, dz);
+    const aimError = Math.abs(normalizeAngle(direct - enemy.heading));
+
+    if (sourceClass === "striker") {
+      // A striker cue describes the physical knife-pass itself, not a synthetic
+      // attack timer. It appears only while the fighter is actually converging.
+      if (distance < 7.5 || distance > 27 || aimError > 0.88) continue;
+      const proximity = clamp((27 - distance) / 17, 0, 1);
+      const alignment = clamp(1 - aimError / 0.88, 0, 1);
+      const intensity = clamp(0.28 + proximity * 0.44 + alignment * 0.28, 0, 1);
+      result.push({
+        enemyId: enemy.id,
+        sourceClass,
+        cue: "striker-dive",
+        intensity,
+        secondsToReady: 0,
+        distanceToPlayer: distance,
+      });
+      continue;
+    }
+
+    // Bomber and Heavy use the existing missile cooldown as their real charge
+    // clock. The relaxed envelope starts the visual warning just before the
+    // exact launch gate. Once cooldown reaches zero, keep the cue fully charged while the aircraft waits for exact aim; tryLaunchMissiles remains completely unchanged.
+    const chargeWindow = sourceClass === "heavy" ? 1.08 : 0.92;
+    if (memory.cooldown > chargeWindow) continue;
+    const minRange = doctrine.missileMinRange;
+    const maxRange = doctrine.missileMaxRange;
+    if (distance < Math.max(0, minRange - 3) || distance > maxRange + 7) continue;
+    // Charge readability is intentionally independent from the exact fire-cone gate.
+    // tryLaunchMissiles still owns aim tolerance and therefore all real launch authority.
+    const progress = clamp(1 - memory.cooldown / chargeWindow, 0, 1);
+    result.push({
+      enemyId: enemy.id,
+      sourceClass,
+      cue: sourceClass === "heavy" ? "heavy-charge" : "bomber-salvo",
+      intensity: 0.24 + progress * 0.76,
+      secondsToReady: memory.cooldown,
+      distanceToPlayer: distance,
+    });
+  }
+  return result;
+}
+
+export function getSkyDancerEnemyAttackTelegraphs(
+  session: CartArenaSession,
+): SkyDancerEnemyAttackTelegraphSnapshot[] {
+  const view = session as unknown as FlightSessionView;
+  return enemyAttackTelegraphs(view, stateFor(view)).map((telegraph) => ({ ...telegraph }));
 }
 
 function enemyCruiseSpeed(enemy: CartEnemyState): number {

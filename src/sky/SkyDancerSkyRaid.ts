@@ -37,6 +37,7 @@ import {
   skyDancerSkyRaidSpawnPreference,
 } from "./SkyDancerSkyRaidEnemyDoctrine";
 import { getSkyDancerTurboState } from "./SkyDancerTurboModel";
+import { getSkyDancerEnemyAttackTelegraphs, type SkyDancerEnemyAttackTelegraphSnapshot } from "./SkyDancerFlightCombat";
 import { getSkyDancerPlayerWeaponState } from "./SkyDancerPlayerWeapons";
 import {
   getSkyDancerEnemyAltitudeMetersV43,
@@ -225,6 +226,7 @@ function restoreSkyRaidEnemySilhouetteAssist(demo: RaidWebGLDemo): void {
 
 const SKY_RAID_ROLE_KIT_NAME = "sky-raid-enemy-role-kit";
 const SKY_RAID_ROLE_TRAIL_NAME = "sky-raid-enemy-role-trail";
+const SKY_RAID_ATTACK_TELEGRAPH_NAME = "sky-raid-enemy-attack-telegraph";
 
 function skyRaidRoleKitColor(className: ReturnType<typeof skyDancerSkyRaidEnemyClassFor>): number {
   switch (className) {
@@ -337,6 +339,50 @@ function buildSkyRaidEnemyRoleKit(
       break;
   }
 
+  if (className === "striker") {
+    const diveMarker = new THREE.Mesh(
+      new THREE.ConeGeometry(0.16, 0.82, 3, 1, true),
+      new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }),
+    );
+    diveMarker.name = SKY_RAID_ATTACK_TELEGRAPH_NAME;
+    diveMarker.userData.skyRaidAttackTelegraphCue = "striker-dive";
+    diveMarker.rotation.x = Math.PI / 2;
+    diveMarker.position.set(0, 0.30, 1.30);
+    diveMarker.visible = false;
+    root.add(diveMarker);
+  } else if (className === "bomber") {
+    for (const side of [-1, 1] as const) {
+      const podGlow = new THREE.Mesh(
+        new THREE.SphereGeometry(0.18, 8, 6),
+        new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }),
+      );
+      podGlow.name = SKY_RAID_ATTACK_TELEGRAPH_NAME;
+      podGlow.userData.skyRaidAttackTelegraphCue = "bomber-salvo";
+      podGlow.position.set(side * 0.74, 0.18, 0.44);
+      podGlow.visible = false;
+      root.add(podGlow);
+    }
+  } else if (className === "heavy") {
+    const coreGlow = new THREE.Mesh(
+      new THREE.IcosahedronGeometry(0.22, 1),
+      new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }),
+    );
+    coreGlow.name = SKY_RAID_ATTACK_TELEGRAPH_NAME;
+    coreGlow.userData.skyRaidAttackTelegraphCue = "heavy-charge";
+    coreGlow.position.set(0, 0.48, 0.92);
+    coreGlow.visible = false;
+    root.add(coreGlow);
+    const chargeRing = new THREE.Mesh(
+      new THREE.TorusGeometry(0.34, 0.035, 5, 18),
+      new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }),
+    );
+    chargeRing.name = SKY_RAID_ATTACK_TELEGRAPH_NAME;
+    chargeRing.userData.skyRaidAttackTelegraphCue = "heavy-charge";
+    chargeRing.position.set(0, 0.48, 0.95);
+    chargeRing.visible = false;
+    root.add(chargeRing);
+  }
+
   const trailProfile = skyRaidRoleTrailProfile(className);
   root.userData.skyRaidRoleTrailSignature = trailProfile.signature;
   for (const offset of trailProfile.offsets) {
@@ -368,10 +414,37 @@ function buildSkyRaidEnemyRoleKit(
   return root;
 }
 
+function applySkyRaidAttackTelegraphVisual(
+  kit: THREE.Group,
+  telegraph: SkyDancerEnemyAttackTelegraphSnapshot | null,
+  pulseClock: number,
+): void {
+  const objects = kit.children.filter((child) => child.name === SKY_RAID_ATTACK_TELEGRAPH_NAME);
+  const active = Boolean(telegraph) && objects.length > 0;
+  const intensity = telegraph?.intensity ?? 0;
+  const pulse = active ? 0.72 + Math.sin(pulseClock * 19 + intensity * 3.4) * 0.28 : 0;
+  for (const object of objects) {
+    object.visible = active;
+    const scale = active ? 0.82 + intensity * 0.46 + pulse * 0.12 : 1;
+    object.scale.setScalar(scale);
+    if (object instanceof THREE.Mesh && object.material instanceof THREE.MeshBasicMaterial) {
+      object.material.opacity = active ? clamp(0.18 + intensity * 0.62 + pulse * 0.12, 0, 0.96) : 0;
+    }
+  }
+  kit.userData.skyRaidAttackTelegraphCue = telegraph?.cue ?? "";
+  kit.userData.skyRaidAttackTelegraphIntensity = intensity;
+  kit.userData.skyRaidAttackTelegraphVisible = active;
+  kit.userData.skyRaidAttackTelegraphSeconds = telegraph?.secondsToReady ?? 0;
+}
+
 function applySkyRaidEnemyRoleReadability(
   demo: RaidWebGLDemo,
   snapshot: ReturnType<CartArenaSession["snapshot"]>,
 ): void {
+  const attackTelegraphs = new Map(
+    getSkyDancerEnemyAttackTelegraphs(demo.session).map((telegraph) => [telegraph.enemyId, telegraph] as const),
+  );
+  const pulseClock = typeof performance !== "undefined" ? performance.now() * 0.001 : 0;
   for (const enemySnapshot of snapshot.enemies) {
     const group = demo.enemyGroups.get(enemySnapshot.id);
     const enemyState = demo.session.enemies.find((candidate) => candidate.id === enemySnapshot.id);
@@ -386,6 +459,9 @@ function applySkyRaidEnemyRoleReadability(
     kit.visible = enemySnapshot.alive;
     group.userData.skyRaidRoleClass = roleClass;
     group.userData.skyRaidRoleSignature = kit.userData.skyRaidRoleSignature;
+    const attackTelegraph = attackTelegraphs.get(enemyState.id) ?? null;
+    applySkyRaidAttackTelegraphVisual(kit, attackTelegraph, pulseClock);
+    group.userData.skyRaidAttackTelegraphCue = attackTelegraph?.cue ?? "";
   }
 
   if (typeof window !== "undefined" && typeof navigator !== "undefined" && navigator.webdriver) {
@@ -404,6 +480,10 @@ function applySkyRaidEnemyRoleReadability(
             trailVisible: kit?.children.filter((child) => child.name === SKY_RAID_ROLE_TRAIL_NAME).every((child) => child.visible) ?? false,
             kitVisible: kit?.visible === true,
             kitChildren: kit?.children.length ?? 0,
+            attackCue: String(kit?.userData.skyRaidAttackTelegraphCue ?? ""),
+            attackIntensity: Number(kit?.userData.skyRaidAttackTelegraphIntensity ?? 0),
+            attackVisible: kit?.userData.skyRaidAttackTelegraphVisible === true,
+            attackSeconds: Number(kit?.userData.skyRaidAttackTelegraphSeconds ?? 0),
           };
         });
       return {
