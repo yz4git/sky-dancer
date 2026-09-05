@@ -1,4 +1,4 @@
-name: SKY RAID V31 Allocation Pass R2
+name: SKY RAID V31 Allocation Pass R3
 
 on:
   push:
@@ -51,6 +51,7 @@ jobs:
       - name: Apply V31 optimization
         run: |
           python3 .github/sky-raid-v31-allocation.py
+          python3 .github/sky-raid-v31-contract-fix.py
           git diff --check
       - name: Validate V31
         run: |
@@ -107,6 +108,7 @@ jobs:
         run: |
           git restore src/cart/CartRoguePhase67TurboHunt.ts
           rm -f .github/sky-raid-v31-allocation.py
+          rm -f .github/sky-raid-v31-contract-fix.py
           rm -f scripts/webgl-sky-raid-v31-perf.mjs
           rm -f .github/workflows/sky-raid-v31-allocation-once.yml
           git diff --check
