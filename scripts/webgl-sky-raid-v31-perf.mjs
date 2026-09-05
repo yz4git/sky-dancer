@@ -23,9 +23,21 @@ const context = await browser.newContext({
 });
 const page = await context.newPage();
 const errors = [];
+const resourceWarnings = [];
 page.on('pageerror', (error) => errors.push(String(error)));
 page.on('console', (message) => {
-  if (message.type() === 'error') errors.push(message.text());
+  if (message.type() !== 'error') return;
+  const text = message.text();
+  if (/Failed to load resource: the server responded with a status of 404/i.test(text)) return;
+  errors.push(text);
+});
+page.on('response', (response) => {
+  if (response.status() < 400) return;
+  const url = response.url();
+  const pathname = new URL(url).pathname;
+  const item = `${response.status()} ${pathname}`;
+  if (/\.(?:js|mjs|css|html)$/i.test(pathname) || pathname === '/') errors.push(item);
+  else resourceWarnings.push(item);
 });
 
 await page.goto(`http://127.0.0.1:${port}/?menu=1`, { waitUntil: 'domcontentloaded', timeout: 30000 });
@@ -74,6 +86,7 @@ const result = {
   scriptMsPerSecond: ((after.ScriptDuration || 0) - (before.ScriptDuration || 0)) * 1000 / wallSeconds,
   heapUsedMB: (after.JSHeapUsedSize || 0) / 1048576,
   errors,
+  resourceWarnings,
 };
 
 if (checkpoints) {
