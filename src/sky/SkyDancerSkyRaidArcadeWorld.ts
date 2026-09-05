@@ -37,7 +37,8 @@ function insideArcadeEnvironment(object: THREE.Object3D): boolean {
   return false;
 }
 
-function suppressLegacyEnvironment(scene: THREE.Scene): void {
+function suppressLegacyEnvironment(scene: THREE.Scene): THREE.Object3D[] {
+  const suppressed: THREE.Object3D[] = [];
   scene.traverse((object) => {
     if (insideArcadeEnvironment(object)) return;
     const legacyNamed = object.name === "phase67-turbo-hunt-world"
@@ -47,8 +48,12 @@ function suppressLegacyEnvironment(scene: THREE.Scene): void {
     const legacyLargeSky = object instanceof THREE.Mesh
       && object.geometry instanceof THREE.SphereGeometry
       && object.geometry.parameters.radius >= 250;
-    if (legacyNamed || legacyTheme || legacyLargeSky) object.visible = false;
+    if (legacyNamed || legacyTheme || legacyLargeSky) {
+      object.visible = false;
+      suppressed.push(object);
+    }
   });
+  return suppressed;
 }
 
 function stripDuplicateAtmosphere(root: THREE.Object3D): void {
@@ -284,10 +289,11 @@ export class SkyDancerSkyRaidArcadeWorld {
   private anchorX = 0;
   private anchorZ = 0;
   private anchorYaw = Math.PI;
+  private legacyEnvironment: THREE.Object3D[] = [];
 
   constructor(private readonly scene: THREE.Scene) {
     this.environment = new SkyDancerArcadeEnvironment(scene);
-    suppressLegacyEnvironment(scene);
+    this.legacyEnvironment = suppressLegacyEnvironment(scene);
     scene.userData.skyRaidUsesArcadeReferenceWorld = true;
     scene.userData.skyRaidLegacyEnvironmentSuppressed = true;
     scene.userData.skyRaidFreeFlightWorld = true;
@@ -425,7 +431,12 @@ export class SkyDancerSkyRaidArcadeWorld {
     _elapsed: number,
     _delta: number,
   ): void {
-    suppressLegacyEnvironment(this.scene);
+    // V30: legacy presentation roots are stable after bootstrap. Re-hiding the
+    // cached objects is equivalent to a full scene traversal, but avoids walking
+    // the complete three-sector Arcade world every rendered frame.
+    for (const object of this.legacyEnvironment) {
+      if (object.visible) object.visible = false;
+    }
 
     if (!this.stage || this.stage.id !== actId) {
       // The clones share geometry/materials with the current Arcade environment,
@@ -448,18 +459,15 @@ export class SkyDancerSkyRaidArcadeWorld {
       this.applyFreeFlightChunkClearance();
       this.buildFreeFlightDepthWorld();
       this.buildFreeFlightCopies();
-      suppressLegacyEnvironment(this.scene);
+      this.legacyEnvironment = suppressLegacyEnvironment(this.scene);
     }
 
     if (!this.stage) return;
 
-    this.environment.setWorldFrame(this.anchorX, 0, this.anchorZ, this.anchorYaw);
-    this.applyFreeFlightBackdropPolicy();
+    // World frame, backdrop stripping, chunk clearance and sector placement are
+    // immutable for the lifetime of an Act. Keep only fog ownership live; the
+    // previous code redundantly repeated all static work every rendered frame.
     this.tuneSkyRaidAtmosphere();
-    this.applyFreeFlightChunkClearance();
-    this.freeFlightCopies.forEach((copy, index) => {
-      this.positionFreeFlightSector(copy, FREE_FLIGHT_SECTOR_ANGLES[index], index);
-    });
 
     // The replacement depth world is deliberately stable in world space. It does
     // not inherit player heading, pitch, elapsed time, course distance or Turbo.
