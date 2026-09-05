@@ -1,4 +1,4 @@
-name: SKY RAID V34 Stick Release R3
+name: SKY RAID V34 Stick Release R4
 
 on:
   push:
@@ -31,6 +31,7 @@ jobs:
       - name: Apply V34 stick repair
         run: |
           python3 .github/skyraid-v34-stick-release.py
+          python3 .github/skyraid-v34-dual-release.py
           python3 .github/skyraid-v34-normalize.py
           git diff --check
       - name: Validate product
@@ -55,6 +56,7 @@ jobs:
       - name: Commit product
         run: |
           rm -f .github/skyraid-v34-stick-release.py
+          rm -f .github/skyraid-v34-dual-release.py
           rm -f .github/skyraid-v34-normalize.py
           rm -f scripts/webgl-sky-raid-v34-stick-release.mjs
           rm -f .github/workflows/sky-raid-v34-stick-release-once.yml
