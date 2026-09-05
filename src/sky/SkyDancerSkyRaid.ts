@@ -8,6 +8,7 @@ import {
   getCartTurboHuntSnapshot,
   reseedCartTurboHuntActiveTargets,
   setCartTurboHuntActiveTargetCountResolver,
+  setCartTurboHuntExternalProgressionEnabled,
   setCartTurboHuntSpawnPreference,
   type CartTurboHuntSnapshot,
 } from "../cart/CartRoguePhase67TurboHunt";
@@ -15,6 +16,7 @@ import {
   SKY_DANCER_SKY_RAID_ACTS,
   SKY_DANCER_SKY_RAID_BOSS_TRIGGER_SECONDS,
   SKY_DANCER_SKY_RAID_CHAIN_GRACE_SECONDS,
+  SKY_DANCER_SKY_RAID_TARGET_SECONDS,
   skyDancerSkyRaidActFor,
   skyDancerSkyRaidActSeconds,
   skyDancerSkyRaidCombatProfile,
@@ -995,7 +997,7 @@ function updateRaid(session: RaidSession, hunt: CartTurboHuntSnapshot, delta: nu
   const clear = hunt.huntPhase === "clear";
   if (clear && !state.clearBonus) {
     state.clearBonus = true;
-    state.score += 5000 + Math.round(Math.max(0, 120 - hunt.huntElapsedSeconds) * 80);
+    state.score += 5000 + Math.round(Math.max(0, SKY_DANCER_SKY_RAID_TARGET_SECONDS - hunt.huntElapsedSeconds) * 80);
   }
 
   const actElapsed = skyDancerSkyRaidActSeconds(hunt.huntElapsedSeconds, act);
@@ -1351,12 +1353,12 @@ export function installSkyDancerSkyRaid(): void {
   const previousBuildWorld = webglPrototype.buildWorld;
   webglPrototype.buildWorld = function skyRaidBuildWorld(this: RaidWebGLDemo): void {
     if (isSkyRaidMode()) {
-      // Turbo Hunt's buildWorld wrapper owns the gameplay bootstrap as well as
-      // its legacy ground visuals. SKY RAID needs the former but intentionally
-      // replaces the latter, so initialize the Hunt session explicitly instead
-      // of depending on a mode-detection race to enter previousBuildWorld().
+      // SKY RAID now owns the complete 225 s act/boss timeline. Disable the inherited
+      // Hunt objective/boss director before bootstrapping its reusable combat systems.
+      setCartTurboHuntExternalProgressionEnabled(true);
       enableCartTurboHunt(this.session);
     } else {
+      setCartTurboHuntExternalProgressionEnabled(false);
       previousBuildWorld.call(this);
     }
     buildRaidVisuals(this);

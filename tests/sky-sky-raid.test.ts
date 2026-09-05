@@ -3,9 +3,11 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import {
   SKY_DANCER_SKY_RAID_ACTS,
+  SKY_DANCER_SKY_RAID_ACT_SECONDS,
   SKY_DANCER_SKY_RAID_BOSS_TRIGGER_SECONDS,
   SKY_DANCER_SKY_RAID_BOSS_CUE_SECONDS,
   SKY_DANCER_SKY_RAID_CHAIN_GRACE_SECONDS,
+  SKY_DANCER_SKY_RAID_TARGET_SECONDS,
   skyDancerSkyRaidActFor,
   skyDancerSkyRaidCombatProfile,
   skyDancerSkyRaidEnemyDoctrine,
@@ -26,12 +28,12 @@ import {
 test("SKY RAID spans five arcade acts across the free-flight run", () => {
   assert.equal(SKY_DANCER_SKY_RAID_ACTS.length, 5);
   assert.equal(skyDancerSkyRaidActFor(0).id, "dawn-city");
-  assert.equal(skyDancerSkyRaidActFor(24).id, "red-canyon");
-  assert.equal(skyDancerSkyRaidActFor(48).id, "cloud-fleet");
-  assert.equal(skyDancerSkyRaidActFor(72).id, "storm-carrier");
-  assert.equal(skyDancerSkyRaidActFor(96).id, "prism-citadel");
-  assert.ok(SKY_DANCER_SKY_RAID_BOSS_TRIGGER_SECONDS > 96);
-  assert.ok(SKY_DANCER_SKY_RAID_BOSS_TRIGGER_SECONDS < 120);
+  assert.equal(skyDancerSkyRaidActFor(45).id, "red-canyon");
+  assert.equal(skyDancerSkyRaidActFor(90).id, "cloud-fleet");
+  assert.equal(skyDancerSkyRaidActFor(135).id, "storm-carrier");
+  assert.equal(skyDancerSkyRaidActFor(180).id, "prism-citadel");
+  assert.ok(SKY_DANCER_SKY_RAID_BOSS_TRIGGER_SECONDS > 180);
+  assert.ok(SKY_DANCER_SKY_RAID_BOSS_TRIGGER_SECONDS < SKY_DANCER_SKY_RAID_TARGET_SECONDS);
 });
 
 test("SKY RAID gives every act a distinct combat doctrine instead of one repeated formation loop", () => {
@@ -405,4 +407,16 @@ test("SKY RAID V27 exposes real pre-attack timing without changing launch rules"
   assert.match(hudSource, /SALVO CHARGE/);
   assert.match(hudSource, /HEAVY CHARGE/);
   assert.match(hudSource, /data-threat-cue=/);
+});
+
+
+test("SKY RAID V28 keeps each act long enough for a complete combat exchange", () => {
+  assert.equal(SKY_DANCER_SKY_RAID_ACT_SECONDS, 45);
+  assert.equal(SKY_DANCER_SKY_RAID_TARGET_SECONDS, 225);
+  assert.deepEqual(SKY_DANCER_SKY_RAID_ACTS.map((act) => act.endSeconds - act.startSeconds), [45, 45, 45, 45, 45]);
+  assert.deepEqual(SKY_DANCER_SKY_RAID_ACTS.map((act) => act.killTarget), [7, 8, 9, 10, 10]);
+  const raidSource = readFileSync(new URL("../src/sky/SkyDancerSkyRaid.ts", import.meta.url), "utf8");
+  assert.match(raidSource, /setCartTurboHuntExternalProgressionEnabled\(true\)/);
+  assert.match(raidSource, /setCartTurboHuntExternalProgressionEnabled\(false\)/);
+  assert.match(raidSource, /SKY_DANCER_SKY_RAID_TARGET_SECONDS - hunt\.huntElapsedSeconds/);
 });
