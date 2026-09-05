@@ -1,4 +1,4 @@
-name: SKY RAID V27 attack telegraphs one-shot retry 2
+name: SKY RAID V27 attack telegraphs one-shot retry 3
 
 on:
   push:
@@ -99,7 +99,7 @@ jobs:
           rm scripts/webgl-sky-raid-telegraphs-v27.mjs
           git config user.name "yz4git"
           git config user.email "65384484+yz4git@users.noreply.github.com"
-          git add src/sky/SkyDancerFlightCombat.ts src/sky/SkyDancerSkyRaid.ts app/SkyDancerHudV45.tsx tests/sky-sky-raid.test.ts .github/workflows/sky-raid-attack-telegraphs-v27-once.yml .github/sky-raid-v27-attack-telegraphs.mjs .github/sky-raid-v27-ready-state-fix.mjs scripts/webgl-sky-raid-telegraphs-v27.mjs
+          git add src/sky/SkyDancerFlightCombat.ts src/sky/SkyDancerSkyRaid.ts app/SkyDancerHudV45.tsx tests/sky-sky-raid.test.ts .github/workflows/sky-raid-attack-telegraphs-v27-once.yml .github/sky-raid-v27-attack-telegraphs.mjs .github/sky-raid-v27-ready-state-fix.mjs
           git diff --cached --check
           git commit -m "Add SKY RAID pre-attack telegraphs"
           git push origin HEAD:main
