@@ -1,3 +1,3 @@
 Sky Dancer Pages deploy trigger
-SKY RAID V27 Pre-Attack Telegraphs
-source-main: 1dd93c8a16192644da867298fc6cf41a19a7ee54
+SKY RAID V28 Stage Pacing
+source-main: 43f8e361edd1615631cf52a29bb796a662eded86
