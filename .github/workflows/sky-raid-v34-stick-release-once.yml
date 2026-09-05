@@ -1,4 +1,4 @@
-name: SKY RAID V34 Stick Release R4
+name: SKY RAID V34 Stick Release R5
 
 on:
   push:
@@ -40,7 +40,7 @@ jobs:
           npm run check:arcade
           npm run lint
           npm run build:pages
-      - name: iPhone WebGL stick release audit
+      - name: WebGL pointer release audit
         run: |
           python3 -m http.server 4177 --bind 127.0.0.1 --directory out >/tmp/v34-stick.log 2>&1 &
           echo $! >/tmp/v34-stick.pid
