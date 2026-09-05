@@ -14,6 +14,7 @@ import {
 } from "../cart/CartRoguePhase67TurboHunt";
 import {
   SKY_DANCER_SKY_RAID_ACTS,
+  SKY_DANCER_SKY_RAID_ACT_SECONDS,
   SKY_DANCER_SKY_RAID_BOSS_TRIGGER_SECONDS,
   SKY_DANCER_SKY_RAID_CHAIN_GRACE_SECONDS,
   SKY_DANCER_SKY_RAID_TARGET_SECONDS,
@@ -513,25 +514,16 @@ function skyRaidFormationPattern(elapsedSeconds: number): {
   const profile = skyDancerSkyRaidCombatProfile(act.id);
   const local = skyDancerSkyRaidActSeconds(elapsedSeconds, act);
   const rush = skyDancerSkyRaidRushActive(elapsedSeconds, act);
-  const mirror = act.index % 2 === 0 ? 1 : -1;
-  let phaseIndex: 0 | 1 | 2 | 3 | 4;
-  let progress: number;
-  if (local < 7) {
-    phaseIndex = 0;
-    progress = clamp(local / 7, 0, 1);
-  } else if (local < 13) {
-    phaseIndex = 1;
-    progress = clamp((local - 7) / 6, 0, 1);
-  } else if (local < 17) {
-    phaseIndex = 2;
-    progress = clamp((local - 13) / 4, 0, 1);
-  } else if (local < 21) {
-    phaseIndex = 3;
-    progress = clamp((local - 17) / 4, 0, 1);
-  } else {
-    phaseIndex = 4;
-    progress = clamp((local - 21) / 3, 0, 1);
-  }
+  // Ten 9-second beats fill a 90-second Act. The authored five-beat sentence
+  // runs twice, with the second pass mirrored so long Acts do not settle into
+  // one permanent breakaway formation after the old 24-second grammar ended.
+  const beatSeconds = SKY_DANCER_SKY_RAID_ACT_SECONDS / 10;
+  const beatOrdinal = Math.max(0, Math.floor(local / beatSeconds));
+  const phaseIndex = (beatOrdinal % profile.beats.length) as 0 | 1 | 2 | 3 | 4;
+  const beatLocal = local - beatOrdinal * beatSeconds;
+  const progress = clamp(beatLocal / beatSeconds, 0, 1);
+  const cycleIndex = Math.floor(beatOrdinal / profile.beats.length);
+  const mirror = (act.index + cycleIndex) % 2 === 0 ? 1 : -1;
 
   const beat = profile.beats[phaseIndex];
   const slot = (lateral: number, forward: number): SkyRaidFormationSlot => ({
@@ -754,7 +746,9 @@ function maintainSkyRaidScreenPresence(
   const visible = measured.filter((sample) => sample.visible);
   demo.scene.userData.skyRaidScreenPresenceVisible = visible.length;
   demo.scene.userData.skyRaidScreenPresenceRecycles = state.recycles;
-  if (visible.length >= 2) {
+  // Long-form 90 s Acts need a stable minimum dogfight presence on phones.
+  // Keep three aircraft projected in-frame without increasing the live enemy cap.
+  if (visible.length >= 3) {
     state.nextAllowedAt = 0;
     return;
   }
@@ -773,7 +767,7 @@ function maintainSkyRaidScreenPresence(
       const rightPenalty = Math.abs(right.ndc.x) + Math.abs(right.ndc.y) + Math.abs(right.ndc.z) * 0.12;
       return rightPenalty - leftPenalty;
     });
-  const needed = Math.min(2 - visible.length, candidates.length);
+  const needed = Math.min(3 - visible.length, candidates.length);
   for (let index = 0; index < needed; index += 1) {
     const sample = candidates[index];
     const slot = screenSlots[(state.cursor + index) % screenSlots.length];
@@ -1353,7 +1347,7 @@ export function installSkyDancerSkyRaid(): void {
   const previousBuildWorld = webglPrototype.buildWorld;
   webglPrototype.buildWorld = function skyRaidBuildWorld(this: RaidWebGLDemo): void {
     if (isSkyRaidMode()) {
-      // SKY RAID now owns the complete 225 s act/boss timeline. Disable the inherited
+      // SKY RAID now owns the complete 450 s act/boss timeline. Disable the inherited
       // Hunt objective/boss director before bootstrapping its reusable combat systems.
       setCartTurboHuntExternalProgressionEnabled(true);
       enableCartTurboHunt(this.session);

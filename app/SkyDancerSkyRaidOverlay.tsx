@@ -39,6 +39,7 @@ export default function SkyDancerSkyRaidOverlay() {
 
   if (!snapshot) return null;
   const progress = Math.round(Math.min(1, snapshot.actKills / Math.max(1, snapshot.actKillTarget)) * 100);
+  const bonusKills = Math.max(0, snapshot.actKills - snapshot.actKillTarget);
   const killCueVisible = snapshot.killCueSecondsRemaining > 0;
   const bossCueVisible = skyDancerSkyRaidBossCueActive(snapshot.elapsedSeconds, snapshot.bossForced);
   const enemyDoctrine = skyDancerSkyRaidEnemyDoctrine(snapshot.actId);
@@ -187,11 +188,11 @@ export default function SkyDancerSkyRaidOverlay() {
 
       <div className={styles.objectiveCard} data-break={snapshot.actBreak}>
         <div className={styles.objectiveHead}>
-          <span>{snapshot.actBreak ? "ACT BREAK" : snapshot.setpiece}</span>
-          <strong>{snapshot.actBreak ? "COMPLETE" : `${snapshot.actKills}/${snapshot.actKillTarget}`}</strong>
+          <span>{snapshot.actBreak ? "BREAK SECURED" : snapshot.setpiece}</span>
+          <strong>{snapshot.actBreak ? `BONUS +${bonusKills}` : `${snapshot.actKills}/${snapshot.actKillTarget}`}</strong>
         </div>
         <div className={styles.progress}><i style={{ width: `${snapshot.actBreak ? 100 : progress}%` }} /></div>
-        <small>{snapshot.actSubtitle} · {snapshot.actSecondsRemaining.toFixed(1)}s</small>
+        <small>{snapshot.actBreak ? "FREE HUNT" : snapshot.actSubtitle} · {snapshot.actSecondsRemaining.toFixed(1)}s</small>
       </div>
 
       <div className={styles.scoreCard} data-kill={killCueVisible ? "true" : "false"}>

@@ -28,11 +28,11 @@ import {
 test("SKY RAID spans five arcade acts across the free-flight run", () => {
   assert.equal(SKY_DANCER_SKY_RAID_ACTS.length, 5);
   assert.equal(skyDancerSkyRaidActFor(0).id, "dawn-city");
-  assert.equal(skyDancerSkyRaidActFor(45).id, "red-canyon");
-  assert.equal(skyDancerSkyRaidActFor(90).id, "cloud-fleet");
-  assert.equal(skyDancerSkyRaidActFor(135).id, "storm-carrier");
-  assert.equal(skyDancerSkyRaidActFor(180).id, "prism-citadel");
-  assert.ok(SKY_DANCER_SKY_RAID_BOSS_TRIGGER_SECONDS > 180);
+  assert.equal(skyDancerSkyRaidActFor(90).id, "red-canyon");
+  assert.equal(skyDancerSkyRaidActFor(180).id, "cloud-fleet");
+  assert.equal(skyDancerSkyRaidActFor(270).id, "storm-carrier");
+  assert.equal(skyDancerSkyRaidActFor(360).id, "prism-citadel");
+  assert.ok(SKY_DANCER_SKY_RAID_BOSS_TRIGGER_SECONDS > 360);
   assert.ok(SKY_DANCER_SKY_RAID_BOSS_TRIGGER_SECONDS < SKY_DANCER_SKY_RAID_TARGET_SECONDS);
 });
 
@@ -410,13 +410,24 @@ test("SKY RAID V27 exposes real pre-attack timing without changing launch rules"
 });
 
 
-test("SKY RAID V28 keeps each act long enough for a complete combat exchange", () => {
-  assert.equal(SKY_DANCER_SKY_RAID_ACT_SECONDS, 45);
-  assert.equal(SKY_DANCER_SKY_RAID_TARGET_SECONDS, 225);
-  assert.deepEqual(SKY_DANCER_SKY_RAID_ACTS.map((act) => act.endSeconds - act.startSeconds), [45, 45, 45, 45, 45]);
-  assert.deepEqual(SKY_DANCER_SKY_RAID_ACTS.map((act) => act.killTarget), [7, 8, 9, 10, 10]);
+test("SKY RAID V29 doubles every Act while keeping the full 90 seconds combat-authored", () => {
+  assert.equal(SKY_DANCER_SKY_RAID_ACT_SECONDS, 90);
+  assert.equal(SKY_DANCER_SKY_RAID_TARGET_SECONDS, 450);
+  assert.deepEqual(SKY_DANCER_SKY_RAID_ACTS.map((act) => act.endSeconds - act.startSeconds), [90, 90, 90, 90, 90]);
+  assert.deepEqual(SKY_DANCER_SKY_RAID_ACTS.map((act) => act.killTarget), [14, 16, 18, 20, 20]);
+  assert.equal(SKY_DANCER_SKY_RAID_BOSS_TRIGGER_SECONDS, 423);
+  for (const second of [8, 31, 53, 75]) assert.equal(skyDancerSkyRaidRushActive(second, SKY_DANCER_SKY_RAID_ACTS[0]), true);
+  for (const second of [20, 44, 66, 88]) assert.equal(skyDancerSkyRaidRushActive(second, SKY_DANCER_SKY_RAID_ACTS[0]), false);
   const raidSource = readFileSync(new URL("../src/sky/SkyDancerSkyRaid.ts", import.meta.url), "utf8");
+  const overlaySource = readFileSync(new URL("../app/SkyDancerSkyRaidOverlay.tsx", import.meta.url), "utf8");
+  assert.match(raidSource, /beatSeconds = SKY_DANCER_SKY_RAID_ACT_SECONDS \/ 10/);
+  assert.match(raidSource, /beatOrdinal % profile\.beats\.length/);
+  assert.match(raidSource, /cycleIndex/);
   assert.match(raidSource, /setCartTurboHuntExternalProgressionEnabled\(true\)/);
-  assert.match(raidSource, /setCartTurboHuntExternalProgressionEnabled\(false\)/);
   assert.match(raidSource, /SKY_DANCER_SKY_RAID_TARGET_SECONDS - hunt\.huntElapsedSeconds/);
+  assert.match(overlaySource, /BONUS \+\$\{bonusKills\}/);
+  assert.match(overlaySource, /BREAK SECURED/);
+  assert.match(overlaySource, /FREE HUNT/);
+  assert.match(raidSource, /if \(visible\.length >= 3\)/);
+  assert.match(raidSource, /Math\.min\(3 - visible\.length, candidates\.length\)/);
 });
