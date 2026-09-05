@@ -1,0 +1,80 @@
+name: SKY RAID V33 Natural Entry
+
+on:
+  push:
+    paths:
+      - ".github/workflows/sky-raid-v33-natural-entry-once.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  implement:
+    runs-on: ubuntu-24.04
+    env:
+      SKY_DANCER_CHROME_PATH: /usr/bin/google-chrome
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.13.0
+          cache: npm
+      - name: Install dependencies
+        run: |
+          npm ci --no-audit --no-fund
+          rm -rf .audit-runtime artifacts/sky-raid-v33-natural-entry
+          mkdir -p .audit-runtime artifacts/sky-raid-v33-natural-entry
+          printf '{"private":true,"type":"commonjs"}\n' > .audit-runtime/package.json
+          npm install --prefix .audit-runtime --no-package-lock --no-save --ignore-scripts --no-audit --no-fund playwright-core@1.55.0
+      - name: Inject webdriver audit clock
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('src/cart/CartRoguePhase67TurboHunt.ts')
+          source = path.read_text()
+          marker = 'function updateDirector(session: MutableHuntSession, state: TurboHuntState, delta: number): void {\n  state.elapsed += delta;'
+          replacement = 'function updateDirector(session: MutableHuntSession, state: TurboHuntState, delta: number): void {\n  if (typeof window !== "undefined" && typeof navigator !== "undefined" && navigator.webdriver) {\n    const forcedElapsed = (window as unknown as { __skyRaidAuditElapsedSeconds?: unknown }).__skyRaidAuditElapsedSeconds;\n    if (typeof forcedElapsed === "number" && Number.isFinite(forcedElapsed)) state.elapsed = Math.max(0, forcedElapsed);\n  }\n  state.elapsed += delta;'
+          if marker not in source:
+              raise SystemExit('audit clock marker missing')
+          path.write_text(source.replace(marker, replacement, 1))
+          PY
+      - name: Apply V33 product patch
+        run: |
+          python3 .github/sky-raid-v33-pacing-natural-entry.py
+          python3 .github/sky-raid-v33-test-fixes.py
+          git diff --check
+      - name: Validate product
+        run: |
+          npm run test:fast
+          npm run check:arcade
+          npm run lint
+          npm run build:pages
+      - name: WebGL phone playcheck
+        run: |
+          python3 -m http.server 4177 --bind 127.0.0.1 --directory out >/tmp/v33-playcheck.log 2>&1 &
+          echo $! >/tmp/v33-playcheck.pid
+          for i in {1..30}; do curl -fsS http://127.0.0.1:4177/ >/dev/null && break; sleep 1; done
+          node scripts/webgl-sky-raid-v33-natural-entry.mjs
+          kill $(cat /tmp/v33-playcheck.pid) || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: sky-raid-v33-natural-entry-audit
+          path: artifacts/sky-raid-v33-natural-entry
+          retention-days: 7
+      - name: Commit product
+        run: |
+          git restore src/cart/CartRoguePhase67TurboHunt.ts
+          rm -f .github/sky-raid-v33-pacing-natural-entry.py
+          rm -f .github/sky-raid-v33-test-fixes.py
+          rm -f scripts/webgl-sky-raid-v33-natural-entry.mjs
+          rm -f .github/workflows/sky-raid-v33-natural-entry-once.yml
+          git diff --check
+          git config user.name "yz4git"
+          git config user.email "65384484+yz4git@users.noreply.github.com"
+          git add src/sky/SkyDancerSkyRaidRules.ts src/sky/SkyDancerSkyRaid.ts tests/sky-sky-raid.test.ts .github scripts
+          git diff --cached --check
+          git commit -m "Slow opening SKY RAID stages and remove enemy warps"
+          git push origin HEAD:main
