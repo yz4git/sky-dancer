@@ -25,5 +25,6 @@ new = '''test("SKY RAID V33 preserves surviving aircraft across Act boundaries i
 '''
 if old not in source:
     raise SystemExit('V33 test migration marker missing')
-path.write_text(source.replace(old, new, 1))
+updated = source.replace(old, new, 1)
+path.write_text(updated.rstrip() + '\n')
 print('SKY RAID V33 legacy reseed test migrated')
