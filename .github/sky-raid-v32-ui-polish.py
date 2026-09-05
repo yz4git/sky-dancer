@@ -53,7 +53,6 @@ replace(
 '''        <div className={styles.bossCue} data-sd-noncritical-alert="boss">''',
     'boss alert identity',
 )
-
 replace(
     'app/SkyDancerSkyRaidOverlay.tsx',
 '''      html[data-sky-dancer-mode="sky-raid"] [aria-label="Missile warning"] {
@@ -104,6 +103,6 @@ test("SKY RAID V32 gives phone combat controls a full touch target and one criti
 });
 '''
 if 'SKY RAID V32 gives phone combat controls a full touch target' not in test_source:
-    test_path.write_text(test_source.rstrip() + addition + '\n')
+    test_path.write_text(test_source.rstrip() + addition.rstrip() + '\n')
 
 print('SKY RAID V32 phone UI polish staged')
