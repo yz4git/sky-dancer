@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { CartArenaSession } from "../cart/CartArenaSession";
+import type { CartEnemyState } from "../cart/CartCombat";
 import { CartRogueCanvasPreview } from "../cart/CartRogueCanvasPreview";
 import { CartRogueWebGLDemo } from "../cart/CartRogueWebGLDemo";
 import {
@@ -76,7 +77,11 @@ interface RaidSession {
   gas: number;
   rewardTimer: number;
   lastReward: string | null;
+  location: { node: { id: string } };
   car: {
+    position: { x: number; z: number };
+    heading: number;
+    speed: number;
     boostActive: boolean;
     boostCharges: number;
     addBoostCharge(amount: number): void;
@@ -131,6 +136,7 @@ interface RaidVisualState {
   speedFx: THREE.Group;
   speedMaterial: THREE.MeshBasicMaterial;
   speedColor: THREE.Color;
+  attackTelegraphs: Map<string, SkyDancerEnemyAttackTelegraphSnapshot>;
   turboBackdrop: THREE.Object3D | null;
   arcadeWorld: SkyDancerSkyRaidArcadeWorld;
   legacyLayers: THREE.Object3D[];
@@ -150,12 +156,29 @@ interface RaidCameraFxState {
   hitKick: number;
 }
 
+interface RaidScreenCandidate {
+  enemy: CartEnemyState | null;
+  group: THREE.Group | null;
+  penalty: number;
+}
+
+interface RaidScreenEngagementState {
+  nextAllowedAt: number;
+  cursor: number;
+  recycles: number;
+  projection: THREE.Vector3;
+  candidates: [RaidScreenCandidate, RaidScreenCandidate, RaidScreenCandidate];
+}
+
 const raidStateBySession = new WeakMap<object, RaidState>();
 const raidVisualByDemo = new WeakMap<object, RaidVisualState>();
 const raidFlightByDemo = new WeakMap<object, SkyDancerSkyRaidFlightController>();
 const raidCameraFxByDemo = new WeakMap<object, RaidCameraFxState>();
 const raidEngagementBySession = new WeakMap<object, { cooldown: number; cursor: number; lastBeat: SkyRaidFormationBeat; beatAge: number }>();
-const raidScreenEngagementByDemo = new WeakMap<object, { nextAllowedAt: number; cursor: number; recycles: number }>();
+const raidScreenEngagementByDemo = new WeakMap<object, RaidScreenEngagementState>();
+const raidInputBySession = new WeakMap<object, RallyInputState>();
+const raidRoleKitByEnemyGroup = new WeakMap<THREE.Group, THREE.Group>();
+const raidAttackTelegraphObjectsByKit = new WeakMap<THREE.Group, readonly THREE.Object3D[]>();
 const skyRaidCameraPlayerPosition = new THREE.Vector3();
 const skyRaidCameraProjection = new THREE.Vector3();
 let latestSkyRaidSnapshot: SkyDancerSkyRaidSnapshot | null = null;
@@ -168,6 +191,21 @@ export function skyDancerSkyRaidSteerInput(value: number): number {
   // point. Keep fine stick movement unchanged, but cap large deflections so
   // the aircraft cannot snap-turn on a phone-sized virtual stick.
   return clamp(value, -SKY_DANCER_SKY_RAID_MAX_STEER_INPUT, SKY_DANCER_SKY_RAID_MAX_STEER_INPUT);
+}
+
+function skyRaidInputFor(session: RaidSession, input: RallyInputState): RallyInputState {
+  const key = session as unknown as object;
+  let scratch = raidInputBySession.get(key);
+  if (!scratch) {
+    scratch = { throttle: 0, brake: 0, steer: skyDancerSkyRaidSteerInput(input.steer), strafe: 0, boost: false };
+    raidInputBySession.set(key, scratch);
+  }
+  scratch.throttle = input.throttle;
+  scratch.brake = input.brake;
+  scratch.steer = skyDancerSkyRaidSteerInput(input.steer);
+  scratch.strafe = input.strafe;
+  scratch.boost = input.boost;
+  return scratch;
 }
 
 function isSkyRaidMode(): boolean {
@@ -412,10 +450,9 @@ function buildSkyRaidEnemyRoleKit(
     root.add(trail);
   }
 
-  root.userData.skyRaidAttackTelegraphCount = root.children.reduce(
-    (count, child) => count + (child.name === SKY_RAID_ATTACK_TELEGRAPH_NAME ? 1 : 0),
-    0,
-  );
+  const attackTelegraphObjects = root.children.filter((child) => child.name === SKY_RAID_ATTACK_TELEGRAPH_NAME);
+  root.userData.skyRaidAttackTelegraphCount = attackTelegraphObjects.length;
+  raidAttackTelegraphObjectsByKit.set(root, attackTelegraphObjects);
   root.traverse((object) => {
     if (object instanceof THREE.Mesh) {
       object.castShadow = false;
@@ -431,11 +468,11 @@ function applySkyRaidAttackTelegraphVisual(
   telegraph: SkyDancerEnemyAttackTelegraphSnapshot | null,
   pulseClock: number,
 ): void {
-  const active = Boolean(telegraph) && Number(kit.userData.skyRaidAttackTelegraphCount ?? 0) > 0;
+  const objects = raidAttackTelegraphObjectsByKit.get(kit) ?? [];
+  const active = Boolean(telegraph) && objects.length > 0;
   const intensity = telegraph?.intensity ?? 0;
   const pulse = active ? 0.72 + Math.sin(pulseClock * 19 + intensity * 3.4) * 0.28 : 0;
-  for (const object of kit.children) {
-    if (object.name !== SKY_RAID_ATTACK_TELEGRAPH_NAME) continue;
+  for (const object of objects) {
     object.visible = active;
     const scale = active ? 0.82 + intensity * 0.46 + pulse * 0.12 : 1;
     object.scale.setScalar(scale);
@@ -457,19 +494,24 @@ function applySkyRaidEnemyRoleReadability(
   // authoritative enemy objects directly. Snapshot is retained for webdriver
   // diagnostics/source compatibility and carries no extra lookup work here.
   void snapshot;
-  const attackTelegraphs = new Map(
-    getSkyDancerEnemyAttackTelegraphs(demo.session).map((telegraph) => [telegraph.enemyId, telegraph] as const),
-  );
+  const visual = raidVisualByDemo.get(demo as unknown as object);
+  if (!visual) return;
+  const attackTelegraphs = visual.attackTelegraphs;
+  attackTelegraphs.clear();
+  for (const telegraph of getSkyDancerEnemyAttackTelegraphs(demo.session)) {
+    attackTelegraphs.set(telegraph.enemyId, telegraph);
+  }
   const pulseClock = typeof performance !== "undefined" ? performance.now() * 0.001 : 0;
   for (const enemyState of demo.session.enemies) {
     const group = demo.enemyGroups.get(enemyState.id);
     if (!group || enemyState.kind === "boss") continue;
     const roleClass = skyDancerSkyRaidEnemyClassFor(enemyState);
-    let kit = group.getObjectByName(SKY_RAID_ROLE_KIT_NAME) as THREE.Group | undefined;
+    let kit = raidRoleKitByEnemyGroup.get(group);
     if (!kit || kit.userData.skyRaidRoleClass !== roleClass) {
       if (kit) group.remove(kit);
       kit = buildSkyRaidEnemyRoleKit(roleClass);
       group.add(kit);
+      raidRoleKitByEnemyGroup.set(group, kit);
     }
     kit.visible = enemyState.alive;
     group.userData.skyRaidRoleClass = roleClass;
@@ -485,7 +527,7 @@ function applySkyRaidEnemyRoleReadability(
         .filter((enemy) => enemy.alive && enemy.kind !== "boss")
         .map((enemy) => {
           const group = demo.enemyGroups.get(enemy.id);
-          const kit = group?.getObjectByName(SKY_RAID_ROLE_KIT_NAME) as THREE.Group | undefined;
+          const kit = group ? raidRoleKitByEnemyGroup.get(group) : undefined;
           return {
             id: enemy.id,
             roleClass: skyDancerSkyRaidEnemyClassFor(enemy),
@@ -614,9 +656,13 @@ function skyRaidFormationPattern(elapsedSeconds: number): {
  * old offscreen candidates may still be recycled by the established safety net.
  */
 function maintainSkyRaidEnemyPresence(session: CartArenaSession, delta: number, elapsedSeconds: number): void {
-  const snapshot = session.snapshot();
+  const runtime = session as unknown as RaidSession;
+  const nodeId = runtime.location.node.id;
+  const playerX = runtime.car.position.x;
+  const playerZ = runtime.car.position.z;
+  const playerHeading = runtime.car.heading;
   const live = session.enemies.filter(
-    (enemy) => enemy.alive && enemy.kind !== "boss" && enemy.nodeId === snapshot.nodeId,
+    (enemy) => enemy.alive && enemy.kind !== "boss" && enemy.nodeId === nodeId,
   );
   if (live.length < 2) return;
 
@@ -642,13 +688,13 @@ function maintainSkyRaidEnemyPresence(session: CartArenaSession, delta: number, 
     document.documentElement.dataset.skyRaidFormationAct = pattern.actId;
   }
 
-  const forwardX = Math.sin(snapshot.heading);
-  const forwardZ = Math.cos(snapshot.heading);
-  const rightX = Math.cos(snapshot.heading);
-  const rightZ = -Math.sin(snapshot.heading);
+  const forwardX = Math.sin(playerHeading);
+  const forwardZ = Math.cos(playerHeading);
+  const rightX = Math.cos(playerHeading);
+  const rightZ = -Math.sin(playerHeading);
   const local = (enemy: (typeof live)[number]) => {
-    const dx = enemy.x - snapshot.x;
-    const dz = enemy.z - snapshot.z;
+    const dx = enemy.x - playerX;
+    const dz = enemy.z - playerZ;
     return {
       enemy,
       forward: dx * forwardX + dz * forwardZ,
@@ -669,8 +715,8 @@ function maintainSkyRaidEnemyPresence(session: CartArenaSession, delta: number, 
     const forwardStep = clamp(forwardError, -pattern.correctionSpeed * 0.72 * delta, pattern.correctionSpeed * 0.72 * delta);
     sample.enemy.x += rightX * sideStep + forwardX * forwardStep;
     sample.enemy.z += rightZ * sideStep + forwardZ * forwardStep;
-    const aimX = snapshot.x + forwardX * 7 + rightX * slot.lateral * 0.14;
-    const aimZ = snapshot.z + forwardZ * 7 + rightZ * slot.lateral * 0.14;
+    const aimX = playerX + forwardX * 7 + rightX * slot.lateral * 0.14;
+    const aimZ = playerZ + forwardZ * 7 + rightZ * slot.lateral * 0.14;
     const desiredHeading = Math.atan2(aimX - sample.enemy.x, aimZ - sample.enemy.z);
     const turnError = Math.atan2(
       Math.sin(desiredHeading - sample.enemy.heading),
@@ -701,9 +747,9 @@ function maintainSkyRaidEnemyPresence(session: CartArenaSession, delta: number, 
   for (let index = 0; index < needed; index += 1) {
     const target = candidates[index].enemy;
     const slot = pattern.slots[(state.cursor + engaged.length + index) % pattern.slots.length];
-    target.x = snapshot.x + forwardX * slot.forward + rightX * slot.lateral;
-    target.z = snapshot.z + forwardZ * slot.forward + rightZ * slot.lateral;
-    target.heading = Math.atan2(snapshot.x - target.x, snapshot.z - target.z);
+    target.x = playerX + forwardX * slot.forward + rightX * slot.lateral;
+    target.z = playerZ + forwardZ * slot.forward + rightZ * slot.lateral;
+    target.heading = Math.atan2(playerX - target.x, playerZ - target.z);
     target.aiClock = 0;
     target.chargeTime = 0;
   }
@@ -713,12 +759,10 @@ function maintainSkyRaidEnemyPresence(session: CartArenaSession, delta: number, 
 
 
 function skyRaidScreenSlotsFor(elapsedSeconds: number): readonly SkyRaidFormationSlot[] {
-  // The emergency screen-space recycler follows the same act doctrine as the
-  // simulation director, but compresses the pattern into the phone-safe lane.
-  return skyRaidFormationPattern(elapsedSeconds).slots.map((slot) => ({
-    lateral: clamp(slot.lateral * 0.86, -12.5, 12.5),
-    forward: clamp(slot.forward, 22, 42),
-  }));
+  // Preserve the doctrine ownership boundary without allocating a mapped slot
+  // array every render frame. Phone-safe clamping happens only for slots that
+  // are actually recycled onto screen.
+  return skyRaidFormationPattern(elapsedSeconds).slots;
 }
 
 /**
@@ -731,39 +775,70 @@ function maintainSkyRaidScreenPresence(
   demo: RaidWebGLDemo,
   snapshot: ReturnType<CartArenaSession["snapshot"]>,
 ): void {
-  const live = demo.session.enemies.filter(
-    (enemy) => enemy.alive && enemy.kind !== "boss" && enemy.nodeId === snapshot.nodeId,
-  );
-  if (live.length < 2) return;
-
   const key = demo as unknown as object;
   let state = raidScreenEngagementByDemo.get(key);
   if (!state) {
-    state = { nextAllowedAt: 0, cursor: 0, recycles: 0 };
+    state = {
+      nextAllowedAt: 0,
+      cursor: 0,
+      recycles: 0,
+      projection: new THREE.Vector3(),
+      candidates: [
+        { enemy: null, group: null, penalty: -Infinity },
+        { enemy: null, group: null, penalty: -Infinity },
+        { enemy: null, group: null, penalty: -Infinity },
+      ],
+    };
     raidScreenEngagementByDemo.set(key, state);
   }
 
-  // V30: projecting at most seven aircraft only needs their ancestor chains.
-  // Updating the entire three-sector scene here duplicated the renderer's full
-  // matrix walk every frame and was the largest avoidable CPU cost in SKY RAID.
+  for (const candidate of state.candidates) {
+    candidate.enemy = null;
+    candidate.group = null;
+    candidate.penalty = -Infinity;
+  }
+
   demo.camera.updateMatrixWorld(true);
-  const measured = live.flatMap((enemy) => {
+  let liveCount = 0;
+  let visibleCount = 0;
+  let candidateCount = 0;
+  for (const enemy of demo.session.enemies) {
+    if (!enemy.alive || enemy.kind === "boss" || enemy.nodeId !== snapshot.nodeId) continue;
+    liveCount += 1;
     const group = demo.enemyGroups.get(enemy.id);
-    if (!group) return [];
-    const world = new THREE.Vector3();
-    // getWorldPosition updates only this object's ancestor chain. Avoid the
-    // redundant explicit updateWorldMatrix call after removing the scene-wide walk.
-    group.getWorldPosition(world);
-    const ndc = world.clone().project(demo.camera);
-    const visible = ndc.z > -1 && ndc.z < 1 && Math.abs(ndc.x) < 0.96 && Math.abs(ndc.y) < 0.94;
-    return [{ enemy, group, ndc, visible }];
-  });
-  const visible = measured.filter((sample) => sample.visible);
-  demo.scene.userData.skyRaidScreenPresenceVisible = visible.length;
+    if (!group) continue;
+    group.getWorldPosition(state.projection);
+    state.projection.project(demo.camera);
+    const visible = state.projection.z > -1 && state.projection.z < 1
+      && Math.abs(state.projection.x) < 0.96 && Math.abs(state.projection.y) < 0.94;
+    if (visible) {
+      visibleCount += 1;
+      continue;
+    }
+    candidateCount += 1;
+    const penalty = Math.abs(state.projection.x) + Math.abs(state.projection.y) + Math.abs(state.projection.z) * 0.12;
+    let insertAt = 0;
+    while (insertAt < state.candidates.length && state.candidates[insertAt].enemy && penalty <= state.candidates[insertAt].penalty) {
+      insertAt += 1;
+    }
+    if (insertAt >= state.candidates.length) continue;
+    for (let index = state.candidates.length - 1; index > insertAt; index -= 1) {
+      const target = state.candidates[index];
+      const previous = state.candidates[index - 1];
+      target.enemy = previous.enemy;
+      target.group = previous.group;
+      target.penalty = previous.penalty;
+    }
+    const target = state.candidates[insertAt];
+    target.enemy = enemy;
+    target.group = group;
+    target.penalty = penalty;
+  }
+  if (liveCount < 2) return;
+
+  demo.scene.userData.skyRaidScreenPresenceVisible = visibleCount;
   demo.scene.userData.skyRaidScreenPresenceRecycles = state.recycles;
-  // Long-form 90 s Acts need a stable minimum dogfight presence on phones.
-  // Keep three aircraft projected in-frame without increasing the live enemy cap.
-  if (visible.length >= 3) {
+  if (visibleCount >= 3) {
     state.nextAllowedAt = 0;
     return;
   }
@@ -776,19 +851,15 @@ function maintainSkyRaidScreenPresence(
   const forwardZ = Math.cos(snapshot.heading);
   const rightX = Math.cos(snapshot.heading);
   const rightZ = -Math.sin(snapshot.heading);
-  const candidates = measured
-    .filter((sample) => !sample.visible)
-    .sort((left, right) => {
-      const leftPenalty = Math.abs(left.ndc.x) + Math.abs(left.ndc.y) + Math.abs(left.ndc.z) * 0.12;
-      const rightPenalty = Math.abs(right.ndc.x) + Math.abs(right.ndc.y) + Math.abs(right.ndc.z) * 0.12;
-      return rightPenalty - leftPenalty;
-    });
-  const needed = Math.min(3 - visible.length, candidates.length);
+  const needed = Math.min(3 - visibleCount, candidateCount, state.candidates.length);
   for (let index = 0; index < needed; index += 1) {
-    const sample = candidates[index];
-    const slot = screenSlots[(state.cursor + index) % screenSlots.length];
-    const x = snapshot.x + forwardX * slot.forward + rightX * slot.lateral;
-    const z = snapshot.z + forwardZ * slot.forward + rightZ * slot.lateral;
+    const sample = state.candidates[index];
+    if (!sample.enemy || !sample.group) continue;
+    const authoredSlot = screenSlots[(state.cursor + index) % screenSlots.length];
+    const lateral = clamp(authoredSlot.lateral * 0.86, -12.5, 12.5);
+    const forward = clamp(authoredSlot.forward, 22, 42);
+    const x = snapshot.x + forwardX * forward + rightX * lateral;
+    const z = snapshot.z + forwardZ * forward + rightZ * lateral;
     sample.enemy.x = x;
     sample.enemy.z = z;
     sample.enemy.heading = Math.atan2(snapshot.x - x, snapshot.z - z);
@@ -875,8 +946,8 @@ function collectLegacyRaidLayers(scene: THREE.Scene): THREE.Object3D[] {
 }
 
 function stepSkyRaidFlight(demo: RaidWebGLDemo, delta: number): SkyDancerSkyRaidFlightSnapshot {
-  const base = demo.session.snapshot();
-  const flight = flightControllerFor(demo).step(delta, base.heading, demo.steer, base.boostActive);
+  const car = demo.session.car;
+  const flight = flightControllerFor(demo).step(delta, car.heading, demo.steer, car.boostActive);
   (demo.session as unknown as { skyDancerPlayerAltitudeMeters?: number }).skyDancerPlayerAltitudeMeters = flight.altitude;
   // Keep enemy attack runs in the same broad camera band as the player while
   // preserving meaningful vertical separation at the upper altitude limit.
@@ -1206,6 +1277,7 @@ function buildRaidVisuals(demo: RaidWebGLDemo): void {
     speedFx,
     speedMaterial,
     speedColor: new THREE.Color(SKY_DANCER_SKY_RAID_ACTS[0].palette.accent),
+    attackTelegraphs: new Map(),
     turboBackdrop,
     arcadeWorld,
     legacyLayers,
@@ -1236,25 +1308,30 @@ function updateRaidVisuals(demo: RaidWebGLDemo, delta: number, flight: SkyDancer
   const raid = updateRaid(demo.session as unknown as RaidSession, hunt, 0);
   publishSkyRaidWorldStyle(raid);
   if (visual.turboBackdrop) visual.turboBackdrop.visible = false;
-  const base = demo.session.snapshot();
-  const movedFar = !Number.isFinite(visual.anchorX) || Math.hypot(base.x - visual.anchorX, base.z - visual.anchorZ) > 105;
+  const car = demo.session.car;
+  const playerX = car.position.x;
+  const playerZ = car.position.z;
+  const playerHeading = car.heading;
+  const playerSpeed = car.speed;
+  const playerBoostActive = car.boostActive;
+  const movedFar = !Number.isFinite(visual.anchorX) || Math.hypot(playerX - visual.anchorX, playerZ - visual.anchorZ) > 105;
   if (raid.actIndex !== visual.lastActIndex || movedFar) {
-    visual.anchorX = base.x;
-    visual.anchorZ = base.z;
-    visual.anchorHeading = base.heading;
-    visual.root.position.set(base.x, 0, base.z);
-    visual.root.rotation.y = base.heading;
+    visual.anchorX = playerX;
+    visual.anchorZ = playerZ;
+    visual.anchorHeading = playerHeading;
+    visual.root.position.set(playerX, 0, playerZ);
+    visual.root.rotation.y = playerHeading;
     visual.lastActIndex = raid.actIndex;
   }
-  visual.actGroups.forEach((group) => { group.visible = false; });
+  for (const group of visual.actGroups) group.visible = false;
   visual.root.visible = false;
-  visual.legacyLayers.forEach((layer) => { layer.visible = false; });
+  for (const layer of visual.legacyLayers) layer.visible = false;
   const resolvedFlight = flight ?? stepSkyRaidFlight(demo, delta);
   applySkyRaidFlightVisuals(demo, resolvedFlight);
   applySkyRaidEnemyFlightBand(demo);
-  visual.arcadeWorld.update(raid.actId, base.x, base.z, base.heading, resolvedFlight.altitude, raid.elapsedSeconds, delta);
+  visual.arcadeWorld.update(raid.actId, playerX, playerZ, playerHeading, resolvedFlight.altitude, raid.elapsedSeconds, delta);
 
-  const flightSpeed = Math.abs(base.speed);
+  const flightSpeed = Math.abs(playerSpeed);
   const cruiseFx = clamp((flightSpeed - 17) / 12, 0, 1);
   const turboState = getSkyDancerTurboState(demo.session);
   // A Turbo release can happen between two expensive WebGL frames. Latch the
@@ -1273,8 +1350,8 @@ function updateRaidVisuals(demo: RaidWebGLDemo, delta: number, flight: SkyDancer
   const rushFx = raid.rushActive ? 1 : 0;
   const speedFxIntensity = clamp(cruiseFx * 0.22 + rushFx * 0.32 + turboFx * 0.72, 0, 1);
   visual.speedFx.visible = speedFxIntensity > 0.055;
-  visual.speedFx.position.set(base.x, 1.8 + resolvedFlight.altitude, base.z);
-  visual.speedFx.rotation.y = base.heading;
+  visual.speedFx.position.set(playerX, 1.8 + resolvedFlight.altitude, playerZ);
+  visual.speedFx.rotation.y = playerHeading;
   // All 24 speed streaks share one material. The previous loop lerped and wrote
   // that same material 24 times per frame. One mathematically equivalent combined
   // lerp preserves the exact converged appearance with a fraction of the work.
@@ -1282,14 +1359,15 @@ function updateRaidVisuals(demo: RaidWebGLDemo, delta: number, flight: SkyDancer
   const sharedLerp = 1 - Math.exp(-delta * 5.5 * Math.max(1, visual.speedFx.children.length));
   visual.speedMaterial.color.lerp(visual.speedColor, sharedLerp);
   visual.speedMaterial.opacity = 0.045 + speedFxIntensity * 0.32;
-  visual.speedFx.children.forEach((line, index) => {
+  for (let index = 0; index < visual.speedFx.children.length; index += 1) {
+    const line = visual.speedFx.children[index];
     line.position.z -= delta * (22 + flightSpeed * 0.95 + turboFx * 36 + rushFx * 14);
     if (line.position.z < -12) line.position.z = 34 + (index % 6) * 8;
     const thickness = 0.72 + speedFxIntensity * 0.32;
     line.scale.x = thickness;
     line.scale.y = thickness;
     line.scale.z = 0.82 + speedFxIntensity * (1.10 + (index % 3) * 0.12);
-  });
+  }
   demo.scene.userData.skyRaidSpeedFxIntensity = speedFxIntensity;
   demo.scene.userData.skyRaidSpeedFxPeripheralGap = 13.6;
   if (typeof window !== "undefined" && typeof navigator !== "undefined" && navigator.webdriver) {
@@ -1301,7 +1379,7 @@ function updateRaidVisuals(demo: RaidWebGLDemo, delta: number, flight: SkyDancer
       turboHeld: turboState.held,
       turboCharge: turboState.charge,
       turboReleaseFx,
-      legacyBoostActive: base.boostActive,
+      legacyBoostActive: playerBoostActive,
       rushActive: raid.rushActive,
       flightSpeed,
     });
@@ -1324,9 +1402,7 @@ export function installSkyDancerSkyRaid(): void {
     const typedSession = this as unknown as CartArenaSession;
     const preHunt = skyRaidActive ? getCartTurboHuntSnapshot(typedSession) : null;
     setSkyDancerSkyRaidEnemyDoctrineElapsed(skyRaidActive ? preHunt?.huntElapsedSeconds ?? 0 : null);
-    const flightInput = skyRaidActive
-      ? { ...input, steer: skyDancerSkyRaidSteerInput(input.steer) }
-      : input;
+    const flightInput = skyRaidActive ? skyRaidInputFor(this, input) : input;
     previousStep.call(this, flightInput, fixedDelta);
     if (!skyRaidActive) {
       setSkyDancerSkyRaidEnemyDoctrineElapsed(null);
@@ -1345,10 +1421,10 @@ export function installSkyDancerSkyRaid(): void {
     maintainSkyRaidEnemyPresence(typedSession, delta, hunt.huntElapsedSeconds);
     const snapshot = updateRaid(this, hunt, delta);
     publishSkyRaidWorldStyle(snapshot);
-    publishSkyRaidEnemyDoctrineDiagnostics(typedSession, hunt.huntElapsedSeconds);
     state.broadcastClock += delta;
     if (state.broadcastClock >= 0.1 || snapshot.actElapsedSeconds < 0.12 || snapshot.clear) {
       state.broadcastClock %= 0.1;
+      publishSkyRaidEnemyDoctrineDiagnostics(typedSession, hunt.huntElapsedSeconds);
       broadcast(snapshot);
     }
   };

@@ -428,6 +428,36 @@ test("SKY RAID V29 doubles every Act while keeping the full 90 seconds combat-au
   assert.match(overlaySource, /BONUS \+\$\{bonusKills\}/);
   assert.match(overlaySource, /BREAK SECURED/);
   assert.match(overlaySource, /FREE HUNT/);
-  assert.match(raidSource, /if \(visible\.length >= 3\)/);
-  assert.match(raidSource, /Math\.min\(3 - visible\.length, candidates\.length\)/);
+  assert.match(raidSource, /if \(visibleCount >= 3\)/);
+  assert.match(raidSource, /Math\.min\(3 - visibleCount, candidateCount, state\.candidates\.length\)/);
+});
+
+
+test("SKY RAID V31 removes hot-path copies without reducing presentation", () => {
+  const raidSource = readFileSync(new URL("../src/sky/SkyDancerSkyRaid.ts", import.meta.url), "utf8");
+  const formationStart = raidSource.indexOf("function maintainSkyRaidEnemyPresence(");
+  const formationEnd = raidSource.indexOf("function maintainSkyRaidScreenPresence(", formationStart);
+  const formationBlock = raidSource.slice(formationStart, formationEnd);
+  const flightStart = raidSource.indexOf("function stepSkyRaidFlight(");
+  const flightEnd = raidSource.indexOf("function applySkyRaidFlightVisuals(", flightStart);
+  const flightBlock = raidSource.slice(flightStart, flightEnd);
+  const visualStart = raidSource.indexOf("function updateRaidVisuals(");
+  const visualEnd = raidSource.indexOf("export function installSkyDancerSkyRaid()", visualStart);
+  const visualBlock = raidSource.slice(visualStart, visualEnd);
+  const screenStart = raidSource.indexOf("function maintainSkyRaidScreenPresence(");
+  const screenEnd = raidSource.indexOf("function publishSkyRaidWorldStyle(", screenStart);
+  const screenBlock = raidSource.slice(screenStart, screenEnd);
+
+  assert.doesNotMatch(formationBlock, /session\.snapshot\(\)/);
+  assert.doesNotMatch(flightBlock, /session\.snapshot\(\)/);
+  assert.doesNotMatch(visualBlock, /session\.snapshot\(\)/);
+  assert.match(raidSource, /raidInputBySession/);
+  assert.match(raidSource, /attackTelegraphs\.clear\(\)/);
+  assert.match(raidSource, /raidRoleKitByEnemyGroup/);
+  assert.match(raidSource, /raidAttackTelegraphObjectsByKit/);
+  assert.match(screenBlock, /projection: new THREE\.Vector3\(\)/);
+  assert.doesNotMatch(screenBlock, /\.filter\(/);
+  assert.match(screenBlock, /visibleCount/);
+  assert.match(screenBlock, /candidateCount/);
+  assert.match(visualBlock, /for \(let index = 0; index < visual\.speedFx\.children\.length; index \+= 1\)/);
 });
