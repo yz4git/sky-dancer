@@ -94,8 +94,28 @@ if (checkpoints) {
   for (const second of [54, 89, 91]) {
     await page.evaluate((value) => { window.__skyRaidAuditElapsedSeconds = value; }, second);
     await page.waitForTimeout(2400);
-    const camera = await page.evaluate(() => typeof window.__skyRaidGetCameraPolish === 'function' ? window.__skyRaidGetCameraPolish() : null);
-    result.checkpoints.push({ second, camera });
+    const visual = await page.evaluate(() => {
+      const canvas = document.querySelector('canvas');
+      const rect = canvas?.getBoundingClientRect();
+      const style = canvas ? getComputedStyle(canvas) : null;
+      const root = document.documentElement;
+      const camera = typeof window.__skyRaidGetCameraPolish === 'function' ? window.__skyRaidGetCameraPolish() : null;
+      return {
+        canvasVisible: Boolean(rect && rect.width >= 800 && rect.height >= 360 && style?.display !== 'none' && style?.visibility !== 'hidden'),
+        canvasWidth: rect?.width ?? 0,
+        canvasHeight: rect?.height ?? 0,
+        mode: root.dataset.skyDancerMode ?? '',
+        act: root.dataset.skyRaidAct ?? root.dataset.skyRaidFormationAct ?? '',
+        formationAct: root.dataset.skyRaidFormationAct ?? '',
+        formationBeat: root.dataset.skyRaidFormationBeat ?? '',
+        formationDoctrine: root.dataset.skyRaidCombatDoctrine ?? '',
+        enemyClasses: root.dataset.skyRaidEnemyClasses ?? '',
+        enemyPackage: root.dataset.skyRaidEnemyPackage ?? '',
+        hudText: (document.body?.innerText ?? '').replace(/\s+/g, ' ').slice(0, 1200),
+        camera,
+      };
+    });
+    result.checkpoints.push({ second, visual });
     await page.screenshot({ path: path.join(outDir, `${label}-${second}s.png`) });
   }
 }
@@ -104,10 +124,20 @@ fs.writeFileSync(path.join(outDir, `${label}.json`), JSON.stringify(result, null
 console.log(`SKY RAID V31 PERF ${label.toUpperCase()}`, JSON.stringify(result));
 if (errors.length) throw new Error(`browser errors: ${errors.join(' | ')}`);
 if (checkpoints) {
+  const expectedAct = new Map([[54, 'dawn-city'], [89, 'dawn-city'], [91, 'red-canyon']]);
   for (const checkpoint of result.checkpoints) {
-    if (!checkpoint.camera?.playerVisible) throw new Error(`player not visible at ${checkpoint.second}s`);
-    if ((checkpoint.camera?.enemyVisible ?? 0) > 8) throw new Error(`phone enemy clutter at ${checkpoint.second}s`);
-    if ((checkpoint.camera?.enemyCombatLane ?? 0) < 1) throw new Error(`empty combat lane at ${checkpoint.second}s`);
+    const visual = checkpoint.visual;
+    if (!visual?.canvasVisible) throw new Error(`canvas not visible at ${checkpoint.second}s`);
+    if (visual.mode !== 'sky-raid') throw new Error(`SKY RAID mode lost at ${checkpoint.second}s`);
+    if (visual.act !== expectedAct.get(checkpoint.second)) throw new Error(`wrong act ${visual.act} at ${checkpoint.second}s`);
+    if (!visual.formationBeat || !visual.formationDoctrine) throw new Error(`formation diagnostics missing at ${checkpoint.second}s`);
+    if (!visual.enemyClasses || !visual.enemyPackage) throw new Error(`enemy package missing at ${checkpoint.second}s`);
+    if (!/ACT\s+[12]\/5/i.test(visual.hudText)) throw new Error(`SKY RAID HUD missing at ${checkpoint.second}s`);
+    if (visual.camera) {
+      if (!visual.camera.playerVisible) throw new Error(`player not visible at ${checkpoint.second}s`);
+      if ((visual.camera.enemyVisible ?? 0) > 8) throw new Error(`phone enemy clutter at ${checkpoint.second}s`);
+      if ((visual.camera.enemyCombatLane ?? 0) < 1) throw new Error(`empty combat lane at ${checkpoint.second}s`);
+    }
   }
 }
 await browser.close();
