@@ -1,4 +1,4 @@
-name: SKY RAID V32 Playcheck
+name: SKY RAID V32 Phone UI Polish
 
 on:
   push:
@@ -6,15 +6,17 @@ on:
       - ".github/workflows/sky-raid-v32-playcheck-once.yml"
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
-  audit:
+  implement:
     runs-on: ubuntu-24.04
     env:
       SKY_DANCER_CHROME_PATH: /usr/bin/google-chrome
     steps:
       - uses: actions/checkout@v5
+        with:
+          fetch-depth: 1
       - uses: actions/setup-node@v4
         with:
           node-version: 22.13.0
@@ -26,7 +28,7 @@ jobs:
           mkdir -p .audit-runtime artifacts/sky-raid-v32-playcheck
           printf '{"private":true,"type":"commonjs"}\n' > .audit-runtime/package.json
           npm install --prefix .audit-runtime --no-package-lock --no-save --ignore-scripts --no-audit --no-fund playwright-core@1.55.0
-      - name: Inject audit clock only
+      - name: Inject webdriver audit clock
         run: |
           python3 - <<'PY'
           from pathlib import Path
@@ -38,9 +40,17 @@ jobs:
               raise SystemExit('audit clock marker missing')
           path.write_text(source.replace(marker, replacement, 1))
           PY
-      - name: Build
-        run: npm run build:pages
-      - name: Playcheck current product
+      - name: Apply V32 phone UI polish
+        run: |
+          python3 .github/sky-raid-v32-ui-polish.py
+          git diff --check
+      - name: Validate product
+        run: |
+          npm run test:fast
+          npm run check:arcade
+          npm run lint
+          npm run build:pages
+      - name: WebGL phone playcheck
         run: |
           python3 -m http.server 4176 --bind 127.0.0.1 --directory out >/tmp/v32-playcheck.log 2>&1 &
           echo $! >/tmp/v32-playcheck.pid
@@ -50,6 +60,19 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: sky-raid-v32-playcheck
+          name: sky-raid-v32-phone-ui-audit
           path: artifacts/sky-raid-v32-playcheck
           retention-days: 7
+      - name: Commit product
+        run: |
+          git restore src/cart/CartRoguePhase67TurboHunt.ts
+          rm -f .github/sky-raid-v32-ui-polish.py
+          rm -f scripts/webgl-sky-raid-v32-playcheck.mjs
+          rm -f .github/workflows/sky-raid-v32-playcheck-once.yml
+          git diff --check
+          git config user.name "yz4git"
+          git config user.email "65384484+yz4git@users.noreply.github.com"
+          git add app/SkyDancerShotControl.module.css app/SkyDancerSkyRaidOverlay.tsx tests/sky-sky-raid.test.ts .github scripts
+          git diff --cached --check
+          git commit -m "Polish SKY RAID phone combat UI"
+          git push origin HEAD:main
