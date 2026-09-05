@@ -1,4 +1,4 @@
-name: SKY RAID V27 attack telegraphs one-shot retry
+name: SKY RAID V27 attack telegraphs one-shot retry 2
 
 on:
   push:
