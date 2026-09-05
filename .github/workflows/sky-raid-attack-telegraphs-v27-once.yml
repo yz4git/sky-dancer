@@ -1,4 +1,4 @@
-name: SKY RAID V27 attack telegraphs one-shot
+name: SKY RAID V27 attack telegraphs one-shot retry
 
 on:
   push:
@@ -30,6 +30,8 @@ jobs:
         run: |
           node --check .github/sky-raid-v27-attack-telegraphs.mjs
           node .github/sky-raid-v27-attack-telegraphs.mjs
+          node --check .github/sky-raid-v27-ready-state-fix.mjs
+          node .github/sky-raid-v27-ready-state-fix.mjs
           git diff --check
 
       - name: Inject webdriver-only elapsed control
@@ -93,10 +95,11 @@ jobs:
         run: |
           rm .github/workflows/sky-raid-attack-telegraphs-v27-once.yml
           rm .github/sky-raid-v27-attack-telegraphs.mjs
+          rm .github/sky-raid-v27-ready-state-fix.mjs
           rm scripts/webgl-sky-raid-telegraphs-v27.mjs
           git config user.name "yz4git"
           git config user.email "65384484+yz4git@users.noreply.github.com"
-          git add src/sky/SkyDancerFlightCombat.ts src/sky/SkyDancerSkyRaid.ts app/SkyDancerHudV45.tsx tests/sky-sky-raid.test.ts .github/workflows/sky-raid-attack-telegraphs-v27-once.yml .github/sky-raid-v27-attack-telegraphs.mjs scripts/webgl-sky-raid-telegraphs-v27.mjs
+          git add src/sky/SkyDancerFlightCombat.ts src/sky/SkyDancerSkyRaid.ts app/SkyDancerHudV45.tsx tests/sky-sky-raid.test.ts .github/workflows/sky-raid-attack-telegraphs-v27-once.yml .github/sky-raid-v27-attack-telegraphs.mjs .github/sky-raid-v27-ready-state-fix.mjs scripts/webgl-sky-raid-telegraphs-v27.mjs
           git diff --cached --check
           git commit -m "Add SKY RAID pre-attack telegraphs"
           git push origin HEAD:main
