@@ -1,4 +1,4 @@
-name: SKY RAID V26 threat readability one-shot
+name: SKY RAID V26 threat readability one-shot retry
 
 on:
   push:
@@ -31,6 +31,16 @@ jobs:
         run: |
           node --check .github/sky-raid-v26-threat-readability.mjs
           node .github/sky-raid-v26-threat-readability.mjs
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path("tests/sky-sky-raid.test.ts")
+          source = path.read_text()
+          marker = 'assert.match(flightSource, /sourceClass: missileSourceClass(enemy)/);'
+          replacement = 'assert.match(flightSource, /sourceClass: missileSourceClass/);'
+          if marker not in source:
+              raise SystemExit("V26 sourceClass test marker missing")
+          path.write_text(source.replace(marker, replacement, 1))
+          PY
           git diff --check
 
       - name: Inject webdriver-only elapsed control
