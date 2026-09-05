@@ -1,20 +1,43 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type PointerEvent as ReactPointerEvent,
+  type TouchEvent as ReactTouchEvent,
+} from "react";
 import styles from "./SkyDancerArcadeVirtualPad.module.css";
 
 const DEAD_ZONE = 0.16;
 const MAX_TRAVEL = 46;
+const VIRTUAL_STICK_EVENT = "sky-dancer-virtual-stick";
 
 type Direction = -1 | 0 | 1;
-type FlightKey = "ArrowLeft" | "ArrowRight" | "ArrowUp" | "ArrowDown";
 
-function dispatchKey(type: "keydown" | "keyup", key: FlightKey): void {
-  window.dispatchEvent(new KeyboardEvent(type, { key, bubbles: true, cancelable: true }));
+interface VirtualStickDetail {
+  x: Direction;
+  y: Direction;
+  active: boolean;
+  source: "touch" | "pointer" | "reset";
+}
+
+function publishStick(detail: VirtualStickDetail): void {
+  window.dispatchEvent(new CustomEvent<VirtualStickDetail>(VIRTUAL_STICK_EVENT, { detail }));
+}
+
+function touchByIdentifier(list: TouchList, identifier: number): Touch | null {
+  for (let index = 0; index < list.length; index += 1) {
+    const touch = list.item(index);
+    if (touch?.identifier === identifier) return touch;
+  }
+  return null;
 }
 
 export default function SkyDancerArcadeVirtualPad() {
   const pointerRef = useRef<number | null>(null);
+  const touchRef = useRef<number | null>(null);
   const horizontalRef = useRef<Direction>(0);
   const verticalRef = useRef<Direction>(0);
   const [direction, setDirection] = useState<Direction>(0);
@@ -22,42 +45,34 @@ export default function SkyDancerArcadeVirtualPad() {
   const [knob, setKnob] = useState({ x: 0, y: 0 });
   const flightMode = typeof document !== "undefined" && document.documentElement.dataset.skyDancerMode === "sky-raid";
 
-  const applyHorizontal = useCallback((next: Direction) => {
-    const previous = horizontalRef.current;
-    if (previous === next) return;
-    if (previous < 0) dispatchKey("keyup", "ArrowLeft");
-    if (previous > 0) dispatchKey("keyup", "ArrowRight");
-    horizontalRef.current = next;
-    setDirection(next);
-    if (next < 0) dispatchKey("keydown", "ArrowLeft");
-    if (next > 0) dispatchKey("keydown", "ArrowRight");
-  }, []);
-
-  const applyVertical = useCallback((next: Direction) => {
-    const previous = verticalRef.current;
-    if (previous === next) return;
-    if (previous < 0) dispatchKey("keyup", "ArrowDown");
-    if (previous > 0) dispatchKey("keyup", "ArrowUp");
-    verticalRef.current = next;
-    if (next < 0) dispatchKey("keydown", "ArrowDown");
-    if (next > 0) dispatchKey("keydown", "ArrowUp");
+  const publishDirection = useCallback((horizontal: Direction, vertical: Direction, source: VirtualStickDetail["source"]) => {
+    horizontalRef.current = horizontal;
+    verticalRef.current = vertical;
+    setDirection(horizontal);
+    publishStick({ x: horizontal, y: vertical, active: true, source });
   }, []);
 
   const reset = useCallback(() => {
-    applyHorizontal(0);
-    applyVertical(0);
     pointerRef.current = null;
+    touchRef.current = null;
+    horizontalRef.current = 0;
+    verticalRef.current = 0;
+    setDirection(0);
     setActive(false);
     setKnob({ x: 0, y: 0 });
-  }, [applyHorizontal, applyVertical]);
+    // Always publish an authoritative neutral sample. Do not rely on the visual
+    // knob state or on a matching keyup surviving an iOS lifecycle transition.
+    publishStick({ x: 0, y: 0, active: false, source: "reset" });
+  }, []);
 
   useEffect(() => {
-    // iOS Safari can lose an element-level pointerup/cancel while the finger
-    // crosses browser chrome, an orientation transition starts, or a second
-    // touch changes pointer routing. Capture termination at window level as a
-    // second safety net, while only releasing the pointer that owns this pad.
     const onGlobalPointerEnd = (event: PointerEvent) => {
       if (pointerRef.current !== event.pointerId) return;
+      reset();
+    };
+    const onGlobalTouchEnd = (event: TouchEvent) => {
+      const identifier = touchRef.current;
+      if (identifier === null || !touchByIdentifier(event.changedTouches, identifier)) return;
       reset();
     };
     const onBlur = () => reset();
@@ -69,6 +84,10 @@ export default function SkyDancerArcadeVirtualPad() {
 
     window.addEventListener("pointerup", onGlobalPointerEnd, true);
     window.addEventListener("pointercancel", onGlobalPointerEnd, true);
+    // iPhone Safari has a mature Touch Events path independent of Pointer
+    // Capture. Keep it as the authoritative release path for finger input.
+    document.addEventListener("touchend", onGlobalTouchEnd, true);
+    document.addEventListener("touchcancel", onGlobalTouchEnd, true);
     window.addEventListener("blur", onBlur);
     window.addEventListener("pagehide", onPageLifecycle);
     window.addEventListener("pageshow", onPageLifecycle);
@@ -78,6 +97,8 @@ export default function SkyDancerArcadeVirtualPad() {
     return () => {
       window.removeEventListener("pointerup", onGlobalPointerEnd, true);
       window.removeEventListener("pointercancel", onGlobalPointerEnd, true);
+      document.removeEventListener("touchend", onGlobalTouchEnd, true);
+      document.removeEventListener("touchcancel", onGlobalTouchEnd, true);
       window.removeEventListener("blur", onBlur);
       window.removeEventListener("pagehide", onPageLifecycle);
       window.removeEventListener("pageshow", onPageLifecycle);
@@ -88,10 +109,15 @@ export default function SkyDancerArcadeVirtualPad() {
     };
   }, [reset]);
 
-  const updateFromPointer = (event: ReactPointerEvent<HTMLDivElement>) => {
-    const rect = event.currentTarget.getBoundingClientRect();
-    const dx = event.clientX - (rect.left + rect.width * 0.5);
-    const dy = event.clientY - (rect.top + rect.height * 0.5);
+  const updateFromClient = (
+    target: HTMLDivElement,
+    clientX: number,
+    clientY: number,
+    source: "touch" | "pointer",
+  ) => {
+    const rect = target.getBoundingClientRect();
+    const dx = clientX - (rect.left + rect.width * 0.5);
+    const dy = clientY - (rect.top + rect.height * 0.5);
     const distance = Math.hypot(dx, dy);
     const scale = distance > MAX_TRAVEL ? MAX_TRAVEL / Math.max(distance, 0.001) : 1;
     const x = dx * scale;
@@ -99,35 +125,75 @@ export default function SkyDancerArcadeVirtualPad() {
     const normalizedX = x / MAX_TRAVEL;
     const normalizedY = y / MAX_TRAVEL;
     const isFlightMode = document.documentElement.dataset.skyDancerMode === "sky-raid";
+    const horizontal: Direction = normalizedX < -DEAD_ZONE ? -1 : normalizedX > DEAD_ZONE ? 1 : 0;
+    const vertical: Direction = isFlightMode
+      ? (normalizedY < -DEAD_ZONE ? 1 : normalizedY > DEAD_ZONE ? -1 : 0)
+      : 0;
     setKnob({ x, y: isFlightMode ? y : 0 });
-    applyHorizontal(normalizedX < -DEAD_ZONE ? -1 : normalizedX > DEAD_ZONE ? 1 : 0);
-    applyVertical(isFlightMode ? (normalizedY < -DEAD_ZONE ? 1 : normalizedY > DEAD_ZONE ? -1 : 0) : 0);
+    if (horizontal !== horizontalRef.current || vertical !== verticalRef.current) {
+      publishDirection(horizontal, vertical, source);
+    }
+  };
+
+  const onTouchStart = (event: ReactTouchEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    if (touchRef.current !== null) return;
+    const touch = event.changedTouches.item(0);
+    if (!touch) return;
+    // Pointer Events normally arrive first on modern Safari. Keep the Touch
+    // identifier anyway so touchend/touchcancel remains an independent release
+    // path if pointer capture or pointerup is lost by browser chrome.
+    touchRef.current = touch.identifier;
+    if (pointerRef.current !== null) return;
+    setActive(true);
+    updateFromClient(event.currentTarget, touch.clientX, touch.clientY, "touch");
+  };
+
+  const onTouchMove = (event: ReactTouchEvent<HTMLDivElement>) => {
+    const identifier = touchRef.current;
+    if (identifier === null) return;
+    const touch = touchByIdentifier(event.touches, identifier);
+    if (!touch) {
+      reset();
+      return;
+    }
+    event.preventDefault();
+    if (pointerRef.current === null) {
+      updateFromClient(event.currentTarget, touch.clientX, touch.clientY, "touch");
+    }
+  };
+
+  const onTouchEnd = (event: ReactTouchEvent<HTMLDivElement>) => {
+    const identifier = touchRef.current;
+    if (identifier === null || !touchByIdentifier(event.changedTouches, identifier)) return;
+    event.preventDefault();
+    reset();
   };
 
   const onPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
+    // Pointer Events are the primary motion path on modern Safari. Touch Events
+    // track the same contact as a redundant release channel, never as a second
+    // gameplay owner.
     event.preventDefault();
-    if (pointerRef.current !== null) return;
+    if (pointerRef.current !== null || touchRef.current !== null) return;
     pointerRef.current = event.pointerId;
     try {
       event.currentTarget.setPointerCapture(event.pointerId);
     } catch {
-      // Mobile Safari can reject capture during browser/UI transitions. The
-      // window-level release guards above remain authoritative in that case.
+      // Global release/lifecycle guards remain authoritative.
     }
     setActive(true);
-    updateFromPointer(event);
+    updateFromClient(event.currentTarget, event.clientX, event.clientY, "pointer");
   };
 
   const onPointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (pointerRef.current !== event.pointerId) return;
     event.preventDefault();
-    // Desktop/debug safety: if an up event vanished but the browser reports no
-    // mouse buttons on the next move, force the same neutral recovery path.
     if (event.pointerType === "mouse" && event.buttons === 0) {
       reset();
       return;
     }
-    updateFromPointer(event);
+    updateFromClient(event.currentTarget, event.clientX, event.clientY, "pointer");
   };
 
   const onPointerEnd = (event: ReactPointerEvent<HTMLDivElement>) => {
@@ -138,7 +204,7 @@ export default function SkyDancerArcadeVirtualPad() {
         event.currentTarget.releasePointerCapture(event.pointerId);
       }
     } catch {
-      // Capture state can already be gone after Safari lifecycle transitions.
+      // Safari may already have dropped capture while changing UI state.
     }
     reset();
   };
@@ -153,6 +219,10 @@ export default function SkyDancerArcadeVirtualPad() {
         aria-valuemax={1}
         aria-valuenow={direction}
         tabIndex={-1}
+        onTouchStart={onTouchStart}
+        onTouchMove={onTouchMove}
+        onTouchEnd={onTouchEnd}
+        onTouchCancel={onTouchEnd}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerEnd}

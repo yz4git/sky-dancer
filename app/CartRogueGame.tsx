@@ -284,15 +284,21 @@ export default function SkyDancerGame() {
 
   useEffect(() => {
     const keys = new Set<string>();
+    let virtualX = 0;
+    let virtualY = 0;
+    let virtualActive = false;
+
     const sync = () => {
       const left = keys.has("a") || keys.has("arrowleft");
       const right = keys.has("d") || keys.has("arrowright");
+      const keyX = left === right ? 0 : left ? -1 : 1;
       const skyRaid = document.documentElement.dataset.skyDancerMode === "sky-raid";
-      demoRef.current?.setSteering(left === right ? 0 : left ? -1 : 1);
+      demoRef.current?.setSteering(virtualActive ? virtualX : keyX);
       if (skyRaid) {
         const climb = keys.has("w") || keys.has("arrowup");
         const dive = keys.has("s") || keys.has("arrowdown");
-        demoRef.current?.setVertical?.(climb === dive ? 0 : climb ? 1 : -1);
+        const keyY = climb === dive ? 0 : climb ? 1 : -1;
+        demoRef.current?.setVertical?.(virtualActive ? virtualY : keyY);
         demoRef.current?.setBrake(false);
       } else {
         demoRef.current?.setVertical?.(0);
@@ -300,6 +306,21 @@ export default function SkyDancerGame() {
       }
       demoRef.current?.setBoost(keys.has(" ") || keys.has("shift"));
     };
+
+    const hardResetInput = () => {
+      keys.clear();
+      virtualX = 0;
+      virtualY = 0;
+      virtualActive = false;
+      steerPointerRef.current = null;
+      boostPointersRef.current.clear();
+      brakePointersRef.current.clear();
+      demoRef.current?.setSteering(0);
+      demoRef.current?.setVertical?.(0);
+      demoRef.current?.setBoost(false);
+      demoRef.current?.setBrake(false);
+    };
+
     const down = (event: KeyboardEvent) => {
       keys.add(event.key.toLowerCase());
       if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", " "].includes(event.key)) event.preventDefault();
@@ -309,11 +330,62 @@ export default function SkyDancerGame() {
       keys.delete(event.key.toLowerCase());
       sync();
     };
+    const onVirtualStick = (event: Event) => {
+      const detail = (event as CustomEvent<{ x?: unknown; y?: unknown; active?: unknown }>).detail;
+      const x = Number(detail?.x ?? 0);
+      const y = Number(detail?.y ?? 0);
+      virtualX = Number.isFinite(x) ? Math.max(-1, Math.min(1, x)) : 0;
+      virtualY = Number.isFinite(y) ? Math.max(-1, Math.min(1, y)) : 0;
+      virtualActive = detail?.active === true;
+      sync();
+    };
+    const onGlobalPointerEnd = (event: PointerEvent) => {
+      if (steerPointerRef.current === event.pointerId) hardResetInput();
+    };
+    const onVisibility = () => {
+      if (document.visibilityState !== "visible") hardResetInput();
+    };
+
     window.addEventListener("keydown", down, { passive: false });
     window.addEventListener("keyup", up);
+    window.addEventListener("sky-dancer-virtual-stick", onVirtualStick);
+    window.addEventListener("pointerup", onGlobalPointerEnd, true);
+    window.addEventListener("pointercancel", onGlobalPointerEnd, true);
+    window.addEventListener("blur", hardResetInput);
+    window.addEventListener("pagehide", hardResetInput);
+    window.addEventListener("pageshow", hardResetInput);
+    window.addEventListener("orientationchange", hardResetInput);
+    window.addEventListener("cart-rogue-menu-pause", hardResetInput);
+    document.addEventListener("visibilitychange", onVisibility);
+
+    if (typeof navigator !== "undefined" && navigator.webdriver) {
+      (window as unknown as Record<string, unknown>).__skyDancerGetInputState = () => ({
+        keys: [...keys],
+        virtualX,
+        virtualY,
+        virtualActive,
+        steerPointerId: steerPointerRef.current,
+        boostPointers: boostPointersRef.current.size,
+        brakePointers: brakePointersRef.current.size,
+      });
+    }
+
     return () => {
+      hardResetInput();
       window.removeEventListener("keydown", down);
       window.removeEventListener("keyup", up);
+      window.removeEventListener("sky-dancer-virtual-stick", onVirtualStick);
+      window.removeEventListener("pointerup", onGlobalPointerEnd, true);
+      window.removeEventListener("pointercancel", onGlobalPointerEnd, true);
+      window.removeEventListener("blur", hardResetInput);
+      window.removeEventListener("pagehide", hardResetInput);
+      window.removeEventListener("pageshow", hardResetInput);
+      window.removeEventListener("orientationchange", hardResetInput);
+      window.removeEventListener("cart-rogue-menu-pause", hardResetInput);
+      document.removeEventListener("visibilitychange", onVisibility);
+      if (typeof navigator !== "undefined" && navigator.webdriver) {
+        delete (window as unknown as Record<string, unknown>).__skyDancerGetInputState;
+      }
     };
   }, []);
 
@@ -323,7 +395,11 @@ export default function SkyDancerGame() {
     steerPointerRef.current = event.pointerId;
     steerOriginRef.current = event.clientX;
     steerOriginYRef.current = event.clientY;
-    event.currentTarget.setPointerCapture(event.pointerId);
+    try {
+      event.currentTarget.setPointerCapture(event.pointerId);
+    } catch {
+      // Global pointer/lifecycle release guards remain authoritative on Safari.
+    }
     demoRef.current?.setSteering(0);
     demoRef.current?.setVertical?.(0);
   };
@@ -347,7 +423,11 @@ export default function SkyDancerGame() {
     steerPointerRef.current = null;
     demoRef.current?.setSteering(0);
     demoRef.current?.setVertical?.(0);
-    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+    try {
+      if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+    } catch {
+      // Capture may already be gone after an iOS browser transition.
+    }
   };
 
   const pressBoost = (event: ReactPointerEvent<HTMLButtonElement>) => {
@@ -427,6 +507,8 @@ export default function SkyDancerGame() {
   const totalPerkRanks = upgrades.reduce((total, upgrade) => total + upgrade.rank, 0);
   const currentBossPhase = bossPhase(snapshot);
   const rerollCost = perkOffer ? 8 + perkOffer.rerollIndex * 4 : 0;
+  const activeMode = typeof document !== "undefined" ? document.documentElement.dataset.skyDancerMode : "";
+  const usesExternalVirtualPad = activeMode === "sky-raid" || activeMode === "turbo-hunt";
 
   return (
     <main className={styles.shell} onContextMenu={(event) => event.preventDefault()}>
@@ -484,21 +566,23 @@ export default function SkyDancerGame() {
           </div>
         </div>
 
-        <div
-          className={styles.steerZone}
-          role="slider"
-          aria-label="Steering"
-          aria-valuemin={-1}
-          aria-valuemax={1}
-          aria-valuenow={0}
-          onPointerDown={startSteer}
-          onPointerMove={moveSteer}
-          onPointerUp={releaseSteer}
-          onPointerCancel={releaseSteer}
-          onLostPointerCapture={releaseSteer}
-        >
-          <span>{typeof document !== "undefined" && document.documentElement.dataset.skyDancerMode === "sky-raid" ? "FLIGHT STICK · TURN / CLIMB" : `ARCADE TURN · BUILD ×${getCartRunModifiers().steeringSensitivity.toFixed(2)}`}</span>
-        </div>
+        {!usesExternalVirtualPad && (
+          <div
+            className={styles.steerZone}
+            role="slider"
+            aria-label="Steering"
+            aria-valuemin={-1}
+            aria-valuemax={1}
+            aria-valuenow={0}
+            onPointerDown={startSteer}
+            onPointerMove={moveSteer}
+            onPointerUp={releaseSteer}
+            onPointerCancel={releaseSteer}
+            onLostPointerCapture={releaseSteer}
+          >
+            <span>{`ARCADE TURN · BUILD ×${getCartRunModifiers().steeringSensitivity.toFixed(2)}`}</span>
+          </div>
+        )}
 
         <div className={styles.actions}>
           <button

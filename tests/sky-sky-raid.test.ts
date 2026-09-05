@@ -501,3 +501,23 @@ test("SKY RAID V33 stages hidden respawns offscreen and never teleports a live a
   assert.doesNotMatch(installBlock, /reseedCartTurboHuntActiveTargets/);
   assert.match(installBlock, /stageSkyRaidNaturalEnemyEntries\(typedSession\)/);
 });
+
+test("SKY RAID V34 gives iPhone stick input one direct owner with redundant neutral release paths", () => {
+  const padSource = readFileSync(new URL("../app/SkyDancerArcadeVirtualPad.tsx", import.meta.url), "utf8");
+  const gameSource = readFileSync(new URL("../app/CartRogueGame.tsx", import.meta.url), "utf8");
+  assert.doesNotMatch(padSource, /new KeyboardEvent/);
+  assert.match(padSource, /sky-dancer-virtual-stick/);
+  assert.match(padSource, /onTouchStart=\{onTouchStart\}/);
+  assert.doesNotMatch(padSource, /event\.pointerType === "touch"\) return/);
+  assert.match(padSource, /Pointer Events are the primary motion path on modern Safari/);
+  assert.match(padSource, /document\.addEventListener\("touchend", onGlobalTouchEnd, true\)/);
+  assert.match(padSource, /document\.addEventListener\("touchcancel", onGlobalTouchEnd, true\)/);
+  assert.match(padSource, /publishStick\(\{ x: 0, y: 0, active: false, source: "reset" \}\)/);
+  assert.match(gameSource, /window\.addEventListener\("sky-dancer-virtual-stick", onVirtualStick\)/);
+  assert.match(gameSource, /keys\.clear\(\)/);
+  assert.match(gameSource, /window\.addEventListener\("pagehide", hardResetInput\)/);
+  assert.match(gameSource, /window\.addEventListener\("blur", hardResetInput\)/);
+  assert.match(gameSource, /document\.addEventListener\("visibilitychange", onVisibility\)/);
+  assert.match(gameSource, /usesExternalVirtualPad/);
+  assert.match(gameSource, /!usesExternalVirtualPad &&/);
+});
