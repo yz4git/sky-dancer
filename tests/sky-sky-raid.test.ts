@@ -361,3 +361,25 @@ test("SKY RAID V25 gives each enemy class a render-only role silhouette and tele
   assert.match(overlaySource, /ENEMY PACKAGE/);
   assert.match(cssSource, /\.packageLine/);
 });
+
+
+test("SKY RAID V26 carries threat identity from airframe trail through lock HUD and missile warning", () => {
+  const raidSource = readFileSync(new URL("../src/sky/SkyDancerSkyRaid.ts", import.meta.url), "utf8");
+  const hudSource = readFileSync(new URL("../app/SkyDancerHudV45.tsx", import.meta.url), "utf8");
+  const flightSource = readFileSync(new URL("../src/sky/SkyDancerFlightCombat.ts", import.meta.url), "utf8");
+  const polishSource = readFileSync(new URL("../app/SkyDancerCombatPolish.tsx", import.meta.url), "utf8");
+  assert.match(raidSource, /SKY_RAID_ROLE_TRAIL_NAME/);
+  for (const signature of ["orange-lance", "cyan-twin", "violet-wide", "gold-twin", "red-thrust", "cyan-short"]) {
+    assert.match(raidSource, new RegExp(signature));
+  }
+  assert.match(raidSource, /trailSignature/);
+  assert.match(hudSource, /FAST DIVE/);
+  assert.match(hudSource, /LONG RANGE/);
+  assert.match(hudSource, /ARMORED/);
+  assert.match(hudSource, /data-role-cue=/);
+  assert.match(flightSource, /SkyDancerMissileSourceClass/);
+  assert.match(flightSource, /sourceClass: missileSourceClass/);
+  assert.match(polishSource, /BOMBER SALVO/);
+  assert.match(polishSource, /HEAVY MISSILE/);
+  assert.match(polishSource, /data-source-class=/);
+});

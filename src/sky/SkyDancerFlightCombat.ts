@@ -17,12 +17,18 @@ import {
   skyDancerDistance3DV43,
   stepSkyDancerEnemyVerticalFlightV43,
 } from "./SkyDancerVerticalFlightV43";
-import { getSkyDancerSkyRaidEnemyDoctrine } from "./SkyDancerSkyRaidEnemyDoctrine";
+import {
+  getSkyDancerSkyRaidEnemyDoctrine,
+  skyDancerSkyRaidEnemyClassFor,
+} from "./SkyDancerSkyRaidEnemyDoctrine";
+
+export type SkyDancerMissileSourceClass = "boss" | ReturnType<typeof skyDancerSkyRaidEnemyClassFor>;
 
 export interface SkyDancerMissileSnapshot {
   id: number;
   sourceEnemyId: string;
   sourceKind: CartEnemyState["kind"];
+  sourceClass: SkyDancerMissileSourceClass;
   x: number;
   z: number;
   altitudeOffsetMeters: number;
@@ -135,6 +141,10 @@ function stableSide(id: string): number {
   return (hash >>> 0) % 2 === 0 ? -1 : 1;
 }
 
+function missileSourceClass(enemy: CartEnemyState): SkyDancerMissileSourceClass {
+  return enemy.kind === "boss" ? "boss" : skyDancerSkyRaidEnemyClassFor(enemy);
+}
+
 function initialCooldown(enemy: CartEnemyState): number {
   const base = enemy.kind === "boss" ? 1.1 : enemy.kind === "heavy" ? 1.75 : enemy.kind === "chaser" ? 2.15 : 2.55;
   const jittered = base + (Math.abs(enemy.id.length * 37) % 9) * 0.11;
@@ -172,6 +182,7 @@ function publicState(session: FlightSessionView, state: FlightCombatState): SkyD
       id: missile.id,
       sourceEnemyId: missile.sourceEnemyId,
       sourceKind: missile.sourceKind,
+      sourceClass: missile.sourceClass,
       x: missile.x,
       z: missile.z,
       altitudeOffsetMeters: missile.altitudeOffsetMeters,
@@ -434,6 +445,7 @@ function tryLaunchMissiles(session: FlightSessionView, state: FlightCombatState)
       id: state.nextMissileId++,
       sourceEnemyId: enemy.id,
       sourceKind: enemy.kind,
+      sourceClass: missileSourceClass(enemy),
       x: enemy.x + Math.sin(enemy.heading) * muzzle,
       z: enemy.z + Math.cos(enemy.heading) * muzzle,
       altitudeOffsetMeters: vertical.altitudeOffsetMeters,

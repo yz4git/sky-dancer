@@ -14,6 +14,19 @@ function altitudeLabel(value: number): string {
   return "◆ LEVEL";
 }
 
+function skyRaidRoleCue(className: SkyDancerCombatDecisionSnapshotV45["className"]): string {
+  switch (className) {
+    case "boss": return "FINAL THREAT";
+    case "heavy": return "ARMORED";
+    case "striker": return "FAST DIVE";
+    case "orbiter": return "VERTICAL";
+    case "bomber": return "LONG RANGE";
+    case "drifter": return "JINKER";
+    case "standard": return "INTERCEPT";
+    default: return "TRACK";
+  }
+}
+
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
 }
@@ -196,6 +209,23 @@ export default function SkyDancerHudV45() {
       }
       .skyDancerV45Altitude { color: #d9f7ff; }
       .skyDancerV45Range { opacity: .62; font-size: .88em; }
+      .skyDancerV45Role {
+        display: inline-block;
+        margin-right: 4px;
+        padding: 1px 4px;
+        border: 1px solid currentColor;
+        border-radius: 999px;
+        font-size: .82em;
+        font-weight: 1000;
+        letter-spacing: .09em;
+        opacity: .92;
+      }
+      .skyDancerV45Lock[data-class="striker"] .skyDancerV45Role { color: #ffb66f; }
+      .skyDancerV45Lock[data-class="orbiter"] .skyDancerV45Role { color: #75ecff; }
+      .skyDancerV45Lock[data-class="drifter"] .skyDancerV45Role { color: #d2a9ff; }
+      .skyDancerV45Lock[data-class="bomber"] .skyDancerV45Role { color: #ffdc72; }
+      .skyDancerV45Lock[data-class="heavy"] .skyDancerV45Role { color: #ff8589; }
+      .skyDancerV45Lock[data-class="standard"] .skyDancerV45Role { color: #a8efff; }
       .skyDancerV45Action {
         overflow: hidden;
         max-width: 27vw;
@@ -264,6 +294,7 @@ export default function SkyDancerHudV45() {
       <div
         className="skyDancerV45Reticle"
         data-ready={decision.vulnerable ? "true" : "false"}
+        data-class={decision.className ?? "none"}
         aria-label="Sky Raid target reticle"
         style={{
           left: `calc(50% + ${reticleX.toFixed(2)}vw)`,
@@ -279,6 +310,7 @@ export default function SkyDancerHudV45() {
         className="skyDancerV45Lock"
         data-ready={decision.vulnerable ? "true" : "false"}
         data-class={decision.className ?? "none"}
+        data-role-cue={skyRaidRoleCue(decision.className)}
         aria-label="V45 target decision"
         style={{
           left: `calc(50% + ${lockX.toFixed(2)}vw)`,
@@ -291,7 +323,7 @@ export default function SkyDancerHudV45() {
           <span className="skyDancerV45Altitude">{altitudeLabel(decision.altitudeDeltaMeters)}</span>
           <span className="skyDancerV45Range">{Math.round(decision.distance)}m</span>
         </div>
-        <span className="skyDancerV45Action">{decision.action}</span>
+        <span className="skyDancerV45Action"><b className="skyDancerV45Role" aria-label="Sky Raid target role">{skyRaidRoleCue(decision.className)}</b>{decision.action}</span>
       </div>
     )}
     {hitPulse && <div className="skyDancerV45Hit" aria-label="Sky Raid hit confirmation">MISSILE HIT</div>}

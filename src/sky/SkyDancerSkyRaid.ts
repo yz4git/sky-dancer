@@ -224,6 +224,7 @@ function restoreSkyRaidEnemySilhouetteAssist(demo: RaidWebGLDemo): void {
 }
 
 const SKY_RAID_ROLE_KIT_NAME = "sky-raid-enemy-role-kit";
+const SKY_RAID_ROLE_TRAIL_NAME = "sky-raid-enemy-role-trail";
 
 function skyRaidRoleKitColor(className: ReturnType<typeof skyDancerSkyRaidEnemyClassFor>): number {
   switch (className) {
@@ -233,6 +234,19 @@ function skyRaidRoleKitColor(className: ReturnType<typeof skyDancerSkyRaidEnemyC
     case "bomber": return 0xffd15e;
     case "heavy": return 0xff6f75;
     case "standard": return 0x9deaff;
+  }
+}
+
+function skyRaidRoleTrailProfile(
+  className: ReturnType<typeof skyDancerSkyRaidEnemyClassFor>,
+): { signature: string; offsets: readonly number[]; length: number; radius: number; opacity: number } {
+  switch (className) {
+    case "striker": return { signature: "orange-lance", offsets: [-0.34, 0.34], length: 1.05, radius: 0.09, opacity: 0.45 };
+    case "orbiter": return { signature: "cyan-twin", offsets: [-0.58, 0.58], length: 0.72, radius: 0.075, opacity: 0.34 };
+    case "drifter": return { signature: "violet-wide", offsets: [-0.52, 0.52], length: 0.64, radius: 0.07, opacity: 0.30 };
+    case "bomber": return { signature: "gold-twin", offsets: [-0.72, 0.72], length: 0.92, radius: 0.11, opacity: 0.42 };
+    case "heavy": return { signature: "red-thrust", offsets: [-0.46, 0.46], length: 0.58, radius: 0.13, opacity: 0.48 };
+    case "standard": return { signature: "cyan-short", offsets: [0], length: 0.52, radius: 0.07, opacity: 0.30 };
   }
 }
 
@@ -322,6 +336,28 @@ function buildSkyRaidEnemyRoleKit(
       addBeacon([0, 0.72, 0.36], 0.14);
       break;
   }
+
+  const trailProfile = skyRaidRoleTrailProfile(className);
+  root.userData.skyRaidRoleTrailSignature = trailProfile.signature;
+  for (const offset of trailProfile.offsets) {
+    const trail = new THREE.Mesh(
+      new THREE.ConeGeometry(trailProfile.radius, trailProfile.length, 7, 1, true),
+      new THREE.MeshBasicMaterial({
+        color,
+        transparent: true,
+        opacity: trailProfile.opacity,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        toneMapped: false,
+      }),
+    );
+    trail.name = SKY_RAID_ROLE_TRAIL_NAME;
+    trail.rotation.x = -Math.PI / 2;
+    trail.position.set(offset, 0.20, -0.72 - trailProfile.length * 0.46);
+    trail.renderOrder = 1010;
+    root.add(trail);
+  }
+
   root.traverse((object) => {
     if (object instanceof THREE.Mesh) {
       object.castShadow = false;
@@ -363,6 +399,9 @@ function applySkyRaidEnemyRoleReadability(
             id: enemy.id,
             roleClass: skyDancerSkyRaidEnemyClassFor(enemy),
             roleSignature: String(kit?.userData.skyRaidRoleSignature ?? ""),
+            trailSignature: String(kit?.userData.skyRaidRoleTrailSignature ?? ""),
+            trailCount: kit?.children.filter((child) => child.name === SKY_RAID_ROLE_TRAIL_NAME).length ?? 0,
+            trailVisible: kit?.children.filter((child) => child.name === SKY_RAID_ROLE_TRAIL_NAME).every((child) => child.visible) ?? false,
             kitVisible: kit?.visible === true,
             kitChildren: kit?.children.length ?? 0,
           };

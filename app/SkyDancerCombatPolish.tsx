@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import {
   SKY_DANCER_MISSILE_EVENT,
+  type SkyDancerMissileSourceClass,
   type SkyDancerMissileState,
 } from "../src/sky/SkyDancerFlightCombat";
 
@@ -42,8 +43,32 @@ function rewriteLegacyText(root: Node): void {
   }
 }
 
+function missileSourceCue(sourceClass: SkyDancerMissileSourceClass): string {
+  switch (sourceClass) {
+    case "boss": return "BOSS MISSILE";
+    case "heavy": return "HEAVY MISSILE";
+    case "bomber": return "BOMBER SALVO";
+    case "striker": return "STRIKER MISSILE";
+    case "orbiter": return "ORBITER MISSILE";
+    case "drifter": return "JINKER MISSILE";
+    case "standard": return "MISSILE WARNING";
+  }
+}
+
+function missileSourceColor(sourceClass: SkyDancerMissileSourceClass): string {
+  switch (sourceClass) {
+    case "boss": return "#ff6f68";
+    case "heavy": return "#ff8589";
+    case "bomber": return "#ffdc72";
+    case "striker": return "#ffb66f";
+    case "orbiter": return "#75ecff";
+    case "drifter": return "#d2a9ff";
+    case "standard": return "#ffd67a";
+  }
+}
+
 export default function SkyDancerCombatPolish() {
-  const [warning, setWarning] = useState<{ count: number; distance: number } | null>(null);
+  const [warning, setWarning] = useState<{ count: number; distance: number; sourceClass: SkyDancerMissileSourceClass } | null>(null);
 
   useEffect(() => {
     const rewrite = () => rewriteLegacyText(document.body);
@@ -53,14 +78,20 @@ export default function SkyDancerCombatPolish() {
 
     const onMissiles = (event: Event) => {
       const detail = (event as CustomEvent<SkyDancerMissileState>).detail;
-      let nearest = Number.POSITIVE_INFINITY;
-      for (const missile of detail.missiles) nearest = Math.min(nearest, missile.distanceToPlayer);
-      if (!Number.isFinite(nearest) || nearest >= 30) {
+      let nearestMissile: SkyDancerMissileState["missiles"][number] | null = null;
+      for (const missile of detail.missiles) {
+        if (!nearestMissile || missile.distanceToPlayer < nearestMissile.distanceToPlayer) nearestMissile = missile;
+      }
+      if (!nearestMissile || !Number.isFinite(nearestMissile.distanceToPlayer) || nearestMissile.distanceToPlayer >= 30) {
         setWarning(null);
         return;
       }
       const closeCount = detail.missiles.filter((missile) => missile.distanceToPlayer < 30).length;
-      setWarning({ count: Math.max(detail.incomingCount, closeCount, 1), distance: nearest });
+      setWarning({
+        count: Math.max(detail.incomingCount, closeCount, 1),
+        distance: nearestMissile.distanceToPlayer,
+        sourceClass: nearestMissile.sourceClass,
+      });
     };
     window.addEventListener(SKY_DANCER_MISSILE_EVENT, onMissiles);
     return () => {
@@ -71,9 +102,14 @@ export default function SkyDancerCombatPolish() {
 
   if (!warning) return null;
   const urgent = warning.distance < 12;
+  const roleColor = missileSourceColor(warning.sourceClass);
+  const warningColor = urgent ? "#ff8b82" : roleColor;
+  const warningBackground = urgent ? "rgba(80,8,12,.62)" : "rgba(18,30,39,.58)";
+  const warningLabel = missileSourceCue(warning.sourceClass);
   return (
     <div
       aria-label="Missile warning"
+      data-source-class={warning.sourceClass}
       aria-live="assertive"
       style={{
         position: "fixed",
@@ -83,17 +119,17 @@ export default function SkyDancerCombatPolish() {
         zIndex: 120,
         pointerEvents: "none",
         padding: "5px 11px",
-        border: `1px solid ${urgent ? "rgba(255,86,76,.9)" : "rgba(255,194,84,.82)"}`,
+        border: `1px solid ${warningColor}`,
         borderRadius: 6,
-        background: urgent ? "rgba(80,8,12,.62)" : "rgba(54,35,6,.48)",
-        color: urgent ? "#ff8b82" : "#ffd67a",
+        background: warningBackground,
+        color: warningColor,
         font: "800 clamp(11px, 1.8vw, 16px)/1 system-ui, sans-serif",
         letterSpacing: ".12em",
         textShadow: "0 1px 8px rgba(0,0,0,.8)",
         boxShadow: urgent ? "0 0 18px rgba(255,72,60,.28)" : "0 0 14px rgba(255,190,70,.18)",
       }}
     >
-      MISSILE WARNING · {warning.count} INBOUND · {Math.max(1, Math.round(warning.distance))}m
+      {warningLabel} · {warning.count} INBOUND · {Math.max(1, Math.round(warning.distance))}m
     </div>
   );
 }
