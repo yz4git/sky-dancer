@@ -1,3 +1,3 @@
 Sky Dancer Pages deploy trigger
-SKY RAID V32 Phone Combat UI
-source-main: cb16f47aed78cf06bd9fcb7042acc0e04f60c042
+SKY RAID V33 Opening Pacing + Natural Entry
+source-main: cd5b1dd41932d626cd48313ba905a341781ddf16
