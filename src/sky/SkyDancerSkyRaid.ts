@@ -7,7 +7,6 @@ import {
   enableCartTurboHunt,
   forceCartTurboHuntBoss,
   getCartTurboHuntSnapshot,
-  reseedCartTurboHuntActiveTargets,
   setCartTurboHuntActiveTargetCountResolver,
   setCartTurboHuntExternalProgressionEnabled,
   setCartTurboHuntSpawnPreference,
@@ -15,10 +14,10 @@ import {
 } from "../cart/CartRoguePhase67TurboHunt";
 import {
   SKY_DANCER_SKY_RAID_ACTS,
-  SKY_DANCER_SKY_RAID_ACT_SECONDS,
   SKY_DANCER_SKY_RAID_BOSS_TRIGGER_SECONDS,
   SKY_DANCER_SKY_RAID_CHAIN_GRACE_SECONDS,
   SKY_DANCER_SKY_RAID_TARGET_SECONDS,
+  skyDancerSkyRaidActBreakEligible,
   skyDancerSkyRaidActFor,
   skyDancerSkyRaidActSeconds,
   skyDancerSkyRaidCombatProfile,
@@ -164,10 +163,17 @@ interface RaidScreenCandidate {
 
 interface RaidScreenEngagementState {
   nextAllowedAt: number;
+  lastAssistAt: number;
   cursor: number;
   recycles: number;
   projection: THREE.Vector3;
   candidates: [RaidScreenCandidate, RaidScreenCandidate, RaidScreenCandidate];
+}
+
+interface RaidEnemyEntryState {
+  previousAlive: Map<string, boolean>;
+  serial: number;
+  staged: number;
 }
 
 const raidStateBySession = new WeakMap<object, RaidState>();
@@ -176,6 +182,7 @@ const raidFlightByDemo = new WeakMap<object, SkyDancerSkyRaidFlightController>()
 const raidCameraFxByDemo = new WeakMap<object, RaidCameraFxState>();
 const raidEngagementBySession = new WeakMap<object, { cooldown: number; cursor: number; lastBeat: SkyRaidFormationBeat; beatAge: number }>();
 const raidScreenEngagementByDemo = new WeakMap<object, RaidScreenEngagementState>();
+const raidEnemyEntryBySession = new WeakMap<object, RaidEnemyEntryState>();
 const raidInputBySession = new WeakMap<object, RallyInputState>();
 const raidRoleKitByEnemyGroup = new WeakMap<THREE.Group, THREE.Group>();
 const raidAttackTelegraphObjectsByKit = new WeakMap<THREE.Group, readonly THREE.Object3D[]>();
@@ -568,10 +575,10 @@ function skyRaidFormationPattern(elapsedSeconds: number): {
   const profile = skyDancerSkyRaidCombatProfile(act.id);
   const local = skyDancerSkyRaidActSeconds(elapsedSeconds, act);
   const rush = skyDancerSkyRaidRushActive(elapsedSeconds, act);
-  // Ten 9-second beats fill a 90-second Act. The authored five-beat sentence
-  // runs twice, with the second pass mirrored so long Acts do not settle into
-  // one permanent breakaway formation after the old 24-second grammar ended.
-  const beatSeconds = SKY_DANCER_SKY_RAID_ACT_SECONDS / 10;
+  // Ten beats fill the authored Act duration. Opening Acts are 120 s while
+  // the mature later acts remain 90 s, so formation grammar stretches with the
+  // stage instead of silently finishing its sentence early.
+  const beatSeconds = Math.max(1, (act.endSeconds - act.startSeconds) / 10);
   const beatOrdinal = Math.max(0, Math.floor(local / beatSeconds));
   const phaseIndex = (beatOrdinal % profile.beats.length) as 0 | 1 | 2 | 3 | 4;
   const beatLocal = local - beatOrdinal * beatSeconds;
@@ -744,17 +751,26 @@ function maintainSkyRaidEnemyPresence(session: CartArenaSession, delta: number, 
       return penalty(right) - penalty(left);
     });
   const needed = Math.min(targetCount - engaged.length, candidates.length, 2);
+  const approachSpeed = pattern.correctionSpeed * 1.65;
   for (let index = 0; index < needed; index += 1) {
     const target = candidates[index].enemy;
     const slot = pattern.slots[(state.cursor + engaged.length + index) % pattern.slots.length];
-    target.x = playerX + forwardX * slot.forward + rightX * slot.lateral;
-    target.z = playerZ + forwardZ * slot.forward + rightZ * slot.lateral;
-    target.heading = Math.atan2(playerX - target.x, playerZ - target.z);
-    target.aiClock = 0;
-    target.chargeTime = 0;
+    const desiredX = playerX + forwardX * slot.forward + rightX * slot.lateral;
+    const desiredZ = playerZ + forwardZ * slot.forward + rightZ * slot.lateral;
+    const dx = desiredX - target.x;
+    const dz = desiredZ - target.z;
+    const distance = Math.hypot(dx, dz);
+    if (distance > 0.001) {
+      const step = Math.min(distance, approachSpeed * delta);
+      target.x += dx / distance * step;
+      target.z += dz / distance * step;
+    }
+    const desiredHeading = Math.atan2(playerX - target.x, playerZ - target.z);
+    const turnError = Math.atan2(Math.sin(desiredHeading - target.heading), Math.cos(desiredHeading - target.heading));
+    target.heading += clamp(turnError, -delta * 1.05, delta * 1.05);
   }
   state.cursor = (state.cursor + needed) % pattern.slots.length;
-  state.cooldown = needed > 0 ? 0.44 : 0.18;
+  state.cooldown = needed > 0 ? 0.12 : 0.18;
 }
 
 
@@ -780,6 +796,7 @@ function maintainSkyRaidScreenPresence(
   if (!state) {
     state = {
       nextAllowedAt: 0,
+      lastAssistAt: 0,
       cursor: 0,
       recycles: 0,
       projection: new THREE.Vector3(),
@@ -844,6 +861,8 @@ function maintainSkyRaidScreenPresence(
   }
 
   const now = typeof performance !== "undefined" ? performance.now() * 0.001 : Date.now() * 0.001;
+  const assistDelta = state.lastAssistAt > 0 ? clamp(now - state.lastAssistAt, 0, 0.05) : 1 / 60;
+  state.lastAssistAt = now;
   if (now < state.nextAllowedAt) return;
 
   const screenSlots = skyRaidScreenSlotsFor(latestSkyRaidSnapshot?.elapsedSeconds ?? 0);
@@ -856,26 +875,67 @@ function maintainSkyRaidScreenPresence(
     const sample = state.candidates[index];
     if (!sample.enemy || !sample.group) continue;
     const authoredSlot = screenSlots[(state.cursor + index) % screenSlots.length];
-    const lateral = clamp(authoredSlot.lateral * 0.86, -12.5, 12.5);
-    const forward = clamp(authoredSlot.forward, 22, 42);
-    const x = snapshot.x + forwardX * forward + rightX * lateral;
-    const z = snapshot.z + forwardZ * forward + rightZ * lateral;
-    sample.enemy.x = x;
-    sample.enemy.z = z;
-    sample.enemy.heading = Math.atan2(snapshot.x - x, snapshot.z - z);
-    sample.enemy.aiClock = 0;
-    sample.enemy.chargeTime = 0;
-    sample.group.position.x = x;
-    sample.group.position.z = z;
-    sample.group.position.y = 0.62 + getSkyDancerEnemyAltitudeMetersV43(sample.enemy);
-    sample.group.userData.lastX = x;
-    sample.group.userData.lastZ = z;
-    sample.group.updateMatrixWorld(true);
+    const lateral = clamp(authoredSlot.lateral * 0.92, -15, 15);
+    const forward = clamp(authoredSlot.forward, 30, 48);
+    const desiredX = snapshot.x + forwardX * forward + rightX * lateral;
+    const desiredZ = snapshot.z + forwardZ * forward + rightZ * lateral;
+    const dx = desiredX - sample.enemy.x;
+    const dz = desiredZ - sample.enemy.z;
+    const distance = Math.hypot(dx, dz);
+    if (distance > 0.001) {
+      const step = Math.min(distance, 10 * assistDelta);
+      sample.enemy.x += dx / distance * step;
+      sample.enemy.z += dz / distance * step;
+    }
+    const desiredHeading = Math.atan2(snapshot.x - sample.enemy.x, snapshot.z - sample.enemy.z);
+    const turnError = Math.atan2(
+      Math.sin(desiredHeading - sample.enemy.heading),
+      Math.cos(desiredHeading - sample.enemy.heading),
+    );
+    sample.enemy.heading += clamp(turnError, -assistDelta * 0.85, assistDelta * 0.85);
     state.recycles += 1;
   }
   state.cursor = (state.cursor + needed) % screenSlots.length;
-  state.nextAllowedAt = now + (needed > 0 ? 0.28 : 0.12);
+  state.nextAllowedAt = now + (needed > 0 ? 0.05 : 0.12);
   demo.scene.userData.skyRaidScreenPresenceRecycles = state.recycles;
+}
+
+
+function stageSkyRaidNaturalEnemyEntries(session: CartArenaSession): void {
+  const runtime = session as unknown as RaidSession;
+  const key = session as unknown as object;
+  let state = raidEnemyEntryBySession.get(key);
+  if (!state) {
+    state = { previousAlive: new Map(), serial: 0, staged: 0 };
+    raidEnemyEntryBySession.set(key, state);
+  }
+  const playerX = runtime.car.position.x;
+  const playerZ = runtime.car.position.z;
+  const heading = runtime.car.heading;
+  const forwardX = Math.sin(heading);
+  const forwardZ = Math.cos(heading);
+  const rightX = Math.cos(heading);
+  const rightZ = -Math.sin(heading);
+  for (const enemy of session.enemies) {
+    const wasAlive = state.previousAlive.get(enemy.id) ?? false;
+    if (enemy.alive && !wasAlive && enemy.kind !== "boss") {
+      const ordinal = state.serial++;
+      const side = ordinal % 2 === 0 ? -1 : 1;
+      const band = Math.floor(ordinal / 2) % 3;
+      const forward = 62 + band * 7;
+      const lateral = side * (22 + band * 4);
+      enemy.x = playerX + forwardX * forward + rightX * lateral;
+      enemy.z = playerZ + forwardZ * forward + rightZ * lateral;
+      enemy.heading = Math.atan2(playerX - enemy.x, playerZ - enemy.z);
+      enemy.aiClock = 0;
+      enemy.chargeTime = 0;
+      state.staged += 1;
+    }
+    state.previousAlive.set(enemy.id, enemy.alive);
+  }
+  if (typeof document !== "undefined") {
+    document.documentElement.dataset.skyRaidNaturalEntries = String(state.staged);
+  }
 }
 
 function publishSkyRaidWorldStyle(snapshot: SkyDancerSkyRaidSnapshot): void {
@@ -1052,7 +1112,7 @@ function updateRaid(session: RaidSession, hunt: CartTurboHuntSnapshot, delta: nu
   state.chainTimer = Math.max(0, state.chainTimer - delta);
   state.killCueSecondsRemaining = Math.max(0, state.killCueSecondsRemaining - delta);
   if (state.chainTimer <= 0) state.chain = 0;
-  if (state.actKills >= act.killTarget) rewardActBreak(session, state, act);
+  if (skyDancerSkyRaidActBreakEligible(hunt.huntElapsedSeconds, act, state.actKills)) rewardActBreak(session, state, act);
 
   const pressure = skyDancerSkyRaidPressure(hunt.huntElapsedSeconds);
   session.car.definition.maxSpeed = Math.max(state.baseMaxSpeed, 23.5 + pressure * 3.1);
@@ -1415,9 +1475,12 @@ export function installSkyDancerSkyRaid(): void {
     const state = stateFor(this, hunt);
     const activeAct = skyDancerSkyRaidActFor(hunt.huntElapsedSeconds);
     if (state.enemyRosterActIndex !== activeAct.index && hunt.huntPhase !== "boss-arrival" && hunt.huntPhase !== "clear") {
-      reseedCartTurboHuntActiveTargets(typedSession);
+      // Preserve surviving aircraft across Act boundaries. New doctrine enters
+      // naturally through later pooled respawns instead of deleting/reseeding the
+      // whole formation on one frame.
       state.enemyRosterActIndex = activeAct.index;
     }
+    stageSkyRaidNaturalEnemyEntries(typedSession);
     maintainSkyRaidEnemyPresence(typedSession, delta, hunt.huntElapsedSeconds);
     const snapshot = updateRaid(this, hunt, delta);
     publishSkyRaidWorldStyle(snapshot);

@@ -28,32 +28,34 @@ export interface SkyDancerSkyRaidAct {
 }
 
 export const SKY_DANCER_SKY_RAID_ACT_SECONDS = 90;
+export const SKY_DANCER_SKY_RAID_OPENING_ACT_SECONDS = 120;
+export const SKY_DANCER_SKY_RAID_OPENING_BREAK_MIN_SECONDS = 90;
 
 export const SKY_DANCER_SKY_RAID_ACTS: readonly SkyDancerSkyRaidAct[] = [
   {
-    id: "dawn-city", index: 0, label: "DAWN CITY", subtitle: "FREE APPROACH", startSeconds: 0, endSeconds: 90, killTarget: 14, setpiece: "CITY GATES",
+    id: "dawn-city", index: 0, label: "DAWN CITY", subtitle: "FREE APPROACH", startSeconds: 0, endSeconds: 120, killTarget: 20, setpiece: "CITY GATES",
     palette: { sky: 0x89d4f1, fog: 0xd6e9ef, ground: 0x294b5f, primary: 0x3f7188, secondary: 0xf2b775, accent: 0x64e8ff, enemy: 0xf16f62 },
   },
   {
-    id: "red-canyon", index: 1, label: "RED CANYON", subtitle: "LOW ALTITUDE KNIFE RUN", startSeconds: 90, endSeconds: 180, killTarget: 16, setpiece: "CANYON KNIFE RUN",
+    id: "red-canyon", index: 1, label: "RED CANYON", subtitle: "LOW ALTITUDE KNIFE RUN", startSeconds: 120, endSeconds: 240, killTarget: 22, setpiece: "CANYON KNIFE RUN",
     palette: { sky: 0xeaa06e, fog: 0xca7959, ground: 0x6a302d, primary: 0x9e4934, secondary: 0xdf8d4b, accent: 0xffd36d, enemy: 0x56d3ec },
   },
   {
-    id: "cloud-fleet", index: 2, label: "CLOUD FLEET", subtitle: "WARSHIP BREAKTHROUGH", startSeconds: 180, endSeconds: 270, killTarget: 18, setpiece: "FLEET BREAK",
+    id: "cloud-fleet", index: 2, label: "CLOUD FLEET", subtitle: "WARSHIP BREAKTHROUGH", startSeconds: 240, endSeconds: 330, killTarget: 18, setpiece: "FLEET BREAK",
     palette: { sky: 0x76c8ee, fog: 0xe5f4fb, ground: 0x6faed0, primary: 0xe5f2f7, secondary: 0x607f94, accent: 0xffcc65, enemy: 0xd9556c },
   },
   {
-    id: "storm-carrier", index: 3, label: "STORM CARRIER", subtitle: "THUNDERHEAD INTERCEPT", startSeconds: 270, endSeconds: 360, killTarget: 20, setpiece: "THUNDER RAID",
+    id: "storm-carrier", index: 3, label: "STORM CARRIER", subtitle: "THUNDERHEAD INTERCEPT", startSeconds: 330, endSeconds: 420, killTarget: 20, setpiece: "THUNDER RAID",
     palette: { sky: 0x20364d, fog: 0x657d92, ground: 0x15384b, primary: 0x42566b, secondary: 0x7d93a8, accent: 0x91f5ff, enemy: 0xff5f7d },
   },
   {
-    id: "prism-citadel", index: 4, label: "PRISM CITADEL", subtitle: "TITAN SIEGE", startSeconds: 360, endSeconds: 450, killTarget: 20, setpiece: "PRISM SIEGE",
+    id: "prism-citadel", index: 4, label: "PRISM CITADEL", subtitle: "TITAN SIEGE", startSeconds: 420, endSeconds: 510, killTarget: 20, setpiece: "PRISM SIEGE",
     palette: { sky: 0x45396c, fog: 0x8c7bb6, ground: 0x272142, primary: 0x7564a5, secondary: 0x4db6bd, accent: 0xffd96f, enemy: 0xff6e94 },
   },
 ];
 
-export const SKY_DANCER_SKY_RAID_BOSS_TRIGGER_SECONDS = 423;
-export const SKY_DANCER_SKY_RAID_TARGET_SECONDS = 450;
+export const SKY_DANCER_SKY_RAID_BOSS_TRIGGER_SECONDS = 483;
+export const SKY_DANCER_SKY_RAID_TARGET_SECONDS = 510;
 
 // Free-flight kills need enough time for a real bank/reacquire/lock handoff on phone.
 // Longer than the old 4.2 s timer, but still short enough to reward momentum.
@@ -173,7 +175,18 @@ export function skyDancerSkyRaidRushActive(elapsedSeconds: number, act: SkyDance
   if (act.index === SKY_DANCER_SKY_RAID_ACTS.length - 1) {
     return (local >= 8 && local < 18) || (local >= 30 && local < 40) || (local >= 52 && local < 62) || (local >= 74 && local < 84);
   }
-  return (local >= 8 && local < 16) || (local >= 30 && local < 38) || (local >= 52 && local < 60) || (local >= 74 && local < 82);
+  const openingTail = act.index < 2 && local >= 96 && local < 106;
+  return openingTail || (local >= 8 && local < 16) || (local >= 30 && local < 38) || (local >= 52 && local < 60) || (local >= 74 && local < 82);
+}
+
+export function skyDancerSkyRaidActBreakEligible(
+  elapsedSeconds: number,
+  act: SkyDancerSkyRaidAct,
+  actKills: number,
+): boolean {
+  if (actKills < act.killTarget) return false;
+  if (act.index >= 2) return true;
+  return skyDancerSkyRaidActSeconds(elapsedSeconds, act) >= SKY_DANCER_SKY_RAID_OPENING_BREAK_MIN_SECONDS;
 }
 
 export function skyDancerSkyRaidPressure(elapsedSeconds: number): number {
