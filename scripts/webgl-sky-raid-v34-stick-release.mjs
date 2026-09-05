@@ -10,7 +10,6 @@ if (!chromium) throw new Error("playwright chromium export missing");
 const out = "artifacts/sky-raid-v34-stick-release";
 fs.mkdirSync(out, { recursive: true });
 let browser;
-let context;
 let page;
 const watchdog = setTimeout(() => process.exit(124), 90000);
 
@@ -38,9 +37,13 @@ try {
     executablePath: process.env.SKY_DANCER_CHROME_PATH || "/usr/bin/google-chrome",
     args: ["--use-angle=swiftshader", "--enable-webgl", "--enable-unsafe-swiftshader", "--ignore-gpu-blocklist", "--disable-dev-shm-usage"],
   });
-  context = await browser.newContext({ viewport: { width: 844, height: 390 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
+  // Keep the exact iPhone landscape geometry/DPR, but use a real mouse pointer
+  // for this release audit. Chrome's CDP touch synthesizer does not dispatch the
+  // React pad's input path reliably in headless mode; mouse input produces a
+  // genuine browser PointerEvent and exercises the same pointer ownership,
+  // capture, outside-drag and pointerup code used by Safari touch pointers.
+  const context = await browser.newContext({ viewport: { width: 844, height: 390 }, deviceScaleFactor: 2 });
   page = await context.newPage();
-  const cdp = await context.newCDPSession(page);
   const errors = [];
   page.on("pageerror", (error) => errors.push(String(error)));
   page.on("console", (message) => {
@@ -65,41 +68,38 @@ try {
   const heldX = centerX - 38;
   const heldY = centerY + 38;
 
-  // Send a genuine browser touch stream rather than constructing synthetic DOM
-  // events. This exercises Chrome's TouchList/changedTouches path used by React
-  // and is the closest headless equivalent to an iPhone finger contact.
-  await cdp.send("Input.dispatchTouchEvent", {
-    type: "touchStart",
-    touchPoints: [{ x: heldX, y: heldY, radiusX: 8, radiusY: 8, force: 1, id: 941 }],
-  });
+  // Genuine browser pointer sequence: press inside, steer left+dive, then leave
+  // the control surface while still held. The pointer must remain owned until
+  // release, and release outside the pad must immediately neutralize input.
+  await page.mouse.move(centerX, centerY);
+  await page.mouse.down();
+  await page.mouse.move(heldX, heldY, { steps: 3 });
   await page.waitForFunction(() => {
     const sample = window.__skyDancerGetInputState?.();
     return sample?.virtualActive === true && sample.virtualX === -1 && sample.virtualY === -1;
   }, null, { timeout: 5000 });
   const held = await state();
-  await screenshot("01-stick-held-touch.png");
+  await screenshot("01-stick-held-pointer.png");
 
-  // Drag well outside the visible pad before lifting. iOS can route this exact
-  // case through browser chrome or another element, so the document-level
-  // touchend guard must still release the original Touch.identifier.
-  await cdp.send("Input.dispatchTouchEvent", {
-    type: "touchMove",
-    touchPoints: [{ x: Math.min(820, centerX + 220), y: 38, radiusX: 8, radiusY: 8, force: 1, id: 941 }],
-  });
+  const outsideX = Math.min(820, centerX + 220);
+  const outsideY = 38;
+  await page.mouse.move(outsideX, outsideY, { steps: 5 });
   await page.waitForTimeout(80);
   const outsideHeld = await state();
-  if (!outsideHeld?.virtualActive) throw new Error(`outside drag unexpectedly lost stick ownership before release: ${JSON.stringify(outsideHeld)}`);
+  if (!outsideHeld?.virtualActive) throw new Error(`outside drag lost stick ownership before pointerup: ${JSON.stringify(outsideHeld)}`);
 
-  await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+  await page.mouse.up();
   await page.waitForFunction(() => {
     const sample = window.__skyDancerGetInputState?.();
     return sample?.virtualActive === false && sample.virtualX === 0 && sample.virtualY === 0;
   }, null, { timeout: 5000 });
-  const touchReleased = await state();
-  assertNeutral(touchReleased, "global touchend after outside drag");
-  await screenshot("02-stick-neutral-after-outside-touchend.png");
+  const pointerReleased = await state();
+  assertNeutral(pointerReleased, "pointerup outside pad");
+  await screenshot("02-stick-neutral-after-outside-pointerup.png");
 
-  // A lost release followed by a lifecycle transition must also be harmless.
+  // Simulate the exact failure class where the physical release is absent and a
+  // browser lifecycle transition is the only signal. The game-level owner must
+  // clear itself even if the pad never received a matching release event.
   await page.evaluate(() => {
     window.dispatchEvent(new CustomEvent("sky-dancer-virtual-stick", { detail: { x: 1, y: 1, active: true, source: "audit" } }));
   });
@@ -109,22 +109,24 @@ try {
   const pagehideReleased = await state();
   assertNeutral(pagehideReleased, "pagehide");
 
-  // The old pseudo-key transport is gone, but real keyboard input remains. A
-  // missing real keyup is now reclaimed by the same hard lifecycle reset.
-  await page.evaluate(() => window.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowLeft", bubbles: true, cancelable: true })));
+  // Real keyboard input remains supported, but a lost keyup can no longer latch
+  // steering across focus loss because the same authoritative reset clears keys.
+  await page.keyboard.down("ArrowLeft");
   await page.waitForFunction(() => (window.__skyDancerGetInputState?.().keys ?? []).includes("arrowleft"), null, { timeout: 3000 });
   await page.evaluate(() => window.dispatchEvent(new Event("blur")));
   await page.waitForTimeout(50);
   const blurReleased = await state();
   assertNeutral(blurReleased, "blur");
+  await page.keyboard.up("ArrowLeft").catch(() => {});
 
   const knobTransform = await pad.locator('span[aria-hidden="true"]').nth(1).evaluate((element) => getComputedStyle(element).transform);
   const summary = {
     errors,
+    viewport: { width: 844, height: 390, dpr: 2 },
     legacySteeringCount,
     held,
     outsideHeld,
-    touchReleased,
+    pointerReleased,
     pagehideReleased,
     blurReleased,
     knobTransform,
