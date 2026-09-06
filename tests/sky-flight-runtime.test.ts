@@ -2,7 +2,12 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import { CartArenaSession } from "../src/cart/CartArenaSession";
-import { enableCartTurboHunt } from "../src/cart/CartRoguePhase67TurboHunt";
+import {
+  enableCartTurboHunt,
+  getCartTurboHuntSnapshot,
+  prepareCartTurboHuntExternalEnemyRespawn,
+  reportCartTurboHuntEnemyDefeat,
+} from "../src/cart/CartRoguePhase67TurboHunt";
 import {
   CART_TURBO_HUNT_FIELD,
   CART_TURBO_HUNT_WORLD_DEPTH,
@@ -136,6 +141,26 @@ test("aircraft crosses a Hunt seam without wall sliding or teleporting", () => {
   const snapshot = session.snapshot();
   assert.ok(snapshot.x > eastEdge, `expected continuous eastbound coordinate, got ${snapshot.x}`);
   assert.equal(snapshot.wallSliding, false);
+});
+
+test("externally recycled Hunt aircraft score each real defeat exactly once", () => {
+  const session = new CartArenaSession();
+  enableCartTurboHunt(session);
+  const target = session.enemies.find((candidate) => candidate.alive && candidate.kind !== "boss");
+  assert.ok(target);
+
+  target.alive = false;
+  assert.equal(reportCartTurboHuntEnemyDefeat(session, target.id), true);
+  const firstKills = getCartTurboHuntSnapshot(session)?.huntKills ?? -1;
+  assert.equal(firstKills, 1);
+  assert.equal(reportCartTurboHuntEnemyDefeat(session, target.id), false);
+
+  target.hp = target.maxHp;
+  target.alive = true;
+  prepareCartTurboHuntExternalEnemyRespawn(session, target.id);
+  target.alive = false;
+  assert.equal(reportCartTurboHuntEnemyDefeat(session, target.id), true);
+  assert.equal(getCartTurboHuntSnapshot(session)?.huntKills, firstKills + 1);
 });
 
 test("stage reinforcement targets scale gradually and cap", () => {

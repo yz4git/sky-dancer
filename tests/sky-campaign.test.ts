@@ -6,6 +6,15 @@ import {
   gradeSkyDancerMissionV49,
 } from "../src/sky/SkyDancerCampaignV49";
 import { skyDancerCampaignBossHpV49 } from "../src/sky/SkyDancerCampaignPacingV49";
+import { skyDancerCampaignOwnsEnemyShapeForMode } from "../src/sky/SkyDancerCombatChoreographyV46";
+
+test("campaign enemy shaping never owns Turbo Hunt or SKY RAID waves", () => {
+  assert.equal(skyDancerCampaignOwnsEnemyShapeForMode("arcade-run"), true);
+  assert.equal(skyDancerCampaignOwnsEnemyShapeForMode("stage-practice"), true);
+  assert.equal(skyDancerCampaignOwnsEnemyShapeForMode("turbo-hunt"), false);
+  assert.equal(skyDancerCampaignOwnsEnemyShapeForMode("sky-raid"), false);
+  assert.equal(skyDancerCampaignOwnsEnemyShapeForMode(undefined), false);
+});
 
 test("campaign keeps six distinct compact arcade sorties", () => {
   assert.equal(SKY_DANCER_CAMPAIGN_MISSIONS_V49.length, 6);

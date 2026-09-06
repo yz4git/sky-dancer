@@ -5,6 +5,7 @@ import {
   CART_TURBO_HUNT_SNAPSHOT_EVENT,
   getCartTurboHuntSnapshot,
   isCartTurboHuntEnabled,
+  prepareCartTurboHuntExternalEnemyRespawn,
   setCartTurboHuntExternalProgressionEnabled,
   type CartTurboHuntSnapshot,
 } from "../cart/CartRoguePhase67TurboHunt";
@@ -48,6 +49,7 @@ interface StageCycleState {
   nonBossTemplates: CartEnemyState[];
   bossTemplate: CartEnemyState | null;
   lastAliveNonBoss: Set<string>;
+  lastHuntKills: number;
 }
 
 const PATCHED_KEY = "__skyDancerStageCycleInstalled__";
@@ -117,6 +119,7 @@ function stateFor(session: StageSession): StageCycleState {
     nonBossTemplates: [],
     bossTemplate: null,
     lastAliveNonBoss: new Set<string>(),
+    lastHuntKills: 0,
   };
   stateBySession.set(key, created);
   return created;
@@ -170,7 +173,7 @@ function spawnFromTemplate(session: StageSession, state: StageCycleState, templa
   const distance = slot.distance;
   const hpScale = 1 + Math.min(0.55, Math.max(0, state.stage - 1) * 0.055);
   const maxHp = Math.max(1, Math.round(template.maxHp * hpScale));
-  return {
+  const spawned: CartEnemyState = {
     ...template,
     x: session.car.position.x + Math.sin(angle) * distance,
     z: session.car.position.z + Math.cos(angle) * distance,
@@ -187,6 +190,8 @@ function spawnFromTemplate(session: StageSession, state: StageCycleState, templa
     maxArmorSegments: template.kind === "heavy" ? template.maxArmorSegments : undefined,
     weakPointExposed: template.kind === "heavy" ? template.weakPointExposed : undefined,
   };
+  prepareCartTurboHuntExternalEnemyRespawn(session as unknown as CartArenaSession, spawned.id);
+  return spawned;
 }
 
 function chooseTemplate(session: StageSession, state: StageCycleState): CartEnemyState | null {
@@ -259,6 +264,7 @@ function initializeStageCycle(session: StageSession, state: StageCycleState): vo
   resetBossToDormant(session, state);
   fillReinforcements(session, state);
   state.lastAliveNonBoss = new Set(liveNonBoss(session).map((enemy) => enemy.id));
+  state.lastHuntKills = getCartTurboHuntSnapshot(session as unknown as CartArenaSession)?.huntKills ?? 0;
   state.bossWasAlive = Boolean(bossEnemy(session)?.alive);
   setReward(session, `STAGE ${state.stage} · ENGAGE`, 1.8);
 }
@@ -321,6 +327,9 @@ function publishStageHud(session: StageSession, state: StageCycleState): void {
   if (typeof window === "undefined") return;
 
   window.dispatchEvent(new CustomEvent<SkyDancerStageCycleSnapshot>(SKY_DANCER_STAGE_CYCLE_EVENT, { detail: stage }));
+  if (navigator.webdriver) {
+    (window as unknown as Record<string, unknown>).__skyDancerGetStageCycle = () => ({ ...latestStageSnapshot });
+  }
   if (!base) return;
 
   let label: string;
@@ -425,11 +434,10 @@ export function installSkyDancerStageCycle(): void {
     state.stageElapsed += delta;
     this.obstacles.splice(0);
 
-    const aliveAfterOriginal = new Set(liveNonBoss(this).map((enemy) => enemy.id));
-    let newKills = 0;
-    for (const id of state.lastAliveNonBoss) {
-      if (!aliveAfterOriginal.has(id)) newKills += 1;
-    }
+    const huntAfterStep = getCartTurboHuntSnapshot(concrete);
+    const observedHuntKills = huntAfterStep?.huntKills ?? state.lastHuntKills;
+    const newKills = Math.max(0, observedHuntKills - state.lastHuntKills);
+    state.lastHuntKills = observedHuntKills;
     if (newKills > 0 && !state.bossActive && state.clearTimer <= 0) {
       state.stageKills += newKills;
     }

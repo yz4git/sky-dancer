@@ -92,8 +92,13 @@ export const SKY_DANCER_CAMPAIGN_EVENT_V49 = "sky-dancer-campaign-v49";
 export const SKY_DANCER_FLOW_MAX_V46 = 100;
 export const SKY_DANCER_CHOREOGRAPHY_MAX_ACTIVE_THREATS_V46 = 5;
 
+export function skyDancerCampaignOwnsEnemyShapeForMode(mode: string | undefined): boolean {
+  return mode === "arcade-run" || mode === "stage-practice";
+}
+
 function skyDancerCampaignOwnsEnemyShapeV23(): boolean {
-  return typeof document === "undefined" || document.documentElement.dataset.skyDancerMode !== "sky-raid";
+  const mode = typeof document === "undefined" ? undefined : document.documentElement.dataset.skyDancerMode;
+  return skyDancerCampaignOwnsEnemyShapeForMode(mode);
 }
 
 function clamp(value: number, min: number, max: number): number {
@@ -420,8 +425,9 @@ export function installSkyDancerCombatChoreographyV46(): void {
     const snapshot = this.snapshot();
     updateFlowAndAccuracy(concrete, state, delta, snapshot);
     const mission = getSkyDancerMissionV49(stage.stage);
-    // Campaign choreography owns enemy archetype conversion in campaign mode.
-    // SKY RAID has its own V23 Act doctrine and must remain the final roster owner.
+    // Campaign choreography may shape only the dedicated campaign modes.
+    // Turbo Hunt StageCycle and SKY RAID Acts are authoritative for their own
+    // enemy population; legacy campaign retirement must never kill those waves.
     if (mission && skyDancerCampaignOwnsEnemyShapeV23()) {
       const { beat } = getSkyDancerMissionBeatV49(mission, Math.min(stage.stageKills, mission.killTarget));
       shapeFormation(this, stage, beat, mission.activeThreatTarget, state);

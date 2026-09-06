@@ -104,6 +104,22 @@ const diagnostics = {
   pageErrors,
   samples,
 };
+const stageSamples = samples.filter((sample) => sample.stage && Number.isFinite(sample.stage.stageKills));
+let largestKillJump = 0;
+for (let index = 1; index < stageSamples.length; index += 1) {
+  const previous = stageSamples[index - 1];
+  const current = stageSamples[index];
+  if (current.stage.stage === previous.stage.stage) {
+    largestKillJump = Math.max(largestKillJump, current.stage.stageKills - previous.stage.stageKills);
+  }
+}
+diagnostics.largestKillJump = largestKillJump;
 await writeFile(`${outputDir}/diagnostics.json`, JSON.stringify(diagnostics, null, 2));
 await browser.close();
 if (pageErrors.length) throw new Error(`page errors: ${pageErrors.join(" | ")}`);
+if (/CHOOSE YOUR BUILD/i.test(finalText)) throw new Error("legacy perk overlay returned during Turbo Hunt");
+if (largestKillJump > 10) throw new Error(`implausible StageCycle kill jump: ${largestKillJump}`);
+const preFloor = stageSamples.filter((sample) => sample.elapsed < 82);
+if (preFloor.some((sample) => sample.stage.stage !== 1 || sample.stage.phase !== "reinforcements")) {
+  throw new Error("Stage 1 advanced before the 84-second combat floor");
+}

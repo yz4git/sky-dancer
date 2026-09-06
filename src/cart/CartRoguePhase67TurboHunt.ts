@@ -705,6 +705,21 @@ export function reportCartTurboHuntEnemyDefeat(session: CartArenaSession, enemyI
   return collectEnemyDefeat(raw, state, enemy);
 }
 
+/**
+ * StageCycle may recycle an authored aircraft id by replacing its object rather
+ * than asking the legacy Hunt pool to respawn it. Re-arm the Hunt defeat ledger
+ * so the next real destruction of that id is counted exactly once.
+ */
+export function prepareCartTurboHuntExternalEnemyRespawn(session: CartArenaSession, enemyId: string): void {
+  const raw = session as unknown as MutableHuntSession;
+  const state = stateFor(raw);
+  if (!state.enabled) return;
+  state.accountedDeaths.delete(enemyId);
+  state.enemyRespawn.delete(enemyId);
+  state.spentBombers.delete(enemyId);
+  state.previousAlive.set(enemyId, true);
+}
+
 function handleEnemyTransitions(session: MutableHuntSession, state: TurboHuntState): void {
   for (const enemy of session.enemies) {
     const wasAlive = state.previousAlive.get(enemy.id) ?? false;
