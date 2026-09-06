@@ -16,7 +16,6 @@ import {
   skyDancerArcadeRankForScore,
 } from "../src/sky/arcade/SkyDancerArcadeRuntime";
 import { arcadeCoursePose } from "../src/sky/arcade/SkyDancerArcadeCoursePath";
-import { SkyDancerArcadePresentationDirector } from "../src/sky/arcade/SkyDancerArcadePresentationDirector";
 import { skyDancerArcadeV11StageMedalGoals } from "../src/sky/arcade/SkyDancerArcadeV11Scoring";
 import { skyDancerArcadeV12CombatPlan } from "../src/sky/arcade/SkyDancerArcadeV12Director";
 import { skyDancerArcadeV121EncounterGrammar } from "../src/sky/arcade/SkyDancerArcadeV121EncounterGrammar";
