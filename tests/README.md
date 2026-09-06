@@ -9,3 +9,5 @@ Do not create chronological `sky-vXX.test.ts` regression files. When a new pass 
 Source-text assertions are reserved for small architecture/safety contracts that are difficult to observe in Node, such as iPhone pointer-release recovery or legacy Turbo input isolation. Do not use them to freeze private class names, inheritance order, exact rendering object names, or visual tuning literals.
 
 Arcade runtime rule: do not inspect production TSX/CSS/source files with regex to prove visual implementation details. Test exported math/runtime behavior in Node and leave visual composition, object naming, CSS placement, and rendering ownership to the WebGL/browser audit workflows.
+
+SKY RAID source-text coverage is limited to mode ownership/bootstrap and iPhone input-release safety. Combat tuning, pacing, scoring, flight identity, density and presentation must be covered through exported rules/runtime behavior or browser/WebGL audits.

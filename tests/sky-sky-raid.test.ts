@@ -84,23 +84,6 @@ test("SKY RAID spawn priority rotates pooled aircraft classes by act", () => {
   assert.ok(skyDancerSkyRaidEnemySpawnPriority("prism-citadel", "heavy", 0) > skyDancerSkyRaidEnemySpawnPriority("prism-citadel", "standard", 0));
 });
 
-test("SKY RAID wires enemy packages into Hunt spawning, flight AI and missile envelopes", () => {
-  const raidSource = readFileSync(new URL("../src/sky/SkyDancerSkyRaid.ts", import.meta.url), "utf8");
-  const huntSource = readFileSync(new URL("../src/cart/CartRoguePhase67TurboHunt.ts", import.meta.url), "utf8");
-  const flightSource = readFileSync(new URL("../src/sky/SkyDancerFlightCombat.ts", import.meta.url), "utf8");
-  const auditSource = readFileSync(new URL("../scripts/webgl-sky-raid-camera-edge-v17.mjs", import.meta.url), "utf8");
-  assert.match(raidSource, /setCartTurboHuntSpawnPreference/);
-  assert.match(raidSource, /setSkyDancerSkyRaidEnemyDoctrineElapsed/);
-  assert.match(raidSource, /skyRaidEnemyPackage/);
-  assert.match(huntSource, /externalSpawnPreference/);
-  assert.match(huntSource, /elapsedSeconds: state\.elapsed/);
-  assert.match(flightSource, /skyRaidAttackHeading/);
-  assert.match(flightSource, /doctrine\?\.missileMinRange/);
-  assert.match(flightSource, /doctrine\?\.missileMaxRange/);
-  assert.match(flightSource, /baseSpec\.turnRate \* doctrine\.missileTurnScale/);
-  assert.match(auditSource, /CITY INTERCEPTORS/);
-  assert.match(auditSource, /enemyClasses/);
-});
 
 test("SKY RAID publishes mode ownership before the first inherited population step", () => {
   const shellSource = readFileSync(new URL("../app/CartRogueGamePhase13.tsx", import.meta.url), "utf8");
@@ -120,70 +103,6 @@ test("SKY RAID bootstraps Hunt gameplay without rebuilding the legacy Hunt world
   assert.doesNotMatch(raidSource, /if \(!isSkyRaidMode\(\)\) previousBuildWorld\.call\(this\)/);
 });
 
-test("SKY RAID keeps the full roster pool while capping live phone density by act", () => {
-  assert.deepEqual(SKY_DANCER_SKY_RAID_ACTS.map((act) => skyDancerSkyRaidEnemyDoctrine(act.id).activeTargetCount), [6, 6, 7, 7, 7]);
-  const raidSource = readFileSync(new URL("../src/sky/SkyDancerSkyRaid.ts", import.meta.url), "utf8");
-  const huntSource = readFileSync(new URL("../src/cart/CartRoguePhase67TurboHunt.ts", import.meta.url), "utf8");
-  assert.match(raidSource, /setCartTurboHuntActiveTargetCountResolver/);
-  assert.match(raidSource, /activeTargetCount/);
-  assert.match(huntSource, /function resolvedActiveTargetCount\(state: TurboHuntState\)/);
-  assert.match(huntSource, /const desired = resolvedActiveTargetCount\(state\)/);
-});
-
-test("SKY RAID bypasses campaign StageCycle population truncation", () => {
-  const source = readFileSync(new URL("../src/sky/SkyDancerStageCycle.ts", import.meta.url), "utf8");
-  assert.match(source, /dataset\.skyDancerMode === "sky-raid"/);
-  assert.match(source, /previous\.call\(this, input, fixedDelta\);\n      return;/);
-  assert.match(source, /session\.enemies\.splice\(0, session\.enemies\.length, \.\.\.initialActive, \.\.\.dormantBoss\)/);
-});
-
-test("SKY RAID owns enemy archetypes instead of campaign choreography", () => {
-  const source = readFileSync(new URL("../src/sky/SkyDancerCombatChoreographyV46.ts", import.meta.url), "utf8");
-  assert.match(source, /skyDancerCampaignOwnsEnemyShapeV23/);
-  assert.match(source, /dataset\.skyDancerMode !== "sky-raid"/);
-  assert.match(source, /if \(mission && skyDancerCampaignOwnsEnemyShapeV23\(\)\)/);
-});
-
-test("SKY RAID V33 preserves surviving aircraft across Act boundaries instead of reseeding them", () => {
-  const raidSource = readFileSync(new URL("../src/sky/SkyDancerSkyRaid.ts", import.meta.url), "utf8");
-  assert.match(raidSource, /enemyRosterActIndex: -1/);
-  assert.match(raidSource, /state\.enemyRosterActIndex !== activeAct\.index/);
-  assert.match(raidSource, /Preserve surviving aircraft across Act boundaries/);
-  assert.doesNotMatch(raidSource, /reseedCartTurboHuntActiveTargets\(typedSession\)/);
-  assert.match(raidSource, /stageSkyRaidNaturalEnemyEntries\(typedSession\)/);
-});
-
-test("SKY RAID free-flight chain window supports a bank, reacquire and relock handoff", () => {
-  assert.ok(SKY_DANCER_SKY_RAID_CHAIN_GRACE_SECONDS >= 5);
-  assert.ok(SKY_DANCER_SKY_RAID_CHAIN_GRACE_SECONDS < 7);
-  const raidSource = readFileSync(new URL("../src/sky/SkyDancerSkyRaid.ts", import.meta.url), "utf8");
-  assert.match(raidSource, /state\.chainTimer = SKY_DANCER_SKY_RAID_CHAIN_GRACE_SECONDS/);
-});
-
-test("SKY RAID flagship cue is a short entrance card instead of a persistent combat banner", () => {
-  const trigger = SKY_DANCER_SKY_RAID_BOSS_TRIGGER_SECONDS;
-  assert.equal(skyDancerSkyRaidBossCueActive(trigger - 0.01, true), false);
-  assert.equal(skyDancerSkyRaidBossCueActive(trigger, true), true);
-  assert.equal(skyDancerSkyRaidBossCueActive(trigger + SKY_DANCER_SKY_RAID_BOSS_CUE_SECONDS - 0.01, true), true);
-  assert.equal(skyDancerSkyRaidBossCueActive(trigger + SKY_DANCER_SKY_RAID_BOSS_CUE_SECONDS, true), false);
-  assert.equal(skyDancerSkyRaidBossCueActive(trigger, false), false);
-  const overlaySource = readFileSync(new URL("../app/SkyDancerSkyRaidOverlay.tsx", import.meta.url), "utf8");
-  assert.match(overlaySource, /bossCueVisible = skyDancerSkyRaidBossCueActive/);
-  assert.match(overlaySource, /\{bossCueVisible && !snapshot\.clear && \(/);
-  assert.doesNotMatch(overlaySource, /\{snapshot\.bossForced && !snapshot\.clear && \(/);
-});
-
-test("SKY RAID phone target reticle keeps distant emphasis below the combat-lane clutter limit", () => {
-  const hudSource = readFileSync(new URL("../app/SkyDancerHudV45.tsx", import.meta.url), "utf8");
-  assert.match(hudSource, /const reticleScale = clamp\(\(decision\?\.vulnerable \? 1\.04 : 1\) \+ rangeEmphasis, 1, 1\.12\)/);
-});
-
-test("SKY RAID Turbo release tail is frame-latched so a slow render cannot skip the cue", () => {
-  const raidSource = readFileSync(new URL("../src/sky/SkyDancerSkyRaid.ts", import.meta.url), "utf8");
-  assert.match(raidSource, /turboState\.releaseSerial > visual\.lastTurboReleaseSerial/);
-  assert.match(raidSource, /visual\.turboReleaseVisual = 1/);
-  assert.match(raidSource, /Math\.min\(delta, 0\.05\) \/ 1\.45/);
-});
 
 test("SKY RAID scoring rewards chain, Turbo and formation rush", () => {
   const base = skyDancerSkyRaidKillScore(1, false, false);
@@ -215,13 +134,6 @@ test("SKY RAID routes every act into a distinct mature background owner", () => 
 });
 
 
-test("SKY RAID maps every act to a visibly distinct surface world", () => {
-  assert.deepEqual(
-    SKY_DANCER_SKY_RAID_ACTS.map((act) => skyDancerSkyRaidWorldStyle(act.id)),
-    ["city", "mountains", "clouds", "storm", "citadel"],
-  );
-});
-
 test("SKY RAID missile defeats are counted once even between Hunt fixed steps", () => {
   const session = new CartArenaSession();
   enableCartTurboHunt(session);
@@ -238,239 +150,7 @@ test("SKY RAID missile defeats are counted once even between Hunt fixed steps", 
 });
 
 
-test("SKY RAID valid missile locks keep enough pursuit authority for phone play", () => {
-  const weaponSource = readFileSync(new URL("../src/sky/SkyDancerPlayerWeapons.ts", import.meta.url), "utf8");
-  const hudSource = readFileSync(new URL("../app/SkyDancerHudV45.tsx", import.meta.url), "utf8");
-  assert.match(weaponSource, /life: 5\.2/);
-  assert.match(weaponSource, /turnRate: target \? 2\.72 : 0/);
-  assert.match(weaponSource, /maxSpeed: 46/);
-  assert.match(weaponSource, /ageSeconds \/ 0\.26, 0\.46, 1/);
-  assert.match(weaponSource, /enemy\.id === missile\.targetEnemyId \? 0\.72 : 0\.52/);
-  assert.match(hudSource, /width: 42px/);
-  assert.match(hudSource, /max-width: min\(31vw, 238px\)/);
-  assert.match(hudSource, /lockTopVh = clamp\(43 \+ reticleY \+ 8\.5, 37, 60\)/);
-});
-
-
-test("SKY RAID kill confirmation is carried by authoritative snapshot state", () => {
-  const raidSource = readFileSync(new URL("../src/sky/SkyDancerSkyRaid.ts", import.meta.url), "utf8");
-  const overlaySource = readFileSync(new URL("../app/SkyDancerSkyRaidOverlay.tsx", import.meta.url), "utf8");
-  assert.match(raidSource, /killCueSerial: number/);
-  assert.match(raidSource, /killCueSecondsRemaining: number/);
-  assert.match(raidSource, /state\.killCueSerial \+= killDelta/);
-  assert.match(raidSource, /state\.killCueSecondsRemaining = 1\.18/);
-  assert.match(overlaySource, /snapshot\.killCueSecondsRemaining > 0/);
-  assert.match(overlaySource, /key=\{snapshot\.killCueSerial\}/);
-  assert.doesNotMatch(overlaySource, /previousSnapshotRef/);
-});
-
-
-test("SKY RAID phone feedback stays visible without blocking the combat lane", () => {
-  const overlaySource = readFileSync(new URL("../app/SkyDancerSkyRaidOverlay.tsx", import.meta.url), "utf8");
-  const auditSource = readFileSync(new URL("../scripts/webgl-sky-raid-camera-edge-v17.mjs", import.meta.url), "utf8");
-  const fxSource = readFileSync(new URL("../src/sky/SkyDancerAirCombatFxV18.ts", import.meta.url), "utf8");
-  const hudSource = readFileSync(new URL("../app/SkyDancerHudV45.tsx", import.meta.url), "utf8");
-  assert.match(overlaySource, /opacity: 1 !important/);
-  assert.match(overlaySource, /max-width: min\(34vw, 250px\)/);
-  assert.match(overlaySource, /font-size: clamp\(7px, \.82vw, 9px\)/);
-  assert.match(auditSource, /cueOpacity < 0\.85/);
-  assert.match(auditSource, /target doctrine still crowds the reticle/);
-  assert.match(auditSource, /TARGET DOWN has no strong world-space impact burst/);
-  assert.match(fxSource, /sky-raid-target-down-burst-v18/);
-  assert.match(fxSource, /weapon\.lastHitDestroyed \|\| Boolean\(enemy && !enemy\.alive\)/);
-  assert.match(fxSource, /progress < 0\.08/);
-  assert.match(fxSource, /missileWarningSegments/);
-  assert.match(fxSource, /segmentArc = Math\.PI \* 0\.34/);
-  assert.match(fxSource, /new THREE\.ConeGeometry\(0\.0072, 0\.019, 3\)/);
-  assert.doesNotMatch(fxSource, /new THREE\.TorusGeometry\(0\.078, 0\.0055/);
-  assert.match(hudSource, /width: 42px/);
-  assert.match(hudSource, /lockSide \* 9\.5/);
-});
-
-test("SKY RAID V20 speed language stays peripheral and presentation-only", () => {
-  const raidSource = readFileSync(new URL("../src/sky/SkyDancerSkyRaid.ts", import.meta.url), "utf8");
-  const auditSource = readFileSync(new URL("../scripts/webgl-sky-raid-camera-edge-v17.mjs", import.meta.url), "utf8");
-  assert.match(raidSource, /const laneX = \[-13\.2, -10\.8, -8\.6, -6\.8, 6\.8, 8\.6, 10\.8, 13\.2\]/);
-  assert.match(raidSource, /speedFxIntensity = clamp\(cruiseFx \* 0\.22 \+ rushFx \* 0\.32 \+ turboFx \* 0\.72/);
-  assert.match(raidSource, /skyRaidSpeedFxPeripheralGap = 13\.6/);
-  assert.match(raidSource, /const turboState = getSkyDancerTurboState\(demo\.session\)/);
-  assert.match(raidSource, /const turboFx = turboState\.held \? 1 : turboReleaseFx/);
-  assert.doesNotMatch(raidSource, /const turboFx = base\.boostActive \? 1 : 0/);
-  assert.match(auditSource, /page\.keyboard\.down\("Space"\)/);
-  assert.match(auditSource, /turboHeld === true/);
-  assert.match(auditSource, /06-turbo-release-polish\.png/);
-  assert.match(auditSource, /Turbo release speed tail is missing/);
-  assert.match(raidSource, /const cruiseFov = clamp\(\(speed - 18\) \* 0\.10, 0, 2\.2\)/);
-  assert.match(raidSource, /skyRaidCameraCruiseFov = cruiseFov/);
-  assert.match(auditSource, /05-turbo-speed-polish\.png/);
-  assert.match(auditSource, /Turbo speed streaks invaded the central combat lane/);
-});
-
-
-test("SKY RAID keeps fine aim direct and softly compresses large phone-stick steering", () => {
-  const raidSource = readFileSync(new URL("../src/sky/SkyDancerSkyRaid.ts", import.meta.url), "utf8");
-  assert.match(raidSource, /SKY_DANCER_SKY_RAID_MAX_STEER_INPUT = 0\.46/);
-  assert.match(raidSource, /SKY_DANCER_SKY_RAID_STEER_SOFT_ZONE = 0\.30/);
-  assert.match(raidSource, /Math\.pow\(1 - normalized, 2\.2\)/);
-  assert.match(raidSource, /return Math\.sign\(safe\) \* compressed/);
-  assert.match(raidSource, /steer: skyDancerSkyRaidSteerInput\(input\.steer\)/);
-});
-
-test("SKY RAID V25 gives each enemy class a render-only role silhouette and telegraphs the incoming package", () => {
-  const raidSource = readFileSync(new URL("../src/sky/SkyDancerSkyRaid.ts", import.meta.url), "utf8");
-  const overlaySource = readFileSync(new URL("../app/SkyDancerSkyRaidOverlay.tsx", import.meta.url), "utf8");
-  const cssSource = readFileSync(new URL("../app/SkyDancerSkyRaidOverlay.module.css", import.meta.url), "utf8");
-  assert.match(raidSource, /SKY_RAID_ROLE_KIT_NAME/);
-  assert.match(raidSource, /applySkyRaidEnemyRoleReadability\(this, snapshot\)/);
-  assert.match(raidSource, /__skyRaidGetRoleReadability/);
-  for (const signature of ["dorsal-spine", "swept-fangs", "twin-tail", "wide-canards", "twin-pods", "armor-shoulders"]) {
-    assert.match(raidSource, new RegExp(signature));
-  }
-  assert.match(overlaySource, /skyDancerSkyRaidEnemyDoctrine\(snapshot\.actId\)/);
-  assert.match(overlaySource, /data-sd-enemy-package-cue="true"/);
-  assert.match(overlaySource, /ENEMY PACKAGE/);
-  assert.match(cssSource, /\.packageLine/);
-});
-
-
-test("SKY RAID V26 carries threat identity from airframe trail through lock HUD and missile warning", () => {
-  const raidSource = readFileSync(new URL("../src/sky/SkyDancerSkyRaid.ts", import.meta.url), "utf8");
-  const hudSource = readFileSync(new URL("../app/SkyDancerHudV45.tsx", import.meta.url), "utf8");
-  const flightSource = readFileSync(new URL("../src/sky/SkyDancerFlightCombat.ts", import.meta.url), "utf8");
-  const polishSource = readFileSync(new URL("../app/SkyDancerCombatPolish.tsx", import.meta.url), "utf8");
-  assert.match(raidSource, /SKY_RAID_ROLE_TRAIL_NAME/);
-  for (const signature of ["orange-lance", "cyan-twin", "violet-wide", "gold-twin", "red-thrust", "cyan-short"]) {
-    assert.match(raidSource, new RegExp(signature));
-  }
-  assert.match(raidSource, /trailSignature/);
-  assert.match(hudSource, /FAST DIVE/);
-  assert.match(hudSource, /LONG RANGE/);
-  assert.match(hudSource, /ARMORED/);
-  assert.match(hudSource, /data-role-cue=/);
-  assert.match(flightSource, /SkyDancerMissileSourceClass/);
-  assert.match(flightSource, /sourceClass: missileSourceClass/);
-  assert.match(polishSource, /BOMBER SALVO/);
-  assert.match(polishSource, /HEAVY MISSILE/);
-  assert.match(polishSource, /data-source-class=/);
-});
-
-
-test("SKY RAID V27 exposes real pre-attack timing without changing launch rules", () => {
-  const raidSource = readFileSync(new URL("../src/sky/SkyDancerSkyRaid.ts", import.meta.url), "utf8");
-  const flightSource = readFileSync(new URL("../src/sky/SkyDancerFlightCombat.ts", import.meta.url), "utf8");
-  const hudSource = readFileSync(new URL("../app/SkyDancerHudV45.tsx", import.meta.url), "utf8");
-  assert.match(flightSource, /SKY_DANCER_ATTACK_TELEGRAPH_EVENT/);
-  assert.match(flightSource, /striker-dive/);
-  assert.match(flightSource, /bomber-salvo/);
-  assert.match(flightSource, /heavy-charge/);
-  assert.match(flightSource, /memory\.cooldown > chargeWindow/);
-  assert.doesNotMatch(flightSource, /memory\.cooldown <= 0\.04/);
-  assert.doesNotMatch(flightSource, /doctrine\.missileAimTolerance \+ 0\.34/);
-  assert.match(flightSource, /tryLaunchMissiles\(session, state\)/);
-  assert.match(flightSource, /tryLaunchMissiles\(session, state\)/);
-  assert.match(raidSource, /SKY_RAID_ATTACK_TELEGRAPH_NAME/);
-  assert.match(raidSource, /applySkyRaidAttackTelegraphVisual/);
-  assert.match(raidSource, /attackCue/);
-  assert.match(hudSource, /DIVE BREAK/);
-  assert.match(hudSource, /SALVO CHARGE/);
-  assert.match(hudSource, /HEAVY CHARGE/);
-  assert.match(hudSource, /data-threat-cue=/);
-});
-
-
-test("SKY RAID V33 gives the first two stages a full two-minute combat arc", () => {
-  assert.equal(SKY_DANCER_SKY_RAID_ACT_SECONDS, 90);
-  assert.equal(SKY_DANCER_SKY_RAID_OPENING_ACT_SECONDS, 120);
-  assert.equal(SKY_DANCER_SKY_RAID_OPENING_BREAK_MIN_SECONDS, 0);
-  assert.equal(SKY_DANCER_SKY_RAID_TARGET_SECONDS, 510);
-  assert.deepEqual(SKY_DANCER_SKY_RAID_ACTS.map((act) => act.endSeconds - act.startSeconds), [120, 120, 90, 90, 90]);
-  assert.deepEqual(SKY_DANCER_SKY_RAID_ACTS.map((act) => act.killTarget), [20, 22, 18, 20, 20]);
-  assert.equal(SKY_DANCER_SKY_RAID_BOSS_TRIGGER_SECONDS, 450);
-  for (const second of [8, 31, 53, 75, 97]) assert.equal(skyDancerSkyRaidRushActive(second, SKY_DANCER_SKY_RAID_ACTS[0]), true);
-  for (const second of [20, 44, 66, 88, 108]) assert.equal(skyDancerSkyRaidRushActive(second, SKY_DANCER_SKY_RAID_ACTS[0]), false);
-  assert.equal(skyDancerSkyRaidActBreakEligible(12, SKY_DANCER_SKY_RAID_ACTS[0], 19), false);
-  assert.equal(skyDancerSkyRaidActBreakEligible(12, SKY_DANCER_SKY_RAID_ACTS[0], 20), true);
-  assert.equal(skyDancerSkyRaidActBreakEligible(132, SKY_DANCER_SKY_RAID_ACTS[1], 21), false);
-  assert.equal(skyDancerSkyRaidActBreakEligible(132, SKY_DANCER_SKY_RAID_ACTS[1], 22), true);
-  const raidSource = readFileSync(new URL("../src/sky/SkyDancerSkyRaid.ts", import.meta.url), "utf8");
-  const overlaySource = readFileSync(new URL("../app/SkyDancerSkyRaidOverlay.tsx", import.meta.url), "utf8");
-  assert.match(raidSource, /beatSeconds = Math\.max\(1, \(act\.endSeconds - act\.startSeconds\) \/ 10\)/);
-  assert.match(raidSource, /skyDancerSkyRaidActBreakEligible\(hunt\.huntElapsedSeconds, act, state\.actKills\)/);
-  assert.match(raidSource, /setCartTurboHuntExternalProgressionEnabled\(true\)/);
-  assert.match(raidSource, /SKY_DANCER_SKY_RAID_TARGET_SECONDS - hunt\.huntElapsedSeconds/);
-  assert.match(overlaySource, /BREAK SECURED/);
-  assert.match(overlaySource, /FREE HUNT/);
-});
-
-
-test("SKY RAID V31 removes hot-path copies without reducing presentation", () => {
-  const raidSource = readFileSync(new URL("../src/sky/SkyDancerSkyRaid.ts", import.meta.url), "utf8");
-  const formationStart = raidSource.indexOf("function maintainSkyRaidEnemyPresence(");
-  const formationEnd = raidSource.indexOf("function maintainSkyRaidScreenPresence(", formationStart);
-  const formationBlock = raidSource.slice(formationStart, formationEnd);
-  const flightStart = raidSource.indexOf("function stepSkyRaidFlight(");
-  const flightEnd = raidSource.indexOf("function applySkyRaidFlightVisuals(", flightStart);
-  const flightBlock = raidSource.slice(flightStart, flightEnd);
-  const visualStart = raidSource.indexOf("function updateRaidVisuals(");
-  const visualEnd = raidSource.indexOf("export function installSkyDancerSkyRaid()", visualStart);
-  const visualBlock = raidSource.slice(visualStart, visualEnd);
-  const screenStart = raidSource.indexOf("function maintainSkyRaidScreenPresence(");
-  const screenEnd = raidSource.indexOf("function publishSkyRaidWorldStyle(", screenStart);
-  const screenBlock = raidSource.slice(screenStart, screenEnd);
-
-  assert.doesNotMatch(formationBlock, /session\.snapshot\(\)/);
-  assert.doesNotMatch(flightBlock, /session\.snapshot\(\)/);
-  assert.doesNotMatch(visualBlock, /session\.snapshot\(\)/);
-  assert.match(raidSource, /raidInputBySession/);
-  assert.match(raidSource, /attackTelegraphs\.clear\(\)/);
-  assert.match(raidSource, /raidRoleKitByEnemyGroup/);
-  assert.match(raidSource, /raidAttackTelegraphObjectsByKit/);
-  assert.match(screenBlock, /projection: new THREE\.Vector3\(\)/);
-  assert.doesNotMatch(screenBlock, /\.filter\(/);
-  assert.match(screenBlock, /visibleCount/);
-  assert.match(screenBlock, /candidateCount/);
-  assert.match(visualBlock, /for \(let index = 0; index < visual\.speedFx\.children\.length; index \+= 1\)/);
-});
-
-test("SKY RAID V32 gives phone combat controls a full touch target and one critical alert lane", () => {
-  const overlaySource = readFileSync(new URL("../app/SkyDancerSkyRaidOverlay.tsx", import.meta.url), "utf8");
-  const shotCss = readFileSync(new URL("../app/SkyDancerShotControl.module.css", import.meta.url), "utf8");
-  const shotSource = readFileSync(new URL("../app/SkyDancerShotControl.tsx", import.meta.url), "utf8");
-  assert.match(shotSource, /aria-label="Fire missile"/);
-  assert.match(shotSource, /fireWithRuntimeRetry\(\)/);
-  assert.match(shotCss, /min-width: 72px/);
-  assert.match(shotCss, /min-height: 72px/);
-  assert.match(overlaySource, /\[aria-label="Fire missile"\][\s\S]{0,180}min-width: 72px !important/);
-  assert.match(overlaySource, /data-sd-noncritical-alert="act"/);
-  assert.match(overlaySource, /data-sd-noncritical-alert="rush"/);
-  assert.match(overlaySource, /data-sd-noncritical-alert="boss"/);
-  assert.match(overlaySource, /:has\(\[aria-label="Missile warning"\]\) \[data-sd-noncritical-alert\][\s\S]{0,80}display: none !important/);
-  assert.match(overlaySource, /opacity: \.98 !important/);
-});
-
-test("SKY RAID V33 stages hidden respawns offscreen and never teleports a live aircraft into view", () => {
-  const raidSource = readFileSync(new URL("../src/sky/SkyDancerSkyRaid.ts", import.meta.url), "utf8");
-  const formationStart = raidSource.indexOf("function maintainSkyRaidEnemyPresence(");
-  const formationEnd = raidSource.indexOf("function skyRaidScreenSlotsFor(", formationStart);
-  const formationBlock = raidSource.slice(formationStart, formationEnd);
-  const screenStart = raidSource.indexOf("function maintainSkyRaidScreenPresence(");
-  const screenEnd = raidSource.indexOf("function stageSkyRaidNaturalEnemyEntries(", screenStart);
-  const screenBlock = raidSource.slice(screenStart, screenEnd);
-  const installStart = raidSource.indexOf("export function installSkyDancerSkyRaid()");
-  const installBlock = raidSource.slice(installStart);
-  assert.match(raidSource, /function stageSkyRaidNaturalEnemyEntries\(/);
-  assert.match(raidSource, /const forward = 62 \+ band \* 7/);
-  assert.match(raidSource, /const lateral = side \* \(22 \+ band \* 4\)/);
-  assert.match(raidSource, /approachSpeed = pattern\.correctionSpeed \* 1\.65/);
-  assert.match(screenBlock, /const step = Math\.min\(distance, 10 \* assistDelta\)/);
-  assert.doesNotMatch(formationBlock, /target\.x = playerX \+/);
-  assert.doesNotMatch(screenBlock, /sample\.enemy\.x = x/);
-  assert.doesNotMatch(screenBlock, /sample\.group\.position\.x = x/);
-  assert.doesNotMatch(installBlock, /reseedCartTurboHuntActiveTargets/);
-  assert.match(installBlock, /stageSkyRaidNaturalEnemyEntries\(typedSession\)/);
-});
-
-test("SKY RAID V34 gives iPhone stick input one direct owner with redundant neutral release paths", () => {
+test("SKY RAID iPhone stick input has one direct owner with redundant neutral release paths", () => {
   const padSource = readFileSync(new URL("../app/SkyDancerArcadeVirtualPad.tsx", import.meta.url), "utf8");
   const gameSource = readFileSync(new URL("../app/CartRogueGame.tsx", import.meta.url), "utf8");
   assert.doesNotMatch(padSource, /new KeyboardEvent/);
@@ -488,24 +168,6 @@ test("SKY RAID V34 gives iPhone stick input one direct owner with redundant neut
   assert.match(gameSource, /document\.addEventListener\("visibilitychange", onVisibility\)/);
   assert.match(gameSource, /usesExternalVirtualPad/);
   assert.match(gameSource, /!usesExternalVirtualPad &&/);
-});
-
-
-test("SKY RAID grades runs and scores Formation Rush mastery", () => {
-  assert.equal(SKY_DANCER_SKY_RAID_PERFECT_RUSH_KILLS, 4);
-  assert.equal(skyDancerSkyRaidRank(19_999, 5, 12, 12), "C");
-  assert.equal(skyDancerSkyRaidRank(20_000, 0, 0, 0), "B");
-  assert.equal(skyDancerSkyRaidRank(30_000, 3, 3, 0), "A");
-  assert.equal(skyDancerSkyRaidRank(40_000, 4, 8, 4), "S");
-  assert.equal(skyDancerSkyRaidRank(50_000, 5, 10, 8), "S+");
-  assert.equal(skyDancerSkyRaidRushActive(450, SKY_DANCER_SKY_RAID_ACTS[4]), false);
-  const raidSource = readFileSync(new URL("../src/sky/SkyDancerSkyRaid.ts", import.meta.url), "utf8");
-  const overlaySource = readFileSync(new URL("../app/SkyDancerSkyRaidOverlay.tsx", import.meta.url), "utf8");
-  assert.match(raidSource, /hasCombatTarget/);
-  assert.match(raidSource, /state\.perfectRushes \+= 1/);
-  assert.match(overlaySource, /FORMATION RESULT/);
-  assert.match(overlaySource, /NEW RECORD/);
-  assert.match(overlaySource, /MAX CHAIN/);
 });
 
 
@@ -529,4 +191,52 @@ test("SKY RAID escalates Titan into a supported siege without flooding the phone
   assert.equal(skyDancerSkyRaidBossSupportTargetCount(SKY_DANCER_SKY_RAID_BOSS_TRIGGER_SECONDS - 0.01, 7), 7);
   assert.equal(skyDancerSkyRaidBossSupportTargetCount(SKY_DANCER_SKY_RAID_BOSS_TRIGGER_SECONDS, 7), 8);
   assert.equal(skyDancerSkyRaidBossSupportTargetCount(SKY_DANCER_SKY_RAID_BOSS_TRIGGER_SECONDS + 20, 8), 8);
+});
+
+
+test("SKY RAID caps live phone density by act", () => {
+  assert.deepEqual(
+    SKY_DANCER_SKY_RAID_ACTS.map((act) => skyDancerSkyRaidEnemyDoctrine(act.id).activeTargetCount),
+    [6, 6, 7, 7, 7],
+  );
+});
+
+test("SKY RAID free-flight chain window supports bank, reacquire and relock", () => {
+  assert.ok(SKY_DANCER_SKY_RAID_CHAIN_GRACE_SECONDS >= 5);
+  assert.ok(SKY_DANCER_SKY_RAID_CHAIN_GRACE_SECONDS < 7);
+});
+
+test("SKY RAID flagship cue remains a bounded entrance window", () => {
+  const trigger = SKY_DANCER_SKY_RAID_BOSS_TRIGGER_SECONDS;
+  assert.equal(skyDancerSkyRaidBossCueActive(trigger - 0.01, true), false);
+  assert.equal(skyDancerSkyRaidBossCueActive(trigger, true), true);
+  assert.equal(skyDancerSkyRaidBossCueActive(trigger + SKY_DANCER_SKY_RAID_BOSS_CUE_SECONDS - 0.01, true), true);
+  assert.equal(skyDancerSkyRaidBossCueActive(trigger + SKY_DANCER_SKY_RAID_BOSS_CUE_SECONDS, true), false);
+  assert.equal(skyDancerSkyRaidBossCueActive(trigger, false), false);
+});
+
+test("SKY RAID opening acts and immediate BREAK pacing stay deterministic", () => {
+  assert.equal(SKY_DANCER_SKY_RAID_ACT_SECONDS, 90);
+  assert.equal(SKY_DANCER_SKY_RAID_OPENING_ACT_SECONDS, 120);
+  assert.equal(SKY_DANCER_SKY_RAID_OPENING_BREAK_MIN_SECONDS, 0);
+  assert.equal(SKY_DANCER_SKY_RAID_TARGET_SECONDS, 510);
+  assert.deepEqual(SKY_DANCER_SKY_RAID_ACTS.map((act) => act.endSeconds - act.startSeconds), [120, 120, 90, 90, 90]);
+  assert.deepEqual(SKY_DANCER_SKY_RAID_ACTS.map((act) => act.killTarget), [20, 22, 18, 20, 20]);
+  assert.equal(SKY_DANCER_SKY_RAID_BOSS_TRIGGER_SECONDS, 450);
+  for (const second of [8, 31, 53, 75, 97]) assert.equal(skyDancerSkyRaidRushActive(second, SKY_DANCER_SKY_RAID_ACTS[0]), true);
+  for (const second of [20, 44, 66, 88, 108]) assert.equal(skyDancerSkyRaidRushActive(second, SKY_DANCER_SKY_RAID_ACTS[0]), false);
+  assert.equal(skyDancerSkyRaidActBreakEligible(12, SKY_DANCER_SKY_RAID_ACTS[0], 19), false);
+  assert.equal(skyDancerSkyRaidActBreakEligible(12, SKY_DANCER_SKY_RAID_ACTS[0], 20), true);
+  assert.equal(skyDancerSkyRaidActBreakEligible(132, SKY_DANCER_SKY_RAID_ACTS[1], 21), false);
+  assert.equal(skyDancerSkyRaidActBreakEligible(132, SKY_DANCER_SKY_RAID_ACTS[1], 22), true);
+});
+
+test("SKY RAID grades runs and scores Formation Rush mastery", () => {
+  assert.equal(SKY_DANCER_SKY_RAID_PERFECT_RUSH_KILLS, 4);
+  assert.equal(skyDancerSkyRaidRank(19_999, 5, 12, 12), "C");
+  assert.equal(skyDancerSkyRaidRank(20_000, 0, 0, 0), "B");
+  assert.equal(skyDancerSkyRaidRank(30_000, 3, 3, 0), "A");
+  assert.equal(skyDancerSkyRaidRank(40_000, 4, 8, 4), "S");
+  assert.equal(skyDancerSkyRaidRank(50_000, 5, 10, 8), "S+");
+  assert.equal(skyDancerSkyRaidRushActive(450, SKY_DANCER_SKY_RAID_ACTS[4]), false);
 });
