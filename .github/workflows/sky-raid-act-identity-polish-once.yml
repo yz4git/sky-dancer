@@ -49,4 +49,4 @@ jobs:
           git commit -m "Deepen SKY RAID act identity and finale"
           git push origin HEAD:main
 
-# retry after aligning the stale opening BREAK test with immediate reward behavior
+# rerun with idempotent current BREAK contract handling
