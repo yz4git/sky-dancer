@@ -50,3 +50,4 @@ jobs:
           git push origin HEAD:main
 
 # rerun with stale delayed-BREAK block removal enforced
+# trigger after current immediate-BREAK contract
