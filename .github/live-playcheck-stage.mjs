@@ -131,8 +131,8 @@ if (pageErrors.length) throw new Error(`page errors: ${pageErrors.join(" | ")}`)
 if (/CHOOSE YOUR BUILD/i.test(finalText)) throw new Error("legacy perk overlay returned during Turbo Hunt");
 if (legacyBoostBannerSeen || /BOOST STRIKE/i.test(finalText)) throw new Error("legacy Boost Strike banner returned during Turbo Hunt");
 if (largestKillJump > 10) throw new Error(`implausible StageCycle kill jump: ${largestKillJump}`);
-if (diagnostics.maxSpeedStreaks > 20) throw new Error(`speed field too dense: ${diagnostics.maxSpeedStreaks} streaks`);
-if (diagnostics.maxSpeedOpacity > 0.29) throw new Error(`speed field too opaque: ${diagnostics.maxSpeedOpacity}`);
+if (diagnostics.maxSpeedStreaks > 14) throw new Error(`speed field too dense: ${diagnostics.maxSpeedStreaks} streaks`);
+if (diagnostics.maxSpeedOpacity > 0.21) throw new Error(`speed field too opaque: ${diagnostics.maxSpeedOpacity}`);
 const preFloor = stageSamples.filter((sample) => sample.elapsed < 82);
 if (preFloor.some((sample) => sample.stage.stage !== 1 || sample.stage.phase !== "reinforcements")) {
   throw new Error("Stage 1 advanced before the 84-second combat floor");
