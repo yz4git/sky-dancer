@@ -162,18 +162,21 @@ test("stage progression cannot be rushed by missile kills before the combat floo
   assert.equal(skyDancerStageMinimumReinforcementSeconds(99), 116);
 });
 
-test("stage reinforcement spawn fan keeps simultaneous aircraft from sharing a slot", () => {
-  const points = Array.from({ length: 10 }, (_, serial) => {
-    const slot = skyDancerStageSpawnSlot(serial);
-    return { x: Math.sin(slot.angleOffset) * slot.distance, z: Math.cos(slot.angleOffset) * slot.distance };
-  });
+test("stage reinforcement lanes stay separated while remaining in the forward combat cone", () => {
+  const slots = Array.from({ length: 12 }, (_, serial) => skyDancerStageSpawnSlot(serial));
+  const points = slots.map((slot) => ({
+    x: Math.sin(slot.angleOffset) * slot.distance,
+    z: Math.cos(slot.angleOffset) * slot.distance,
+  }));
   let minimum = Number.POSITIVE_INFINITY;
   for (let left = 0; left < points.length; left += 1) {
     for (let right = left + 1; right < points.length; right += 1) {
       minimum = Math.min(minimum, Math.hypot(points[left].x - points[right].x, points[left].z - points[right].z));
     }
   }
-  assert.ok(minimum > 7.5, `spawn fan minimum spacing was ${minimum.toFixed(2)}m`);
+  assert.ok(minimum > 8, `spawn lane minimum spacing was ${minimum.toFixed(2)}m`);
+  assert.ok(Math.max(...slots.map((slot) => Math.abs(slot.angleOffset))) <= 0.65);
+  assert.ok(slots.filter((slot) => Math.abs(slot.angleOffset) <= 0.4).length >= 8);
 });
 
 test("re-engagement geometry remains inside the missile lock envelope", () => {

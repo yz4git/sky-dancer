@@ -86,11 +86,15 @@ export function skyDancerStageActiveEnemyTarget(stage: number): number {
 
 export function skyDancerStageSpawnSlot(serial: number): { angleOffset: number; distance: number } {
   const slot = ((Math.floor(serial) % 12) + 12) % 12;
-  const side = slot % 2 === 0 ? -1 : 1;
-  const rank = Math.floor(slot / 2);
+  // Six readable forward lanes across two depth rings. All lanes remain inside
+  // the normal missile acquisition cone, while the two rings keep simultaneous
+  // aircraft visually separated instead of stacking into one blob.
+  const lane = slot % 6;
+  const ring = Math.floor(slot / 6);
+  const angleOffsets = [-0.65, -0.39, -0.13, 0.13, 0.39, 0.65] as const;
   return {
-    angleOffset: side * (0.34 + rank * 0.22),
-    distance: 28 + (slot % 3) * 7 + Math.floor(slot / 6) * 4,
+    angleOffset: angleOffsets[lane],
+    distance: ring === 0 ? 34 : 46,
   };
 }
 

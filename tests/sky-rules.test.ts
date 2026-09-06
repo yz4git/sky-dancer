@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import * as THREE from "three";
 import { CartArenaSession } from "../src/cart/CartArenaSession";
+import { cartTurboHuntProductProgressionOwned } from "../src/cart/CartTurboHuntProductOwnership";
 import {
   SKY_DANCER_ENEMY_PREFERRED_STANDOFF,
   skyDancerAvoidanceHeading,
@@ -82,4 +83,11 @@ test("enemy pair spacing keeps same-altitude aircraft visually separated", () =>
   assert.ok(skyDancerEnemyPairHorizontalClearance(1.4, 1.4, 4) < standard);
   assert.equal(skyDancerEnemyPairHorizontalClearance(1.4, 1.4, standard), 0);
   assert.ok(skyDancerEnemyPairMinimumSeparation(2.4, 2.4) > standard);
+});
+
+test("Sky Dancer product modes reserve Turbo Hunt progression from legacy cart directors", () => {
+  assert.equal(cartTurboHuntProductProgressionOwned("turbo-hunt"), true);
+  assert.equal(cartTurboHuntProductProgressionOwned("sky-raid"), true);
+  assert.equal(cartTurboHuntProductProgressionOwned("title"), false);
+  assert.equal(cartTurboHuntProductProgressionOwned(undefined), false);
 });

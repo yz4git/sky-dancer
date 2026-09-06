@@ -1,5 +1,6 @@
 import { CartArenaSession, type CartArenaSessionSnapshot } from "./CartArenaSession";
 import { getCartTurboHuntSnapshot, isCartTurboHuntEnabled } from "./CartRoguePhase67TurboHunt";
+import { cartTurboHuntCurrentProductMode, cartTurboHuntProductProgressionOwned } from "./CartTurboHuntProductOwnership";
 
 interface Phase74Session {
   snapshot(): CartArenaSessionSnapshot;
@@ -73,6 +74,7 @@ export function installCartRoguePhase74TurboHuntPerkMilestones(): void {
     const base = previousSnapshot.call(this);
     const session = this as unknown as CartArenaSession;
     if (!isCartTurboHuntEnabled(session)) return base;
+    if (cartTurboHuntProductProgressionOwned(cartTurboHuntCurrentProductMode())) return base;
 
     const hunt = getCartTurboHuntSnapshot(session);
     if (!hunt) return base;

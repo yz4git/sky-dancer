@@ -15,6 +15,7 @@ import {
 } from "./CartRoguePhase67TurboHunt";
 import { getCartPlayerDamageFeedbackState } from "./CartRoguePhase91DamageFeedback2";
 import { restoreCartPrePhase108CoreLoopSessionMethods } from "./CartRoguePhase108CoreLoopBridge";
+import { cartTurboHuntCurrentProductMode, cartTurboHuntProductProgressionOwned } from "./CartTurboHuntProductOwnership";
 import { installCartRoguePhase109HandlingSmashDamage } from "./CartRoguePhase109HandlingSmashDamage";
 
 const CART_PHASE110_TITAN_MAX_HP = 4200;
@@ -422,6 +423,7 @@ function patchSession(): void {
     previousStep.call(this, input, fixedDelta);
     const typed = this as unknown as CartArenaSession;
     if (!isCartTurboHuntEnabled(typed)) return;
+    if (cartTurboHuntProductProgressionOwned(cartTurboHuntCurrentProductMode())) return;
     const delta = clamp(fixedDelta, 0, 0.05);
     const state = stateFor(this);
     updateDominoLoop(this, state, delta);
@@ -441,6 +443,7 @@ function patchSession(): void {
     const base = previousSnapshot.call(this);
     const typed = this as unknown as CartArenaSession;
     if (!isCartTurboHuntEnabled(typed)) return base;
+    if (cartTurboHuntProductProgressionOwned(cartTurboHuntCurrentProductMode())) return base;
     const state = stateFor(this);
     const objective = objectiveProgressFor(state);
     const boss = this.enemies.find((enemy) => enemy.kind === "boss");
