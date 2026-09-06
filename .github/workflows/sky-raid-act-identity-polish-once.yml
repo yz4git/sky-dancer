@@ -30,14 +30,25 @@ jobs:
         shell: bash
         run: |
           set -o pipefail
-          npm run test:fast 2>&1 | tee /tmp/test-fast.log || {
-            echo "::group::TEST FAST FAILURE SUMMARY"
-            grep -n -E "not ok|AssertionError|ERR_|Expected|actual|error:|failure|SKY RAID" /tmp/test-fast.log | tail -n 140 || true
-            echo "--- tail ---"
-            tail -n 220 /tmp/test-fast.log
-            echo "::endgroup::"
+          if npm run test:fast > /tmp/test-fast.log 2>&1; then
+            rm -f .github/skyraid-last-test-failure.txt
+          else
+            {
+              echo "SKY RAID test:fast failure summary"
+              echo "================================="
+              grep -n -E "not ok|AssertionError|ERR_|Expected|expected|Actual|actual|error:|Error:|failure|SKY RAID|✖|×" /tmp/test-fast.log | tail -n 160 || true
+              echo
+              echo "--- final 180 log lines ---"
+              tail -n 180 /tmp/test-fast.log
+            } > .github/skyraid-last-test-failure.txt
+            git config user.name "yz4git"
+            git config user.email "65384484+yz4git@users.noreply.github.com"
+            git add .github/skyraid-last-test-failure.txt
+            git commit -m "Capture SKY RAID test failure [skip ci]"
+            git push origin HEAD:main
+            cat .github/skyraid-last-test-failure.txt
             exit 1
-          }
+          fi
       - name: Pages build and render
         run: npm run test:pages
       - name: Arcade TypeScript check
@@ -50,6 +61,7 @@ jobs:
         run: |
           rm -f .github/skyraid-act-identity-polish.py
           rm -f .github/skyraid-act-identity-contract-fix.py
+          rm -f .github/skyraid-last-test-failure.txt
           rm -f .github/workflows/sky-raid-act-identity-polish-once.yml
           git diff --check
           git config user.name "yz4git"
@@ -58,5 +70,3 @@ jobs:
           git diff --cached --check
           git commit -m "Deepen SKY RAID act identity and finale"
           git push origin HEAD:main
-
-# diagnostic rerun: concise test failure summary
