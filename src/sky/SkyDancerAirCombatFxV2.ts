@@ -692,7 +692,7 @@ export class SkyDancerAirCombatFxV2 {
     this.damageSmokeLife = Math.max(this.damageSmokeLife, 2.35);
     this.damageSampleClock = 0;
     this.hitRoll = (missiles.hitSerial % 2 === 0 ? -1 : 1) * 0.245;
-    this.spawnAirBurst(this.hitPoint, 0xff6a2d, 1.65, true);
+    this.spawnAirBurst(this.hitPoint, 0xff6a2d, 1.05, true);
   }
 
   private updateDamagePresentation(): void {
@@ -722,7 +722,7 @@ export class SkyDancerAirCombatFxV2 {
         if (group) {
           this.burstPoint.copy(group.position);
           this.burstPoint.y = Math.max(1.15, this.burstPoint.y + 0.45);
-          this.spawnAirBurst(this.burstPoint, enemy.kind === "boss" ? 0xff3e55 : 0xffa13a, enemy.kind === "boss" ? 2.4 : 1.25, false);
+          this.spawnAirBurst(this.burstPoint, enemy.kind === "boss" ? 0xff3e55 : 0xffa13a, enemy.kind === "boss" ? 1.75 : 0.95, false);
         }
       }
       this.enemyAlive.set(enemy.id, enemy.alive);
@@ -855,14 +855,14 @@ export class SkyDancerAirCombatFxV2 {
       burst.root.children.forEach((object) => {
         if (!(object instanceof THREE.Mesh)) return;
         if (object.name === "burst-core") {
-          object.scale.setScalar(0.65 + progress * 2.5);
-          (object.material as THREE.MeshBasicMaterial).opacity = ratio;
+          object.scale.setScalar(0.65 + progress * 1.45);
+          (object.material as THREE.MeshBasicMaterial).opacity = ratio * 0.82;
         } else if (object.name === "burst-hot") {
-          object.scale.setScalar(0.72 + progress * 2.1);
-          (object.material as THREE.MeshBasicMaterial).opacity = ratio * 0.72;
+          object.scale.setScalar(0.72 + progress * 1.25);
+          (object.material as THREE.MeshBasicMaterial).opacity = ratio * 0.60;
         } else if (object.name.startsWith("burst-ring")) {
-          object.scale.setScalar(0.7 + progress * 4.2);
-          (object.material as THREE.MeshBasicMaterial).opacity = ratio * 0.68;
+          object.scale.setScalar(0.7 + progress * 2.0);
+          (object.material as THREE.MeshBasicMaterial).opacity = ratio * 0.38;
         } else if (object.name === "burst-streak") {
           const angle = Number(object.userData.angle ?? 0);
           const distance = progress * 5.8;
@@ -873,8 +873,8 @@ export class SkyDancerAirCombatFxV2 {
           const angle = Number(object.userData.angle ?? 0);
           const puffIndex = Number(object.userData.index ?? 0);
           object.position.set(Math.sin(angle) * progress * 2.6, progress * (0.7 + puffIndex % 3 * 0.22), Math.cos(angle) * progress * 2.6);
-          object.scale.setScalar(0.7 + progress * 2.1);
-          (object.material as THREE.MeshBasicMaterial).opacity = ratio * 0.30;
+          object.scale.setScalar(0.7 + progress * 1.55);
+          (object.material as THREE.MeshBasicMaterial).opacity = ratio * 0.22;
         }
       });
       if (burst.life <= 0) {
