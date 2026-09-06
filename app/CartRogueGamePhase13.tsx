@@ -21,8 +21,6 @@ import SkyDancerHudV39 from "./SkyDancerHudV39";
 import SkyDancerHudV40 from "./SkyDancerHudV40";
 import SkyDancerHudV44 from "./SkyDancerHudV44";
 import SkyDancerHudV45 from "./SkyDancerHudV45";
-import SkyDancerHudV49 from "./SkyDancerHudV49";
-import SkyDancerHudV54 from "./SkyDancerHudV54";
 import SkyDancerArcadeMode from "./SkyDancerArcadeMode";
 import type { SkyDancerStartRequest } from "../src/sky/arcade/SkyDancerArcadeData";
 
@@ -79,8 +77,6 @@ export default function CartRogueGamePhase13() {
         <SkyDancerHudV40 />
         <SkyDancerHudV44 />
         <SkyDancerHudV45 />
-        <SkyDancerHudV49 />
-        <SkyDancerHudV54 />
       </Fragment>
     )}
     {activeRequest?.mode === "sky-raid" && (
