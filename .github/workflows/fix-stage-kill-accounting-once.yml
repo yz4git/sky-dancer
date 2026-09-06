@@ -1,0 +1,43 @@
+name: Fix StageCycle Kill Accounting Once
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/fix-stage-kill-accounting.mjs"
+      - ".github/workflows/fix-stage-kill-accounting-once.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.13.0
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Apply verified progression fix
+        run: node .github/fix-stage-kill-accounting.mjs
+      - name: Full fast tests
+        run: npm run test:fast
+      - name: Pages build and render
+        run: npm run test:pages
+      - name: Arcade TypeScript check
+        run: npm run check:arcade
+      - name: Lint
+        run: npm run lint
+      - name: Validate artifact
+        run: npm run validate:artifact
+      - name: Commit verified fix
+        run: |
+          git config user.name "yz4git"
+          git config user.email "65384484+yz4git@users.noreply.github.com"
+          git rm .github/fix-stage-kill-accounting.mjs .github/workflows/fix-stage-kill-accounting-once.yml
+          git add src/cart/CartRoguePhase67TurboHunt.ts src/sky/SkyDancerStageCycle.ts src/sky/SkyDancerCombatChoreographyV46.ts tests/sky-flight-runtime.test.ts tests/sky-campaign.test.ts .github/live-playcheck-stage.mjs
+          git commit -m "Count only real Turbo Hunt defeats in StageCycle"
+          git push origin HEAD:main
