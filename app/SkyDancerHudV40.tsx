@@ -12,6 +12,7 @@ import {
 } from "../src/sky/SkyDancerStageCycle";
 import phase4Styles from "./CartRoguePhase4.module.css";
 import phase8Styles from "./CartRoguePhase8.module.css";
+import legacyStyles from "./CartRogueGame.module.css";
 import huntStyles from "./CartTurboHuntHudOverlay.module.css";
 
 export default function SkyDancerHudV40() {
@@ -84,7 +85,8 @@ export default function SkyDancerHudV40() {
   return <>
     <style>{`
       .skyDancerV40StageHudActive .${huntStyles.orderCard},
-      .skyDancerV40StageHudActive .${huntStyles.heatCard} {
+      .skyDancerV40StageHudActive .${huntStyles.heatCard},
+      .skyDancerV40StageHudActive .${legacyStyles.ramBanner} {
         display: none !important;
       }
       .skyDancerV40BossActive .skyDancerBossV34,
