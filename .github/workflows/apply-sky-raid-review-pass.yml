@@ -1,4 +1,4 @@
-name: Apply SKY RAID review pass
+name: Apply SKY RAID arcade pacing polish
 
 on:
   push:
@@ -11,7 +11,7 @@ permissions:
 jobs:
   patch:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v5
         with:
@@ -22,66 +22,191 @@ jobs:
           cache: npm
       - name: Install dependencies
         run: npm ci
-      - name: Add distance-based enemy silhouette assist
+      - name: Apply SKY RAID arcade pacing polish
         run: |
           python3 - <<'PY'
           from pathlib import Path
 
-          path = Path('src/sky/SkyDancerSkyRaid.ts')
-          source = path.read_text()
+          def replace_once(path_str: str, old: str, new: str, label: str):
+              path = Path(path_str)
+              source = path.read_text()
+              if new in source:
+                  return
+              if old not in source:
+                  raise SystemExit(f'{label}: anchor missing in {path_str}')
+              path.write_text(source.replace(old, new, 1))
 
-          clamp_anchor = '''function clamp(value: number, min: number, max: number): number {\n  return Math.max(min, Math.min(max, value));\n}\n'''
-          assist_block = '''function clamp(value: number, min: number, max: number): number {\n  return Math.max(min, Math.min(max, value));\n}\n\nconst SKY_RAID_ENEMY_VISUAL_ASSIST_MIN = 1.03;\nconst SKY_RAID_ENEMY_VISUAL_ASSIST_MAX = 1.20;\n\n/**\n * Phone screens make a physically-sized fighter at 40-58m read smaller than the\n * targeting UI. SKY RAID applies a restrained presentation-only silhouette assist\n * to normal enemies. Simulation positions, radii, hitboxes and missile math stay\n * untouched; close aircraft remain almost exactly authored size.\n */\nfunction applySkyRaidEnemySilhouetteAssist(\n  demo: RaidWebGLDemo,\n  snapshot: ReturnType<CartArenaSession[\"snapshot\"]>,\n): void {\n  const playerAltitude = Number(demo.scene.userData.skyRaidPlayerAltitude ?? 20);\n  for (const enemy of snapshot.enemies) {\n    const group = demo.enemyGroups.get(enemy.id);\n    if (!group) continue;\n    if (!Number.isFinite(Number(group.userData.skyRaidBaseScaleX))) {\n      group.userData.skyRaidBaseScaleX = group.scale.x;\n      group.userData.skyRaidBaseScaleY = group.scale.y;\n      group.userData.skyRaidBaseScaleZ = group.scale.z;\n    }\n    const baseX = Number(group.userData.skyRaidBaseScaleX ?? 1);\n    const baseY = Number(group.userData.skyRaidBaseScaleY ?? 1);\n    const baseZ = Number(group.userData.skyRaidBaseScaleZ ?? 1);\n    if (!enemy.alive || enemy.kind === \"boss\") {\n      group.scale.set(baseX, baseY, baseZ);\n      group.userData.skyRaidVisualAssistScale = 1;\n      continue;\n    }\n    const dx = enemy.x - snapshot.x;\n    const dz = enemy.z - snapshot.z;\n    const dy = getSkyDancerEnemyAltitudeMetersV43(enemy) - playerAltitude;\n    const distance = Math.hypot(dx, dy, dz);\n    const distanceBlend = clamp((distance - 18) / 40, 0, 1);\n    const assist = SKY_RAID_ENEMY_VISUAL_ASSIST_MIN\n      + distanceBlend * (SKY_RAID_ENEMY_VISUAL_ASSIST_MAX - SKY_RAID_ENEMY_VISUAL_ASSIST_MIN);\n    group.scale.set(baseX * assist, baseY * assist, baseZ * assist);\n    group.userData.skyRaidVisualAssistScale = assist;\n  }\n}\n\nfunction restoreSkyRaidEnemySilhouetteAssist(demo: RaidWebGLDemo): void {\n  for (const group of demo.enemyGroups.values()) {\n    if (!Number.isFinite(Number(group.userData.skyRaidBaseScaleX))) continue;\n    group.scale.set(\n      Number(group.userData.skyRaidBaseScaleX ?? 1),\n      Number(group.userData.skyRaidBaseScaleY ?? 1),\n      Number(group.userData.skyRaidBaseScaleZ ?? 1),\n    );\n    group.userData.skyRaidVisualAssistScale = 1;\n  }\n}\n'''
-          if 'SKY_RAID_ENEMY_VISUAL_ASSIST_MAX' not in source:
-              if clamp_anchor not in source:
-                  raise SystemExit('clamp anchor missing')
-              source = source.replace(clamp_anchor, assist_block, 1)
+          rules_path = Path('src/sky/SkyDancerSkyRaidRules.ts')
+          rules = rules_path.read_text()
+          rules = rules.replace('export const SKY_DANCER_SKY_RAID_OPENING_BREAK_MIN_SECONDS = 90;', 'export const SKY_DANCER_SKY_RAID_OPENING_BREAK_MIN_SECONDS = 0;', 1)
+          rules = rules.replace('export const SKY_DANCER_SKY_RAID_BOSS_TRIGGER_SECONDS = 483;', 'export const SKY_DANCER_SKY_RAID_BOSS_TRIGGER_SECONDS = 450;', 1)
+          old_break = '''export function skyDancerSkyRaidActBreakEligible(\n  elapsedSeconds: number,\n  act: SkyDancerSkyRaidAct,\n  actKills: number,\n): boolean {\n  if (actKills < act.killTarget) return false;\n  if (act.index >= 2) return true;\n  return skyDancerSkyRaidActSeconds(elapsedSeconds, act) >= SKY_DANCER_SKY_RAID_OPENING_BREAK_MIN_SECONDS;\n}\n'''
+          new_break = '''export function skyDancerSkyRaidActBreakEligible(\n  _elapsedSeconds: number,\n  act: SkyDancerSkyRaidAct,\n  actKills: number,\n): boolean {\n  // BREAK is an earned combat reward, not a hidden time gate. Once the target\n  // is reached, grant it immediately and let the remainder of the Act become\n  // a score-focused FREE HUNT.\n  return actKills >= act.killTarget;\n}\n'''
+          if new_break not in rules:
+              if old_break not in rules:
+                  raise SystemExit('act break function anchor missing')
+              rules = rules.replace(old_break, new_break, 1)
+          rank_anchor = '''export const SKY_DANCER_SKY_RAID_CHAIN_GRACE_SECONDS = 5.6;\n'''
+          rank_block = '''export const SKY_DANCER_SKY_RAID_CHAIN_GRACE_SECONDS = 5.6;\nexport const SKY_DANCER_SKY_RAID_PERFECT_RUSH_KILLS = 4;\n\nexport type SkyDancerSkyRaidRank = "C" | "B" | "A" | "S" | "S+";\n\nexport function skyDancerSkyRaidRank(\n  score: number,\n  actBreaks: number,\n  maxChain: number,\n  perfectRushes: number,\n): SkyDancerSkyRaidRank {\n  if (score >= 50_000 && actBreaks >= 5 && maxChain >= 10 && perfectRushes >= 8) return "S+";\n  if (score >= 40_000 && actBreaks >= 4 && maxChain >= 8 && perfectRushes >= 4) return "S";\n  if (score >= 30_000 && actBreaks >= 3) return "A";\n  if (score >= 20_000) return "B";\n  return "C";\n}\n'''
+          if 'SKY_DANCER_SKY_RAID_PERFECT_RUSH_KILLS' not in rules:
+              if rank_anchor not in rules:
+                  raise SystemExit('rank anchor missing')
+              rules = rules.replace(rank_anchor, rank_block, 1)
+          rules_path.write_text(rules)
 
-          old_non_mode = '''  if (!isSkyRaidMode()) {\n    visual.root.visible = false;\n    visual.speedFx.visible = false;\n    return;\n  }\n'''
-          new_non_mode = '''  if (!isSkyRaidMode()) {\n    visual.root.visible = false;\n    visual.speedFx.visible = false;\n    restoreSkyRaidEnemySilhouetteAssist(demo);\n    return;\n  }\n'''
-          if old_non_mode in source:
-              source = source.replace(old_non_mode, new_non_mode, 1)
-          elif new_non_mode not in source:
-              raise SystemExit('non-mode reset anchor missing')
+          raid_path = Path('src/sky/SkyDancerSkyRaid.ts')
+          raid = raid_path.read_text()
+          old_import = '''  SKY_DANCER_SKY_RAID_CHAIN_GRACE_SECONDS,\n  SKY_DANCER_SKY_RAID_TARGET_SECONDS,\n'''
+          new_import = '''  SKY_DANCER_SKY_RAID_CHAIN_GRACE_SECONDS,\n  SKY_DANCER_SKY_RAID_PERFECT_RUSH_KILLS,\n  SKY_DANCER_SKY_RAID_TARGET_SECONDS,\n'''
+          if new_import not in raid:
+              if old_import not in raid: raise SystemExit('runtime constant import anchor missing')
+              raid = raid.replace(old_import, new_import, 1)
+          old_fn_import = '''  skyDancerSkyRaidPressure,\n  skyDancerSkyRaidRushActive,\n  skyDancerSkyRaidWorldStyle,\n'''
+          new_fn_import = '''  skyDancerSkyRaidPressure,\n  skyDancerSkyRaidRank,\n  skyDancerSkyRaidRushActive,\n  skyDancerSkyRaidWorldStyle,\n'''
+          if new_fn_import not in raid:
+              if old_fn_import not in raid: raise SystemExit('runtime function import anchor missing')
+              raid = raid.replace(old_fn_import, new_fn_import, 1)
+          old_type_import = '''  type SkyDancerSkyRaidCombatBeat,\n  type SkyDancerSkyRaidPalette,\n'''
+          new_type_import = '''  type SkyDancerSkyRaidCombatBeat,\n  type SkyDancerSkyRaidPalette,\n  type SkyDancerSkyRaidRank,\n'''
+          if new_type_import not in raid:
+              if old_type_import not in raid: raise SystemExit('runtime type import anchor missing')
+              raid = raid.replace(old_type_import, new_type_import, 1)
 
-          old_final = '''  applySkyRaidEnemyFlightBand(this);\n  const altitude = Number(this.scene.userData.skyRaidPlayerAltitude ?? 0);\n'''
-          new_final = '''  applySkyRaidEnemyFlightBand(this);\n  applySkyRaidEnemySilhouetteAssist(this, snapshot);\n  const altitude = Number(this.scene.userData.skyRaidPlayerAltitude ?? 0);\n'''
-          if old_final in source:
-              source = source.replace(old_final, new_final, 1)
-          elif new_final not in source:
-              raise SystemExit('final presentation assist anchor missing')
+          old_snapshot = '''  score: number;\n  chain: number;\n  multiplier: number;\n  rushActive: boolean;\n  pressure: number;\n'''
+          new_snapshot = '''  score: number;\n  chain: number;\n  maxChain: number;\n  multiplier: number;\n  actBreaks: number;\n  rushActive: boolean;\n  rushKills: number;\n  rushPerfectTarget: number;\n  perfectRushes: number;\n  rushResult: "perfect" | "cleared" | null;\n  rushResultSecondsRemaining: number;\n  rank: SkyDancerSkyRaidRank;\n  pressure: number;\n'''
+          if new_snapshot not in raid:
+              if old_snapshot not in raid: raise SystemExit('snapshot anchor missing')
+              raid = raid.replace(old_snapshot, new_snapshot, 1)
 
-          old_type = 'const enemyScreenSamples: Array<{ id: string; x: number; y: number; z: number; visible: boolean; worldY: number; localY: number; boundsY: number; relativeY: number; forward: number; lateral: number }> = [];'
-          new_type = 'const enemyScreenSamples: Array<{ id: string; x: number; y: number; z: number; visible: boolean; worldY: number; localY: number; boundsY: number; relativeY: number; forward: number; lateral: number; visualScale: number }> = [];'
-          if old_type in source:
-              source = source.replace(old_type, new_type, 1)
-          elif new_type not in source:
-              raise SystemExit('enemy sample type anchor missing')
+          old_state = '''  score: number;\n  chain: number;\n  chainTimer: number;\n  bossForced: boolean;\n'''
+          new_state = '''  score: number;\n  chain: number;\n  maxChain: number;\n  chainTimer: number;\n  actBreaks: number;\n  rushActive: boolean;\n  rushKills: number;\n  perfectRushes: number;\n  rushResult: "perfect" | "cleared" | null;\n  rushResultSecondsRemaining: number;\n  bossForced: boolean;\n'''
+          if new_state not in raid:
+              if old_state not in raid: raise SystemExit('state type anchor missing')
+              raid = raid.replace(old_state, new_state, 1)
 
-          old_sample = '''    lateral: dx * rightX + dz * rightZ,\n  });\n'''
-          new_sample = '''    lateral: dx * rightX + dz * rightZ,\n    visualScale: Number(group.userData.skyRaidVisualAssistScale ?? 1),\n  });\n'''
-          if old_sample in source:
-              source = source.replace(old_sample, new_sample, 1)
-          elif new_sample not in source:
-              raise SystemExit('enemy sample payload anchor missing')
+          old_steer = '''export const SKY_DANCER_SKY_RAID_MAX_STEER_INPUT = 0.46;\n\nexport function skyDancerSkyRaidSteerInput(value: number): number {\n  // The inherited Cart controller aggressively quickens steering after this\n  // point. Keep fine stick movement unchanged, but cap large deflections so\n  // the aircraft cannot snap-turn on a phone-sized virtual stick.\n  return clamp(value, -SKY_DANCER_SKY_RAID_MAX_STEER_INPUT, SKY_DANCER_SKY_RAID_MAX_STEER_INPUT);\n}\n'''
+          new_steer = '''export const SKY_DANCER_SKY_RAID_MAX_STEER_INPUT = 0.46;\nexport const SKY_DANCER_SKY_RAID_STEER_SOFT_ZONE = 0.30;\n\nexport function skyDancerSkyRaidSteerInput(value: number): number {\n  // Preserve pixel-precise aiming near center, then progressively compress the\n  // outer stick instead of hard-clipping it. Full deflection stays phone-safe\n  // while 50%, 75% and 100% stick travel still produce distinct turn authority.\n  const safe = clamp(value, -1, 1);\n  const magnitude = Math.abs(safe);\n  if (magnitude <= SKY_DANCER_SKY_RAID_STEER_SOFT_ZONE) return safe;\n  const span = 1 - SKY_DANCER_SKY_RAID_STEER_SOFT_ZONE;\n  const normalized = (magnitude - SKY_DANCER_SKY_RAID_STEER_SOFT_ZONE) / span;\n  const eased = 1 - Math.pow(1 - normalized, 2.2);\n  const compressed = SKY_DANCER_SKY_RAID_STEER_SOFT_ZONE\n    + eased * (SKY_DANCER_SKY_RAID_MAX_STEER_INPUT - SKY_DANCER_SKY_RAID_STEER_SOFT_ZONE);\n  return Math.sign(safe) * compressed;\n}\n'''
+          if new_steer not in raid:
+              if old_steer not in raid: raise SystemExit('steering anchor missing')
+              raid = raid.replace(old_steer, new_steer, 1)
 
-          path.write_text(source)
+          old_init = '''    score: 0,\n    chain: 0,\n    chainTimer: 0,\n    bossForced: false,\n'''
+          new_init = '''    score: 0,\n    chain: 0,\n    maxChain: 0,\n    chainTimer: 0,\n    actBreaks: 0,\n    rushActive: false,\n    rushKills: 0,\n    perfectRushes: 0,\n    rushResult: null,\n    rushResultSecondsRemaining: 0,\n    bossForced: false,\n'''
+          if new_init not in raid:
+              if old_init not in raid: raise SystemExit('state init anchor missing')
+              raid = raid.replace(old_init, new_init, 1)
+
+          old_break_reward = '''  state.actBreak = true;\n  state.score += 1200 + act.index * 350;\n'''
+          new_break_reward = '''  state.actBreak = true;\n  state.actBreaks += 1;\n  state.score += 1200 + act.index * 350;\n'''
+          if new_break_reward not in raid:
+              if old_break_reward not in raid: raise SystemExit('break reward anchor missing')
+              raid = raid.replace(old_break_reward, new_break_reward, 1)
+
+          old_update_head = '''  const rushActive = skyDancerSkyRaidRushActive(hunt.huntElapsedSeconds, act);\n  const killDelta = Math.max(0, hunt.huntKills - state.previousKills);\n'''
+          new_update_head = '''  const rushActive = skyDancerSkyRaidRushActive(hunt.huntElapsedSeconds, act);\n  if (rushActive && !state.rushActive) {\n    state.rushKills = 0;\n    state.rushResult = null;\n    state.rushResultSecondsRemaining = 0;\n  }\n  const killDelta = Math.max(0, hunt.huntKills - state.previousKills);\n'''
+          if new_update_head not in raid:
+              if old_update_head not in raid: raise SystemExit('rush start anchor missing')
+              raid = raid.replace(old_update_head, new_update_head, 1)
+
+          old_kill = '''    state.chain = Math.min(12, state.chain + 1);\n    state.chainTimer = SKY_DANCER_SKY_RAID_CHAIN_GRACE_SECONDS;\n    state.actKills += 1;\n    state.score += skyDancerSkyRaidKillScore(state.chain, session.car.boostActive, rushActive);\n'''
+          new_kill = '''    state.chain = Math.min(12, state.chain + 1);\n    state.maxChain = Math.max(state.maxChain, state.chain);\n    state.chainTimer = SKY_DANCER_SKY_RAID_CHAIN_GRACE_SECONDS;\n    state.actKills += 1;\n    if (rushActive) state.rushKills += 1;\n    state.score += skyDancerSkyRaidKillScore(state.chain, session.car.boostActive, rushActive);\n'''
+          if new_kill not in raid:
+              if old_kill not in raid: raise SystemExit('kill metrics anchor missing')
+              raid = raid.replace(old_kill, new_kill, 1)
+
+          old_after_kills = '''  state.previousKills = hunt.huntKills;\n\n  const orderDelta = Math.max(0, hunt.huntOrdersCompleted - state.previousOrders);\n'''
+          new_after_kills = '''  state.previousKills = hunt.huntKills;\n\n  if (!rushActive && state.rushActive) {\n    if (state.rushKills >= SKY_DANCER_SKY_RAID_PERFECT_RUSH_KILLS) {\n      state.perfectRushes += 1;\n      const perfectBonus = 1250 + act.index * 150;\n      state.score += perfectBonus;\n      state.rushResult = "perfect";\n      session.lastReward = `PERFECT RUSH · ${state.rushKills} DOWN · +${perfectBonus}`;\n      session.rewardTimer = Math.max(session.rewardTimer, 1.8);\n    } else if (state.rushKills > 0) {\n      state.rushResult = "cleared";\n    }\n    state.rushResultSecondsRemaining = state.rushResult ? 1.45 : 0;\n  }\n  state.rushActive = rushActive;\n\n  const orderDelta = Math.max(0, hunt.huntOrdersCompleted - state.previousOrders);\n'''
+          if new_after_kills not in raid:
+              if old_after_kills not in raid: raise SystemExit('rush result anchor missing')
+              raid = raid.replace(old_after_kills, new_after_kills, 1)
+
+          old_timers = '''  state.chainTimer = Math.max(0, state.chainTimer - delta);\n  state.killCueSecondsRemaining = Math.max(0, state.killCueSecondsRemaining - delta);\n  if (state.chainTimer <= 0) state.chain = 0;\n'''
+          new_timers = '''  const hasCombatTarget = (session as unknown as CartArenaSession).enemies.some((enemy) => enemy.alive);\n  if (hasCombatTarget) state.chainTimer = Math.max(0, state.chainTimer - delta);\n  state.killCueSecondsRemaining = Math.max(0, state.killCueSecondsRemaining - delta);\n  state.rushResultSecondsRemaining = Math.max(0, state.rushResultSecondsRemaining - delta);\n  if (state.chainTimer <= 0) state.chain = 0;\n'''
+          if new_timers not in raid:
+              if old_timers not in raid: raise SystemExit('chain timer anchor missing')
+              raid = raid.replace(old_timers, new_timers, 1)
+
+          old_snapshot_return = '''    score: state.score,\n    chain: state.chain,\n    multiplier: skyDancerSkyRaidMultiplier(state.chain, rushActive),\n    rushActive,\n    pressure,\n'''
+          new_snapshot_return = '''    score: state.score,\n    chain: state.chain,\n    maxChain: state.maxChain,\n    multiplier: skyDancerSkyRaidMultiplier(state.chain, rushActive),\n    actBreaks: state.actBreaks,\n    rushActive,\n    rushKills: state.rushKills,\n    rushPerfectTarget: SKY_DANCER_SKY_RAID_PERFECT_RUSH_KILLS,\n    perfectRushes: state.perfectRushes,\n    rushResult: state.rushResult,\n    rushResultSecondsRemaining: state.rushResultSecondsRemaining,\n    rank: skyDancerSkyRaidRank(state.score, state.actBreaks, state.maxChain, state.perfectRushes),\n    pressure,\n'''
+          if new_snapshot_return not in raid:
+              if old_snapshot_return not in raid: raise SystemExit('snapshot return anchor missing')
+              raid = raid.replace(old_snapshot_return, new_snapshot_return, 1)
+          raid_path.write_text(raid)
+
+          overlay_path = Path('app/SkyDancerSkyRaidOverlay.tsx')
+          overlay = overlay_path.read_text()
+          old_state_line = '''  const [snapshot, setSnapshot] = useState<SkyDancerSkyRaidSnapshot | null>(() => initialSnapshot);\n'''
+          new_state_line = '''  const [snapshot, setSnapshot] = useState<SkyDancerSkyRaidSnapshot | null>(() => initialSnapshot);\n  const [personalBest, setPersonalBest] = useState(0);\n  const [bestLoaded, setBestLoaded] = useState(false);\n  const [newRecord, setNewRecord] = useState(false);\n'''
+          if new_state_line not in overlay:
+              if old_state_line not in overlay: raise SystemExit('overlay state anchor missing')
+              overlay = overlay.replace(old_state_line, new_state_line, 1)
+
+          effect_anchor = '''  }, []);\n\n  if (!snapshot) return null;\n'''
+          effect_block = '''  }, []);\n\n  useEffect(() => {\n    try {\n      const stored = Number(window.localStorage.getItem("sky-dancer-sky-raid-best-score-v1") ?? 0);\n      setPersonalBest(Number.isFinite(stored) ? Math.max(0, stored) : 0);\n    } catch {\n      setPersonalBest(0);\n    } finally {\n      setBestLoaded(true);\n    }\n  }, []);\n\n  useEffect(() => {\n    if (!bestLoaded || !snapshot) return;\n    if (!snapshot.clear) {\n      setNewRecord(false);\n      return;\n    }\n    if (snapshot.score <= personalBest) return;\n    setNewRecord(true);\n    setPersonalBest(snapshot.score);\n    try {\n      window.localStorage.setItem("sky-dancer-sky-raid-best-score-v1", String(snapshot.score));\n    } catch {\n      // Private browsing/storage denial must never block the result screen.\n    }\n  }, [bestLoaded, personalBest, snapshot]);\n\n  if (!snapshot) return null;\n'''
+          if 'sky-dancer-sky-raid-best-score-v1' not in overlay:
+              if effect_anchor not in overlay: raise SystemExit('overlay PB effect anchor missing')
+              overlay = overlay.replace(effect_anchor, effect_block, 1)
+
+          old_rush = '''      {snapshot.rushActive && !snapshot.clear && (\n        <div className={styles.rushBanner} data-sd-noncritical-alert="rush">\n          <small>FORMATION RUSH</small>\n          <strong>SCORE ×2</strong>\n          <span>BREAK THE WAVE · KEEP MOVING</span>\n        </div>\n      )}\n'''
+          new_rush = '''      {snapshot.rushActive && !snapshot.clear && (\n        <div className={styles.rushBanner} data-sd-noncritical-alert="rush">\n          <small>FORMATION RUSH · {snapshot.rushKills}/{snapshot.rushPerfectTarget}</small>\n          <strong>SCORE ×2</strong>\n          <span>{snapshot.rushKills >= snapshot.rushPerfectTarget ? "PERFECT ARMED" : "BREAK THE WAVE · KEEP MOVING"}</span>\n        </div>\n      )}\n\n      {snapshot.rushResultSecondsRemaining > 0 && !snapshot.rushActive && !snapshot.clear && (\n        <div className={`${styles.rushBanner} ${styles.rushResult}`} data-perfect={snapshot.rushResult === "perfect"} data-sd-noncritical-alert="rush-result">\n          <small>FORMATION RESULT</small>\n          <strong>{snapshot.rushResult === "perfect" ? "PERFECT RUSH" : "WAVE CLEAR"}</strong>\n          <span>{snapshot.rushKills} TARGETS · {snapshot.rushResult === "perfect" ? "+BONUS" : "CHAIN FORWARD"}</span>\n        </div>\n      )}\n'''
+          if new_rush not in overlay:
+              if old_rush not in overlay: raise SystemExit('overlay rush anchor missing')
+              overlay = overlay.replace(old_rush, new_rush, 1)
+
+          old_clear = '''      {snapshot.clear && (\n        <div className={styles.clearBanner}>\n          <small>FREE RAID COMPLETE · {formatTime(snapshot.elapsedSeconds)}</small>\n          <strong>SKY RAID CLEAR</strong>\n          <span>SCORE {snapshot.score.toLocaleString()} · FINAL CHAIN ×{Math.max(1, snapshot.chain)}</span>\n        </div>\n      )}\n'''
+          new_clear = '''      {snapshot.clear && (\n        <div className={styles.clearBanner}>\n          <small>SKY RAID CLEAR · {formatTime(snapshot.elapsedSeconds)}</small>\n          <strong>RANK {snapshot.rank}</strong>\n          <span>SCORE {snapshot.score.toLocaleString()} · {newRecord ? "NEW RECORD" : `PB ${personalBest.toLocaleString()}`}</span>\n          <div className={styles.resultStats}>\n            <b>BREAK {snapshot.actBreaks}/5</b>\n            <b>PERFECT {snapshot.perfectRushes}</b>\n            <b>MAX CHAIN ×{Math.max(1, snapshot.maxChain)}</b>\n          </div>\n        </div>\n      )}\n'''
+          if new_clear not in overlay:
+              if old_clear not in overlay: raise SystemExit('overlay clear anchor missing')
+              overlay = overlay.replace(old_clear, new_clear, 1)
+          overlay_path.write_text(overlay)
+
+          css_path = Path('app/SkyDancerSkyRaidOverlay.module.css')
+          css = css_path.read_text()
+          css_anchor = '''.rushBanner { top: 29%; border-color: var(--raid-enemy); }\n.rushBanner strong { color: var(--raid-enemy); }\n.bossCue { top: 24%; }\n.clearBanner { top: 44%; padding-top: 16px; padding-bottom: 17px; }\n'''
+          css_block = '''.rushBanner { top: 29%; border-color: var(--raid-enemy); }\n.rushBanner strong { color: var(--raid-enemy); }\n.rushResult { top: 31%; }\n.rushResult[data-perfect="true"] {\n  border-color: var(--raid-accent);\n  box-shadow: 0 0 28px color-mix(in srgb, var(--raid-accent) 34%, transparent);\n}\n.rushResult[data-perfect="true"] strong { color: var(--raid-accent); }\n.bossCue { top: 24%; }\n.clearBanner { top: 44%; padding-top: 16px; padding-bottom: 17px; }\n.resultStats {\n  display: flex;\n  justify-content: center;\n  gap: 12px;\n  margin-top: 7px;\n  font-size: 7px;\n  font-weight: 1000;\n  letter-spacing: .12em;\n  color: var(--raid-accent);\n}\n.resultStats b { font: inherit; white-space: nowrap; }\n'''
+          if '.resultStats {' not in css:
+              if css_anchor not in css: raise SystemExit('CSS result anchor missing')
+              css = css.replace(css_anchor, css_block, 1)
+              css_path.write_text(css)
 
           test_path = Path('tests/sky-sky-raid.test.ts')
           test = test_path.read_text()
-          test_anchor = '''  assert.match(raidSource, /dataset\\.skyRaidFormationBeat/);\n'''
-          test_insert = '''  assert.match(raidSource, /dataset\\.skyRaidFormationBeat/);\n  assert.match(raidSource, /SKY_RAID_ENEMY_VISUAL_ASSIST_MAX = 1\\.20/);\n  assert.match(raidSource, /applySkyRaidEnemySilhouetteAssist\\(this, snapshot\\)/);\n  assert.match(raidSource, /skyRaidVisualAssistScale = assist/);\n'''
-          if 'SKY_RAID_ENEMY_VISUAL_ASSIST_MAX = 1\\.20' not in test:
-              if test_anchor not in test:
-                  raise SystemExit('test anchor missing')
-              test = test.replace(test_anchor, test_insert, 1)
-              test_path.write_text(test)
+          old_test_import = '''  SKY_DANCER_SKY_RAID_CHAIN_GRACE_SECONDS,\n  SKY_DANCER_SKY_RAID_TARGET_SECONDS,\n'''
+          new_test_import = '''  SKY_DANCER_SKY_RAID_CHAIN_GRACE_SECONDS,\n  SKY_DANCER_SKY_RAID_PERFECT_RUSH_KILLS,\n  SKY_DANCER_SKY_RAID_TARGET_SECONDS,\n'''
+          if new_test_import not in test:
+              if old_test_import not in test: raise SystemExit('test constant import anchor missing')
+              test = test.replace(old_test_import, new_test_import, 1)
+          old_test_fn_import = '''  skyDancerSkyRaidPressure,\n  skyDancerSkyRaidRushActive,\n'''
+          new_test_fn_import = '''  skyDancerSkyRaidPressure,\n  skyDancerSkyRaidRank,\n  skyDancerSkyRaidRushActive,\n'''
+          if new_test_fn_import not in test:
+              if old_test_fn_import not in test: raise SystemExit('test function import anchor missing')
+              test = test.replace(old_test_fn_import, new_test_fn_import, 1)
+
+          old_chain_test = '''test("SKY RAID free-flight chain window supports a bank, reacquire and relock handoff", () => {\n  assert.ok(SKY_DANCER_SKY_RAID_CHAIN_GRACE_SECONDS >= 5);\n  assert.ok(SKY_DANCER_SKY_RAID_CHAIN_GRACE_SECONDS < 7);\n  const raidSource = readFileSync(new URL("../src/sky/SkyDancerSkyRaid.ts", import.meta.url), "utf8");\n  assert.match(raidSource, /state\\.chainTimer = SKY_DANCER_SKY_RAID_CHAIN_GRACE_SECONDS/);\n});\n'''
+          new_chain_test = '''test("SKY RAID free-flight chain window supports a bank, reacquire and relock handoff", () => {\n  assert.ok(SKY_DANCER_SKY_RAID_CHAIN_GRACE_SECONDS >= 5);\n  assert.ok(SKY_DANCER_SKY_RAID_CHAIN_GRACE_SECONDS < 7);\n  const raidSource = readFileSync(new URL("../src/sky/SkyDancerSkyRaid.ts", import.meta.url), "utf8");\n  assert.match(raidSource, /state\\.chainTimer = SKY_DANCER_SKY_RAID_CHAIN_GRACE_SECONDS/);\n  assert.match(raidSource, /hasCombatTarget/);\n  assert.match(raidSource, /if \\(hasCombatTarget\\) state\\.chainTimer/);\n});\n'''
+          if new_chain_test not in test:
+              if old_chain_test not in test: raise SystemExit('chain test anchor missing')
+              test = test.replace(old_chain_test, new_chain_test, 1)
+
+          old_steer_test = '''test("SKY RAID caps only large steering deflections before inherited quickening", () => {\n  const raidSource = readFileSync(new URL("../src/sky/SkyDancerSkyRaid.ts", import.meta.url), "utf8");\n  assert.match(raidSource, /SKY_DANCER_SKY_RAID_MAX_STEER_INPUT = 0\\.46/);\n  assert.match(raidSource, /return clamp\\(value, -SKY_DANCER_SKY_RAID_MAX_STEER_INPUT, SKY_DANCER_SKY_RAID_MAX_STEER_INPUT\\)/);\n  assert.match(raidSource, /steer: skyDancerSkyRaidSteerInput\\(input\\.steer\\)/);\n  assert.match(raidSource, /const skyRaidActive = isSkyRaidMode\\(\\)/);\n});\n'''
+          new_steer_test = '''test("SKY RAID keeps fine aim direct and softly compresses large phone-stick steering", () => {\n  const raidSource = readFileSync(new URL("../src/sky/SkyDancerSkyRaid.ts", import.meta.url), "utf8");\n  assert.match(raidSource, /SKY_DANCER_SKY_RAID_MAX_STEER_INPUT = 0\\.46/);\n  assert.match(raidSource, /SKY_DANCER_SKY_RAID_STEER_SOFT_ZONE = 0\\.30/);\n  assert.match(raidSource, /Math\\.pow\\(1 - normalized, 2\\.2\\)/);\n  assert.match(raidSource, /return Math\\.sign\\(safe\\) \\* compressed/);\n  assert.match(raidSource, /steer: skyDancerSkyRaidSteerInput\\(input\\.steer\\)/);\n  assert.match(raidSource, /const skyRaidActive = isSkyRaidMode\\(\\)/);\n});\n'''
+          if new_steer_test not in test:
+              if old_steer_test not in test: raise SystemExit('steering test anchor missing')
+              test = test.replace(old_steer_test, new_steer_test, 1)
+
+          old_v33 = '''test("SKY RAID V33 gives the first two stages a full two-minute combat arc", () => {\n  assert.equal(SKY_DANCER_SKY_RAID_ACT_SECONDS, 90);\n  assert.equal(SKY_DANCER_SKY_RAID_OPENING_ACT_SECONDS, 120);\n  assert.equal(SKY_DANCER_SKY_RAID_OPENING_BREAK_MIN_SECONDS, 90);\n  assert.equal(SKY_DANCER_SKY_RAID_TARGET_SECONDS, 510);\n  assert.deepEqual(SKY_DANCER_SKY_RAID_ACTS.map((act) => act.endSeconds - act.startSeconds), [120, 120, 90, 90, 90]);\n  assert.deepEqual(SKY_DANCER_SKY_RAID_ACTS.map((act) => act.killTarget), [20, 22, 18, 20, 20]);\n  assert.equal(SKY_DANCER_SKY_RAID_BOSS_TRIGGER_SECONDS, 483);\n  for (const second of [8, 31, 53, 75, 97]) assert.equal(skyDancerSkyRaidRushActive(second, SKY_DANCER_SKY_RAID_ACTS[0]), true);\n  for (const second of [20, 44, 66, 88, 108]) assert.equal(skyDancerSkyRaidRushActive(second, SKY_DANCER_SKY_RAID_ACTS[0]), false);\n  assert.equal(skyDancerSkyRaidActBreakEligible(89.99, SKY_DANCER_SKY_RAID_ACTS[0], 99), false);\n  assert.equal(skyDancerSkyRaidActBreakEligible(90, SKY_DANCER_SKY_RAID_ACTS[0], 20), true);\n  assert.equal(skyDancerSkyRaidActBreakEligible(209.99, SKY_DANCER_SKY_RAID_ACTS[1], 99), false);\n  assert.equal(skyDancerSkyRaidActBreakEligible(210, SKY_DANCER_SKY_RAID_ACTS[1], 22), true);\n  const raidSource = readFileSync(new URL("../src/sky/SkyDancerSkyRaid.ts", import.meta.url), "utf8");\n  const overlaySource = readFileSync(new URL("../app/SkyDancerSkyRaidOverlay.tsx", import.meta.url), "utf8");\n  assert.match(raidSource, /beatSeconds = Math\\.max\\(1, \\(act\\.endSeconds - act\\.startSeconds\\) \\/ 10\\)/);\n  assert.match(raidSource, /skyDancerSkyRaidActBreakEligible\\(hunt\\.huntElapsedSeconds, act, state\\.actKills\\)/);\n  assert.match(raidSource, /setCartTurboHuntExternalProgressionEnabled\\(true\\)/);\n  assert.match(raidSource, /SKY_DANCER_SKY_RAID_TARGET_SECONDS - hunt\\.huntElapsedSeconds/);\n  assert.match(overlaySource, /BREAK SECURED/);\n  assert.match(overlaySource, /FREE HUNT/);\n});\n'''
+          new_v33 = '''test("SKY RAID arcade pacing pass keeps the 8:30 run while rewarding objectives immediately", () => {\n  assert.equal(SKY_DANCER_SKY_RAID_ACT_SECONDS, 90);\n  assert.equal(SKY_DANCER_SKY_RAID_OPENING_ACT_SECONDS, 120);\n  assert.equal(SKY_DANCER_SKY_RAID_OPENING_BREAK_MIN_SECONDS, 0);\n  assert.equal(SKY_DANCER_SKY_RAID_TARGET_SECONDS, 510);\n  assert.deepEqual(SKY_DANCER_SKY_RAID_ACTS.map((act) => act.endSeconds - act.startSeconds), [120, 120, 90, 90, 90]);\n  assert.deepEqual(SKY_DANCER_SKY_RAID_ACTS.map((act) => act.killTarget), [20, 22, 18, 20, 20]);\n  assert.equal(SKY_DANCER_SKY_RAID_BOSS_TRIGGER_SECONDS, 450);\n  for (const second of [8, 31, 53, 75, 97]) assert.equal(skyDancerSkyRaidRushActive(second, SKY_DANCER_SKY_RAID_ACTS[0]), true);\n  for (const second of [20, 44, 66, 88, 108]) assert.equal(skyDancerSkyRaidRushActive(second, SKY_DANCER_SKY_RAID_ACTS[0]), false);\n  assert.equal(skyDancerSkyRaidActBreakEligible(12, SKY_DANCER_SKY_RAID_ACTS[0], 19), false);\n  assert.equal(skyDancerSkyRaidActBreakEligible(12, SKY_DANCER_SKY_RAID_ACTS[0], 20), true);\n  assert.equal(skyDancerSkyRaidActBreakEligible(132, SKY_DANCER_SKY_RAID_ACTS[1], 22), true);\n  const raidSource = readFileSync(new URL("../src/sky/SkyDancerSkyRaid.ts", import.meta.url), "utf8");\n  const overlaySource = readFileSync(new URL("../app/SkyDancerSkyRaidOverlay.tsx", import.meta.url), "utf8");\n  assert.match(raidSource, /beatSeconds = Math\\.max\\(1, \\(act\\.endSeconds - act\\.startSeconds\\) \\/ 10\\)/);\n  assert.match(raidSource, /skyDancerSkyRaidActBreakEligible\\(hunt\\.huntElapsedSeconds, act, state\\.actKills\\)/);\n  assert.match(raidSource, /setCartTurboHuntExternalProgressionEnabled\\(true\\)/);\n  assert.match(raidSource, /SKY_DANCER_SKY_RAID_TARGET_SECONDS - hunt\\.huntElapsedSeconds/);\n  assert.match(overlaySource, /BREAK SECURED/);\n  assert.match(overlaySource, /FREE HUNT/);\n});\n\ntest("SKY RAID grades complete runs and makes Formation Rush a scored micro-objective", () => {\n  assert.equal(SKY_DANCER_SKY_RAID_PERFECT_RUSH_KILLS, 4);\n  assert.equal(skyDancerSkyRaidRank(19_999, 5, 12, 12), "C");\n  assert.equal(skyDancerSkyRaidRank(20_000, 0, 0, 0), "B");\n  assert.equal(skyDancerSkyRaidRank(30_000, 3, 3, 0), "A");\n  assert.equal(skyDancerSkyRaidRank(40_000, 4, 8, 4), "S");\n  assert.equal(skyDancerSkyRaidRank(50_000, 5, 10, 8), "S+");\n  const raidSource = readFileSync(new URL("../src/sky/SkyDancerSkyRaid.ts", import.meta.url), "utf8");\n  const overlaySource = readFileSync(new URL("../app/SkyDancerSkyRaidOverlay.tsx", import.meta.url), "utf8");\n  assert.match(raidSource, /state\\.rushKills \\+= 1/);\n  assert.match(raidSource, /state\\.perfectRushes \\+= 1/);\n  assert.match(raidSource, /PERFECT RUSH/);\n  assert.match(overlaySource, /FORMATION RESULT/);\n  assert.match(overlaySource, /NEW RECORD/);\n  assert.match(overlaySource, /MAX CHAIN/);\n});\n'''
+          if new_v33 not in test:
+              if old_v33 not in test: raise SystemExit('V33 pacing test anchor missing')
+              test = test.replace(old_v33, new_v33, 1)
+          test_path.write_text(test)
+
+          docs = '''# SKY RAID\n\nSKY RAID is Sky Dancer's score-driven free-flight arcade run: mature Arcade Run scenery, full 360-degree control, escalating enemy doctrines, Formation Rush micro-objectives and a flagship finish.\n\n## Official run structure\n\nThe production target is **8 minutes 30 seconds**. The first two Acts breathe for two minutes each; the final three are 90-second escalation stages.\n\n| Act | Timeline | Objective | Combat identity |\n| --- | --- | ---: | --- |\n| DAWN CITY | 0:00–2:00 | 20 kills | Free approach / Gate Spear |\n| RED CANYON | 2:00–4:00 | 22 kills | Low-altitude knife run |\n| CLOUD FLEET | 4:00–5:30 | 18 kills | Warship breakthrough |\n| STORM CARRIER | 5:30–7:00 | 20 kills | Thunderhead intercept |\n| PRISM CITADEL | 7:00–8:30 | 20 kills | Titan siege |\n\nThe **PRISM TITAN enters at 7:30**, reserving roughly the final minute for the climax instead of compressing the boss into the last seconds.\n\n## ACT BREAK\n\nACT BREAK is earned immediately when the Act kill target is reached. There is no hidden minimum-time gate. The rest of that Act becomes FREE HUNT: keep the chain alive, attack Rush windows and build score. BREAK rewards score, fuel and a Turbo charge when capacity allows.\n\n## Formation Rush\n\nRush windows are explicit score attacks inside each Act. Kills score at ×2. Down **4 targets during one Rush** to secure PERFECT RUSH and an additional score bonus. The HUD shows live Rush progress and a result card; the run result tracks the number of PERFECT RUSH clears.\n\n## Chain fairness\n\nThe normal chain grace remains 5.6 seconds, but its timer only burns while at least one live combat target exists. Spawn/transition gaps no longer erase a chain that the player had no opportunity to continue.\n\n## Steering\n\nPhone steering preserves direct response around center and uses a soft outer compression curve. Full stick remains below the inherited controller's snap-turn region, while medium and full deflection still feel different instead of flattening into one hard-clamped value.\n\n## Scoring and result\n\nScore comes from kills, chain multiplier, Turbo, Rush ×2, ACT BREAK, PERFECT RUSH, orders and the final clear/time bonus. Results report **C / B / A / S / S+**, ACT BREAK count, PERFECT RUSH count, max chain and a locally persisted personal best.\n\nTop grades intentionally require more than raw score: S and S+ also require consistent BREAK, chain and Rush execution.\n\n## Mode ownership\n\nSKY RAID owns its flight control, enemy doctrine, world presentation, HUD hierarchy and progression. Campaign choreography and forced-scroll Arcade Run scaffolding must not leak into the mode. iPhone landscape remains the primary presentation target.\n'''
+          Path('docs/SKY_RAID.md').write_text(docs)
           PY
-      - name: Fast tests
-        run: npm run test:fast
-      - name: Lint
-        run: npm run lint
-      - name: Commit readability pass
+      - name: Verify full repository contract
+        run: npm run verify
+      - name: Commit SKY RAID arcade pacing polish
         run: |
           if git diff --quiet; then
             echo "No source changes needed"
@@ -89,6 +214,6 @@ jobs:
           fi
           git config user.name "yz4git"
           git config user.email "65384484+yz4git@users.noreply.github.com"
-          git add src/sky/SkyDancerSkyRaid.ts tests/sky-sky-raid.test.ts
-          git commit -m "Improve SKY RAID distant enemy readability"
+          git add src/sky/SkyDancerSkyRaidRules.ts src/sky/SkyDancerSkyRaid.ts app/SkyDancerSkyRaidOverlay.tsx app/SkyDancerSkyRaidOverlay.module.css tests/sky-sky-raid.test.ts docs/SKY_RAID.md
+          git commit -m "Polish SKY RAID arcade run pacing"
           git push origin HEAD:main
