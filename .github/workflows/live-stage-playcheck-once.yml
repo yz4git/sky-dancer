@@ -1,4 +1,4 @@
-# Visual rerun: StageCycle is the sole top HUD owner in Turbo Hunt.
+# Final visual rerun: verify legacy Boost Strike banner is absent and StageCycle pacing remains stable.
 name: Live Stage Playcheck Once
 
 on:
