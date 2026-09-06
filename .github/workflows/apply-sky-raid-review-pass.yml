@@ -25,8 +25,18 @@ jobs:
         run: |
           python3 .github/skyraid-arcade-polish.py
           git diff --check
-      - name: Verify repository contract
-        run: npm run verify
+      - name: Sky rules tests
+        run: npm run test:rules
+      - name: PWA safety tests
+        run: npm run test:pwa
+      - name: Pages build and render tests
+        run: npm run test:pages
+      - name: Arcade TypeScript check
+        run: npm run check:arcade
+      - name: Lint
+        run: npm run lint
+      - name: Validate artifact
+        run: npm run validate:artifact
       - name: Commit verified product
         run: |
           rm -f .github/skyraid-arcade-polish.py
