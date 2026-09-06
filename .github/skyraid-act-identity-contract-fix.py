@@ -22,4 +22,19 @@ if immediate_contract not in source:
 if stale_title in source:
     raise SystemExit("stale delayed BREAK contract survived cleanup")
 
+# Titan support pressure wraps the legacy rush/base doctrine choice in a late-run branch.
+# Keep the existing regression tests focused on doctrine consumption rather than one-line formatting.
+old_target = r'''  assert.match(raidSource, /targetCount: rush \? profile\.rushTargetCount : profile\.baseTargetCount/);'''
+new_target = '''  assert.match(raidSource, /profile\\.rushTargetCount/);\n  assert.match(raidSource, /profile\\.baseTargetCount/);'''
+if old_target not in source:
+    raise SystemExit("legacy targetCount doctrine assertion is missing")
+source = source.replace(old_target, new_target, 1)
+
+old_correction = r'''  assert.match(raidSource, /correctionSpeed: rush \? profile\.rushCorrectionSpeed : profile\.correctionSpeed/);'''
+new_correction = '''  assert.match(raidSource, /profile\\.rushCorrectionSpeed/);\n  assert.match(raidSource, /profile\\.correctionSpeed/);'''
+correction_count = source.count(old_correction)
+if correction_count != 2:
+    raise SystemExit(f"expected 2 legacy correctionSpeed assertions, found {correction_count}")
+source = source.replace(old_correction, new_correction)
+
 path.write_text(source)
