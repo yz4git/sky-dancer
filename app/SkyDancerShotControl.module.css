@@ -14,8 +14,8 @@
   border: 1px solid rgba(153, 237, 255, .58);
   border-radius: 8px 15px 8px 15px;
   background:
-    radial-gradient(circle at 50% 48%, rgba(255, 103, 56, .12), transparent 35%),
-    linear-gradient(155deg, rgba(12, 77, 111, .5), rgba(5, 34, 58, .56) 58%, rgba(8, 21, 38, .64));
+    radial-gradient(circle at 50% 48%, rgba(255, 103, 56, .08), transparent 35%),
+    linear-gradient(155deg, rgba(12, 77, 111, .28), rgba(5, 34, 58, .33) 58%, rgba(8, 21, 38, .40));
   outline: 0;
   touch-action: none;
   -webkit-tap-highlight-color: transparent;
@@ -23,10 +23,10 @@
   font: inherit;
   font-weight: 1000;
   box-shadow:
-    0 3px 0 rgba(3, 25, 44, .42),
-    0 8px 18px rgba(0, 55, 88, .18),
-    inset 0 1px 0 rgba(255, 255, 255, .18),
-    inset 0 -10px 20px rgba(1, 15, 29, .13);
+    0 3px 0 rgba(3, 25, 44, .30),
+    0 8px 18px rgba(0, 55, 88, .10),
+    inset 0 1px 0 rgba(255, 255, 255, .15),
+    inset 0 -10px 20px rgba(1, 15, 29, .08);
   text-shadow: 0 1px 5px rgba(0, 18, 31, .84);
   display: flex;
   flex-direction: column;
@@ -84,12 +84,12 @@
 }
 
 :global([data-sky-dancer-turbo-control="true"]) {
-  border-color: rgba(182, 240, 255, .6) !important;
-  background: linear-gradient(145deg, rgba(58, 196, 239, .52), rgba(18, 126, 190, .57) 48%, rgba(10, 76, 126, .64)) !important;
+  border-color: rgba(182, 240, 255, .58) !important;
+  background: linear-gradient(145deg, rgba(58, 196, 239, .30), rgba(18, 126, 190, .36) 48%, rgba(10, 76, 126, .42)) !important;
   box-shadow:
-    0 3px 0 rgba(9, 45, 72, .42),
-    0 8px 18px rgba(20, 142, 213, .17),
-    inset 0 1px 0 rgba(255,255,255,.18) !important;
+    0 3px 0 rgba(9, 45, 72, .30),
+    0 8px 18px rgba(20, 142, 213, .10),
+    inset 0 1px 0 rgba(255,255,255,.16) !important;
 }
 
 :global([data-sky-dancer-turbo-control="true"]:active) {
