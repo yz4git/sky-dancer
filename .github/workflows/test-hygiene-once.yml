@@ -24,6 +24,12 @@ jobs:
       - name: Apply test hygiene cleanup
         run: |
           python3 .github/test-hygiene-cleanup.py
+          python3 - <<'PY'
+          from pathlib import Path
+          for path in Path('tests').glob('*'):
+              if path.is_file() and path.suffix in {'.ts', '.mjs', '.md'}:
+                  path.write_text(path.read_text().rstrip() + '\n')
+          PY
           git diff --check
       - name: Fast behavioral tests
         run: npm run test:fast
