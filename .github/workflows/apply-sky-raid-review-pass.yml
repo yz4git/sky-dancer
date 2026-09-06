@@ -24,6 +24,7 @@ jobs:
       - name: Apply SKY RAID arcade polish
         run: |
           python3 .github/skyraid-arcade-polish.py
+          python3 .github/skyraid-arcade-polish-lint-fix.py
           git diff --check
       - name: Sky rules tests
         run: npm run test:rules
@@ -40,6 +41,7 @@ jobs:
       - name: Commit verified product
         run: |
           rm -f .github/skyraid-arcade-polish.py
+          rm -f .github/skyraid-arcade-polish-lint-fix.py
           rm -f .github/workflows/apply-sky-raid-review-pass.yml
           git diff --check
           git config user.name "yz4git"
