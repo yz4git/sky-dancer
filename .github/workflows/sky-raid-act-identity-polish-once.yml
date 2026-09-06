@@ -49,4 +49,4 @@ jobs:
           git commit -m "Deepen SKY RAID act identity and finale"
           git push origin HEAD:main
 
-# rerun with idempotent current BREAK contract handling
+# rerun with stale delayed-BREAK block removal enforced
