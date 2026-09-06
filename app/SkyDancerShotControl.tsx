@@ -47,18 +47,28 @@ export default function SkyDancerShotControl() {
   const pointerFireRef = useRef(0);
 
   useEffect(() => {
-    const hideBrake = () => {
+    const syncLegacyControls = () => {
+      const turboHunt = document.documentElement.dataset.skyDancerMode === "turbo-hunt";
       for (const button of document.querySelectorAll("button")) {
-        if (button.textContent?.trim() === "BRAKE") {
+        const label = button.textContent?.trim() ?? "";
+        if (label === "BRAKE") {
           button.style.display = "none";
           button.setAttribute("aria-hidden", "true");
           button.setAttribute("tabindex", "-1");
         }
+        if (label.startsWith("TURBO")) {
+          if (turboHunt) button.dataset.skyDancerTurboControl = "true";
+          else delete button.dataset.skyDancerTurboControl;
+        }
       }
     };
-    hideBrake();
-    const observer = new MutationObserver(hideBrake);
+    syncLegacyControls();
+    const observer = new MutationObserver(syncLegacyControls);
     observer.observe(document.body, { childList: true, subtree: true });
+
+    const onModeChange = () => syncLegacyControls();
+    const modeObserver = new MutationObserver(onModeChange);
+    modeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ["data-sky-dancer-mode"] });
 
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.repeat) return;
@@ -70,6 +80,10 @@ export default function SkyDancerShotControl() {
     window.addEventListener("keydown", onKeyDown, { passive: false });
     return () => {
       observer.disconnect();
+      modeObserver.disconnect();
+      for (const button of document.querySelectorAll<HTMLElement>("[data-sky-dancer-turbo-control]")) {
+        delete button.dataset.skyDancerTurboControl;
+      }
       window.removeEventListener("keydown", onKeyDown);
     };
   }, []);
