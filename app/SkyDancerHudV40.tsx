@@ -83,8 +83,9 @@ export default function SkyDancerHudV40() {
 
   return <>
     <style>{`
-      .skyDancerV40StageHudActive .${huntStyles.orderCard} {
-        visibility: hidden !important;
+      .skyDancerV40StageHudActive .${huntStyles.orderCard},
+      .skyDancerV40StageHudActive .${huntStyles.heatCard} {
+        display: none !important;
       }
       .skyDancerV40BossActive .skyDancerBossV34,
       .skyDancerV40BossActive .${huntStyles.boss},
