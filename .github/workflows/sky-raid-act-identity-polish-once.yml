@@ -24,6 +24,7 @@ jobs:
       - name: Apply SKY RAID act identity polish
         run: |
           python3 .github/skyraid-act-identity-polish.py
+          python3 .github/skyraid-act-identity-contract-fix.py
           git diff --check
       - name: Rules and PWA tests
         run: npm run test:fast
@@ -38,6 +39,7 @@ jobs:
       - name: Commit verified product
         run: |
           rm -f .github/skyraid-act-identity-polish.py
+          rm -f .github/skyraid-act-identity-contract-fix.py
           rm -f .github/workflows/sky-raid-act-identity-polish-once.yml
           git diff --check
           git config user.name "yz4git"
@@ -47,4 +49,4 @@ jobs:
           git commit -m "Deepen SKY RAID act identity and finale"
           git push origin HEAD:main
 
-# triggered after the workflow was registered
+# retry after aligning the stale opening BREAK test with immediate reward behavior
