@@ -1,0 +1,45 @@
+name: Turbo Hunt Readability Polish Once
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/playcheck-polish-once.yml"
+      - ".github/playcheck-polish-pass.mjs"
+
+permissions:
+  contents: write
+
+jobs:
+  polish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.13.0
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Apply screen-review polish
+        run: node .github/playcheck-polish-pass.mjs
+      - name: Fast tests
+        run: npm run test:fast
+      - name: Pages build and shell test
+        run: npm run test:pages
+      - name: Arcade TypeScript
+        run: npm run check:arcade
+      - name: Lint
+        run: npm run lint
+      - name: Validate artifact
+        run: npm run validate:artifact
+      - name: Commit validated polish
+        run: |
+          git config user.name "yz4git"
+          git config user.email "65384484+yz4git@users.noreply.github.com"
+          git rm .github/playcheck-polish-pass.mjs .github/workflows/playcheck-polish-once.yml
+          git add app/SkyDancerHudV30.tsx app/SkyDancerHudV45.tsx src/sky/presentation/SkyDancerV52CombatFxSpeedPass.ts .github/live-playcheck-stage.mjs .github/workflows/live-stage-playcheck-once.yml
+          git commit -m "Improve Turbo Hunt combat readability"
+          git push origin HEAD:main
