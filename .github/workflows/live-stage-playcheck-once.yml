@@ -1,0 +1,38 @@
+name: Live Stage Playcheck Once
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/live-stage-playcheck-once.yml"
+      - ".github/live-playcheck-stage.mjs"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  playcheck:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.13.0
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npm install --no-save --package-lock=false --legacy-peer-deps playwright@1.55.0
+      - run: npx playwright install --with-deps chromium
+      - name: Run live visual playcheck
+        env:
+          SKY_DANCER_AUDIT_URL: https://yz4git.github.io/sky-dancer/
+        run: node .github/live-playcheck-stage.mjs
+      - name: Upload playcheck artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: live-stage-playcheck-${{ github.sha }}
+          path: artifacts/live-stage-playcheck
+          if-no-files-found: error
+          retention-days: 2
