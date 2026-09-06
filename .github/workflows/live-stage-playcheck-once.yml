@@ -25,6 +25,8 @@ jobs:
       - run: npm ci --no-audit --no-fund
       - run: npm install --no-save --package-lock=false --legacy-peer-deps playwright@1.55.0
       - run: npx playwright install --with-deps chromium
+      - name: Wait for Pages deployment
+        run: sleep 70
       - name: Run live visual playcheck
         env:
           SKY_DANCER_AUDIT_URL: https://yz4git.github.io/sky-dancer/
