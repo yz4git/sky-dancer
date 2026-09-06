@@ -8,7 +8,7 @@ import {
   skyDancerArcadeV11BossWeakpointOpen,
 } from "../src/sky/arcade/SkyDancerArcadeV11Bosses";
 
-test("V11.2 gives all eleven climax targets distinct boss identities", () => {
+test("Arcade bosses give all eleven climax targets distinct boss identities", () => {
   const styles = new Set();
   const finalMechanics = new Set();
   for (const stage of SKY_DANCER_ARCADE_STAGES) {
@@ -28,7 +28,7 @@ test("V11.2 gives all eleven climax targets distinct boss identities", () => {
   assert.equal(finalMechanics.size, SKY_DANCER_ARCADE_STAGES.length, "every boss owns a unique final mechanic label");
 });
 
-test("V11.2 boss motion stays finite and inside the combat envelope", () => {
+test("Arcade boss motion stays finite and inside the combat envelope", () => {
   for (const stage of SKY_DANCER_ARCADE_STAGES) {
     for (const phase of [1,2,3] as const) {
       for (const age of [0,.5,1.3,2.7,5.1,9.4]) {
@@ -42,7 +42,7 @@ test("V11.2 boss motion stays finite and inside the combat envelope", () => {
   }
 });
 
-test("V11.2 phase transitions trigger stage-specific mechanics, hazards and escorts", () => {
+test("Arcade boss phase transitions trigger stage-specific mechanics, hazards and escorts", () => {
   for (const stage of SKY_DANCER_ARCADE_STAGES) {
     const runtime = new SkyDancerArcadeRuntime({ mode:"stage-practice", startStageId:stage.id, difficulty:"normal", seed:812 });
     const profile = skyDancerArcadeV11BossProfile(stage.id);

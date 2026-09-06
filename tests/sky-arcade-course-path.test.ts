@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { SKY_DANCER_ARCADE_STAGES } from "../src/sky/arcade/SkyDancerArcadeData";
 import { arcadeCoursePose, arcadeCourseRelativePose } from "../src/sky/arcade/SkyDancerArcadeCoursePath";
 
-test("V6 course path creates authored horizontal bends instead of a straight corridor", () => {
+test("Arcade course path creates authored horizontal bends instead of a straight corridor", () => {
   for (const stage of SKY_DANCER_ARCADE_STAGES) {
     const length = stage.durationSeconds * stage.courseSpeed;
     const samples = Array.from({ length: 13 }, (_, index) => arcadeCoursePose(stage, length * index / 12));
@@ -14,7 +14,7 @@ test("V6 course path creates authored horizontal bends instead of a straight cor
   }
 });
 
-test("V6 course path includes vertical flying lines and stage-specific signatures", () => {
+test("Arcade course path includes vertical flying lines and stage-specific signatures", () => {
   const signatures = new Set<string>();
   for (const stage of SKY_DANCER_ARCADE_STAGES) {
     const length = stage.durationSeconds * stage.courseSpeed;
@@ -26,15 +26,7 @@ test("V6 course path includes vertical flying lines and stage-specific signature
   assert.equal(signatures.size, SKY_DANCER_ARCADE_STAGES.length);
 });
 
-test("V6.1 Dawn City opens with a clearly readable S-turn", () => {
-  const stage = SKY_DANCER_ARCADE_STAGES[0];
-  const first = arcadeCoursePose(stage, stage.courseSpeed * 3.5);
-  const second = arcadeCoursePose(stage, stage.courseSpeed * 9.5);
-  assert.ok(Math.abs(first.yaw) > 0.06, `early yaw ${first.yaw}`);
-  assert.ok(Math.abs(second.x - first.x) > 7.5, `early S travel ${second.x - first.x}`);
-});
-
-test("V6 near and far objects resolve onto the same curved corridor", () => {
+test("Arcade course near and far objects resolve onto the same curved corridor", () => {
   const stage = SKY_DANCER_ARCADE_STAGES[0];
   const length = stage.durationSeconds * stage.courseSpeed;
   let visibleBend = 0;

@@ -7,7 +7,7 @@ import { arcadeCoursePose, arcadeCourseRelativePose, arcadeCourseRelativeVisualP
 import { createReferenceFighter, createReferenceCarrier } from "../src/sky/arcade/SkyDancerArcadeReferenceAirframes";
 import { ARCADE_NEAR_PASS_CLEARANCE_V1039, arcadeCourseVisualBankScaleV104, arcadeGroundSurfaceLocalYV1052, arcadeSharedSceneryAttitudeV1041, SkyDancerArcadeReferenceWorld } from "../src/sky/arcade/SkyDancerArcadeReferenceWorld";
 import { createSkyDancerArcadeHazard, extendArcadeGroundConnectorsV1052 } from "../src/sky/arcade/SkyDancerArcadeModels";
-import { createArcadeWaterMaterial, referenceAtmosphere } from "../src/sky/arcade/SkyDancerArcadeReferenceMaterials";
+import { referenceAtmosphere } from "../src/sky/arcade/SkyDancerArcadeReferenceMaterials";
 import { ARCADE_EFFECT_BUDGET, SkyDancerArcadeProductPresentation } from "../src/sky/arcade/SkyDancerArcadeProductPresentation";
 import { SKY_DANCER_ARCADE_STAGES } from "../src/sky/arcade/SkyDancerArcadeData";
 import { SkyDancerArcadeRuntime } from "../src/sky/arcade/SkyDancerArcadeRuntime";

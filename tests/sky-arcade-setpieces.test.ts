@@ -11,7 +11,7 @@ function visibleNamed(scene: THREE.Scene, prefix: string): THREE.Object3D[] {
   return result;
 }
 
-test("V11.1 Cloud Fleet deck run is real course-anchored geometry", () => {
+test("Arcade setpiece Cloud Fleet deck run is real course-anchored geometry", () => {
   const scene = new THREE.Scene();
   const runtime = new SkyDancerArcadeRuntime({ mode: "stage-practice", startStageId: "cloud-fleet", difficulty: "normal", seed: 311 });
   runtime.triggerV11TimelineForTests(.35);
@@ -34,7 +34,7 @@ test("V11.1 Cloud Fleet deck run is real course-anchored geometry", () => {
   assert.equal(scene.getObjectByName("arcade-v11-signature-setpieces"), undefined);
 });
 
-test("V11.1 Night Metro train moves deliberately on a course-anchored rail", () => {
+test("Arcade setpiece Night Metro train moves deliberately on a course-anchored rail", () => {
   const scene = new THREE.Scene();
   const runtime = new SkyDancerArcadeRuntime({ mode: "stage-practice", startStageId: "night-metro", difficulty: "normal", seed: 312 });
   runtime.triggerV11TimelineForTests(.235);
@@ -55,7 +55,7 @@ test("V11.1 Night Metro train moves deliberately on a course-anchored rail", () 
   director.dispose();
 });
 
-test("V11.1 Night Metro gantries form a repeated but course-coherent tunnel beat", () => {
+test("Arcade setpiece Night Metro gantries form a repeated but course-coherent tunnel beat", () => {
   const scene = new THREE.Scene();
   const runtime = new SkyDancerArcadeRuntime({ mode: "stage-practice", startStageId: "night-metro", difficulty: "normal", seed: 313 });
   runtime.triggerV11TimelineForTests(.36);

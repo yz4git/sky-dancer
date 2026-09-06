@@ -4,7 +4,7 @@ import { SKY_DANCER_ARCADE_STAGES } from "../src/sky/arcade/SkyDancerArcadeData"
 import { SkyDancerArcadeRuntime } from "../src/sky/arcade/SkyDancerArcadeRuntime";
 import { skyDancerArcadeV11Beat, skyDancerArcadeV11RouteRisk, skyDancerArcadeV11Timeline } from "../src/sky/arcade/SkyDancerArcadeV11Timeline";
 
-test("V11 gives every arcade stage a continuous five-beat authored timeline", () => {
+test("Arcade timeline gives every stage a continuous five-beat authored timeline", () => {
   for (const stage of SKY_DANCER_ARCADE_STAGES) {
     const beats = skyDancerArcadeV11Timeline(stage.id);
     assert.equal(beats.length, 5, `${stage.id} has five authored beats`);
@@ -22,7 +22,7 @@ test("V11 gives every arcade stage a continuous five-beat authored timeline", ()
   }
 });
 
-test("V11 stage identities expose distinct signature setpieces", () => {
+test("Arcade timeline stage identities expose distinct signature setpieces", () => {
   const signatures = new Set(SKY_DANCER_ARCADE_STAGES.map((stage) => skyDancerArcadeV11Beat(stage.id, .35).setpiece));
   assert.equal(signatures.size, SKY_DANCER_ARCADE_STAGES.length);
   const city = skyDancerArcadeV11Beat("dawn-city", .5);
@@ -32,13 +32,13 @@ test("V11 stage identities expose distinct signature setpieces", () => {
   assert.equal(skyDancerArcadeV11Beat("prism-citadel", .5).kind, "boss");
 });
 
-test("V11 route risk communicates safe, score and danger choices", () => {
+test("Arcade route risk communicates safe, score and danger choices", () => {
   assert.deepEqual([0,1].map((i) => skyDancerArcadeV11RouteRisk(i,2)), ["SAFE","DANGER"]);
   assert.deepEqual([0,1,2].map((i) => skyDancerArcadeV11RouteRisk(i,3)), ["SAFE","SCORE","DANGER"]);
   assert.equal(skyDancerArcadeV11RouteRisk(0,1), "LOCKED");
 });
 
-test("V11 runtime advances course beats and exposes camera/setpiece telemetry", () => {
+test("Arcade timeline runtime advances course beats and exposes camera/setpiece telemetry", () => {
   const runtime = new SkyDancerArcadeRuntime({ mode: "stage-practice", startStageId: "dawn-city", difficulty: "normal", seed: 111 });
   const initial = runtime.getSnapshot();
   assert.equal(initial.timelineBeatId, "city-entry");
