@@ -27,7 +27,17 @@ jobs:
           python3 .github/skyraid-act-identity-contract-fix.py
           git diff --check
       - name: Rules and PWA tests
-        run: npm run test:fast
+        shell: bash
+        run: |
+          set -o pipefail
+          npm run test:fast 2>&1 | tee /tmp/test-fast.log || {
+            echo "::group::TEST FAST FAILURE SUMMARY"
+            grep -n -E "not ok|AssertionError|ERR_|Expected|actual|error:|failure|SKY RAID" /tmp/test-fast.log | tail -n 140 || true
+            echo "--- tail ---"
+            tail -n 220 /tmp/test-fast.log
+            echo "::endgroup::"
+            exit 1
+          }
       - name: Pages build and render
         run: npm run test:pages
       - name: Arcade TypeScript check
@@ -49,5 +59,4 @@ jobs:
           git commit -m "Deepen SKY RAID act identity and finale"
           git push origin HEAD:main
 
-# rerun with stale delayed-BREAK block removal enforced
-# trigger after current immediate-BREAK contract
+# diagnostic rerun: concise test failure summary
