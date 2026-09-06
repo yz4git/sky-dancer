@@ -34,14 +34,14 @@ export class SkyDancerV52CombatFxSpeedPass {
   constructor(private readonly runtime: SkyDancerFxRuntime) {
     this.speedRoot.name = "sky-dancer-v52-peripheral-speed-field";
     const streakGeometry = new THREE.BoxGeometry(0.018, 0.018, 1);
-    for (let index = 0; index < 28; index += 1) {
+    for (let index = 0; index < 20; index += 1) {
       const line = new THREE.Mesh(streakGeometry, this.speedMaterial);
       const side = index % 2 === 0 ? -1 : 1;
       const lane = Math.floor(index / 2);
       // V55 clarity pass: keep the speed field outside the lock/target reading
       // corridor. The effect remains strong in peripheral vision, especially on
       // Turbo release, without drawing white streaks through the gunsight.
-      const x = side * (2.8 + (lane % 5) * 0.82);
+      const x = side * (3.3 + (lane % 5) * 0.88);
       const y = -1.7 + (lane % 7) * 0.52;
       line.position.set(x, y, -4.5 - (lane % 6) * 1.45);
       line.scale.z = 2.8 + (lane % 4) * 1.3;
@@ -93,8 +93,8 @@ export class SkyDancerV52CombatFxSpeedPass {
     // clean. Turbo still owns the strongest streak density and opacity.
     const speed = THREE.MathUtils.clamp((Math.abs(snapshot.speed) - 10) / 25, 0, 1);
     const intensity = THREE.MathUtils.clamp(speed * 0.68 + (snapshot.boostActive ? 0.58 : 0), 0, 1);
-    this.speedRoot.visible = intensity > 0.06;
-    this.speedMaterial.opacity = intensity * (snapshot.boostActive ? 0.40 : 0.20);
+    this.speedRoot.visible = intensity > 0.10;
+    this.speedMaterial.opacity = intensity * (snapshot.boostActive ? 0.28 : 0.12);
     this.speedRoot.position.copy(this.runtime.camera.position);
     this.speedRoot.quaternion.copy(this.runtime.camera.quaternion);
 
@@ -105,7 +105,7 @@ export class SkyDancerV52CombatFxSpeedPass {
       const travel = (this.elapsed * (8 + intensity * 27) + phase) % 7.5;
       child.position.z = baseZ + travel;
       if (child.position.z > -1.3) child.position.z -= 8.8;
-      child.scale.z = 2.8 + intensity * 7.2 + (index % 4) * 0.55;
+      child.scale.z = 2.7 + intensity * 5.6 + (index % 4) * 0.50;
     }
   }
 

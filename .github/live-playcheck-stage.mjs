@@ -94,7 +94,8 @@ while ((Date.now() - started) / 1000 < 92) {
     const weapon = await page.evaluate(() => typeof window.__skyDancerGetWeaponState === "function" ? window.__skyDancerGetWeaponState() : null);
     const flight = await page.evaluate(() => typeof window.__skyDancerGetFlightDebug === "function" ? window.__skyDancerGetFlightDebug() : null);
     const stage = await page.evaluate(() => typeof window.__skyDancerGetStageCycle === "function" ? window.__skyDancerGetStageCycle() : null);
-    samples.push({ elapsed: Number(elapsed.toFixed(2)), hudText, weapon, flight, stage });
+    const speedFx = await page.evaluate(() => typeof window.__skyDancerGetV52SpeedFx === "function" ? window.__skyDancerGetV52SpeedFx() : null);
+    samples.push({ elapsed: Number(elapsed.toFixed(2)), hudText, weapon, flight, stage, speedFx });
   }
 }
 
@@ -121,12 +122,17 @@ for (let index = 1; index < stageSamples.length; index += 1) {
   }
 }
 diagnostics.largestKillJump = largestKillJump;
+const speedSamples = samples.map((sample) => sample.speedFx).filter(Boolean);
+diagnostics.maxSpeedStreaks = speedSamples.reduce((max, speedFx) => Math.max(max, Number(speedFx.streaks ?? 0)), 0);
+diagnostics.maxSpeedOpacity = speedSamples.reduce((max, speedFx) => Math.max(max, Number(speedFx.speedOpacity ?? 0)), 0);
 await writeFile(`${outputDir}/diagnostics.json`, JSON.stringify(diagnostics, null, 2));
 await browser.close();
 if (pageErrors.length) throw new Error(`page errors: ${pageErrors.join(" | ")}`);
 if (/CHOOSE YOUR BUILD/i.test(finalText)) throw new Error("legacy perk overlay returned during Turbo Hunt");
 if (legacyBoostBannerSeen || /BOOST STRIKE/i.test(finalText)) throw new Error("legacy Boost Strike banner returned during Turbo Hunt");
 if (largestKillJump > 10) throw new Error(`implausible StageCycle kill jump: ${largestKillJump}`);
+if (diagnostics.maxSpeedStreaks > 20) throw new Error(`speed field too dense: ${diagnostics.maxSpeedStreaks} streaks`);
+if (diagnostics.maxSpeedOpacity > 0.29) throw new Error(`speed field too opaque: ${diagnostics.maxSpeedOpacity}`);
 const preFloor = stageSamples.filter((sample) => sample.elapsed < 82);
 if (preFloor.some((sample) => sample.stage.stage !== 1 || sample.stage.phase !== "reinforcements")) {
   throw new Error("Stage 1 advanced before the 84-second combat floor");

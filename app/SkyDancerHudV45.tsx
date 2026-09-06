@@ -125,8 +125,8 @@ export default function SkyDancerHudV45() {
       .skyDancerV45Reticle {
         position: fixed;
         z-index: 138;
-        width: 42px;
-        height: 42px;
+        width: 46px;
+        height: 46px;
         transform: translate(-50%, -50%);
         pointer-events: none;
         display: grid;
@@ -152,7 +152,7 @@ export default function SkyDancerHudV45() {
         transform: rotate(45deg);
       }
       .skyDancerV45Reticle span {
-        font: 950 15px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+        font: 950 16px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
         transform: translateY(-1px);
         text-shadow: 0 0 7px currentColor, 0 1px 5px rgba(0,0,0,.9);
       }
@@ -200,16 +200,16 @@ export default function SkyDancerHudV45() {
         display: grid;
         justify-items: center;
         gap: 2px;
-        min-width: 98px;
-        max-width: min(31vw, 238px);
-        padding: 2px 7px 3px;
+        min-width: 118px;
+        max-width: min(34vw, 270px);
+        padding: 3px 8px 4px;
         pointer-events: none;
-        color: rgba(223,245,250,.76);
-        background: linear-gradient(90deg, transparent, rgba(4,31,45,.30) 16%, rgba(4,31,45,.38) 84%, transparent);
+        color: rgba(231,249,253,.90);
+        background: linear-gradient(90deg, transparent, rgba(4,31,45,.42) 14%, rgba(4,31,45,.52) 86%, transparent);
         border-top: 1px solid rgba(180,235,247,.12);
         border-bottom: 1px solid rgba(180,235,247,.20);
         box-shadow: 0 4px 18px rgba(0,18,32,.18);
-        font: 900 clamp(6.5px,.76vw,8.5px)/1.05 system-ui,sans-serif;
+        font: 900 clamp(8px,.92vw,10.5px)/1.08 system-ui,sans-serif;
         letter-spacing: .08em;
         text-shadow: 0 1px 5px rgba(0,15,28,.82);
         white-space: nowrap;
@@ -234,7 +234,7 @@ export default function SkyDancerHudV45() {
         letter-spacing: .11em;
       }
       .skyDancerV45Altitude { color: #d9f7ff; }
-      .skyDancerV45Range { opacity: .62; font-size: .88em; }
+      .skyDancerV45Range { opacity: .78; font-size: .92em; }
       .skyDancerV45Role {
         display: inline-block;
         margin-right: 4px;
@@ -269,9 +269,9 @@ export default function SkyDancerHudV45() {
       }
       .skyDancerV45Action {
         overflow: hidden;
-        max-width: 27vw;
+        max-width: 31vw;
         text-overflow: ellipsis;
-        font-size: .88em;
+        font-size: .96em;
         font-weight: 950;
         letter-spacing: .085em;
       }

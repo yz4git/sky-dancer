@@ -85,8 +85,8 @@ export default function SkyDancerHudV30() {
       padding: 4px 7px 6px !important;
       border: 0 !important;
       border-radius: 2px 10px 10px 2px !important;
-      background: linear-gradient(90deg, rgba(5,31,51,.72), rgba(7,43,66,.28)) !important;
-      box-shadow: inset 3px 0 0 rgba(91,225,255,.78), 0 4px 14px rgba(1,22,38,.12) !important;
+      background: linear-gradient(90deg, rgba(5,31,51,.86), rgba(7,43,66,.46)) !important;
+      box-shadow: inset 3px 0 0 rgba(91,225,255,.88), 0 5px 16px rgba(1,18,31,.24) !important;
       backdrop-filter: blur(4px) !important;
       -webkit-backdrop-filter: blur(4px) !important;
       z-index: 83 !important;
@@ -97,13 +97,13 @@ export default function SkyDancerHudV30() {
     }
     [data-sd-gas-card="true"] > div:first-child > span:first-child::after {
       content: "HP";
-      font-size: 8px;
+      font-size: 9px;
       letter-spacing: .16em;
       font-weight: 900;
     }
     [data-sd-gas-card="true"] > div:first-child > strong {
-      font-size: 14px !important;
-      font-weight: 900 !important;
+      font-size: 15px !important;
+      font-weight: 950 !important;
     }
     [data-sd-gas-card="true"] > div:nth-child(2) {
       height: 5px !important;
@@ -128,17 +128,17 @@ export default function SkyDancerHudV30() {
       border: 0 !important;
       border-left: 2px solid rgba(79,218,255,.74) !important;
       border-radius: 2px 9px 9px 2px !important;
-      background: linear-gradient(90deg, rgba(4,31,51,.76), rgba(6,39,61,.26)) !important;
-      box-shadow: 0 4px 14px rgba(1,22,38,.10) !important;
+      background: linear-gradient(90deg, rgba(4,31,51,.86), rgba(6,39,61,.44)) !important;
+      box-shadow: inset 0 1px 0 rgba(184,243,255,.10), 0 5px 16px rgba(1,18,31,.22) !important;
       backdrop-filter: blur(4px) !important;
       -webkit-backdrop-filter: blur(4px) !important;
       z-index: 83 !important;
     }
-    [data-sd-turbo-card="true"] > div:first-child strong { font-size: 11px !important; }
-    [data-sd-turbo-card="true"] > div:first-child span { font-size: 8px !important; }
+    [data-sd-turbo-card="true"] > div:first-child strong { font-size: 12px !important; }
+    [data-sd-turbo-card="true"] > div:first-child span { font-size: 9px !important; }
     [data-sd-turbo-card="true"] > div:nth-child(2) { gap: 2px !important; margin-top: 3px !important; }
     [data-sd-turbo-card="true"] > div:nth-child(2) i { height: 5px !important; border-radius: 1px !important; }
-    [data-sd-turbo-card="true"] > div:nth-child(3) { margin-top: 3px !important; font-size: 6px !important; }
+    [data-sd-turbo-card="true"] > div:nth-child(3) { margin-top: 3px !important; font-size: 7px !important; opacity: .86 !important; }
     [data-sd-turbo-card="true"] > div:nth-child(4) { height: 3px !important; margin-top: 2px !important; }
 
     [aria-label="Turbo Hunt status"] {
