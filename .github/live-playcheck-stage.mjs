@@ -125,6 +125,8 @@ diagnostics.largestKillJump = largestKillJump;
 const speedSamples = samples.map((sample) => sample.speedFx).filter(Boolean);
 diagnostics.maxSpeedStreaks = speedSamples.reduce((max, speedFx) => Math.max(max, Number(speedFx.streaks ?? 0)), 0);
 diagnostics.maxSpeedOpacity = speedSamples.reduce((max, speedFx) => Math.max(max, Number(speedFx.speedOpacity ?? 0)), 0);
+diagnostics.maxHitRingScale = speedSamples.reduce((max, speedFx) => Math.max(max, Number(speedFx.maxHitRingScale ?? 0)), 0);
+diagnostics.maxHitRingOpacity = speedSamples.reduce((max, speedFx) => Math.max(max, Number(speedFx.maxHitRingOpacity ?? 0)), 0);
 await writeFile(`${outputDir}/diagnostics.json`, JSON.stringify(diagnostics, null, 2));
 await browser.close();
 if (pageErrors.length) throw new Error(`page errors: ${pageErrors.join(" | ")}`);
@@ -133,6 +135,8 @@ if (legacyBoostBannerSeen || /BOOST STRIKE/i.test(finalText)) throw new Error("l
 if (largestKillJump > 10) throw new Error(`implausible StageCycle kill jump: ${largestKillJump}`);
 if (diagnostics.maxSpeedStreaks > 14) throw new Error(`speed field too dense: ${diagnostics.maxSpeedStreaks} streaks`);
 if (diagnostics.maxSpeedOpacity > 0.21) throw new Error(`speed field too opaque: ${diagnostics.maxSpeedOpacity}`);
+if (diagnostics.maxHitRingScale > 2.75) throw new Error(`hit shockwave too large: ${diagnostics.maxHitRingScale}`);
+if (diagnostics.maxHitRingOpacity > 0.49) throw new Error(`hit shockwave too opaque: ${diagnostics.maxHitRingOpacity}`);
 const preFloor = stageSamples.filter((sample) => sample.elapsed < 82);
 if (preFloor.some((sample) => sample.stage.stage !== 1 || sample.stage.phase !== "reinforcements")) {
   throw new Error("Stage 1 advanced before the 84-second combat floor");
