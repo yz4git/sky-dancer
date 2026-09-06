@@ -1,0 +1,302 @@
+SKY RAID test:fast failure summary
+=================================
+25:# Subtest: actual airframe vertices fit landscape and portrait at all steering limits
+26:ok 4 - actual airframe vertices fit landscape and portrait at all steering limits
+360:# Subtest: V11.6 hangar selections persist and change the actual sortie profile
+361:ok 71 - V11.6 hangar selections persist and change the actual sortie profile
+425:# Subtest: V12.0 director reacts to actual combat behavior instead of only equipped loadout
+426:ok 84 - V12.0 director reacts to actual combat behavior instead of only equipped loadout
+530:# Subtest: V7 drives fighter roll from actual turn rate and lowers presentation altitude
+531:ok 105 - V7 drives fighter roll from actual turn rate and lowers presentation altitude
+605:# Subtest: SKY RAID heading delta wraps across pi
+606:ok 120 - SKY RAID heading delta wraps across pi
+610:# Subtest: SKY RAID bank follows turn rate and stays aircraft-safe
+611:ok 121 - SKY RAID bank follows turn rate and stays aircraft-safe
+615:# Subtest: SKY RAID supports sustained climb and descent with altitude limits
+616:ok 122 - SKY RAID supports sustained climb and descent with altitude limits
+620:# Subtest: SKY RAID spans five arcade acts across the free-flight run
+621:ok 123 - SKY RAID spans five arcade acts across the free-flight run
+625:# Subtest: SKY RAID gives every act a distinct combat doctrine instead of one repeated formation loop
+626:ok 124 - SKY RAID gives every act a distinct combat doctrine instead of one repeated formation loop
+630:# Subtest: SKY RAID gives every act its own enemy package and attack geometry
+631:ok 125 - SKY RAID gives every act its own enemy package and attack geometry
+635:# Subtest: SKY RAID spawn priority rotates pooled aircraft classes by act
+636:ok 126 - SKY RAID spawn priority rotates pooled aircraft classes by act
+640:# Subtest: SKY RAID wires enemy packages into Hunt spawning, flight AI and missile envelopes
+641:ok 127 - SKY RAID wires enemy packages into Hunt spawning, flight AI and missile envelopes
+645:# Subtest: SKY RAID publishes mode ownership before the first inherited population step
+646:ok 128 - SKY RAID publishes mode ownership before the first inherited population step
+650:# Subtest: SKY RAID bootstraps Hunt gameplay without rebuilding the legacy Hunt world
+651:ok 129 - SKY RAID bootstraps Hunt gameplay without rebuilding the legacy Hunt world
+655:# Subtest: SKY RAID keeps the full roster pool while capping live phone density by act
+656:ok 130 - SKY RAID keeps the full roster pool while capping live phone density by act
+660:# Subtest: SKY RAID bypasses campaign StageCycle population truncation
+661:ok 131 - SKY RAID bypasses campaign StageCycle population truncation
+665:# Subtest: SKY RAID owns enemy archetypes instead of campaign choreography
+666:ok 132 - SKY RAID owns enemy archetypes instead of campaign choreography
+670:# Subtest: SKY RAID V33 preserves surviving aircraft across Act boundaries instead of reseeding them
+671:ok 133 - SKY RAID V33 preserves surviving aircraft across Act boundaries instead of reseeding them
+675:# Subtest: SKY RAID formation and phone recycler both consume the active act doctrine
+676:not ok 134 - SKY RAID formation and phone recycler both consume the active act doctrine
+680:  failureType: 'testCodeFailure'
+681:  error: |-
+947:      ' * targeting UI. SKY RAID applies a restrained presentation-only silhouette assist\n' +
+976:  code: 'ERR_ASSERTION'
+977:  name: 'AssertionError'
+978:  expected:
+979:  actual: |-
+1243:     * targeting UI. SKY RAID applies a restrained presentation-only silhouette assist
+1796:      // are actually recycled onto screen.
+2619:          // SKY RAID now owns the complete 450 s act/boss timeline. Disable the inherited
+2637:      // SKY RAID altitude here, at the final presentation stage, so the camera follows
+2647:      // its late presentation update. SKY RAID owns the final render altitude, so
+2693:      // Camera Y follows the actual aircraft Y almost one-to-one; pitch and vertical
+2873:# Subtest: SKY RAID free-flight chain window supports a bank, reacquire and relock handoff
+2874:ok 135 - SKY RAID free-flight chain window supports a bank, reacquire and relock handoff
+2878:# Subtest: SKY RAID flagship cue is a short entrance card instead of a persistent combat banner
+2879:ok 136 - SKY RAID flagship cue is a short entrance card instead of a persistent combat banner
+2883:# Subtest: SKY RAID phone target reticle keeps distant emphasis below the combat-lane clutter limit
+2884:ok 137 - SKY RAID phone target reticle keeps distant emphasis below the combat-lane clutter limit
+2888:# Subtest: SKY RAID Turbo release tail is frame-latched so a slow render cannot skip the cue
+2889:ok 138 - SKY RAID Turbo release tail is frame-latched so a slow render cannot skip the cue
+2893:# Subtest: SKY RAID scoring rewards chain, Turbo and formation rush
+2894:ok 139 - SKY RAID scoring rewards chain, Turbo and formation rush
+2898:# Subtest: SKY RAID pressure rises and every normal act contains a rush window
+2899:ok 140 - SKY RAID pressure rises and every normal act contains a rush window
+2903:# Subtest: SKY RAID routes every act into a distinct mature background owner
+2904:ok 141 - SKY RAID routes every act into a distinct mature background owner
+2908:# Subtest: SKY RAID maps every act to a visibly distinct surface world
+2909:ok 142 - SKY RAID maps every act to a visibly distinct surface world
+2913:# Subtest: SKY RAID missile defeats are counted once even between Hunt fixed steps
+2914:ok 143 - SKY RAID missile defeats are counted once even between Hunt fixed steps
+2918:# Subtest: SKY RAID valid missile locks keep enough pursuit authority for phone play
+2919:ok 144 - SKY RAID valid missile locks keep enough pursuit authority for phone play
+2923:# Subtest: SKY RAID kill confirmation is carried by authoritative snapshot state
+2924:ok 145 - SKY RAID kill confirmation is carried by authoritative snapshot state
+2928:# Subtest: SKY RAID phone feedback stays visible without blocking the combat lane
+2929:ok 146 - SKY RAID phone feedback stays visible without blocking the combat lane
+2933:# Subtest: SKY RAID keeps live enemies inside the visible flight band
+2934:not ok 147 - SKY RAID keeps live enemies inside the visible flight band
+2938:  failureType: 'testCodeFailure'
+2939:  error: |-
+3205:      ' * targeting UI. SKY RAID applies a restrained presentation-only silhouette assist\n' +
+3234:  code: 'ERR_ASSERTION'
+3235:  name: 'AssertionError'
+3236:  expected:
+3237:  actual: |-
+3501:     * targeting UI. SKY RAID applies a restrained presentation-only silhouette assist
+4054:      // are actually recycled onto screen.
+4877:          // SKY RAID now owns the complete 450 s act/boss timeline. Disable the inherited
+4895:      // SKY RAID altitude here, at the final presentation stage, so the camera follows
+4905:      // its late presentation update. SKY RAID owns the final render altitude, so
+4951:      // Camera Y follows the actual aircraft Y almost one-to-one; pitch and vertical
+5131:# Subtest: SKY RAID V20 speed language stays peripheral and presentation-only
+5132:ok 148 - SKY RAID V20 speed language stays peripheral and presentation-only
+5136:# Subtest: SKY RAID keeps fine aim direct and softly compresses large phone-stick steering
+5137:ok 149 - SKY RAID keeps fine aim direct and softly compresses large phone-stick steering
+5141:# Subtest: SKY RAID V25 gives each enemy class a render-only role silhouette and telegraphs the incoming package
+5142:ok 150 - SKY RAID V25 gives each enemy class a render-only role silhouette and telegraphs the incoming package
+5146:# Subtest: SKY RAID V26 carries threat identity from airframe trail through lock HUD and missile warning
+5147:ok 151 - SKY RAID V26 carries threat identity from airframe trail through lock HUD and missile warning
+5151:# Subtest: SKY RAID V27 exposes real pre-attack timing without changing launch rules
+5152:ok 152 - SKY RAID V27 exposes real pre-attack timing without changing launch rules
+5156:# Subtest: SKY RAID V33 gives the first two stages a full two-minute combat arc
+5157:ok 153 - SKY RAID V33 gives the first two stages a full two-minute combat arc
+5161:# Subtest: SKY RAID V31 removes hot-path copies without reducing presentation
+5162:ok 154 - SKY RAID V31 removes hot-path copies without reducing presentation
+5166:# Subtest: SKY RAID V32 gives phone combat controls a full touch target and one critical alert lane
+5167:ok 155 - SKY RAID V32 gives phone combat controls a full touch target and one critical alert lane
+5171:# Subtest: SKY RAID V33 stages hidden respawns offscreen and never teleports a live aircraft into view
+5172:ok 156 - SKY RAID V33 stages hidden respawns offscreen and never teleports a live aircraft into view
+5176:# Subtest: SKY RAID V34 gives iPhone stick input one direct owner with redundant neutral release paths
+5177:ok 157 - SKY RAID V34 gives iPhone stick input one direct owner with redundant neutral release paths
+5181:# Subtest: SKY RAID grades runs and scores Formation Rush mastery
+5182:ok 158 - SKY RAID grades runs and scores Formation Rush mastery
+5186:# Subtest: SKY RAID gives each act a distinct flight identity instead of only recoloring the world
+5187:ok 159 - SKY RAID gives each act a distinct flight identity instead of only recoloring the world
+5191:# Subtest: SKY RAID escalates Titan into a supported siege without flooding the phone screen
+5192:ok 160 - SKY RAID escalates Titan into a supported siege without flooding the phone screen
+5196:# Subtest: SKY RAID Formation Rush has a reusable WebGL burst language and lens kick
+5197:ok 161 - SKY RAID Formation Rush has a reusable WebGL burst language and lens kick
+
+--- final 180 log lines ---
+  ...
+# Subtest: V43 uses opposite altitude lanes to separate converging aircraft
+ok 249 - V43 uses opposite altitude lanes to separate converging aircraft
+  ---
+  duration_ms: 10.359333
+  ...
+# Subtest: V43 player collision prediction triggers a climb or dive instead of only a horizontal shove
+ok 250 - V43 player collision prediction triggers a climb or dive instead of only a horizontal shove
+  ---
+  duration_ms: 0.84954
+  ...
+# Subtest: V43 safe altitude clearance disables inherited 2D player contact
+ok 251 - V43 safe altitude clearance disables inherited 2D player contact
+  ---
+  duration_ms: 1.237348
+  ...
+# Subtest: V43 3D distance and swept collision distinguish altitude-separated targets
+ok 252 - V43 3D distance and swept collision distinguish altitude-separated targets
+  ---
+  duration_ms: 0.259446
+  ...
+# Subtest: V43 missiles use rate-limited pitch, thrust acceleration and 3D target altitude
+ok 253 - V43 missiles use rate-limited pitch, thrust acceleration and 3D target altitude
+  ---
+  duration_ms: 0.37069
+  ...
+# Subtest: V44 cleanup staging stays physically outside missile lock before attack runs
+ok 254 - V44 cleanup staging stays physically outside missile lock before attack runs
+  ---
+  duration_ms: 1.125032
+  ...
+# Subtest: V44 released cleanup aircraft remain in a finite-rate forward intercept corridor until destroyed
+ok 255 - V44 released cleanup aircraft remain in a finite-rate forward intercept corridor until destroyed
+  ---
+  duration_ms: 0.301652
+  ...
+# Subtest: V44 seeker eligibility follows physical range instead of a cleanup timer
+ok 256 - V44 seeker eligibility follows physical range instead of a cleanup timer
+  ---
+  duration_ms: 0.270844
+  ...
+# Subtest: V44 exposes deliberate vertical maneuvers without breaking the +/-10m envelope
+ok 257 - V44 exposes deliberate vertical maneuvers without breaking the +/-10m envelope
+  ---
+  duration_ms: 0.478951
+  ...
+# Subtest: V44 readability pass provides altitude cues and persistent curved missile trails
+ok 258 - V44 readability pass provides altitude cues and persistent curved missile trails
+  ---
+  duration_ms: 0.214686
+  ...
+# Subtest: V44 reserves the screen center for target and altitude reading
+ok 259 - V44 reserves the screen center for target and altitude reading
+  ---
+  duration_ms: 0.227957
+  ...
+# Subtest: V44 presentation and attack-run directors are wired after V43/V41
+ok 260 - V44 presentation and attack-run directors are wired after V43/V41
+  ---
+  duration_ms: 0.30009
+  ...
+# Subtest: V45 heavy missile decision changes at Turbo attack speed
+ok 261 - V45 heavy missile decision changes at Turbo attack speed
+  ---
+  duration_ms: 1.177665
+  ...
+# Subtest: V45 boss closed core and open core are meaningfully different damage windows
+ok 262 - V45 boss closed core and open core are meaningfully different damage windows
+  ---
+  duration_ms: 0.214927
+  ...
+# Subtest: V45 player weapon lock exposes target class, altitude and action instead of adding controls
+ok 263 - V45 player weapon lock exposes target class, altitude and action instead of adding controls
+  ---
+  duration_ms: 0.499823
+  ...
+# Subtest: V45 presentation prioritizes target information, smoke ribbon, Turbo contrast and boss attack lane
+ok 264 - V45 presentation prioritizes target information, smoke ribbon, Turbo contrast and boss attack lane
+  ---
+  duration_ms: 0.21703
+  ...
+# Subtest: V45 HUD shows numeric altitude, one action line, and separates Boss/HEAT hierarchy
+ok 265 - V45 HUD shows numeric altitude, one action line, and separates Boss/HEAT hierarchy
+  ---
+  duration_ms: 0.292769
+  ...
+# Subtest: V45 boss altitude director is installed outside V44 cleanup director
+ok 266 - V45 boss altitude director is installed outside V44 cleanup director
+  ---
+  duration_ms: 0.249942
+  ...
+# Subtest: V55 campaign keeps six missions while tightening each sortie toward the two-minute arcade target
+ok 267 - V55 campaign keeps six missions while tightening each sortie toward the two-minute arcade target
+  ---
+  duration_ms: 1.578432
+  ...
+# Subtest: V46 mission beats deliberately rotate cross, intercept, Turbo break and altitude duel decisions
+ok 268 - V46 mission beats deliberately rotate cross, intercept, Turbo break and altitude duel decisions
+  ---
+  duration_ms: 0.503288
+  ...
+# Subtest: V46 bridges the compact kill target into the legacy quota without shrinking CLEANUP population
+ok 269 - V46 bridges the compact kill target into the legacy quota without shrinking CLEANUP population
+  ---
+  duration_ms: 0.310036
+  ...
+# Subtest: V49 campaign bosses keep three-phase setpieces without the endurance tail
+ok 270 - V49 campaign bosses keep three-phase setpieces without the endurance tail
+  ---
+  duration_ms: 0.22369
+  ...
+# Subtest: V49 grade rewards time, accuracy, near-miss evades and FLOW
+ok 271 - V49 grade rewards time, accuracy, near-miss evades and FLOW
+  ---
+  duration_ms: 0.219514
+  ...
+# Subtest: V55 leaves normal WAVE flight to V41 and only forces cleanup finishers into attack lanes
+ok 272 - V55 leaves normal WAVE flight to V41 and only forces cleanup finishers into attack lanes
+  ---
+  duration_ms: 0.213694
+  ...
+# Subtest: V47 creates six route-specific world setpieces instead of one repeated test field
+ok 273 - V47 creates six route-specific world setpieces instead of one repeated test field
+  ---
+  duration_ms: 0.264905
+  ...
+# Subtest: V48 keeps the reference capital ship hidden until the real campaign boss encounter
+ok 274 - V48 keeps the reference capital ship hidden until the real campaign boss encounter
+  ---
+  duration_ms: 0.158057
+  ...
+# Subtest: V49 HUD and presentation pipeline are mounted after V45 without adding player controls
+ok 275 - V49 HUD and presentation pipeline are mounted after V45 without adding player controls
+  ---
+  duration_ms: 0.435723
+  ...
+# Subtest: V50 defines six mission color scripts with lightweight compatible fog and key/rim lighting
+ok 276 - V50 defines six mission color scripts with lightweight compatible fog and key/rim lighting
+  ---
+  duration_ms: 0.824812
+  ...
+# Subtest: V51 reconstructs player and enemy silhouettes without changing control or hitbox code
+ok 277 - V51 reconstructs player and enemy silhouettes without changing control or hitbox code
+  ---
+  duration_ms: 0.225383
+  ...
+# Subtest: V52 adds peripheral speed, hit shock and perfect-evade feedback as presentation only
+ok 278 - V52 adds peripheral speed, hit shock and perfect-evade feedback as presentation only
+  ---
+  duration_ms: 0.19148
+  ...
+# Subtest: V53 creates route-scale fly-through setpieces and layered parallax for all six visual worlds
+ok 279 - V53 creates route-scale fly-through setpieces and layered parallax for all six visual worlds
+  ---
+  duration_ms: 0.149534
+  ...
+# Subtest: V54 replaces visual hierarchy, not controls, with cinematic mission/boss/clear beats
+ok 280 - V54 replaces visual hierarchy, not controls, with cinematic mission/boss/clear beats
+  ---
+  duration_ms: 0.247237
+  ...
+# Subtest: V49 campaign bosses keep compact arcade durability and remain inside the missile lock envelope
+ok 281 - V49 campaign bosses keep compact arcade durability and remain inside the missile lock envelope
+  ---
+  duration_ms: 0.248269
+  ...
+# Subtest: V50-V53 execute after the proven V45/V47/V48 presentation stack
+ok 282 - V50-V53 execute after the proven V45/V47/V48 presentation stack
+  ---
+  duration_ms: 0.174483
+  ...
+1..282
+# tests 282
+# suites 0
+# pass 280
+# fail 2
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 5125.141385
