@@ -11,3 +11,5 @@ Source-text assertions are reserved for small architecture/safety contracts that
 Arcade runtime rule: do not inspect production TSX/CSS/source files with regex to prove visual implementation details. Test exported math/runtime behavior in Node and leave visual composition, object naming, CSS placement, and rendering ownership to the WebGL/browser audit workflows.
 
 SKY RAID source-text coverage is limited to mode ownership/bootstrap and iPhone input-release safety. Combat tuning, pacing, scoring, flight identity, density and presentation must be covered through exported rules/runtime behavior or browser/WebGL audits.
+
+Arcade reference suites are split by responsibility: `sky-arcade-reference-flight` covers input/airframe/course behavior, `sky-arcade-reference-world` covers shared world geometry/streaming, `sky-arcade-reference-biomes` covers stage identity geometry, and `sky-arcade-reference-presentation` covers bounded FX/combat/meta presentation behavior. Keep new assertions in the narrowest matching suite instead of rebuilding one monolithic reference file.
