@@ -41,3 +41,4 @@ jobs:
           git diff --cached --check
           git commit -m "Prune Arcade source snapshot tests"
           git push origin HEAD:main
+# retry after script syntax correction
