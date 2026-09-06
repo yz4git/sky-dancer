@@ -34,6 +34,7 @@ const shot = page.getByRole("button", { name: "Fire missile" });
 await shot.waitFor({ state: "visible", timeout: 15_000 });
 const stageHud = page.getByLabel("Sky Dancer stage status");
 await stageHud.waitFor({ state: "visible", timeout: 15_000 });
+const legacyBoostBanner = page.getByText("BOOST STRIKE", { exact: true });
 
 const captures = [2, 15, 35, 65, 88];
 const captured = new Set();
@@ -44,6 +45,7 @@ let nextSteer = 5500;
 let nextTurbo = 8000;
 let turboHeld = false;
 let turboRelease = 0;
+let legacyBoostBannerSeen = false;
 await page.keyboard.down(steer);
 
 async function capture(seconds) {
@@ -76,6 +78,10 @@ while ((Date.now() - started) / 1000 < 92) {
   if (box) await page.touchscreen.tap(box.x + box.width / 2, box.y + box.height / 2);
   await page.waitForTimeout(340);
 
+  if (!legacyBoostBannerSeen) {
+    legacyBoostBannerSeen = await legacyBoostBanner.isVisible().catch(() => false);
+  }
+
   for (const second of captures) {
     if (!captured.has(second) && elapsed >= second) {
       captured.add(second);
@@ -103,6 +109,7 @@ const diagnostics = {
   consoleErrors,
   pageErrors,
   samples,
+  legacyBoostBannerSeen,
 };
 const stageSamples = samples.filter((sample) => sample.stage && Number.isFinite(sample.stage.stageKills));
 let largestKillJump = 0;
@@ -118,6 +125,7 @@ await writeFile(`${outputDir}/diagnostics.json`, JSON.stringify(diagnostics, nul
 await browser.close();
 if (pageErrors.length) throw new Error(`page errors: ${pageErrors.join(" | ")}`);
 if (/CHOOSE YOUR BUILD/i.test(finalText)) throw new Error("legacy perk overlay returned during Turbo Hunt");
+if (legacyBoostBannerSeen || /BOOST STRIKE/i.test(finalText)) throw new Error("legacy Boost Strike banner returned during Turbo Hunt");
 if (largestKillJump > 10) throw new Error(`implausible StageCycle kill jump: ${largestKillJump}`);
 const preFloor = stageSamples.filter((sample) => sample.elapsed < 82);
 if (preFloor.some((sample) => sample.stage.stage !== 1 || sample.stage.phase !== "reinforcements")) {
