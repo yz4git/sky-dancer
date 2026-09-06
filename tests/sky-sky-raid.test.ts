@@ -16,6 +16,8 @@ import {
   skyDancerSkyRaidCombatProfile,
   skyDancerSkyRaidEnemyDoctrine,
   skyDancerSkyRaidEnemySpawnPriority,
+  skyDancerSkyRaidFlightProfile,
+  skyDancerSkyRaidBossSupportTargetCount,
   skyDancerSkyRaidKillScore,
   skyDancerSkyRaidPressure,
   skyDancerSkyRaidRank,
@@ -155,8 +157,10 @@ test("SKY RAID formation and phone recycler both consume the active act doctrine
   const raidSource = readFileSync(new URL("../src/sky/SkyDancerSkyRaid.ts", import.meta.url), "utf8");
   assert.match(raidSource, /skyDancerSkyRaidCombatProfile\(act\.id\)/);
   assert.match(raidSource, /const beat = profile\.beats\[phaseIndex\]/);
-  assert.match(raidSource, /targetCount: rush \? profile\.rushTargetCount : profile\.baseTargetCount/);
-  assert.match(raidSource, /correctionSpeed: rush \? profile\.rushCorrectionSpeed : profile\.correctionSpeed/);
+  assert.match(raidSource, /profile\.rushTargetCount/);
+  assert.match(raidSource, /profile\.baseTargetCount/);
+  assert.match(raidSource, /profile\.rushCorrectionSpeed/);
+  assert.match(raidSource, /profile\.correctionSpeed/);
   assert.match(raidSource, /skyRaidScreenSlotsFor\(latestSkyRaidSnapshot\?\.elapsedSeconds \?\? 0\)/);
   assert.match(raidSource, /skyRaidCombatDoctrine = pattern\.doctrine/);
   assert.match(raidSource, /skyRaidFormationAct = pattern\.actId/);
@@ -309,7 +313,8 @@ test("SKY RAID keeps live enemies inside the visible flight band", () => {
   assert.match(raidSource, /skyRaidScreenSlotsFor/);
   assert.match(raidSource, /type SkyRaidFormationBeat = SkyDancerSkyRaidCombatBeat/);
   assert.match(raidSource, /skyRaidFormationPattern/);
-  assert.match(raidSource, /correctionSpeed: rush \? profile\.rushCorrectionSpeed : profile\.correctionSpeed/);
+  assert.match(raidSource, /profile\.rushCorrectionSpeed/);
+  assert.match(raidSource, /profile\.correctionSpeed/);
   assert.match(raidSource, /dataset\.skyRaidFormationBeat/);
   assert.match(raidSource, /SKY_RAID_ENEMY_VISUAL_ASSIST_MAX = 1\.20/);
   assert.match(raidSource, /applySkyRaidEnemySilhouetteAssist\(this, snapshot\)/);
@@ -541,4 +546,45 @@ test("SKY RAID grades runs and scores Formation Rush mastery", () => {
   assert.match(overlaySource, /FORMATION RESULT/);
   assert.match(overlaySource, /NEW RECORD/);
   assert.match(overlaySource, /MAX CHAIN/);
+});
+
+
+test("SKY RAID gives each act a distinct flight identity instead of only recoloring the world", () => {
+  const profiles = SKY_DANCER_SKY_RAID_ACTS.map((act) => skyDancerSkyRaidFlightProfile(act.id));
+  assert.deepEqual(profiles.map((profile) => profile.label), [
+    "OPEN SKY",
+    "CANYON KNIFE",
+    "VERTICAL HUNT",
+    "STORM WEAVE",
+    "SIEGE WEIGHT",
+  ]);
+  assert.ok(profiles[1].bankScale > profiles[0].bankScale);
+  assert.ok(profiles[1].handlingScale > profiles[0].handlingScale);
+  assert.ok(profiles[2].verticalSpeedScale > profiles[0].verticalSpeedScale);
+  assert.ok(profiles[3].speedScale > profiles[0].speedScale);
+  assert.ok(profiles[4].handlingScale < profiles[0].handlingScale);
+  const flightSource = readFileSync(new URL("../src/sky/SkyDancerSkyRaidFlight.ts", import.meta.url), "utf8");
+  const raidSource = readFileSync(new URL("../src/sky/SkyDancerSkyRaid.ts", import.meta.url), "utf8");
+  assert.match(flightSource, /setTuning\(tuning: SkyDancerSkyRaidFlightTuning\)/);
+  assert.match(raidSource, /controller\.setTuning\(profile\)/);
+  assert.match(raidSource, /flightProfile\.handlingScale/);
+});
+
+test("SKY RAID escalates Titan into a supported siege without flooding the phone screen", () => {
+  assert.equal(skyDancerSkyRaidBossSupportTargetCount(SKY_DANCER_SKY_RAID_BOSS_TRIGGER_SECONDS - 0.01, 7), 7);
+  assert.equal(skyDancerSkyRaidBossSupportTargetCount(SKY_DANCER_SKY_RAID_BOSS_TRIGGER_SECONDS, 7), 8);
+  assert.equal(skyDancerSkyRaidBossSupportTargetCount(SKY_DANCER_SKY_RAID_BOSS_TRIGGER_SECONDS + 20, 8), 8);
+  const raidSource = readFileSync(new URL("../src/sky/SkyDancerSkyRaid.ts", import.meta.url), "utf8");
+  assert.match(raidSource, /Math\.min\(5, profile\.rushTargetCount \+ 1\)/);
+  assert.match(raidSource, /profile\.rushCorrectionSpeed \* 1\.10/);
+  assert.match(raidSource, /skyDancerSkyRaidBossSupportTargetCount/);
+});
+
+test("SKY RAID Formation Rush has a reusable WebGL burst language and lens kick", () => {
+  const raidSource = readFileSync(new URL("../src/sky/SkyDancerSkyRaid.ts", import.meta.url), "utf8");
+  assert.match(raidSource, /function buildRushFx\(\): THREE\.Group/);
+  assert.match(raidSource, /sky-raid-rush-fx/);
+  assert.match(raidSource, /visual\.rushBurst = Math\.max\(visual\.rushBurst, 1\.35\)/);
+  assert.match(raidSource, /rushCamera \* 1\.8/);
+  assert.match(raidSource, /skyRaidRushFxIntensity/);
 });

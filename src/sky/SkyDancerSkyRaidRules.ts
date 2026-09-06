@@ -62,6 +62,32 @@ export const SKY_DANCER_SKY_RAID_TARGET_SECONDS = 510;
 export const SKY_DANCER_SKY_RAID_CHAIN_GRACE_SECONDS = 5.6;
 export const SKY_DANCER_SKY_RAID_PERFECT_RUSH_KILLS = 4;
 
+export interface SkyDancerSkyRaidFlightProfile {
+  label: "OPEN SKY" | "CANYON KNIFE" | "VERTICAL HUNT" | "STORM WEAVE" | "SIEGE WEIGHT";
+  verticalSpeedScale: number;
+  bankScale: number;
+  bankResponseScale: number;
+  pitchScale: number;
+  speedScale: number;
+  handlingScale: number;
+}
+
+const SKY_DANCER_SKY_RAID_FLIGHT_PROFILES: Readonly<Record<SkyDancerSkyRaidActId, SkyDancerSkyRaidFlightProfile>> = {
+  "dawn-city": { label: "OPEN SKY", verticalSpeedScale: 1.00, bankScale: 0.94, bankResponseScale: 0.96, pitchScale: 0.96, speedScale: 0.98, handlingScale: 1.00 },
+  "red-canyon": { label: "CANYON KNIFE", verticalSpeedScale: 0.84, bankScale: 1.16, bankResponseScale: 1.14, pitchScale: 0.92, speedScale: 1.04, handlingScale: 1.14 },
+  "cloud-fleet": { label: "VERTICAL HUNT", verticalSpeedScale: 1.20, bankScale: 0.92, bankResponseScale: 0.92, pitchScale: 1.12, speedScale: 1.00, handlingScale: 0.98 },
+  "storm-carrier": { label: "STORM WEAVE", verticalSpeedScale: 1.12, bankScale: 1.12, bankResponseScale: 1.16, pitchScale: 1.08, speedScale: 1.07, handlingScale: 1.10 },
+  "prism-citadel": { label: "SIEGE WEIGHT", verticalSpeedScale: 0.94, bankScale: 0.86, bankResponseScale: 0.88, pitchScale: 0.94, speedScale: 0.97, handlingScale: 0.92 },
+};
+
+export function skyDancerSkyRaidFlightProfile(actId: SkyDancerSkyRaidActId): SkyDancerSkyRaidFlightProfile {
+  return SKY_DANCER_SKY_RAID_FLIGHT_PROFILES[actId];
+}
+
+export function skyDancerSkyRaidBossSupportTargetCount(elapsedSeconds: number, baseCount: number): number {
+  return elapsedSeconds >= SKY_DANCER_SKY_RAID_BOSS_TRIGGER_SECONDS ? Math.min(8, baseCount + 1) : baseCount;
+}
+
 export type SkyDancerSkyRaidRank = "C" | "B" | "A" | "S" | "S+";
 
 export function skyDancerSkyRaidRank(

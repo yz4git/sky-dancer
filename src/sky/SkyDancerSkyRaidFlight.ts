@@ -14,6 +14,20 @@ export interface SkyDancerSkyRaidFlightSnapshot {
   turnRate: number;
 }
 
+export interface SkyDancerSkyRaidFlightTuning {
+  verticalSpeedScale: number;
+  bankScale: number;
+  bankResponseScale: number;
+  pitchScale: number;
+}
+
+const DEFAULT_SKY_RAID_FLIGHT_TUNING: SkyDancerSkyRaidFlightTuning = {
+  verticalSpeedScale: 1,
+  bankScale: 1,
+  bankResponseScale: 1,
+  pitchScale: 1,
+};
+
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
 }
@@ -45,6 +59,16 @@ export class SkyDancerSkyRaidFlightController {
   private bank = 0;
   private pitch = 0;
   private previousHeading: number | null = null;
+  private tuning: SkyDancerSkyRaidFlightTuning = { ...DEFAULT_SKY_RAID_FLIGHT_TUNING };
+
+  setTuning(tuning: SkyDancerSkyRaidFlightTuning): void {
+    this.tuning = {
+      verticalSpeedScale: clamp(tuning.verticalSpeedScale, 0.72, 1.35),
+      bankScale: clamp(tuning.bankScale, 0.72, 1.28),
+      bankResponseScale: clamp(tuning.bankResponseScale, 0.72, 1.32),
+      pitchScale: clamp(tuning.pitchScale, 0.72, 1.28),
+    };
+  }
 
   setVerticalInput(value: number): void {
     this.verticalInput = clamp(value, -1, 1);
@@ -61,7 +85,7 @@ export class SkyDancerSkyRaidFlightController {
 
   step(delta: number, heading: number, steer: number, boost: boolean): SkyDancerSkyRaidFlightSnapshot {
     const dt = clamp(delta, 0, 0.05);
-    const maxVerticalSpeed = boost ? 22 : 16;
+    const maxVerticalSpeed = (boost ? 22 : 16) * this.tuning.verticalSpeedScale;
     const targetVerticalSpeed = this.verticalInput * maxVerticalSpeed;
     this.verticalSpeed = damp(this.verticalSpeed, targetVerticalSpeed, this.verticalInput === 0 ? 4.4 : 7.0, dt);
     if (Math.abs(this.verticalInput) < 0.02) this.verticalSpeed *= Math.exp(-1.3 * dt);
@@ -73,10 +97,18 @@ export class SkyDancerSkyRaidFlightController {
       turnRate = clamp(skyRaidHeadingDelta(heading, this.previousHeading) / dt, -3.0, 3.0);
     }
     this.previousHeading = heading;
-    const targetBank = skyRaidBankTarget(turnRate, steer);
-    const bankResponse = Math.abs(targetBank) > Math.abs(this.bank) ? 7.8 : 4.2;
+    const targetBank = clamp(
+      skyRaidBankTarget(turnRate, steer) * this.tuning.bankScale,
+      -SKY_RAID_MAX_BANK,
+      SKY_RAID_MAX_BANK,
+    );
+    const bankResponse = (Math.abs(targetBank) > Math.abs(this.bank) ? 7.8 : 4.2) * this.tuning.bankResponseScale;
     this.bank = damp(this.bank, targetBank, bankResponse, dt);
-    const targetPitch = skyRaidPitchTarget(this.verticalSpeed, this.verticalInput, maxVerticalSpeed);
+    const targetPitch = clamp(
+      skyRaidPitchTarget(this.verticalSpeed, this.verticalInput, maxVerticalSpeed) * this.tuning.pitchScale,
+      -SKY_RAID_MAX_PITCH,
+      SKY_RAID_MAX_PITCH,
+    );
     this.pitch = damp(this.pitch, targetPitch, 6.2, dt);
 
     return { altitude: this.altitude, verticalSpeed: this.verticalSpeed, bank: this.bank, pitch: this.pitch, turnRate };

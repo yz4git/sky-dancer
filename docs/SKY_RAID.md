@@ -23,3 +23,7 @@ The PRISM TITAN enters at **7:30**, reserving the final minute for the climax.
 - Steering is direct around center and softly compressed toward full phone-stick deflection instead of hard-clipped.
 - Results show C/B/A/S/S+, BREAK count, PERFECT RUSH count, maximum chain, score and a locally persisted personal best.
 - S and S+ require both score and execution consistency; raw farming alone is not enough.
+
+## Act flight identity pass
+
+The five acts now change the aircraft response as well as the scenery and enemy package. Dawn City is the neutral reference, Red Canyon favors fast bank/turn response, Cloud Fleet gives stronger vertical authority, Storm Carrier is the fastest and most reactive act, and Prism Citadel deliberately feels heavier during the siege. Formation Rush also owns a reusable additive ring burst and a small camera lens kick. At 7:30 the Prism Titan gains one extra support aircraft (capped at eight regular targets) and a tighter five-aircraft combat-lane choreography so the final minute escalates without becoming unreadable on iPhone.

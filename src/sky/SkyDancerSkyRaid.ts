@@ -23,6 +23,8 @@ import {
   skyDancerSkyRaidActSeconds,
   skyDancerSkyRaidCombatProfile,
   skyDancerSkyRaidEnemyDoctrine,
+  skyDancerSkyRaidFlightProfile,
+  skyDancerSkyRaidBossSupportTargetCount,
   skyDancerSkyRaidKillScore,
   skyDancerSkyRaidMultiplier,
   skyDancerSkyRaidPressure,
@@ -153,6 +155,11 @@ interface RaidVisualState {
   speedFx: THREE.Group;
   speedMaterial: THREE.MeshBasicMaterial;
   speedColor: THREE.Color;
+  rushFx: THREE.Group;
+  rushMaterial: THREE.MeshBasicMaterial;
+  rushBurst: number;
+  lastRushActive: boolean;
+  lastPerfectRushes: number;
   attackTelegraphs: Map<string, SkyDancerEnemyAttackTelegraphSnapshot>;
   turboBackdrop: THREE.Object3D | null;
   arcadeWorld: SkyDancerSkyRaidArcadeWorld;
@@ -678,8 +685,12 @@ function skyRaidFormationPattern(elapsedSeconds: number): {
     slots,
     doctrine: profile.doctrine,
     actId: act.id,
-    targetCount: rush ? profile.rushTargetCount : profile.baseTargetCount,
-    correctionSpeed: rush ? profile.rushCorrectionSpeed : profile.correctionSpeed,
+    targetCount: elapsedSeconds >= SKY_DANCER_SKY_RAID_BOSS_TRIGGER_SECONDS
+      ? Math.min(5, profile.rushTargetCount + 1)
+      : rush ? profile.rushTargetCount : profile.baseTargetCount,
+    correctionSpeed: elapsedSeconds >= SKY_DANCER_SKY_RAID_BOSS_TRIGGER_SECONDS
+      ? profile.rushCorrectionSpeed * 1.10
+      : rush ? profile.rushCorrectionSpeed : profile.correctionSpeed,
   };
 }
 
@@ -1033,7 +1044,12 @@ function collectLegacyRaidLayers(scene: THREE.Scene): THREE.Object3D[] {
 
 function stepSkyRaidFlight(demo: RaidWebGLDemo, delta: number): SkyDancerSkyRaidFlightSnapshot {
   const car = demo.session.car;
-  const flight = flightControllerFor(demo).step(delta, car.heading, demo.steer, car.boostActive);
+  const hunt = getCartTurboHuntSnapshot(demo.session);
+  const profile = skyDancerSkyRaidFlightProfile(skyDancerSkyRaidActFor(hunt?.huntElapsedSeconds ?? 0).id);
+  const controller = flightControllerFor(demo);
+  controller.setTuning(profile);
+  const flight = controller.step(delta, car.heading, demo.steer, car.boostActive);
+  demo.scene.userData.skyRaidFlightProfile = profile.label;
   (demo.session as unknown as { skyDancerPlayerAltitudeMeters?: number }).skyDancerPlayerAltitudeMeters = flight.altitude;
   // Keep enemy attack runs in the same broad camera band as the player while
   // preserving meaningful vertical separation at the upper altitude limit.
@@ -1175,8 +1191,9 @@ function updateRaid(session: RaidSession, hunt: CartTurboHuntSnapshot, delta: nu
   if (skyDancerSkyRaidActBreakEligible(hunt.huntElapsedSeconds, act, state.actKills)) rewardActBreak(session, state, act);
 
   const pressure = skyDancerSkyRaidPressure(hunt.huntElapsedSeconds);
-  session.car.definition.maxSpeed = Math.max(state.baseMaxSpeed, 23.5 + pressure * 3.1);
-  session.car.definition.handling = state.baseHandling * (1 + pressure * 0.08);
+  const flightProfile = skyDancerSkyRaidFlightProfile(act.id);
+  session.car.definition.maxSpeed = Math.max(state.baseMaxSpeed, (23.5 + pressure * 3.1) * flightProfile.speedScale);
+  session.car.definition.handling = state.baseHandling * (1 + pressure * 0.08) * flightProfile.handlingScale;
 
   if (!state.bossForced && hunt.huntElapsedSeconds >= SKY_DANCER_SKY_RAID_BOSS_TRIGGER_SECONDS) {
     state.bossForced = true;
@@ -1380,6 +1397,28 @@ function buildSpeedFx(): THREE.Group {
   return root;
 }
 
+function buildRushFx(): THREE.Group {
+  const root = new THREE.Group();
+  const rushMaterial = new THREE.MeshBasicMaterial({
+    color: 0xbdf8ff,
+    transparent: true,
+    opacity: 0,
+    depthTest: false,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+    toneMapped: false,
+  });
+  for (let index = 0; index < 3; index += 1) {
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(2.4 + index * 1.8, 0.075 + index * 0.015, 6, 32), rushMaterial);
+    ring.rotation.x = Math.PI / 2;
+    ring.position.z = 5.5 + index * 2.2;
+    ring.renderOrder = 1090;
+    root.add(ring);
+  }
+  root.visible = false;
+  return root;
+}
+
 function buildRaidVisuals(demo: RaidWebGLDemo): void {
   if (!isSkyRaidMode()) return;
   if (raidVisualByDemo.has(demo as unknown as object)) return;
@@ -1394,7 +1433,10 @@ function buildRaidVisuals(demo: RaidWebGLDemo): void {
   const speedFx = buildSpeedFx();
   speedFx.name = "sky-raid-speed-fx";
   const speedMaterial = (speedFx.children[0] as THREE.Mesh).material as THREE.MeshBasicMaterial;
-  demo.scene.add(root, speedFx);
+  const rushFx = buildRushFx();
+  rushFx.name = "sky-raid-rush-fx";
+  const rushMaterial = (rushFx.children[0] as THREE.Mesh).material as THREE.MeshBasicMaterial;
+  demo.scene.add(root, speedFx, rushFx);
   const arcadeWorld = new SkyDancerSkyRaidArcadeWorld(demo.scene);
   const legacyLayers = collectLegacyRaidLayers(demo.scene);
   const turboBackdrop = demo.scene.getObjectByName("phase67-turbo-hunt-world");
@@ -1405,6 +1447,11 @@ function buildRaidVisuals(demo: RaidWebGLDemo): void {
     speedFx,
     speedMaterial,
     speedColor: new THREE.Color(SKY_DANCER_SKY_RAID_ACTS[0].palette.accent),
+    rushFx,
+    rushMaterial,
+    rushBurst: 0,
+    lastRushActive: false,
+    lastPerfectRushes: 0,
     attackTelegraphs: new Map(),
     turboBackdrop,
     arcadeWorld,
@@ -1428,6 +1475,7 @@ function updateRaidVisuals(demo: RaidWebGLDemo, delta: number, flight: SkyDancer
   if (!isSkyRaidMode()) {
     visual.root.visible = false;
     visual.speedFx.visible = false;
+    visual.rushFx.visible = false;
     restoreSkyRaidEnemySilhouetteAssist(demo);
     return;
   }
@@ -1476,6 +1524,25 @@ function updateRaidVisuals(demo: RaidWebGLDemo, delta: number, flight: SkyDancer
   visual.turboReleaseVisual = Math.max(0, visual.turboReleaseVisual - Math.min(delta, 0.05) / 1.45);
   const turboFx = turboState.held ? 1 : turboReleaseFx * (0.72 + turboState.releaseCharge * 0.18);
   const rushFx = raid.rushActive ? 1 : 0;
+  if (raid.rushActive && !visual.lastRushActive) visual.rushBurst = Math.max(visual.rushBurst, 1);
+  if (raid.perfectRushes > visual.lastPerfectRushes) visual.rushBurst = Math.max(visual.rushBurst, 1.35);
+  visual.lastRushActive = raid.rushActive;
+  visual.lastPerfectRushes = raid.perfectRushes;
+  visual.rushBurst = Math.max(0, visual.rushBurst - Math.min(delta, 0.05) * 1.28);
+  const rushVisual = clamp((raid.rushActive ? 0.52 : 0) + visual.rushBurst, 0, 1.35);
+  visual.rushFx.visible = rushVisual > 0.035;
+  visual.rushFx.position.set(playerX, 1.8 + resolvedFlight.altitude, playerZ);
+  visual.rushFx.rotation.y = playerHeading;
+  visual.rushMaterial.color.setHex(raid.palette.accent);
+  visual.rushMaterial.opacity = clamp(0.08 + rushVisual * 0.24, 0, 0.40);
+  for (let index = 0; index < visual.rushFx.children.length; index += 1) {
+    const ring = visual.rushFx.children[index];
+    const pulse = 1 + Math.sin(raid.elapsedSeconds * 11 + index * 1.7) * 0.055;
+    const burstScale = 1 + visual.rushBurst * (0.20 + index * 0.06);
+    ring.scale.setScalar(pulse * burstScale);
+    ring.position.z = 5.5 + index * 2.2 + (raid.elapsedSeconds * (7 + index * 1.4)) % 5.5;
+  }
+  demo.scene.userData.skyRaidRushFxIntensity = rushVisual;
   const speedFxIntensity = clamp(cruiseFx * 0.22 + rushFx * 0.32 + turboFx * 0.72, 0, 1);
   visual.speedFx.visible = speedFxIntensity > 0.055;
   visual.speedFx.position.set(playerX, 1.8 + resolvedFlight.altitude, playerZ);
@@ -1509,6 +1576,8 @@ function updateRaidVisuals(demo: RaidWebGLDemo, delta: number, flight: SkyDancer
       turboReleaseFx,
       legacyBoostActive: playerBoostActive,
       rushActive: raid.rushActive,
+      rushFxIntensity: Number(demo.scene.userData.skyRaidRushFxIntensity ?? 0),
+      flightProfile: String(demo.scene.userData.skyRaidFlightProfile ?? ""),
       flightSpeed,
     });
   }
@@ -1517,7 +1586,8 @@ function updateRaidVisuals(demo: RaidWebGLDemo, delta: number, flight: SkyDancer
 export function installSkyDancerSkyRaid(): void {
   setCartTurboHuntActiveTargetCountResolver((context) => {
     if (!isSkyRaidMode()) return context.defaultCount;
-    return skyDancerSkyRaidEnemyDoctrine(skyDancerSkyRaidActFor(context.elapsedSeconds).id).activeTargetCount;
+    const baseCount = skyDancerSkyRaidEnemyDoctrine(skyDancerSkyRaidActFor(context.elapsedSeconds).id).activeTargetCount;
+    return skyDancerSkyRaidBossSupportTargetCount(context.elapsedSeconds, baseCount);
   });
   setCartTurboHuntSpawnPreference((enemy, context) => {
     if (!isSkyRaidMode()) return 0;
@@ -1693,8 +1763,10 @@ webglPrototype.applyCameraPresentation = function skyRaidCameraPresentation(
   // scenery coordinates and flight physics remain untouched, while Turbo keeps
   // the dominant FOV kick already authored by the release camera language.
   const cruiseFov = clamp((speed - 18) * 0.10, 0, 2.2);
+  const rushCamera = latestSkyRaidSnapshot?.rushActive ? 1 : 0;
+  const titanCamera = latestSkyRaidSnapshot?.bossForced ? 1 : 0;
   const targetFov = clamp(
-    cameraFx.baseFov + cruiseFov + turboCamera * (6.6 + turbo.releaseCharge * 3.4) + cameraFx.shotKick * 0.35 - cameraFx.hitKick * 0.75,
+    cameraFx.baseFov + cruiseFov + rushCamera * 1.8 + titanCamera * 0.75 + turboCamera * (6.6 + turbo.releaseCharge * 3.4) + cameraFx.shotKick * 0.35 - cameraFx.hitKick * 0.75,
     50,
     82,
   );
@@ -1707,6 +1779,8 @@ webglPrototype.applyCameraPresentation = function skyRaidCameraPresentation(
   this.scene.userData.skyRaidCameraFrameCorrection = frameCorrection;
   this.scene.userData.skyRaidCameraTurboBlend = turboCamera;
   this.scene.userData.skyRaidCameraCruiseFov = cruiseFov;
+  this.scene.userData.skyRaidCameraRushBlend = rushCamera;
+  this.scene.userData.skyRaidCameraTitanBlend = titanCamera;
   this.scene.userData.skyRaidCameraHitKick = cameraFx.hitKick;
   this.scene.userData.skyRaidCameraShotKick = cameraFx.shotKick;
   this.scene.userData.skyRaidCameraFov = this.camera.fov;
