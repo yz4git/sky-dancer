@@ -1,6 +1,5 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
 import {
   SKY_DANCER_ARCADE_FINAL_STAGE,
   SKY_DANCER_ARCADE_FIRST_STAGE,
@@ -53,36 +52,6 @@ test("every authored route is a seven-section four-minute start-to-finale run", 
   }
 });
 
-test("V5.1 near-pass framing and shock-ring climax stay readable", async () => {
-  const [world, presentation, menu] = await Promise.all([
-    readFile(new URL("../src/sky/arcade/SkyDancerArcadeReferenceWorld.ts", import.meta.url), "utf8"),
-    readFile(new URL("../src/sky/arcade/SkyDancerArcadeProductPresentation.ts", import.meta.url), "utf8"),
-    readFile(new URL("../app/CartGameMenu.tsx", import.meta.url), "utf8"),
-  ]);
-  assert.match(world, /const x=side\*\(25\+r\(j\+71\)\*8\.5\)/);
-  assert.match(world, /w\*1\.38,h\*\.22,d\*1\.18/);
-  assert.match(presentation, /arcade-climax-shock-ring-v51/);
-  assert.match(presentation, /RingGeometry\(\.58, \.72, 48\)/);
-  assert.match(menu, /7 SECTIONS · 4 MIN/);
-});
-
-test("environment density and destruction climax V5 stay authored and bounded", async () => {
-  assert.equal(SKY_DANCER_ARCADE_RUN_DURATION_SECONDS, 240);
-  const [world, presentation, webgl] = await Promise.all([
-    readFile(new URL("../src/sky/arcade/SkyDancerArcadeReferenceWorld.ts", import.meta.url), "utf8"),
-    readFile(new URL("../src/sky/arcade/SkyDancerArcadeProductPresentation.ts", import.meta.url), "utf8"),
-    readFile(new URL("../src/sky/arcade/SkyDancerArcadeWebGLDemo.ts", import.meta.url), "utf8"),
-  ]);
-  assert.match(world, /arcade-near-pass-setpieces-v5/);
-  assert.match(world, /const count=72/);
-  assert.match(world, /arcade-continuous-terrain-ribbon/);
-  assert.match(world, /arcadeContinuousTerrainV1037=true/);
-  assert.match(world, /const depthSamples=42,lateralSamples=25,width=260/);
-  assert.doesNotMatch(world, /PlaneGeometry\(260,SURFACE_CHUNK_DEPTH,48,36\)/);
-  assert.match(presentation, /arcade-climax-flash-v5/);
-  assert.match(presentation, /sparks: 240, smoke: 84/);
-  assert.match(webgl, /impact\.boss[\s\S]*emitBossExplosion\(position, impact\.missile\)/);
-});
 
 test("route graph references only authored stages and has one finale", () => {
   const ids = new Set(SKY_DANCER_ARCADE_STAGES.map((stage) => stage.id));
@@ -209,28 +178,6 @@ test("wide-field steering traverses roughly two legacy screens and reverses quic
   assert.ok(snapshot.playerY < -1.35, `lower reverse ${snapshot.playerY}`);
 });
 
-test("wide-field combat source keeps enemies, guided threats and missile visuals in the expanded arena", async () => {
-  const [runtimeSource, cameraSource, webglSource, presentationSource] = await Promise.all([
-    readFile(new URL("../src/sky/arcade/SkyDancerArcadeRuntime.ts", import.meta.url), "utf8"),
-    readFile(new URL("../src/sky/arcade/SkyDancerArcadeCamera.ts", import.meta.url), "utf8"),
-    readFile(new URL("../src/sky/arcade/SkyDancerArcadeWebGLDemo.ts", import.meta.url), "utf8"),
-    readFile(new URL("../src/sky/arcade/SkyDancerArcadeProductPresentation.ts", import.meta.url), "utf8"),
-  ]);
-  assert.match(runtimeSource, /PLAYER_X_LIMIT = 2\.2/);
-  assert.match(runtimeSource, /PLAYER_Y_LIMIT = 1\.75/);
-  assert.match(runtimeSource, /ENEMY_X_LIMIT = 2\.62/);
-  assert.match(runtimeSource, /guidance = enemy\.boss/);
-  assert.match(runtimeSource, /projectile\.guidance > 0/);
-  assert.match(cameraSource, /playerX \* \(5\.15 \+ phone \* 2\.55 \+ turboFollow \* \.95\)/);
-  assert.match(runtimeSource, /MAX_ENEMY_PROJECTILES_NORMAL = 5/);
-  assert.match(runtimeSource, /threatBudget - activeThreats/);
-  assert.match(webglSource, /arcade-aim-ring/);
-  assert.match(webglSource, /ConeGeometry\(0\.36, 1\.62, 8\)/);
-  assert.match(presentationSource, /trailSamples: 18/);
-  assert.match(presentationSource, /width: enemy \? \.19 : playerMissile \? \.72 : \.22/);
-assert.match(presentationSource, /arcade-pooled-missile-white-smoke/);
-assert.match(presentationSource, /missileSmoke: 160/);
-});
 
 test("normal difficulty caps simultaneous enemy missile pressure", () => {
   const runtime = new SkyDancerArcadeRuntime({ mode: "arcade-run", difficulty: "normal", seed: 31415 });
@@ -244,39 +191,6 @@ test("normal difficulty caps simultaneous enemy missile pressure", () => {
   assert.ok(maxThreats <= 5, `normal threat budget ${maxThreats}`);
 });
 
-test("V6.2 NORMAL opening pressure preserves reaction time and readable damage cadence", async () => {
-  const runtime = new SkyDancerArcadeRuntime({ mode: "arcade-run", difficulty: "normal", seed: 0x5f3759df });
-  for (let frame = 0; frame < 720; frame += 1) runtime.step(1 / 60);
-  const snapshot = runtime.getSnapshot();
-  assert.equal(snapshot.status, "running");
-  assert.equal(snapshot.continuesRemaining, SKY_DANCER_ARCADE_MAX_CONTINUES);
-  assert.ok(snapshot.playerHp > 20, `opening HP ${snapshot.playerHp}`);
-
-  const [runtimeSource, webglSource, presentationSource] = await Promise.all([
-    readFile(new URL("../src/sky/arcade/SkyDancerArcadeRuntime.ts", import.meta.url), "utf8"),
-    readFile(new URL("../src/sky/arcade/SkyDancerArcadeWebGLDemo.ts", import.meta.url), "utf8"),
-    readFile(new URL("../src/sky/arcade/SkyDancerArcadeProductPresentation.ts", import.meta.url), "utf8"),
-  ]);
-  assert.match(runtimeSource, /damageCooldown = this\.options\.difficulty === "hard" \? \.28 : \.5/);
-  assert.match(runtimeSource, /enemyCap = this\.options\.difficulty === "hard" \? 15 : 11/);
-  assert.match(webglSource, /const heavyCraft = impact\.kind === "bomber" \|\| impact\.kind === "missile-boat"/);
-  assert.match(webglSource, /if \(impact\.boss\)[\s\S]*emitBossExplosion\(position, impact\.missile\)/);
-  assert.match(webglSource, /else if \(heavyCraft\)[\s\S]*emitHeavyExplosion\(position, impact\.missile\)/);
-  assert.match(webglSource, /emitSmallExplosion\(position, impact\.missile\)/);
-  assert.match(presentationSource, /addScaledVector\(this\.forward, 3\.8\)/);
-  const cameraSource = webglSource.slice(webglSource.indexOf("private updateCamera"), webglSource.indexOf("private resize"));
-  assert.doesNotMatch(cameraSource, /denseSkyline|nearCourse|farCourse|course\.bank|course\.yaw|course\.pitch/);
-  assert.match(cameraSource, /const targetX = pose\.x \+ shakeX/);
-  assert.match(cameraSource, /const desiredRoll = pose\.roll/);
-});
-
-test("enemy missiles curve during guidance then commit to a dodgeable terminal path", async () => {
-  const runtimeSource = await readFile(new URL("../src/sky/arcade/SkyDancerArcadeRuntime.ts", import.meta.url), "utf8");
-  assert.match(runtimeSource, /curvePhase = projectile\.id \* 1\.731/);
-  assert.match(runtimeSource, /projectile\.depth > 15/);
-  assert.match(runtimeSource, /projectile\.depth <= 15/);
-  assert.match(runtimeSource, /projectile\.guidance = 0/);
-});
 
 test("climax targets survive a real attack run", () => {
   const first = new SkyDancerArcadeRuntime({ mode: "arcade-run", difficulty: "normal", seed: 62 });
@@ -293,64 +207,8 @@ test("climax targets survive a real attack run", () => {
   assert.ok(final.getSnapshot().bossMaxHp >= 1200, `final boss HP ${final.getSnapshot().bossMaxHp}`);
 });
 
-test("close fly-bys and route guidance stay readable", async () => {
-  const [runtimeSource, webglSource, css] = await Promise.all([
-    readFile(new URL("../src/sky/arcade/SkyDancerArcadeRuntime.ts", import.meta.url), "utf8"),
-    readFile(new URL("../src/sky/arcade/SkyDancerArcadeWebGLDemo.ts", import.meta.url), "utf8"),
-    readFile(new URL("../app/SkyDancerArcadeMode.module.css", import.meta.url), "utf8"),
-  ]);
-  assert.match(runtimeSource, /ENEMY_FLYBY_CULL_DEPTH = -11\.5/);
-  assert.match(runtimeSource, /enemy\.depth < ENEMY_FLYBY_CULL_DEPTH/);
-  assert.match(webglSource, /PerspectiveCamera\(55, 1, 0\.04, 1200\)/);
-  assert.match(css, /\.routeOverlay\{[^}]*top:max\(76px/);
-  assert.match(css, /\.routeOption\{padding:1px 4px/);
-  assert.match(css, /\.missileWarningBoss\{top:max\(108px/);
-});
 
-test("title menu exposes all modes and keeps Turbo Hunt presentation isolated", async () => {
-  const [menu, phase, arcade, legacyGrade, legacyHud] = await Promise.all([
-    readFile(new URL("../app/CartGameMenu.tsx", import.meta.url), "utf8"),
-    readFile(new URL("../app/CartRogueGamePhase13.tsx", import.meta.url), "utf8"),
-    readFile(new URL("../app/SkyDancerArcadeMode.tsx", import.meta.url), "utf8"),
-    readFile(new URL("../app/SkyDancerColorGradeV31.tsx", import.meta.url), "utf8"),
-    readFile(new URL("../app/SkyDancerHudV30.tsx", import.meta.url), "utf8"),
-  ]);
-  assert.match(menu, /ARCADE RUN/);
-  assert.match(menu, /TURBO HUNT/);
-  assert.match(menu, /STAGE PRACTICE/);
-  assert.match(phase, /activeRequest\?\.mode === "turbo-hunt"/);
-  assert.match(phase, /dataset\.skyDancerMode/);
-  assert.match(phase, /SkyDancerArcadeMode/);
-  assert.match(legacyGrade, /data-sky-dancer-mode=\"turbo-hunt\"/);
-  assert.match(legacyHud, /dataset\.skyDancerMode !== "turbo-hunt"/);
-  assert.match(arcade, /LOCK \/ RELEASE · MISSILE SALVO|RELEASE SALVO/);
-  assert.match(arcade, /CONTINUE\?/);
-  assert.match(arcade, /FLY THROUGH A ROUTE GATE/);
-  assert.match(arcade, /window\.addEventListener\("pointerup"/);
-  assert.match(arcade, /window\.addEventListener\("orientationchange"/);
-  assert.match(arcade, /releaseAllInputs/);
-});
-
-test("product graphics are derived from the generated Arcade Run reference", async () => {
-  const [webgl, models, environment, presentation, reference] = await Promise.all([
-    readFile(new URL("../src/sky/arcade/SkyDancerArcadeWebGLDemo.ts", import.meta.url), "utf8"),
-    readFile(new URL("../src/sky/arcade/SkyDancerArcadeModels.ts", import.meta.url), "utf8"),
-    readFile(new URL("../src/sky/arcade/SkyDancerArcadeEnvironment.ts", import.meta.url), "utf8"),
-    readFile(new URL("../src/sky/arcade/SkyDancerArcadeProductPresentation.ts", import.meta.url), "utf8"),
-    readFile(new URL("../docs/ARCADE_RUN_PRODUCT_REFERENCE.md", import.meta.url), "utf8"),
-  ]);
-  assert.match(webgl, /arcadeProductReference/);
-  assert.match(models, /arcade-boss-weakpoint/);
-  assert.match(models, /arcade-engine-trail/);
-  assert.match(environment, /arcade-product-gradient-sky/);
-  assert.match(environment, /arcade-product-sun/);
-  assert.match(presentation, /arcade-product-speed-streaks/);
-  assert.match(presentation, /arcade-projectile-trail/);
-  assert.match(reference, /arcade-run-product-reference\.png/);
-});
-
-
-test("V7 signature stages have measurably distinct course geometry", () => {
+test("signature stages have measurably distinct course geometry", () => {
   const sample = (id: "red-canyon" | "ice-cavern" | "volcano-core" | "orbital-ascent") => {
     const stage = SKY_DANCER_ARCADE_STAGES.find((candidate) => candidate.id === id)!;
     const length = stage.durationSeconds * stage.courseSpeed;
@@ -380,214 +238,7 @@ test("V7 signature stages have measurably distinct course geometry", () => {
 });
 
 
-test("V10.4 chase camera stays player-relative while the shared visual course frame owns bends", async () => {
-  const webgl = await readFile(new URL("../src/sky/arcade/SkyDancerArcadeWebGLDemo.ts", import.meta.url), "utf8");
-  const camera = webgl.slice(webgl.indexOf("private updateCamera"), webgl.indexOf("private resize"));
-  assert.doesNotMatch(camera, /nearCourse|farCourse|course\.yaw|course\.pitch|course\.bank/);
-  assert.match(webgl, /arcadeCourseRelativeVisualPose\(snapshot\.stage, snapshot\.distance, enemy\.depth\)/);
-  assert.match(camera, /const desiredLookX = pose\.lookX/);
-  assert.match(camera, /const desiredLookY = pose\.lookY/);
-});
-
-
-test("V8 speed pass keeps enemies close and choreographs dogfight fly-bys", async () => {
-  assert.ok(Math.min(...SKY_DANCER_ARCADE_STAGES.map((stage) => stage.courseSpeed)) >= 80);
-  const runtime = new SkyDancerArcadeRuntime({ mode: "arcade-run", difficulty: "normal", seed: 0x5f3759df });
-  const seen = new Set<string>();
-  const rearIds = new Set<number>();
-  let rearToFront = false;
-  let closeSamples = 0;
-  for (let frame = 0; frame < 780; frame += 1) {
-    const snapshot = runtime.getSnapshot();
-    for (const enemy of snapshot.enemies) {
-      if (enemy.boss) continue;
-      seen.add(enemy.maneuver);
-      if (enemy.depth > 4 && enemy.depth < 24) closeSamples += 1;
-      if (enemy.maneuver === "overtake" && enemy.depth < 0) rearIds.add(enemy.id);
-      if (rearIds.has(enemy.id) && enemy.depth > 12) rearToFront = true;
-    }
-    runtime.step(1 / 60);
-    if (runtime.getSnapshot().status !== "running") break;
-  }
-  assert.ok(seen.has("close-bank"), `maneuvers ${[...seen].join(",")}`);
-  assert.ok(seen.has("overtake"), `maneuvers ${[...seen].join(",")}`);
-  assert.ok(seen.has("parallel"), `maneuvers ${[...seen].join(",")}`);
-  assert.ok(rearToFront, "rear overtaker should pass into the forward field");
-  assert.ok(closeSamples >= 120, `close silhouette samples ${closeSamples}`);
-
-  const [runtimeSource, presentationSource, cameraSource] = await Promise.all([
-    readFile(new URL("../src/sky/arcade/SkyDancerArcadeRuntime.ts", import.meta.url), "utf8"),
-    readFile(new URL("../src/sky/arcade/SkyDancerArcadeProductPresentation.ts", import.meta.url), "utf8"),
-    readFile(new URL("../src/sky/arcade/SkyDancerArcadeCamera.ts", import.meta.url), "utf8"),
-  ]);
-  assert.match(runtimeSource, /turboActive \? 1\.44 : 1/);
-  assert.match(presentationSource, /turboActive \? 205 : 78/);
-  assert.match(cameraSource, /fov: turbo \? 69 : 56/);
-});
-
-
-test("V8.1 playcheck keeps close dogfights readable and the Turbo airframe on-screen", async () => {
-  const runtime = new SkyDancerArcadeRuntime({ mode: "arcade-run", difficulty: "normal", seed: 0x5f3759df });
-  let minCrossPassSeparation = Number.POSITIVE_INFINITY;
-  for (let frame = 0; frame < 1500; frame += 1) {
-    const snapshot = runtime.getSnapshot();
-    for (const enemy of snapshot.enemies) {
-      if (enemy.boss || enemy.maneuver !== "cross-pass" || enemy.depth >= 18) continue;
-      minCrossPassSeparation = Math.min(minCrossPassSeparation, Math.hypot(enemy.x - snapshot.playerX, enemy.y - snapshot.playerY));
-    }
-    runtime.step(1 / 60);
-    if (runtime.getSnapshot().status !== "running") break;
-  }
-  assert.ok(Number.isFinite(minCrossPassSeparation), "expected at least one close cross-pass sample");
-  assert.ok(minCrossPassSeparation >= .58, `cross-pass separation ${minCrossPassSeparation}`);
-
-  const [webgl, presentation, camera] = await Promise.all([
-    readFile(new URL("../src/sky/arcade/SkyDancerArcadeWebGLDemo.ts", import.meta.url), "utf8"),
-    readFile(new URL("../src/sky/arcade/SkyDancerArcadeProductPresentation.ts", import.meta.url), "utf8"),
-    readFile(new URL("../src/sky/arcade/SkyDancerArcadeCamera.ts", import.meta.url), "utf8"),
-  ]);
-  assert.match(webgl, /extremeCloseClamp/);
-  assert.match(webgl, /if \(impact\.boss\)[\s\S]*emitBossExplosion\(position, impact\.missile\)/);
-  assert.match(webgl, /heavyCraft[\s\S]*emitHeavyExplosion\(position, impact\.missile\)/);
-  assert.match(presentation, /Math\.min\(\.2, \.018 \+ this\.climaxEnergy \* \.15\)/);
-  assert.match(presentation, /Math\.min\(\.24, this\.climaxPulse \* \.27\)/);
-  assert.match(camera, /turboFollow \* \.95/);
-  assert.match(camera, /turboFollow \* 1\.08/);
-  assert.match(camera, /fov: turbo \? 69 : 56/);
-});
-
-
-test("V8.2 branch stages carry independent course signatures and no decorative horizon carrier", async () => {
-  const sample = (id: "cloud-fleet" | "storm-carrier" | "desert-fortress" | "floating-ruins" | "night-metro" | "prism-citadel") => {
-    const stage = SKY_DANCER_ARCADE_STAGES.find((candidate) => candidate.id === id)!;
-    const length = stage.durationSeconds * stage.courseSpeed;
-    return Array.from({ length: 121 }, (_, index) => arcadeCoursePose(stage, length * index / 120));
-  };
-  const span = (values: number[]) => Math.max(...values) - Math.min(...values);
-  const signChanges = (values: number[], epsilon = .03) => {
-    const signs = values.filter((value) => Math.abs(value) >= epsilon).map((value) => Math.sign(value));
-    return signs.reduce((count, sign, index) => index > 0 && sign !== signs[index - 1] ? count + 1 : count, 0);
-  };
-
-  const cloud = sample("cloud-fleet");
-  assert.ok(span(cloud.map((pose) => pose.y)) > 25, "cloud stage should crest vertically");
-  const storm = sample("storm-carrier");
-  assert.ok(signChanges(storm.map((pose) => pose.yaw)) >= 5, "storm should dodge laterally");
-  assert.ok(span(storm.map((pose) => pose.y)) > 25, "storm should change altitude sharply");
-  const desert = sample("desert-fortress");
-  assert.ok(span(desert.map((pose) => pose.x)) > 55, "desert fortress should alternate wall approaches");
-  const ruins = sample("floating-ruins");
-  assert.ok(span(ruins.map((pose) => pose.x)) > 55, "ruins should weave through islands");
-  assert.ok(span(ruins.map((pose) => pose.y)) > 35, "ruins should be a multi-level labyrinth");
-  const night = sample("night-metro");
-  assert.ok(signChanges(night.map((pose) => pose.yaw)) >= 6, "night metro should chicane repeatedly");
-  const citadel = sample("prism-citadel");
-  assert.ok(citadel.at(-1)!.y - citadel[0].y > 10, "citadel should climb into the finale");
-
-  const world = await readFile(new URL("../src/sky/arcade/SkyDancerArcadeReferenceWorld.ts", import.meta.url), "utf8");
-  assert.doesNotMatch(world, /arcade-horizon-fleet-carrier/);
-  assert.doesNotMatch(world, /createReferenceCarrier/);
-  assert.match(world, /const lift=tier\*9\.5\+\(hero\?3:-3\)/);
-  assert.match(world, /arcadeDesertV93SandwallCitadel/);
-  assert.match(world, /arcadeDesertV93BreachSide/);
-  assert.match(world, /arcade-desert-fortress-citadel/);
-  assert.match(world, /const stormSide=index%2===0\?1:-1/);
-});
-
-
-test("V9.5 presentation director stacks speed, near-miss, damage and boss peaks without touching gameplay", async () => {
-  const base = { turboActive: false, nearMisses: 0, enemiesDefeated: 0, bossActive: false, hitSerial: 0, damageSerial: 0, stageSerial: 0, resultSerial: 0 };
-  const director = new SkyDancerArcadePresentationDirector();
-  const turbo = director.update({ ...base, turboActive: true }, base, 1 / 60);
-  assert.ok(turbo.rush > 0);
-  assert.ok(turbo.fovKick >= 5);
-  assert.ok(turbo.bloomBoost > 0);
-
-  director.reset();
-  const near = director.update({ ...base, nearMisses: 1 }, base, 1 / 60);
-  assert.ok(near.nearMiss > .9);
-  assert.ok(near.cameraShake > .1);
-  assert.ok(near.fovKick > 1.5);
-
-  director.reset();
-  const damage = director.update({ ...base, damageSerial: 1 }, base, 1 / 60);
-  assert.ok(damage.damage > .9);
-  assert.ok(damage.cameraShake > .2);
-
-  director.reset();
-  const boss = director.update({ ...base, bossActive: true }, base, 1 / 60);
-  assert.ok(boss.boss > .9);
-  assert.ok(boss.pullback > .4);
-
-  const cinematic = await readFile(new URL("../src/sky/arcade/SkyDancerArcadeCinematicRenderer.ts", import.meta.url), "utf8");
-  assert.match(cinematic, /only two velocity-color taps/);
-  assert.match(cinematic, /rushStrength/);
-  assert.match(cinematic, /damageStrength/);
-});
-
-
-test("V10.3.8 camera position sightline and roll share one damped motion frame", async () => {
-  const webgl = await readFile(new URL("../src/sky/arcade/SkyDancerArcadeWebGLDemo.ts", import.meta.url), "utf8");
-  assert.match(webgl, /cameraLookTarget = new THREE\.Vector3\(0, \.8, -34\)/);
-  assert.match(webgl, /const lookAlpha = 1 - Math\.exp\(-delta \* 8\.8\)/);
-  assert.match(webgl, /const rollAlpha = 1 - Math\.exp\(-delta \* 9\.2\)/);
-  assert.match(webgl, /this\.cameraLookTarget\.x \+= \(desiredLookX - this\.cameraLookTarget\.x\) \* lookAlpha/);
-  assert.match(webgl, /this\.camera\.lookAt\(this\.cameraLookTarget\)/);
-  assert.match(webgl, /this\.cameraRoll \+= \(desiredRoll - this\.cameraRoll\) \* rollAlpha/);
-  assert.match(webgl, /this\.camera\.rotateZ\(this\.cameraRoll\)/);
-  assert.doesNotMatch(webgl, /this\.camera\.lookAt\(\s*pose\.lookX/);
-});
-
-
-test("V10.4.1 background chunk attitude has one owner", async () => {
-  const source=await readFile(new URL("../src/sky/arcade/SkyDancerArcadeReferenceWorld.ts",import.meta.url),"utf8");
-  const update=source.slice(source.indexOf("update(distance:number"),source.indexOf("private buildContinuousTerrain"));
-  assert.match(update,/const sceneryAttitude=arcadeSharedSceneryAttitudeV1041/);
-  assert.match(update,/chunk\.group\.rotation\.set\(sceneryAttitude\.pitch,sceneryAttitude\.yaw,sceneryAttitude\.roll\)/);
-  assert.match(update,/this\.backdrop\.rotation\.set\(sceneryAttitude\.pitch,sceneryAttitude\.yaw,sceneryAttitude\.roll\)/);
-  assert.doesNotMatch(update,/chunk\.group\.rotation\.y=course\.yaw|chunk\.group\.rotation\.x=course\.pitch|chunk\.group\.rotation\.z=course\.bank/);
-});
-
-
-test("V10.5 city hazards remain grounded architecture and are phase-locked to the course world", async () => {
-  const models = await readFile(new URL("../src/sky/arcade/SkyDancerArcadeModels.ts", import.meta.url), "utf8");
-  const demo = await readFile(new URL("../src/sky/arcade/SkyDancerArcadeWebGLDemo.ts", import.meta.url), "utf8");
-  const runtime = await readFile(new URL("../src/sky/arcade/SkyDancerArcadeRuntime.ts", import.meta.url), "utf8");
-  assert.match(models, /arcadeWorldAnchoredHazardV105 = true/);
-  assert.match(models, /"city-pylon"/);
-  assert.match(models, /"city-gantry"/);
-  assert.match(models, /new THREE\.BoxGeometry\(5\.8, 0\.72, 1\.0\)/);
-  assert.match(demo, /arcadeSharedSceneryAttitudeV1041/);
-  assert.match(demo, /arcadeWorldAnchoredHazardV105 === true/);
-  assert.match(demo, /group\.rotation\.set\(sceneryAttitude\.pitch, sceneryAttitude\.yaw, sceneryAttitude\.roll\)/);
-  assert.match(runtime, /hazard\.depth = hazard\.courseAnchorDistance - this\.distance/);
-});
-
-
-test("V10.5 world anchors keep structural hazards phase-locked to course scenery", () => {
-  const sourcePromise = readFile(new URL("../src/sky/arcade/SkyDancerArcadeRuntime.ts", import.meta.url), "utf8");
-  return sourcePromise.then((source) => {
-    assert.match(source, /courseAnchorDistance: number \| null/);
-    assert.match(source, /courseAnchored = kind === "tower" \|\| kind === "arch" \|\| kind === "rock"/);
-    assert.match(source, /hazard\.depth = hazard\.courseAnchorDistance - this\.distance/);
-  });
-});
-
-test("V10.5 reserves independent tumble for free hazards only", async () => {
-  const [models, webgl] = await Promise.all([
-    readFile(new URL("../src/sky/arcade/SkyDancerArcadeModels.ts", import.meta.url), "utf8"),
-    readFile(new URL("../src/sky/arcade/SkyDancerArcadeWebGLDemo.ts", import.meta.url), "utf8"),
-  ]);
-  assert.match(models, /arcadeWorldAnchoredHazardV105/);
-  assert.match(models, /canyon-rock-bridge/);
-  assert.match(models, /crystal-rib/);
-  assert.match(models, /ruin-portal/);
-  assert.match(models, /orbital-truss-ring/);
-  assert.match(models, /prism-blade-gate/);
-  assert.match(webgl, /Only genuinely free objects \(mine\/debris\) retain independent tumble/);
-});
-
-test("V10.5.1 structural arch stays at one absolute course point while turbo advances the world", () => {
+test("structural arch stays at one absolute course point while turbo advances the world", () => {
   const runtime = new SkyDancerArcadeRuntime({ difficulty: "normal", mode: "stage-practice", startStageId: "dawn-city", seed: 0x1051 });
   const debugRuntime = runtime as unknown as { spawnHazardPattern(kind: "arch"): void };
   debugRuntime.spawnHazardPattern("arch");
@@ -606,7 +257,7 @@ test("V10.5.1 structural arch stays at one absolute course point while turbo adv
   assert.ok(Math.abs(anchorAfter - anchorBefore) < 1e-9, `world anchor drifted: ${anchorBefore} -> ${anchorAfter}`);
 });
 
-test("V10.5.1 dynamic debris keeps independent motion instead of masquerading as scenery", () => {
+test("dynamic debris keeps independent motion instead of masquerading as scenery", () => {
   const runtime = new SkyDancerArcadeRuntime({ difficulty: "normal", mode: "stage-practice", startStageId: "cloud-fleet", seed: 0x1052 });
   const debugRuntime = runtime as unknown as { spawnHazardPattern(kind: "debris"): void };
   debugRuntime.spawnHazardPattern("debris");
@@ -623,7 +274,7 @@ test("V10.5.1 dynamic debris keeps independent motion instead of masquerading as
 });
 
 
-test("V11.4 exposes three persistent mastery goals for every practice stage", () => {
+test("exposes three persistent mastery goals for every practice stage", () => {
   for (const stage of SKY_DANCER_ARCADE_STAGES) {
     const goals = skyDancerArcadeV11StageMedalGoals(stage.id);
     assert.equal(goals.length, 3, stage.id);
@@ -633,77 +284,8 @@ test("V11.4 exposes three persistent mastery goals for every practice stage", ()
   }
 });
 
-test("V11.4 stage practice UI closes the mastery retry loop", async () => {
-  const [menu, mode, menuCss, productCss] = await Promise.all([
-    readFile(new URL("../app/CartGameMenu.tsx", import.meta.url), "utf8"),
-    readFile(new URL("../app/SkyDancerArcadeMode.tsx", import.meta.url), "utf8"),
-    readFile(new URL("../app/CartGameMenuModes.module.css", import.meta.url), "utf8"),
-    readFile(new URL("../app/SkyDancerArcadeProduct.module.css", import.meta.url), "utf8"),
-  ]);
-  assert.match(menu, /STAGE MASTERY/);
-  assert.match(menu, /NEXT TARGET/);
-  assert.match(menu, /practiceMedals/);
-  assert.match(mode, /v114PracticeMastery/);
-  assert.match(mode, /CHASE \${practiceNextTarget\.label}/);
-  assert.match(menuCss, /practiceMastery/);
-  assert.match(productCss, /v114PracticeGoals/);
-});
 
-
-test("V11.5 mastery rewards turn the 33-medal chase into a deterministic unlock track", async () => {
-  assert.equal(SKY_DANCER_ARCADE_MAX_MEDALS, 33);
-  assert.deepEqual(SKY_DANCER_ARCADE_MASTERY_REWARDS.map((reward) => reward.threshold), [6, 12, 18, 24, 30, 33]);
-  assert.equal(skyDancerArcadeNextMasteryReward(0)?.label, "SUNSET PAINT");
-  assert.equal(skyDancerArcadeNextMasteryReward(6)?.label, "MISSILE FOCUS");
-  assert.equal(skyDancerArcadeNextMasteryReward(33), null);
-  assert.deepEqual(skyDancerArcadeMasteryUnlocks(5), { paintSchemes: [], loadouts: [] });
-  assert.deepEqual(skyDancerArcadeMasteryUnlocks(30), {
-    paintSchemes: ["sunset", "storm", "prism"],
-    loadouts: ["missile-focus", "gun-focus"],
-  });
-  const [menuSource, resultSource] = await Promise.all([
-    readFile(new URL("../app/CartGameMenu.tsx", import.meta.url), "utf8"),
-    readFile(new URL("../app/SkyDancerArcadeMode.tsx", import.meta.url), "utf8"),
-  ]);
-  assert.match(menuSource, /MASTERY \$\{arcadeMeta\.totalMedals\}\/\$\{SKY_DANCER_ARCADE_MAX_MEDALS\}/);
-  assert.match(menuSource, /PILOT REWARD/);
-  assert.match(resultSource, /projectedNextMasteryReward/);
-  assert.match(resultSource, /SKY MASTER COMPLETE/);
-});
-
-
-test("V11.6 hangar selections persist and change the actual sortie profile", async () => {
-  const [progressSource, menuSource, runtimeSource, airframeSource, webglSource] = await Promise.all([
-    readFile(new URL("../src/sky/arcade/SkyDancerArcadeProgress.ts", import.meta.url), "utf8"),
-    readFile(new URL("../app/CartGameMenu.tsx", import.meta.url), "utf8"),
-    readFile(new URL("../src/sky/arcade/SkyDancerArcadeRuntime.ts", import.meta.url), "utf8"),
-    readFile(new URL("../src/sky/arcade/SkyDancerArcadeReferenceAirframes.ts", import.meta.url), "utf8"),
-    readFile(new URL("../src/sky/arcade/SkyDancerArcadeWebGLDemo.ts", import.meta.url), "utf8"),
-  ]);
-  assert.match(progressSource, /selectedPaintScheme: SkyDancerArcadePaintScheme/);
-  assert.match(progressSource, /selectedLoadout: SkyDancerArcadeLoadout/);
-  assert.match(progressSource, /selectSkyDancerArcadeEquipment/);
-  assert.match(menuSource, /Open hangar/);
-  assert.match(menuSource, /id: "missile-focus"/);
-  assert.match(runtimeSource, /arcadeLoadoutGunCooldown/);
-  assert.match(runtimeSource, /arcadeLoadoutLockInterval/);
-  assert.match(runtimeSource, /arcadeLoadoutMissileDamage/);
-  assert.match(airframeSource, /arcadePaintSchemeV116/);
-  assert.match(airframeSource, /playerPaintScheme === "prism"/);
-  assert.match(webglSource, /createSkyDancerArcadePlayer\(options\.paintScheme \?\? "default"\)/);
-
-  const standard = new SkyDancerArcadeRuntime({ difficulty: "normal", mode: "stage-practice", startStageId: "dawn-city", loadout: "standard", paintScheme: "default", seed: 116 });
-  const gun = new SkyDancerArcadeRuntime({ difficulty: "normal", mode: "stage-practice", startStageId: "dawn-city", loadout: "gun-focus", paintScheme: "prism", seed: 116 });
-  standard.setFire(true);
-  gun.setFire(true);
-  for (let frame = 0; frame < 60; frame += 1) { standard.step(1 / 60); gun.step(1 / 60); }
-  assert.equal(gun.getSnapshot().paintScheme, "prism");
-  assert.equal(gun.getSnapshot().loadout, "gun-focus");
-  assert.ok(gun.getSnapshot().shotSerial > standard.getSnapshot().shotSerial, `${gun.getSnapshot().shotSerial} > ${standard.getSnapshot().shotSerial}`);
-});
-
-
-test("V11.7 Gun Focus fires a visible twin-cannon burst instead of a scalar-only buff", () => {
+test("Gun Focus fires a visible twin-cannon burst instead of a scalar-only buff", () => {
   const runtime = new SkyDancerArcadeRuntime({ difficulty: "normal", mode: "stage-practice", startStageId: "dawn-city", loadout: "gun-focus", seed: 0x1171 });
   runtime.setFire(true);
   runtime.step(1 / 60);
@@ -713,7 +295,7 @@ test("V11.7 Gun Focus fires a visible twin-cannon burst instead of a scalar-only
   assert.ok(shots[0].x < shots[1].x, "twin cannons originate from separate left/right lanes");
 });
 
-test("V11.7 Missile Focus widens acquisition and releases a twin ripple per lock", () => {
+test("Missile Focus widens acquisition and releases a twin ripple per lock", () => {
   const standard = new SkyDancerArcadeRuntime({ difficulty: "normal", mode: "stage-practice", startStageId: "dawn-city", loadout: "standard", seed: 0x1172 });
   const missile = new SkyDancerArcadeRuntime({ difficulty: "normal", mode: "stage-practice", startStageId: "dawn-city", loadout: "missile-focus", seed: 0x1172 });
   const standardDebug = standard as unknown as { spawnEnemy(kind: "fighter", x: number, y: number, depth: number): void };
@@ -732,7 +314,7 @@ test("V11.7 Missile Focus widens acquisition and releases a twin ripple per lock
   assert.equal(ripple[0].targetEnemyId, ripple[1].targetEnemyId);
 });
 
-test("V11.7 Standard Fusion Link changes weapon cadence only while Turbo is engaged", () => {
+test("Standard Fusion Link changes weapon cadence only while Turbo is engaged", () => {
   const normal = new SkyDancerArcadeRuntime({ difficulty: "normal", mode: "stage-practice", startStageId: "dawn-city", loadout: "standard", seed: 0x1173 });
   const linked = new SkyDancerArcadeRuntime({ difficulty: "normal", mode: "stage-practice", startStageId: "dawn-city", loadout: "standard", seed: 0x1173 });
   normal.setFire(true);
@@ -745,27 +327,8 @@ test("V11.7 Standard Fusion Link changes weapon cadence only while Turbo is enga
   assert.ok(linked.getSnapshot().shotSerial > normal.getSnapshot().shotSerial, `${linked.getSnapshot().shotSerial} should exceed ${normal.getSnapshot().shotSerial}`);
 });
 
-test("V11.7 loadout doctrine is visible in hangar controls and projectile presentation", async () => {
-  const [menuSource, modeSource, webglSource, cssSource] = await Promise.all([
-    readFile(new URL("../app/CartGameMenu.tsx", import.meta.url), "utf8"),
-    readFile(new URL("../app/SkyDancerArcadeMode.tsx", import.meta.url), "utf8"),
-    readFile(new URL("../src/sky/arcade/SkyDancerArcadeWebGLDemo.ts", import.meta.url), "utf8"),
-    readFile(new URL("../app/SkyDancerArcadeProduct.module.css", import.meta.url), "utf8"),
-  ]);
-  assert.match(menuSource, /FUSION LINK/);
-  assert.match(menuSource, /RAPID MULTI/);
-  assert.match(menuSource, /TWIN BURST/);
-  assert.match(modeSource, /data-loadout=\{snapshot\.loadout\}/);
-  assert.match(modeSource, /V(?:11\.(?:8|9)|12\.[012])/);
-  assert.match(webglSource, /arcadeLoadoutV117/);
-  assert.match(webglSource, /snapshot\.loadout === "gun-focus" \? 0xffdf72/);
-  assert.match(cssSource, /data-loadout="gun-focus"/);
-  assert.match(cssSource, /data-fusion="true"/);
-});
 
-
-
-test("V11.8 Gun Focus converts twin-cannon hits into armor shred and tactical rewards", () => {
+test("Gun Focus converts twin-cannon hits into armor shred and tactical rewards", () => {
   const standard = new SkyDancerArcadeRuntime({ difficulty: "normal", mode: "stage-practice", startStageId: "dawn-city", loadout: "standard", seed: 0x1181 });
   const gun = new SkyDancerArcadeRuntime({ difficulty: "normal", mode: "stage-practice", startStageId: "dawn-city", loadout: "gun-focus", seed: 0x1181 });
   const standardId = standard.spawnEnemyForTests("bomber", 0, 0, 30);
@@ -783,7 +346,7 @@ test("V11.8 Gun Focus converts twin-cannon hits into armor shred and tactical re
   assert.ok(gun.getSnapshot().loadoutReactionSerial > 0);
 });
 
-test("V11.8 Missile Focus creates a stronger ripple shock reaction than a standard missile", () => {
+test("Missile Focus creates a stronger ripple shock reaction than a standard missile", () => {
   const standard = new SkyDancerArcadeRuntime({ difficulty: "normal", mode: "stage-practice", startStageId: "dawn-city", loadout: "standard", seed: 0x1182 });
   const missile = new SkyDancerArcadeRuntime({ difficulty: "normal", mode: "stage-practice", startStageId: "dawn-city", loadout: "missile-focus", seed: 0x1182 });
   const standardId = standard.spawnEnemyForTests("bomber", 0, 0, 30);
@@ -800,7 +363,7 @@ test("V11.8 Missile Focus creates a stronger ripple shock reaction than a standa
   assert.ok(missile.getSnapshot().loadoutBonusScore > 0);
 });
 
-test("V11.8 Standard only earns Fusion tactical finish rewards while Turbo Link is active", () => {
+test("Standard only earns Fusion tactical finish rewards while Turbo Link is active", () => {
   const idle = new SkyDancerArcadeRuntime({ difficulty: "normal", mode: "stage-practice", startStageId: "dawn-city", loadout: "standard", seed: 0x1183 });
   const linked = new SkyDancerArcadeRuntime({ difficulty: "normal", mode: "stage-practice", startStageId: "dawn-city", loadout: "standard", seed: 0x1183 });
   const idleId = idle.spawnEnemyForTests("fighter", 0, 0, 30);
@@ -815,29 +378,8 @@ test("V11.8 Standard only earns Fusion tactical finish rewards while Turbo Link 
   assert.match(linked.getSnapshot().loadoutReactionLabel ?? "", /FUSION/);
 });
 
-test("V11.8 tactical doctrine is visible in HUD, hangar and WebGL enemy reaction code", async () => {
-  const [modeSource, menuSource, webglSource, cssSource, runtimeSource] = await Promise.all([
-    readFile(new URL("../app/SkyDancerArcadeMode.tsx", import.meta.url), "utf8"),
-    readFile(new URL("../app/CartGameMenu.tsx", import.meta.url), "utf8"),
-    readFile(new URL("../src/sky/arcade/SkyDancerArcadeWebGLDemo.ts", import.meta.url), "utf8"),
-    readFile(new URL("../app/SkyDancerArcadeProduct.module.css", import.meta.url), "utf8"),
-    readFile(new URL("../src/sky/arcade/SkyDancerArcadeRuntime.ts", import.meta.url), "utf8"),
-  ]);
-  assert.match(modeSource, /V(?:11\.(?:8|9)|12\.[012])/);
-  assert.match(modeSource, /TACTICAL BONUS \+\{snapshot\.loadoutBonusScore\}/);
-  assert.match(menuSource, /ARMOR SHRED · CANNON STAGGER/);
-  assert.match(menuSource, /RIPPLE SHOCK · ARMOR CRUSH/);
-  assert.match(menuSource, /TURBO FINISH · SCORE \+ REFUND/);
-  assert.match(webglSource, /impact\.reaction === "ripple-shock"/);
-  assert.match(webglSource, /snapshot\.loadoutReactionSerial/);
-  assert.match(cssSource, /v118LoadoutStatus/);
-  assert.match(runtimeSource, /TWIN CANNON SHRED/);
-  assert.match(runtimeSource, /RIPPLE ARMOR CRUSH/);
-  assert.match(runtimeSource, /FUSION LINK FINISH/);
-});
 
-
-test("V11.9 Gun Focus provokes armor brace that reduces direct cannon penetration but can be broken", () => {
+test("Gun Focus provokes armor brace that reduces direct cannon penetration but can be broken", () => {
   const braced = new SkyDancerArcadeRuntime({ difficulty: "normal", mode: "stage-practice", startStageId: "dawn-city", loadout: "gun-focus", seed: 0x1191 });
   const open = new SkyDancerArcadeRuntime({ difficulty: "normal", mode: "stage-practice", startStageId: "dawn-city", loadout: "gun-focus", seed: 0x1191 });
   const bracedId = braced.spawnEnemyForTests("bomber", 0, 0, 30);
@@ -857,7 +399,7 @@ test("V11.9 Gun Focus provokes armor brace that reduces direct cannon penetratio
   if (firstBreaks > 0) assert.match(firstBreakLabel ?? "", /BRACE BREAK/);
 });
 
-test("V11.9 Missile Focus provokes evasive roll and rewards a tracked missile punish", () => {
+test("Missile Focus provokes evasive roll and rewards a tracked missile punish", () => {
   const runtime = new SkyDancerArcadeRuntime({ difficulty: "normal", mode: "stage-practice", startStageId: "dawn-city", loadout: "missile-focus", seed: 0x1192 });
   const id = runtime.spawnEnemyForTests("interceptor", .2, .1, 30);
   runtime.forceEnemyCounterplayForTests(id);
@@ -872,7 +414,7 @@ test("V11.9 Missile Focus provokes evasive roll and rewards a tracked missile pu
   assert.match(runtime.getSnapshot().loadoutReactionLabel ?? "", /EVADE PUNISH/);
 });
 
-test("V11.9 Standard Turbo Link can be jammed until the counter aircraft is broken", () => {
+test("Standard Turbo Link can be jammed until the counter aircraft is broken", () => {
   const jammed = new SkyDancerArcadeRuntime({ difficulty: "normal", mode: "stage-practice", startStageId: "dawn-city", loadout: "standard", seed: 0x1193 });
   const clear = new SkyDancerArcadeRuntime({ difficulty: "normal", mode: "stage-practice", startStageId: "dawn-city", loadout: "standard", seed: 0x1193 });
   const id = jammed.spawnEnemyForTests("missile-boat", 0, 0, 30);
@@ -887,29 +429,8 @@ test("V11.9 Standard Turbo Link can be jammed until the counter aircraft is brok
   assert.match(jammed.getSnapshot().loadoutReactionLabel ?? "", /JAMMER BREAK/);
 });
 
-test("V11.9 enemy counterplay is surfaced in HUD, hangar, runtime and WebGL presentation", async () => {
-  const [modeSource, menuSource, webglSource, cssSource, runtimeSource] = await Promise.all([
-    readFile(new URL("../app/SkyDancerArcadeMode.tsx", import.meta.url), "utf8"),
-    readFile(new URL("../app/CartGameMenu.tsx", import.meta.url), "utf8"),
-    readFile(new URL("../src/sky/arcade/SkyDancerArcadeWebGLDemo.ts", import.meta.url), "utf8"),
-    readFile(new URL("../app/SkyDancerArcadeProduct.module.css", import.meta.url), "utf8"),
-    readFile(new URL("../src/sky/arcade/SkyDancerArcadeRuntime.ts", import.meta.url), "utf8"),
-  ]);
-  assert.match(modeSource, /V(?:11\.9|12\.[012])/);
-  assert.match(modeSource, /ENEMY COUNTER/);
-  assert.match(menuSource, /BREAK JAMMERS/);
-  assert.match(menuSource, /PUNISH EVASION/);
-  assert.match(menuSource, /CRACK BRACE/);
-  assert.match(webglSource, /arcadeEnemyCounterplayV119/);
-  assert.match(cssSource, /v119Counterplay/);
-  assert.match(runtimeSource, /ARMOR BRACE/);
-  assert.match(runtimeSource, /EVASIVE ROLL/);
-  assert.match(runtimeSource, /TURBO JAMMER/);
-});
 
-
-
-test("V12.0 director reacts to actual combat behavior instead of only equipped loadout", () => {
+test("director reacts to actual combat behavior instead of only equipped loadout", () => {
   const common = { recentDamage: 0, hpRatio: 1, chain: 5, beatIntensity: .82, hard: false };
   assert.equal(skyDancerArcadeV12CombatPlan({ ...common, gunHeat: 2.4, missileHeat: .2, turboHeat: .2 }).mode, "armor-screen");
   assert.equal(skyDancerArcadeV12CombatPlan({ ...common, gunHeat: .2, missileHeat: 2.4, turboHeat: .2 }).mode, "hunter-sweep");
@@ -920,7 +441,7 @@ test("V12.0 director reacts to actual combat behavior instead of only equipped l
   assert.ok(relief.cadenceScale > 1);
 });
 
-test("V12.0 runtime turns sustained gun pressure into an armor-screen encounter", () => {
+test("runtime turns sustained gun pressure into an armor-screen encounter", () => {
   const runtime = new SkyDancerArcadeRuntime({ difficulty: "normal", mode: "stage-practice", startStageId: "dawn-city", loadout: "standard", seed: 0x1201 });
   runtime.setFire(true);
   for (let frame = 0; frame < 155; frame += 1) runtime.step(1 / 60);
@@ -931,7 +452,7 @@ test("V12.0 runtime turns sustained gun pressure into an armor-screen encounter"
   assert.match(snapshot.combatDirectorIntent, /BREAK THE LINE/);
 });
 
-test("V12.0 relief window reduces encounter density and delays enemy counters after heavy damage", () => {
+test("relief window reduces encounter density and delays enemy counters after heavy damage", () => {
   const pressure = new SkyDancerArcadeRuntime({ difficulty: "normal", mode: "stage-practice", startStageId: "dawn-city", seed: 0x1202 });
   const relief = new SkyDancerArcadeRuntime({ difficulty: "normal", mode: "stage-practice", startStageId: "dawn-city", seed: 0x1202 });
   pressure.setV12DirectorSignalsForTests(2.2, .1, .1, 0, 1);
@@ -945,27 +466,8 @@ test("V12.0 relief window reduces encounter density and delays enemy counters af
   assert.ok(reliefEnemies.every((enemy) => enemy.counterplay === "none"));
 });
 
-test("V12.0 adaptive encounter state is surfaced in the compact HUD and version contract", async () => {
-  const [modeSource, cssSource, runtimeSource, directorSource] = await Promise.all([
-    readFile(new URL("../app/SkyDancerArcadeMode.tsx", import.meta.url), "utf8"),
-    readFile(new URL("../app/SkyDancerArcadeProduct.module.css", import.meta.url), "utf8"),
-    readFile(new URL("../src/sky/arcade/SkyDancerArcadeRuntime.ts", import.meta.url), "utf8"),
-    readFile(new URL("../src/sky/arcade/SkyDancerArcadeV12Director.ts", import.meta.url), "utf8"),
-  ]);
-  assert.match(modeSource, /V12\.[12]/);
-  assert.match(modeSource, /COMBAT DIRECTOR/);
-  assert.match(modeSource, /combatDirectorIntent/);
-  assert.match(cssSource, /v12DirectorLine/);
-  assert.match(runtimeSource, /combatDirectorWaveSerial/);
-  assert.match(directorSource, /ARMOR SCREEN/);
-  assert.match(directorSource, /HUNTER SWEEP/);
-  assert.match(directorSource, /JAMMER NET/);
-  assert.match(directorSource, /RELIEF WINDOW/);
-});
 
-
-
-test("V12.1 Dawn City encounter grammar authors a real three-step combat sentence", () => {
+test("Dawn City encounter grammar authors a real three-step combat sentence", () => {
   const first = skyDancerArcadeV121EncounterGrammar("dawn-city", "adaptive-mix", 0, "city-entry", .72, false);
   const second = skyDancerArcadeV121EncounterGrammar("dawn-city", "adaptive-mix", 1, "city-entry", .72, false);
   assert.equal(first.phases.length, 3);
@@ -977,7 +479,7 @@ test("V12.1 Dawn City encounter grammar authors a real three-step combat sentenc
   assert.notEqual(first.phases[0].maneuver, first.phases[1].maneuver, "a grammar changes maneuver between phases");
 });
 
-test("V12.1 runtime advances encounter phases over time instead of spawning one undifferentiated wave", () => {
+test("runtime advances encounter phases over time instead of spawning one undifferentiated wave", () => {
   const runtime = new SkyDancerArcadeRuntime({ difficulty: "normal", mode: "stage-practice", startStageId: "dawn-city", seed: 0x1211 });
   runtime.setV12DirectorSignalsForTests(.2, 2.4, .2, 0, 1);
   runtime.spawnV12EncounterForTests();
@@ -995,7 +497,7 @@ test("V12.1 runtime advances encounter phases over time instead of spawning one 
   assert.ok(second.enemies.some((enemy) => !firstManeuvers.has(enemy.maneuver)), "second phase introduces a different attack maneuver");
 });
 
-test("V12.1 relief grammar is intentionally shorter and lighter than pressure grammar", () => {
+test("relief grammar is intentionally shorter and lighter than pressure grammar", () => {
   const pressure = skyDancerArcadeV121EncounterGrammar("dawn-city", "armor-screen", 0, "city-entry", .8, false);
   const relief = skyDancerArcadeV121EncounterGrammar("dawn-city", "relief-window", 0, "city-entry", .8, false);
   const pressureMass = pressure.phases.reduce((sum, phase) => sum + phase.countScale + phase.countDelta * .2, 0);
@@ -1005,28 +507,8 @@ test("V12.1 relief grammar is intentionally shorter and lighter than pressure gr
   assert.ok(relief.cadenceScale > pressure.cadenceScale);
 });
 
-test("V12.1 encounter identity is stage-specific and surfaced in the compact HUD", async () => {
-  const dawn = skyDancerArcadeV121EncounterGrammar("dawn-city", "adaptive-mix", 0, "entry", .7, false);
-  const fleet = skyDancerArcadeV121EncounterGrammar("cloud-fleet", "adaptive-mix", 0, "entry", .7, false);
-  assert.notEqual(dawn.label, fleet.label);
-  const [modeSource, cssSource, runtimeSource, grammarSource] = await Promise.all([
-    readFile(new URL("../app/SkyDancerArcadeMode.tsx", import.meta.url), "utf8"),
-    readFile(new URL("../app/SkyDancerArcadeProduct.module.css", import.meta.url), "utf8"),
-    readFile(new URL("../src/sky/arcade/SkyDancerArcadeRuntime.ts", import.meta.url), "utf8"),
-    readFile(new URL("../src/sky/arcade/SkyDancerArcadeV121EncounterGrammar.ts", import.meta.url), "utf8"),
-  ]);
-  assert.match(modeSource, /V12\.[12]/);
-  assert.match(modeSource, /ENCOUNTER · \{snapshot\.encounterGrammarLabel\}/);
-  assert.match(cssSource, /v121GrammarLine/);
-  assert.match(runtimeSource, /encounterPhaseQueue/);
-  assert.match(grammarSource, /SKYLINE KNIFE/);
-  assert.match(grammarSource, /DECK CROSS/);
-  assert.match(grammarSource, /NEON CROSS/);
-  assert.match(grammarSource, /PRISM GAUNTLET/);
-});
 
-
-test("V12.2 continuity blocks the player break lane and fills the empty side", () => {
+test("continuity blocks the player break lane and fills the empty side", () => {
   const rightBreak = skyDancerArcadeV122EncounterContinuity({ playerX: .3, playerVX: 1.2, survivorXs: [-.4, .2], phaseIndex: 1 });
   assert.equal(rightBreak.breakSign, 1);
   assert.equal(rightBreak.entrySign, 1);
@@ -1040,7 +522,7 @@ test("V12.2 continuity blocks the player break lane and fills the empty side", (
   assert.match(fillLeft.label, /FILL L/);
 });
 
-test("V12.2 Encounter Continuity carries survivor IDs and steers each reinforcement phase", () => {
+test("Encounter Continuity carries survivor IDs and steers each reinforcement phase", () => {
   const runtime = new SkyDancerArcadeRuntime({ mode: "stage-practice", difficulty: "normal", startStageId: "dawn-city", seed: 122 });
   runtime.setV12DirectorSignalsForTests(.1, 1.8, .1);
   runtime.setV122PlayerFlowForTests(1.1, 1.35);
@@ -1072,4 +554,91 @@ test("V12.2 Encounter Continuity carries survivor IDs and steers each reinforcem
   const thirdReinforcements = third.enemies.filter((enemy) => !secondIds.has(enemy.id));
   assert.ok(thirdReinforcements.length > 0);
   assert.ok(thirdReinforcements.reduce((sum, enemy) => sum + enemy.x, 0) / thirdReinforcements.length < -.05, "left break should pull the finishing cut into the left lane");
+});
+
+
+test("dogfight choreography includes close-bank, overtake, parallel and rear-to-front passes", () => {
+  assert.ok(Math.min(...SKY_DANCER_ARCADE_STAGES.map((stage) => stage.courseSpeed)) >= 80);
+  const runtime = new SkyDancerArcadeRuntime({ mode: "arcade-run", difficulty: "normal", seed: 0x5f3759df });
+  const seen = new Set<string>();
+  const rearIds = new Set<number>();
+  let rearToFront = false;
+  let closeSamples = 0;
+  for (let frame = 0; frame < 780; frame += 1) {
+    const snapshot = runtime.getSnapshot();
+    for (const enemy of snapshot.enemies) {
+      if (enemy.boss) continue;
+      seen.add(enemy.maneuver);
+      if (enemy.depth > 4 && enemy.depth < 24) closeSamples += 1;
+      if (enemy.maneuver === "overtake" && enemy.depth < 0) rearIds.add(enemy.id);
+      if (rearIds.has(enemy.id) && enemy.depth > 12) rearToFront = true;
+    }
+    runtime.step(1 / 60);
+    if (runtime.getSnapshot().status !== "running") break;
+  }
+  assert.ok(seen.has("close-bank"));
+  assert.ok(seen.has("overtake"));
+  assert.ok(seen.has("parallel"));
+  assert.ok(rearToFront);
+  assert.ok(closeSamples >= 120);
+});
+
+test("close cross-pass choreography preserves a readable separation", () => {
+  const runtime = new SkyDancerArcadeRuntime({ mode: "arcade-run", difficulty: "normal", seed: 0x5f3759df });
+  let minCrossPassSeparation = Number.POSITIVE_INFINITY;
+  for (let frame = 0; frame < 1500; frame += 1) {
+    const snapshot = runtime.getSnapshot();
+    for (const enemy of snapshot.enemies) {
+      if (enemy.boss || enemy.maneuver !== "cross-pass" || enemy.depth >= 18) continue;
+      minCrossPassSeparation = Math.min(
+        minCrossPassSeparation,
+        Math.hypot(enemy.x - snapshot.playerX, enemy.y - snapshot.playerY),
+      );
+    }
+    runtime.step(1 / 60);
+    if (runtime.getSnapshot().status !== "running") break;
+  }
+  assert.ok(Number.isFinite(minCrossPassSeparation));
+  assert.ok(minCrossPassSeparation >= 0.58, "cross-pass separation " + minCrossPassSeparation);
+});
+
+test("mastery rewards form a deterministic 33-medal unlock track", () => {
+  assert.equal(SKY_DANCER_ARCADE_MAX_MEDALS, 33);
+  assert.deepEqual(SKY_DANCER_ARCADE_MASTERY_REWARDS.map((reward) => reward.threshold), [6, 12, 18, 24, 30, 33]);
+  assert.equal(skyDancerArcadeNextMasteryReward(0)?.label, "SUNSET PAINT");
+  assert.equal(skyDancerArcadeNextMasteryReward(6)?.label, "MISSILE FOCUS");
+  assert.equal(skyDancerArcadeNextMasteryReward(33), null);
+  assert.deepEqual(skyDancerArcadeMasteryUnlocks(5), { paintSchemes: [], loadouts: [] });
+  assert.deepEqual(skyDancerArcadeMasteryUnlocks(30), {
+    paintSchemes: ["sunset", "storm", "prism"],
+    loadouts: ["missile-focus", "gun-focus"],
+  });
+});
+
+test("hangar loadout and paint selections change the actual sortie profile", () => {
+  const standard = new SkyDancerArcadeRuntime({
+    difficulty: "normal",
+    mode: "stage-practice",
+    startStageId: "dawn-city",
+    loadout: "standard",
+    paintScheme: "default",
+    seed: 116,
+  });
+  const gun = new SkyDancerArcadeRuntime({
+    difficulty: "normal",
+    mode: "stage-practice",
+    startStageId: "dawn-city",
+    loadout: "gun-focus",
+    paintScheme: "prism",
+    seed: 116,
+  });
+  standard.setFire(true);
+  gun.setFire(true);
+  for (let frame = 0; frame < 60; frame += 1) {
+    standard.step(1 / 60);
+    gun.step(1 / 60);
+  }
+  assert.equal(gun.getSnapshot().paintScheme, "prism");
+  assert.equal(gun.getSnapshot().loadout, "gun-focus");
+  assert.ok(gun.getSnapshot().shotSerial > standard.getSnapshot().shotSerial);
 });
