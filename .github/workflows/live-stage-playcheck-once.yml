@@ -1,4 +1,4 @@
-# Touch-control readability rerun: verify controls remain findable without obscuring enemy silhouettes.
+# Final combat-control translucency rerun: keep labels obvious while letting enemy silhouettes show through.
 name: Live Stage Playcheck Once
 
 on:
