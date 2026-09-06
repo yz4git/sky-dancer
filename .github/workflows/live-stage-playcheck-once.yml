@@ -1,4 +1,4 @@
-# Final visual rerun: verify legacy Boost Strike banner is absent and StageCycle pacing remains stable.
+# Touch-control readability rerun: verify controls remain findable without obscuring enemy silhouettes.
 name: Live Stage Playcheck Once
 
 on:
