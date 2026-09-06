@@ -70,3 +70,5 @@ jobs:
           git diff --cached --check
           git commit -m "Deepen SKY RAID act identity and finale"
           git push origin HEAD:main
+
+# rerun after doctrine contract alignment
