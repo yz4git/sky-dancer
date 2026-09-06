@@ -20,8 +20,11 @@ import {
 } from "../src/sky/SkyDancerTurboModel";
 import {
   SKY_DANCER_STAGE_BASE_KILLS,
+  SKY_DANCER_STAGE_MIN_REINFORCEMENT_SECONDS,
   skyDancerStageActiveEnemyTarget,
   skyDancerStageKillTarget,
+  skyDancerStageMinimumReinforcementSeconds,
+  skyDancerStageReinforcementsComplete,
 } from "../src/sky/SkyDancerStageCycle";
 import {
   SKY_DANCER_V40_CLEANUP_HOLD_DISTANCE,
@@ -140,6 +143,18 @@ test("stage reinforcement targets scale gradually and cap", () => {
   assert.ok(skyDancerStageKillTarget(5) >= skyDancerStageKillTarget(2));
   assert.equal(skyDancerStageKillTarget(99), skyDancerStageKillTarget(5));
   assert.ok(skyDancerStageActiveEnemyTarget(9) >= skyDancerStageActiveEnemyTarget(1));
+});
+
+test("stage progression cannot be rushed by missile kills before the combat floor", () => {
+  const target = skyDancerStageKillTarget(1);
+  const minimum = skyDancerStageMinimumReinforcementSeconds(1);
+  assert.equal(minimum, SKY_DANCER_STAGE_MIN_REINFORCEMENT_SECONDS);
+  assert.equal(skyDancerStageReinforcementsComplete(1, 6, target * 3), false);
+  assert.equal(skyDancerStageReinforcementsComplete(1, minimum - 0.01, target * 3), false);
+  assert.equal(skyDancerStageReinforcementsComplete(1, minimum, target - 1), false);
+  assert.equal(skyDancerStageReinforcementsComplete(1, minimum, target), true);
+  assert.ok(skyDancerStageMinimumReinforcementSeconds(5) > minimum);
+  assert.equal(skyDancerStageMinimumReinforcementSeconds(99), 58);
 });
 
 test("re-engagement geometry remains inside the missile lock envelope", () => {

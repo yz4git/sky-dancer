@@ -56,14 +56,28 @@ const stateBySession = new WeakMap<object, StageCycleState>();
 let latestStageSnapshot: SkyDancerStageCycleSnapshot | null = null;
 
 export const SKY_DANCER_STAGE_CYCLE_EVENT = "sky-dancer-stage-cycle";
-export const SKY_DANCER_STAGE_BASE_KILLS = 12;
+export const SKY_DANCER_STAGE_BASE_KILLS = 18;
+export const SKY_DANCER_STAGE_MIN_REINFORCEMENT_SECONDS = 42;
 
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
 }
 
 export function skyDancerStageKillTarget(stage: number): number {
-  return Math.min(28, SKY_DANCER_STAGE_BASE_KILLS + Math.max(0, stage - 1) * 4);
+  return Math.min(34, SKY_DANCER_STAGE_BASE_KILLS + Math.max(0, stage - 1) * 4);
+}
+
+export function skyDancerStageMinimumReinforcementSeconds(stage: number): number {
+  return Math.min(58, SKY_DANCER_STAGE_MIN_REINFORCEMENT_SECONDS + Math.max(0, stage - 1) * 4);
+}
+
+export function skyDancerStageReinforcementsComplete(
+  stage: number,
+  stageElapsedSeconds: number,
+  stageKills: number,
+): boolean {
+  return stageKills >= skyDancerStageKillTarget(stage)
+    && stageElapsedSeconds >= skyDancerStageMinimumReinforcementSeconds(stage);
 }
 
 export function skyDancerStageActiveEnemyTarget(stage: number): number {
@@ -317,9 +331,17 @@ function publishStageHud(session: StageSession, state: StageCycleState): void {
     target = Math.max(1, state.cleanupInitialRemaining);
     progress = Math.max(0, target - stage.remainingEnemies);
   } else {
-    label = `STAGE ${stage.stage} · DESTROY ${stage.reinforcementTarget} FIGHTERS`;
-    progress = Math.min(stage.reinforcementTarget, stage.stageKills);
-    target = stage.reinforcementTarget;
+    const minimumCombatSeconds = skyDancerStageMinimumReinforcementSeconds(stage.stage);
+    const holdSeconds = Math.max(0, minimumCombatSeconds - state.stageElapsed);
+    if (stage.stageKills >= stage.reinforcementTarget && holdSeconds > 0) {
+      label = `STAGE ${stage.stage} · HOLD AIRSPACE ${Math.ceil(holdSeconds)}s`;
+      progress = Math.min(minimumCombatSeconds, state.stageElapsed);
+      target = minimumCombatSeconds;
+    } else {
+      label = `STAGE ${stage.stage} · DESTROY ${stage.reinforcementTarget} FIGHTERS`;
+      progress = Math.min(stage.reinforcementTarget, stage.stageKills);
+      target = stage.reinforcementTarget;
+    }
   }
 
   const intensity = stage.phase === "boss"
@@ -410,7 +432,11 @@ export function installSkyDancerStageCycle(): void {
       state.clearTimer = Math.max(0, state.clearTimer - delta);
       if (state.clearTimer <= 0) startNextStage(this, state);
     } else if (!state.bossActive) {
-      if (!state.reinforcementsComplete && state.stageKills >= state.reinforcementTarget) {
+      if (!state.reinforcementsComplete && skyDancerStageReinforcementsComplete(
+        state.stage,
+        state.stageElapsed,
+        state.stageKills,
+      )) {
         state.reinforcementsComplete = true;
         state.cleanupInitialRemaining = liveNonBoss(this).length;
         setReward(this, "REINFORCEMENTS ENDED · WIPE OUT REMAINING", 2);
