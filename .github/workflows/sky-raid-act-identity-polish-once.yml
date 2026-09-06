@@ -1,0 +1,48 @@
+name: SKY RAID Act Identity Polish Once
+
+on:
+  push:
+    paths:
+      - ".github/workflows/sky-raid-act-identity-polish-once.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  implement:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.13.0
+          cache: npm
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Apply SKY RAID act identity polish
+        run: |
+          python3 .github/skyraid-act-identity-polish.py
+          git diff --check
+      - name: Rules and PWA tests
+        run: npm run test:fast
+      - name: Pages build and render
+        run: npm run test:pages
+      - name: Arcade TypeScript check
+        run: npm run check:arcade
+      - name: Lint
+        run: npm run lint
+      - name: Validate artifact
+        run: npm run validate:artifact
+      - name: Commit verified product
+        run: |
+          rm -f .github/skyraid-act-identity-polish.py
+          rm -f .github/workflows/sky-raid-act-identity-polish-once.yml
+          git diff --check
+          git config user.name "yz4git"
+          git config user.email "65384484+yz4git@users.noreply.github.com"
+          git add -A src/sky/SkyDancerSkyRaidRules.ts src/sky/SkyDancerSkyRaidFlight.ts src/sky/SkyDancerSkyRaid.ts tests/sky-sky-raid.test.ts docs/SKY_RAID.md .github
+          git diff --cached --check
+          git commit -m "Deepen SKY RAID act identity and finale"
+          git push origin HEAD:main
