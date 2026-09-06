@@ -7,6 +7,7 @@ import {
   skyDancerAvoidanceHeading,
   skyDancerClamp,
   skyDancerEnemySafetyRadius,
+  skyDancerEnemyPairHorizontalClearance,
   skyDancerNormalizeAngle,
   skyDancerRotateToward,
 } from "./SkyDancerFlightAvoidanceMath";
@@ -65,6 +66,73 @@ function turnRate(enemy: CartEnemyState): number {
   if (enemy.archetype === "drifter") return 1.5;
   if (enemy.archetype === "striker") return 1.34;
   return 1.2;
+}
+
+function stablePairDirection(a: string, b: string): { x: number; z: number } {
+  const key = a < b ? a + '|' + b : b + '|' + a;
+  let hash = 2166136261;
+  for (let index = 0; index < key.length; index += 1) {
+    hash ^= key.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  const angle = ((hash >>> 0) / 0xffffffff) * Math.PI * 2;
+  return { x: Math.sin(angle), z: Math.cos(angle) };
+}
+
+function applyEnemyPairSeparation(session: AvoidanceSessionView, delta: number): void {
+  const nodeId = session.location.node.id;
+  const bounds = session.location.node.rect;
+  const active = session.enemies.filter((enemy) => enemy.alive && enemy.nodeId === nodeId);
+
+  for (let leftIndex = 0; leftIndex < active.length; leftIndex += 1) {
+    const left = active[leftIndex];
+    for (let rightIndex = leftIndex + 1; rightIndex < active.length; rightIndex += 1) {
+      const right = active[rightIndex];
+      const verticalSeparation = getSkyDancerEnemyAltitudeMetersV43(left) - getSkyDancerEnemyAltitudeMetersV43(right);
+      const minimumHorizontal = skyDancerEnemyPairHorizontalClearance(left.radius, right.radius, verticalSeparation);
+      if (minimumHorizontal <= 0) continue;
+
+      let dx = right.x - left.x;
+      let dz = right.z - left.z;
+      let distance = Math.hypot(dx, dz);
+      if (distance >= minimumHorizontal) continue;
+      if (distance < 0.001) {
+        const stable = stablePairDirection(left.id, right.id);
+        dx = stable.x;
+        dz = stable.z;
+        distance = 1;
+      }
+
+      const nx = dx / distance;
+      const nz = dz / distance;
+      const overlap = minimumHorizontal - distance;
+      const leftBoss = left.kind === 'boss';
+      const rightBoss = right.kind === 'boss';
+      const correctionBudget = Math.min(overlap, 14 * delta);
+      const leftMove = leftBoss ? 0 : rightBoss ? correctionBudget : correctionBudget * 0.5;
+      const rightMove = rightBoss ? 0 : leftBoss ? correctionBudget : correctionBudget * 0.5;
+
+      left.x -= nx * leftMove;
+      left.z -= nz * leftMove;
+      right.x += nx * rightMove;
+      right.z += nz * rightMove;
+
+      if (!leftBoss) {
+        const away = Math.atan2(-nx, -nz);
+        left.heading = skyDancerRotateToward(left.heading, away, turnRate(left) * 1.25 * delta);
+      }
+      if (!rightBoss) {
+        const away = Math.atan2(nx, nz);
+        right.heading = skyDancerRotateToward(right.heading, away, turnRate(right) * 1.25 * delta);
+      }
+    }
+  }
+
+  const margin = 2.4;
+  for (const enemy of active) {
+    enemy.x = skyDancerClamp(enemy.x, bounds.centerX - bounds.halfWidth + margin, bounds.centerX + bounds.halfWidth - margin);
+    enemy.z = skyDancerClamp(enemy.z, bounds.centerZ - bounds.halfDepth + margin, bounds.centerZ + bounds.halfDepth - margin);
+  }
 }
 
 function applyCollisionAvoidance(session: AvoidanceSessionView, delta: number): void {
@@ -156,5 +224,6 @@ export function installSkyDancerFlightAvoidance(): void {
     baseStep.call(this, input, fixedDelta);
     const delta = Math.max(0.001, Math.min(0.05, fixedDelta ?? 1 / 60));
     applyCollisionAvoidance(this as unknown as AvoidanceSessionView, delta);
+    applyEnemyPairSeparation(this as unknown as AvoidanceSessionView, delta);
   };
 }

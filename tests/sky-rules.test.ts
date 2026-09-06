@@ -6,6 +6,8 @@ import {
   SKY_DANCER_ENEMY_PREFERRED_STANDOFF,
   skyDancerAvoidanceHeading,
   skyDancerEnemySafetyRadius,
+  skyDancerEnemyPairHorizontalClearance,
+  skyDancerEnemyPairMinimumSeparation,
   skyDancerNormalizeAngle,
 } from "../src/sky/SkyDancerFlightAvoidanceMath";
 
@@ -70,4 +72,14 @@ test("enemy guidance breaks away early and keeps a physical standoff", () => {
   const missileZone = skyDancerAvoidanceHeading(0, 0, 0, 22, 0, 22, 1);
   const crank = Math.abs(skyDancerNormalizeAngle(missileZone));
   assert.ok(crank >= 0.5 && crank <= 0.8);
+});
+
+
+test("enemy pair spacing keeps same-altitude aircraft visually separated", () => {
+  const standard = skyDancerEnemyPairMinimumSeparation(1.4, 1.4);
+  assert.ok(standard >= 6.4);
+  assert.equal(skyDancerEnemyPairHorizontalClearance(1.4, 1.4, 0), standard);
+  assert.ok(skyDancerEnemyPairHorizontalClearance(1.4, 1.4, 4) < standard);
+  assert.equal(skyDancerEnemyPairHorizontalClearance(1.4, 1.4, standard), 0);
+  assert.ok(skyDancerEnemyPairMinimumSeparation(2.4, 2.4) > standard);
 });

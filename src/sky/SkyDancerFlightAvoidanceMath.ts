@@ -1,6 +1,8 @@
 export const SKY_DANCER_ENEMY_PREFERRED_STANDOFF = 21;
 export const SKY_DANCER_ENEMY_HARD_CLEARANCE = 3.2;
 export const SKY_DANCER_PLAYER_BODY_RADIUS = 1.45;
+export const SKY_DANCER_ENEMY_PAIR_MIN_SPACING = 6.4;
+export const SKY_DANCER_ENEMY_PAIR_BODY_CLEARANCE = 3.6;
 
 export function skyDancerClamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
@@ -20,6 +22,24 @@ export function skyDancerRotateToward(current: number, target: number, maxTurn: 
 
 export function skyDancerEnemySafetyRadius(enemyRadius: number): number {
   return SKY_DANCER_PLAYER_BODY_RADIUS + Math.max(0.5, enemyRadius) + SKY_DANCER_ENEMY_HARD_CLEARANCE;
+}
+
+export function skyDancerEnemyPairMinimumSeparation(radiusA: number, radiusB: number): number {
+  return Math.max(
+    SKY_DANCER_ENEMY_PAIR_MIN_SPACING,
+    Math.max(0.5, radiusA) + Math.max(0.5, radiusB) + SKY_DANCER_ENEMY_PAIR_BODY_CLEARANCE,
+  );
+}
+
+export function skyDancerEnemyPairHorizontalClearance(
+  radiusA: number,
+  radiusB: number,
+  verticalSeparation: number,
+): number {
+  const desired = skyDancerEnemyPairMinimumSeparation(radiusA, radiusB);
+  const vertical = Math.abs(verticalSeparation);
+  if (vertical >= desired) return 0;
+  return Math.sqrt(Math.max(0, desired * desired - vertical * vertical));
 }
 
 export function skyDancerAvoidanceHeading(

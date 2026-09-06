@@ -25,6 +25,7 @@ import {
   skyDancerStageKillTarget,
   skyDancerStageMinimumReinforcementSeconds,
   skyDancerStageReinforcementsComplete,
+  skyDancerStageSpawnSlot,
 } from "../src/sky/SkyDancerStageCycle";
 import {
   SKY_DANCER_V40_CLEANUP_HOLD_DISTANCE,
@@ -138,23 +139,41 @@ test("aircraft crosses a Hunt seam without wall sliding or teleporting", () => {
 });
 
 test("stage reinforcement targets scale gradually and cap", () => {
-  assert.equal(skyDancerStageKillTarget(1), SKY_DANCER_STAGE_BASE_KILLS);
-  assert.ok(skyDancerStageKillTarget(2) > skyDancerStageKillTarget(1));
-  assert.ok(skyDancerStageKillTarget(5) >= skyDancerStageKillTarget(2));
-  assert.equal(skyDancerStageKillTarget(99), skyDancerStageKillTarget(5));
+  assert.equal(SKY_DANCER_STAGE_BASE_KILLS, 36);
+  assert.equal(skyDancerStageKillTarget(1), 36);
+  assert.equal(skyDancerStageKillTarget(2), 44);
+  assert.equal(skyDancerStageKillTarget(5), 68);
+  assert.equal(skyDancerStageKillTarget(99), 68);
   assert.ok(skyDancerStageActiveEnemyTarget(9) >= skyDancerStageActiveEnemyTarget(1));
 });
 
 test("stage progression cannot be rushed by missile kills before the combat floor", () => {
   const target = skyDancerStageKillTarget(1);
   const minimum = skyDancerStageMinimumReinforcementSeconds(1);
-  assert.equal(minimum, SKY_DANCER_STAGE_MIN_REINFORCEMENT_SECONDS);
+  assert.equal(SKY_DANCER_STAGE_MIN_REINFORCEMENT_SECONDS, 84);
+  assert.equal(minimum, 84);
+  assert.equal(skyDancerStageMinimumReinforcementSeconds(2), 92);
+  assert.equal(skyDancerStageMinimumReinforcementSeconds(5), 116);
   assert.equal(skyDancerStageReinforcementsComplete(1, 6, target * 3), false);
   assert.equal(skyDancerStageReinforcementsComplete(1, minimum - 0.01, target * 3), false);
   assert.equal(skyDancerStageReinforcementsComplete(1, minimum, target - 1), false);
   assert.equal(skyDancerStageReinforcementsComplete(1, minimum, target), true);
   assert.ok(skyDancerStageMinimumReinforcementSeconds(5) > minimum);
-  assert.equal(skyDancerStageMinimumReinforcementSeconds(99), 58);
+  assert.equal(skyDancerStageMinimumReinforcementSeconds(99), 116);
+});
+
+test("stage reinforcement spawn fan keeps simultaneous aircraft from sharing a slot", () => {
+  const points = Array.from({ length: 10 }, (_, serial) => {
+    const slot = skyDancerStageSpawnSlot(serial);
+    return { x: Math.sin(slot.angleOffset) * slot.distance, z: Math.cos(slot.angleOffset) * slot.distance };
+  });
+  let minimum = Number.POSITIVE_INFINITY;
+  for (let left = 0; left < points.length; left += 1) {
+    for (let right = left + 1; right < points.length; right += 1) {
+      minimum = Math.min(minimum, Math.hypot(points[left].x - points[right].x, points[left].z - points[right].z));
+    }
+  }
+  assert.ok(minimum > 7.5, `spawn fan minimum spacing was ${minimum.toFixed(2)}m`);
 });
 
 test("re-engagement geometry remains inside the missile lock envelope", () => {

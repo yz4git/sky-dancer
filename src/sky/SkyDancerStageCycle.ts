@@ -56,19 +56,19 @@ const stateBySession = new WeakMap<object, StageCycleState>();
 let latestStageSnapshot: SkyDancerStageCycleSnapshot | null = null;
 
 export const SKY_DANCER_STAGE_CYCLE_EVENT = "sky-dancer-stage-cycle";
-export const SKY_DANCER_STAGE_BASE_KILLS = 18;
-export const SKY_DANCER_STAGE_MIN_REINFORCEMENT_SECONDS = 42;
+export const SKY_DANCER_STAGE_BASE_KILLS = 36;
+export const SKY_DANCER_STAGE_MIN_REINFORCEMENT_SECONDS = 84;
 
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
 }
 
 export function skyDancerStageKillTarget(stage: number): number {
-  return Math.min(34, SKY_DANCER_STAGE_BASE_KILLS + Math.max(0, stage - 1) * 4);
+  return Math.min(68, SKY_DANCER_STAGE_BASE_KILLS + Math.max(0, stage - 1) * 8);
 }
 
 export function skyDancerStageMinimumReinforcementSeconds(stage: number): number {
-  return Math.min(58, SKY_DANCER_STAGE_MIN_REINFORCEMENT_SECONDS + Math.max(0, stage - 1) * 4);
+  return Math.min(116, SKY_DANCER_STAGE_MIN_REINFORCEMENT_SECONDS + Math.max(0, stage - 1) * 8);
 }
 
 export function skyDancerStageReinforcementsComplete(
@@ -82,6 +82,16 @@ export function skyDancerStageReinforcementsComplete(
 
 export function skyDancerStageActiveEnemyTarget(stage: number): number {
   return Math.min(10, 6 + Math.floor(Math.max(0, stage - 1) / 2));
+}
+
+export function skyDancerStageSpawnSlot(serial: number): { angleOffset: number; distance: number } {
+  const slot = ((Math.floor(serial) % 12) + 12) % 12;
+  const side = slot % 2 === 0 ? -1 : 1;
+  const rank = Math.floor(slot / 2);
+  return {
+    angleOffset: side * (0.34 + rank * 0.22),
+    distance: 28 + (slot % 3) * 7 + Math.floor(slot / 6) * 4,
+  };
 }
 
 function stateFor(session: StageSession): StageCycleState {
@@ -151,9 +161,9 @@ function resetBossToDormant(session: StageSession, state: StageCycleState): void
 
 function spawnFromTemplate(session: StageSession, state: StageCycleState, template: CartEnemyState): CartEnemyState {
   const serial = state.spawnSerial++;
-  const slotOffsets = [-0.92, -0.58, -0.26, 0.22, 0.56, 0.9, 1.28, -1.28] as const;
-  const angle = session.car.heading + slotOffsets[serial % slotOffsets.length] + ((state.stage + serial) % 3 - 1) * 0.07;
-  const distance = 25 + (serial % 4) * 5.5;
+  const slot = skyDancerStageSpawnSlot(serial);
+  const angle = session.car.heading + slot.angleOffset + ((state.stage + serial) % 3 - 1) * 0.05;
+  const distance = slot.distance;
   const hpScale = 1 + Math.min(0.55, Math.max(0, state.stage - 1) * 0.055);
   const maxHp = Math.max(1, Math.round(template.maxHp * hpScale));
   return {
