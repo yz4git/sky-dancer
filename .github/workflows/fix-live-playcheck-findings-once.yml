@@ -1,0 +1,46 @@
+name: Fix Live Playcheck Findings Once
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/fix-live-playcheck-findings-once.yml"
+      - ".github/fix-live-playcheck-findings.mjs"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.13.0
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Apply playcheck fixes
+        run: node .github/fix-live-playcheck-findings.mjs
+      - name: Fast behavioral tests
+        run: npm run test:fast
+      - name: Pages build and render
+        run: npm run test:pages
+      - name: Arcade TypeScript check
+        run: npm run check:arcade
+      - name: Lint
+        run: npm run lint
+      - name: Validate artifact
+        run: npm run validate:artifact
+      - name: Commit verified fix
+        run: |
+          git config user.name "yz4git"
+          git config user.email "65384484+yz4git@users.noreply.github.com"
+          git rm .github/fix-live-playcheck-findings.mjs .github/workflows/fix-live-playcheck-findings-once.yml
+          git add src/cart/CartTurboHuntProductOwnership.ts src/cart/CartRoguePhase74TurboHuntPerkMilestones.ts src/cart/CartRoguePhase110TurboDominoCoreLoop.ts src/sky/SkyDancerStageCycle.ts tests/sky-flight-runtime.test.ts tests/sky-rules.test.ts
+          git commit -m "Unify Turbo Hunt stage progression after live playcheck"
+          git push origin HEAD:main
