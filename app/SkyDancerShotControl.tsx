@@ -51,7 +51,7 @@ export default function SkyDancerShotControl() {
       const turboHunt = document.documentElement.dataset.skyDancerMode === "turbo-hunt";
       for (const button of document.querySelectorAll("button")) {
         const label = button.textContent?.trim() ?? "";
-        if (label === "BRAKE") {
+        if (button.textContent?.trim() === "BRAKE") {
           button.style.display = "none";
           button.setAttribute("aria-hidden", "true");
           button.setAttribute("tabindex", "-1");
