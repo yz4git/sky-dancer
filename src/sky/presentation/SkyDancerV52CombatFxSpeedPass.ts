@@ -57,7 +57,7 @@ export class SkyDancerV52CombatFxSpeedPass {
       mesh.visible = false;
       mesh.renderOrder = 18;
       runtime.scene.add(mesh);
-      this.hitRings.push({ mesh, life: 0, maxLife: 0.42 });
+      this.hitRings.push({ mesh, life: 0, maxLife: 0.30 });
     }
 
     this.evadeRing.name = "sky-dancer-v52-perfect-evade-ring";
@@ -77,13 +77,18 @@ export class SkyDancerV52CombatFxSpeedPass {
     if (this.evadeRing.parent !== this.runtime.playerVisual) this.runtime.playerVisual.add(this.evadeRing);
 
     if (typeof window !== "undefined" && navigator.webdriver) {
-      (window as unknown as Record<string, unknown>).__skyDancerGetV52SpeedFx = () => ({
-        streaks: this.speedRoot.children.length,
-        speedVisible: this.speedRoot.visible,
-        speedOpacity: this.speedMaterial.opacity,
-        activeHitRings: this.hitRings.filter((ring) => ring.life > 0).length,
-        evadePulse: this.evadePulse,
-      });
+      (window as unknown as Record<string, unknown>).__skyDancerGetV52SpeedFx = () => {
+        const activeRings = this.hitRings.filter((ring) => ring.life > 0);
+        return {
+          streaks: this.speedRoot.children.length,
+          speedVisible: this.speedRoot.visible,
+          speedOpacity: this.speedMaterial.opacity,
+          activeHitRings: activeRings.length,
+          maxHitRingScale: activeRings.reduce((max, ring) => Math.max(max, ring.mesh.scale.x), 0),
+          maxHitRingOpacity: activeRings.reduce((max, ring) => Math.max(max, ring.mesh.material.opacity), 0),
+          evadePulse: this.evadePulse,
+        };
+      };
     }
   }
 
@@ -121,8 +126,10 @@ export class SkyDancerV52CombatFxSpeedPass {
       ring.life = Math.max(0, ring.life - delta);
       const age = 1 - ring.life / ring.maxLife;
       ring.mesh.visible = ring.life > 0;
-      ring.mesh.scale.setScalar(0.65 + age * 4.25);
-      ring.mesh.material.opacity = Math.pow(1 - age, 1.5) * 0.78;
+      // Keep the hit read crisp and local. Large additive rings were expanding
+      // across the lower half of an iPhone screen when several hits overlapped.
+      ring.mesh.scale.setScalar(0.62 + age * 2.05);
+      ring.mesh.material.opacity = Math.pow(1 - age, 1.8) * 0.44;
       ring.mesh.quaternion.copy(this.runtime.camera.quaternion);
     }
   }
@@ -138,8 +145,8 @@ export class SkyDancerV52CombatFxSpeedPass {
     ring.mesh.position.y += serialOffset * 0.12;
     ring.life = ring.maxLife;
     ring.mesh.visible = true;
-    ring.mesh.scale.setScalar(0.68);
-    ring.mesh.material.opacity = 0.84;
+    ring.mesh.scale.setScalar(0.64);
+    ring.mesh.material.opacity = 0.48;
     this.runtime.emitImpactSparks(ring.mesh.position, 14 + serialOffset * 4);
     this.runtime.cameraShake = Math.max(this.runtime.cameraShake, 0.095 + serialOffset * 0.025);
     this.runtime.impactFlash = Math.max(this.runtime.impactFlash, 0.075);
