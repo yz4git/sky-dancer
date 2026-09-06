@@ -1,4 +1,4 @@
-# Post-fix rerun: real-defeat accounting + campaign isolation.
+# Visual rerun: StageCycle is the sole top HUD owner in Turbo Hunt.
 name: Live Stage Playcheck Once
 
 on:
