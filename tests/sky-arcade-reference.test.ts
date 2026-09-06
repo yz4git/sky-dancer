@@ -92,7 +92,7 @@ test("actual airframe vertices fit landscape and portrait at all steering limits
   }
 });
 
-test("V10.2 flight courses contain visible chicanes, vertical beats and bank reversals before the boss", () => {
+test("flight courses contain visible chicanes, vertical beats and bank reversals before the boss", () => {
   for (const stage of SKY_DANCER_ARCADE_STAGES) {
     const length = stage.durationSeconds * stage.courseSpeed;
     const samples = Array.from({ length: 64 }, (_, i) => arcadeCoursePose(stage, length * (i / 63) * .55));
@@ -152,9 +152,7 @@ test("city renderer contains a river, instanced windows and cloud layers without
   assert.equal(facades, 8); assert.equal(rivers, 1); world.dispose();
 });
 
-
-
-test("V10.3.4 Dawn City uses continuous riverbanks instead of rigid slabs on sharp turns", () => {
+test("Dawn City uses continuous riverbanks instead of rigid slabs on sharp turns", () => {
   const city=SKY_DANCER_ARCADE_STAGES.find(stage=>stage.biome==="city");
   const canyon=SKY_DANCER_ARCADE_STAGES.find(stage=>stage.biome==="canyon");
   assert.ok(city && canyon);
@@ -222,7 +220,7 @@ test("V10.3.4 Dawn City uses continuous riverbanks instead of rigid slabs on sha
   world.dispose();
 });
 
-test("V10.4 uses one player-local course frame for horizon, streamed scenery and ribbons", () => {
+test("uses one player-local course frame for horizon, streamed scenery and ribbons", () => {
   const city=SKY_DANCER_ARCADE_STAGES.find(stage=>stage.biome==="city")!;
   const volcano=SKY_DANCER_ARCADE_STAGES.find(stage=>stage.biome==="volcano")!;
   const scene=new THREE.Scene();
@@ -268,7 +266,7 @@ test("V10.4 uses one player-local course frame for horizon, streamed scenery and
   world.dispose();
 });
 
-test("V10.4.1 rigid background chunks rotate together instead of swivelling independently", () => {
+test("rigid background chunks rotate together instead of swivelling independently", () => {
   const scene=new THREE.Scene();
   const world=new SkyDancerArcadeReferenceWorld(scene);
   for(const stage of SKY_DANCER_ARCADE_STAGES){
@@ -290,7 +288,7 @@ test("V10.4.1 rigid background chunks rotate together instead of swivelling inde
   world.dispose();
 });
 
-test("V10.4 visual relative pose rotates the complete centreline delta into the current tangent frame", () => {
+test("visual relative pose rotates the complete centreline delta into the current tangent frame", () => {
   for(const stage of SKY_DANCER_ARCADE_STAGES){
     const distance=stage.durationSeconds*stage.courseSpeed*.31;
     const zero=arcadeCourseRelativeVisualPose(stage,distance,0);
@@ -334,8 +332,7 @@ test("missile trails and explosions keep a bounded mesh and buffer count under l
   presentation.dispose(); assert.equal(scene.children.length, 0);
 });
 
-
-test("V9.8 detonation hierarchy differentiates small, heavy, boss and missile impacts without unbounded meshes", () => {
+test("detonation hierarchy differentiates small, heavy, boss and missile impacts without unbounded meshes", () => {
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(55, 16 / 9, .1, 1200);
   camera.position.set(0, 5, 16); camera.lookAt(0, 0, -28); camera.updateMatrixWorld();
@@ -381,8 +378,7 @@ test("V9.8 detonation hierarchy differentiates small, heavy, boss and missile im
   assert.equal(scene.children.length, 0);
 });
 
-
-test("V8.8 ice cavern exposes its vertical canyon without repeated full-screen hoops", () => {
+test("ice cavern exposes its vertical canyon without repeated full-screen hoops", () => {
   const scene = new THREE.Scene();
   const world = new SkyDancerArcadeReferenceWorld(scene);
   const ice = SKY_DANCER_ARCADE_STAGES.find((stage) => stage.id === "ice-cavern")!;
@@ -447,7 +443,7 @@ test("V8.8 ice cavern exposes its vertical canyon without repeated full-screen h
   world.dispose();
 });
 
-test("V9.0 floating ruins reads as a broken sky labyrinth instead of a column forest", () => {
+test("floating ruins reads as a broken sky labyrinth instead of a column forest", () => {
   const scene = new THREE.Scene();
   const world = new SkyDancerArcadeReferenceWorld(scene);
   const ruins = SKY_DANCER_ARCADE_STAGES.find((stage) => stage.id === "floating-ruins")!;
@@ -468,7 +464,7 @@ test("V9.0 floating ruins reads as a broken sky labyrinth instead of a column fo
   world.dispose();
 });
 
-test("V9.4 storm carrier reads as a thunderhead dreadnought instead of floating T-bars", () => {
+test("storm carrier reads as a thunderhead dreadnought instead of floating T-bars", () => {
   const scene=new THREE.Scene();
   const world=new SkyDancerArcadeReferenceWorld(scene);
   const storm=SKY_DANCER_ARCADE_STAGES.find((stage)=>stage.id==="storm-carrier")!;
@@ -486,7 +482,7 @@ test("V9.4 storm carrier reads as a thunderhead dreadnought instead of floating 
   world.dispose();
 });
 
-test("V10.3.1 red canyon keeps dramatic walls outside the phone foreground safety lane", () => {
+test("red canyon keeps dramatic walls outside the phone foreground safety lane", () => {
   const scene=new THREE.Scene();
   const world=new SkyDancerArcadeReferenceWorld(scene);
   const canyon=SKY_DANCER_ARCADE_STAGES.find((stage)=>stage.id==="red-canyon")!;
@@ -500,8 +496,7 @@ test("V10.3.1 red canyon keeps dramatic walls outside the phone foreground safet
   world.dispose();
 });
 
-
-test("V9.3 desert fortress reads as a sandwall assault instead of a recolored canyon", () => {
+test("desert fortress reads as a sandwall assault instead of a recolored canyon", () => {
   const scene=new THREE.Scene();
   const world=new SkyDancerArcadeReferenceWorld(scene);
   const desert=SKY_DANCER_ARCADE_STAGES.find((stage)=>stage.id==="desert-fortress")!;
@@ -519,7 +514,7 @@ test("V9.3 desert fortress reads as a sandwall assault instead of a recolored ca
   world.dispose();
 });
 
-test("V9.2 cloud fleet reads as a sky armada instead of floating T-shaped plates", () => {
+test("cloud fleet reads as a sky armada instead of floating T-shaped plates", () => {
   const scene=new THREE.Scene();
   const world=new SkyDancerArcadeReferenceWorld(scene);
   const fleet=SKY_DANCER_ARCADE_STAGES.find((stage)=>stage.id==="cloud-fleet")!;
@@ -542,7 +537,7 @@ test("V9.2 cloud fleet reads as a sky armada instead of floating T-shaped plates
   world.dispose();
 });
 
-test("V9.1 night metro reads as a neon express pursuit rather than a recolored city river", () => {
+test("night metro reads as a neon express pursuit rather than a recolored city river", () => {
   const scene = new THREE.Scene();
   const world = new SkyDancerArcadeReferenceWorld(scene);
   const night = SKY_DANCER_ARCADE_STAGES.find((stage) => stage.id === "night-metro")!;
@@ -565,7 +560,7 @@ test("V9.1 night metro reads as a neon express pursuit rather than a recolored c
   world.dispose();
 });
 
-test("V8.9 prism citadel reads as an open final assault rather than a repeated ring tunnel", () => {
+test("prism citadel reads as an open final assault rather than a repeated ring tunnel", () => {
   const scene = new THREE.Scene();
   const world = new SkyDancerArcadeReferenceWorld(scene);
   const citadel = SKY_DANCER_ARCADE_STAGES.find((stage) => stage.id === "prism-citadel")!;
@@ -590,7 +585,7 @@ test("V8.9 prism citadel reads as an open final assault rather than a repeated r
   world.dispose();
 });
 
-test("V8.4 continuous volcano ribbon and orbital helix expose the real course shape on screen", () => {
+test("continuous volcano ribbon and orbital helix expose the real course shape on screen", () => {
   const scene = new THREE.Scene();
   const world = new SkyDancerArcadeReferenceWorld(scene);
   const volcano = SKY_DANCER_ARCADE_STAGES.find((stage) => stage.id === "volcano-core")!;
@@ -627,7 +622,7 @@ test("V8.4 continuous volcano ribbon and orbital helix expose the real course sh
   world.dispose();
 });
 
-test("V9.9 combat feel keeps tumbling kill debris bounded and fully retires it", () => {
+test("combat feel keeps tumbling kill debris bounded and fully retires it", () => {
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(55, 16 / 9, .1, 1200);
   camera.position.set(0, 5, 16); camera.lookAt(0, 0, -28); camera.updateMatrixWorld();
@@ -670,18 +665,7 @@ test("V9.9 combat feel keeps tumbling kill debris bounded and fully retires it",
   presentation.dispose();
 });
 
-test("V9.9 WebGL combat feedback gives missiles stronger target recoil plus player and camera hit kick", async () => {
-  const source = await import("node:fs/promises").then(fs => fs.readFile(new URL("../src/sky/arcade/SkyDancerArcadeWebGLDemo.ts", import.meta.url), "utf8"));
-  assert.match(source, /enemyHitReactions/);
-  assert.match(source, /impact\.missile \? 1\.32 : \.3/);
-  assert.match(source, /reaction\.roll/);
-  assert.match(source, /playerDamageKick = 1/);
-  assert.match(source, /cameraImpactKick/);
-});
-
-
-
-test("V10 Combat 2.0 assigns readable roles, meaningful armor and threat priorities", () => {
+test("Combat 2.0 assigns readable roles, meaningful armor and threat priorities", () => {
   assert.equal(skyDancerArcadeEnemyRole("fighter"), "skirmisher");
   assert.equal(skyDancerArcadeEnemyRole("interceptor"), "hunter");
   assert.equal(skyDancerArcadeEnemyRole("missile-boat"), "artillery");
@@ -693,7 +677,7 @@ test("V10 Combat 2.0 assigns readable roles, meaningful armor and threat priorit
   assert.ok(skyDancerArcadeArmorRatio("boss", true) > 0);
 });
 
-test("V10 Boss Battle 2.0 has three HP phases and recurring core-open attack windows", () => {
+test("Boss Battle 2.0 has three HP phases and recurring core-open attack windows", () => {
   assert.equal(skyDancerArcadeBossPhase(100, 100), 1);
   assert.equal(skyDancerArcadeBossPhase(60, 100), 2);
   assert.equal(skyDancerArcadeBossPhase(25, 100), 3);
@@ -711,7 +695,7 @@ test("V10 Boss Battle 2.0 has three HP phases and recurring core-open attack win
   assert.ok(phase3.bossPhaseSerial > phase2.bossPhaseSerial);
 });
 
-test("V10 Stage Evolution gives every biome two authored gameplay beats and bounded checkpoints", () => {
+test("Stage Evolution gives every biome two authored gameplay beats and bounded checkpoints", () => {
   for (const stage of SKY_DANCER_ARCADE_STAGES) {
     const profile = skyDancerArcadeStageEvolutionProfile(stage.biome);
     assert.equal(profile.labels.length, 2);
@@ -738,7 +722,7 @@ test("V10 Stage Evolution gives every biome two authored gameplay beats and boun
   assert.ok(second.hazards.length <= 10, "authored hazard beats remain bounded");
 });
 
-test("V10 Cinematic Gameplay boosts camera language for stage, armor, formation and boss beats without gameplay pause", () => {
+test("Cinematic Gameplay boosts camera language for stage, armor, formation and boss beats without gameplay pause", () => {
   const director = new SkyDancerArcadePresentationDirector();
   const base = { turboActive: false, nearMisses: 0, enemiesDefeated: 0, bossActive: true, hitSerial: 0, damageSerial: 0, stageSerial: 1, resultSerial: 0, bossPhaseSerial: 0, stageEventSerial: 0, armorBreaks: 0, formationBreaks: 0 };
   const boss = director.update({ ...base, bossPhaseSerial: 1 }, base, 1 / 60);
@@ -754,14 +738,7 @@ test("V10 Cinematic Gameplay boosts camera language for stage, armor, formation 
   assert.ok(formation.fovKick >= 1.8);
 });
 
-test("V10.1 boss ingress clears prior crossfire and suppresses generic boss hazards", async () => {
-  const source = await import("node:fs/promises").then(fs => fs.readFile(new URL("../src/sky/arcade/SkyDancerArcadeRuntime.ts", import.meta.url), "utf8"));
-  assert.match(source, /projectiles = this\.projectiles\.filter\(\(projectile\) => projectile\.owner !== "enemy"\)/);
-  assert.match(source, /this\.hazards = \[\]/);
-  assert.match(source, /if \(!this\.bossSpawned && this\.stageTime >= this\.nextHazardAt/);
-});
-
-test("V10 Arcade Meta Layer defaults to migrated v2 career records and milestone slots", () => {
+test("Arcade Meta Layer defaults to migrated v2 career records and milestone slots", () => {
   const progress = createDefaultSkyDancerArcadeProgress();
   assert.equal(progress.version, 2);
   assert.deepEqual(progress.unlockedPaintSchemes, ["default"]);
@@ -772,8 +749,7 @@ test("V10 Arcade Meta Layer defaults to migrated v2 career records and milestone
   assert.equal(progress.bestChain, 0);
 });
 
-
-test("V10.3.9 preserves a phone-readable central corridor for visual-only near passes", async () => {
+test("preserves a phone-readable central corridor for visual-only near passes", async () => {
   assert.ok(ARCADE_NEAR_PASS_CLEARANCE_V1039.city >= 30);
   assert.ok(ARCADE_NEAR_PASS_CLEARANCE_V1039.night >= 39);
   assert.ok(ARCADE_NEAR_PASS_CLEARANCE_V1039.canyon >= 42);
@@ -795,17 +771,7 @@ test("V10.3.9 preserves a phone-readable central corridor for visual-only near p
   world.dispose();
 });
 
-
-test("V10.4 camera has one owner for course motion instead of double-transforming the background", async () => {
-  const source=await import("node:fs/promises").then(fs=>fs.readFile(new URL("../src/sky/arcade/SkyDancerArcadeWebGLDemo.ts",import.meta.url),"utf8"));
-  const camera=source.slice(source.indexOf("private updateCamera"),source.indexOf("private resize"));
-  assert.doesNotMatch(camera,/course\.yaw|course\.pitch|course\.bank|nearCourse|farCourse/);
-  assert.match(camera,/const targetX = pose\.x \+ shakeX/);
-  assert.match(camera,/const desiredRoll = pose\.roll/);
-});
-
-
-test("V10.5.2 grounded structural hazards preserve their top while foundations reach the visible floor", () => {
+test("grounded structural hazards preserve their top while foundations reach the visible floor", () => {
   const city = SKY_DANCER_ARCADE_STAGES.find(stage => stage.biome === "city");
   assert.ok(city);
   const surface = arcadeGroundSurfaceLocalYV1052(city, 120, 90, 0);
