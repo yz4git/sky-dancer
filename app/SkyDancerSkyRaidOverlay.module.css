@@ -126,6 +126,20 @@
 .actBanner span, .rushBanner span, .bossCue span, .clearBanner span { display: block; font-size: 7px; font-weight: 900; letter-spacing: .16em; opacity: .84; }
 .rushBanner { top: 29%; border-color: var(--raid-enemy); }
 .rushBanner strong { color: var(--raid-enemy); }
+.rushResult { top: 31%; }
+.rushResult[data-perfect="true"] { border-color: var(--raid-accent); }
+.rushResult[data-perfect="true"] strong { color: var(--raid-accent); }
+.resultStats {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 7px;
+  font-size: 7px;
+  font-weight: 1000;
+  letter-spacing: .12em;
+  color: var(--raid-accent);
+}
+.resultStats b { font: inherit; white-space: nowrap; }
 .bossCue { top: 24%; }
 .clearBanner { top: 44%; padding-top: 16px; padding-bottom: 17px; }
 

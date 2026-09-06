@@ -9,6 +9,7 @@ import {
   SKY_DANCER_SKY_RAID_BOSS_TRIGGER_SECONDS,
   SKY_DANCER_SKY_RAID_BOSS_CUE_SECONDS,
   SKY_DANCER_SKY_RAID_CHAIN_GRACE_SECONDS,
+  SKY_DANCER_SKY_RAID_PERFECT_RUSH_KILLS,
   SKY_DANCER_SKY_RAID_TARGET_SECONDS,
   skyDancerSkyRaidActBreakEligible,
   skyDancerSkyRaidActFor,
@@ -17,6 +18,7 @@ import {
   skyDancerSkyRaidEnemySpawnPriority,
   skyDancerSkyRaidKillScore,
   skyDancerSkyRaidPressure,
+  skyDancerSkyRaidRank,
   skyDancerSkyRaidRushActive,
   skyDancerSkyRaidBossCueActive,
   skyDancerSkyRaidWorldStyle,
@@ -340,12 +342,13 @@ test("SKY RAID V20 speed language stays peripheral and presentation-only", () =>
 });
 
 
-test("SKY RAID caps only large steering deflections before inherited quickening", () => {
+test("SKY RAID keeps fine aim direct and softly compresses large phone-stick steering", () => {
   const raidSource = readFileSync(new URL("../src/sky/SkyDancerSkyRaid.ts", import.meta.url), "utf8");
   assert.match(raidSource, /SKY_DANCER_SKY_RAID_MAX_STEER_INPUT = 0\.46/);
-  assert.match(raidSource, /return clamp\(value, -SKY_DANCER_SKY_RAID_MAX_STEER_INPUT, SKY_DANCER_SKY_RAID_MAX_STEER_INPUT\)/);
+  assert.match(raidSource, /SKY_DANCER_SKY_RAID_STEER_SOFT_ZONE = 0\.30/);
+  assert.match(raidSource, /Math\.pow\(1 - normalized, 2\.2\)/);
+  assert.match(raidSource, /return Math\.sign\(safe\) \* compressed/);
   assert.match(raidSource, /steer: skyDancerSkyRaidSteerInput\(input\.steer\)/);
-  assert.match(raidSource, /const skyRaidActive = isSkyRaidMode\(\)/);
 });
 
 test("SKY RAID V25 gives each enemy class a render-only role silhouette and telegraphs the incoming package", () => {
@@ -413,17 +416,17 @@ test("SKY RAID V27 exposes real pre-attack timing without changing launch rules"
 test("SKY RAID V33 gives the first two stages a full two-minute combat arc", () => {
   assert.equal(SKY_DANCER_SKY_RAID_ACT_SECONDS, 90);
   assert.equal(SKY_DANCER_SKY_RAID_OPENING_ACT_SECONDS, 120);
-  assert.equal(SKY_DANCER_SKY_RAID_OPENING_BREAK_MIN_SECONDS, 90);
+  assert.equal(SKY_DANCER_SKY_RAID_OPENING_BREAK_MIN_SECONDS, 0);
   assert.equal(SKY_DANCER_SKY_RAID_TARGET_SECONDS, 510);
   assert.deepEqual(SKY_DANCER_SKY_RAID_ACTS.map((act) => act.endSeconds - act.startSeconds), [120, 120, 90, 90, 90]);
   assert.deepEqual(SKY_DANCER_SKY_RAID_ACTS.map((act) => act.killTarget), [20, 22, 18, 20, 20]);
-  assert.equal(SKY_DANCER_SKY_RAID_BOSS_TRIGGER_SECONDS, 483);
+  assert.equal(SKY_DANCER_SKY_RAID_BOSS_TRIGGER_SECONDS, 450);
   for (const second of [8, 31, 53, 75, 97]) assert.equal(skyDancerSkyRaidRushActive(second, SKY_DANCER_SKY_RAID_ACTS[0]), true);
   for (const second of [20, 44, 66, 88, 108]) assert.equal(skyDancerSkyRaidRushActive(second, SKY_DANCER_SKY_RAID_ACTS[0]), false);
-  assert.equal(skyDancerSkyRaidActBreakEligible(89.99, SKY_DANCER_SKY_RAID_ACTS[0], 99), false);
-  assert.equal(skyDancerSkyRaidActBreakEligible(90, SKY_DANCER_SKY_RAID_ACTS[0], 20), true);
-  assert.equal(skyDancerSkyRaidActBreakEligible(209.99, SKY_DANCER_SKY_RAID_ACTS[1], 99), false);
-  assert.equal(skyDancerSkyRaidActBreakEligible(210, SKY_DANCER_SKY_RAID_ACTS[1], 22), true);
+  assert.equal(skyDancerSkyRaidActBreakEligible(12, SKY_DANCER_SKY_RAID_ACTS[0], 19), false);
+  assert.equal(skyDancerSkyRaidActBreakEligible(12, SKY_DANCER_SKY_RAID_ACTS[0], 20), true);
+  assert.equal(skyDancerSkyRaidActBreakEligible(132, SKY_DANCER_SKY_RAID_ACTS[1], 21), false);
+  assert.equal(skyDancerSkyRaidActBreakEligible(132, SKY_DANCER_SKY_RAID_ACTS[1], 22), true);
   const raidSource = readFileSync(new URL("../src/sky/SkyDancerSkyRaid.ts", import.meta.url), "utf8");
   const overlaySource = readFileSync(new URL("../app/SkyDancerSkyRaidOverlay.tsx", import.meta.url), "utf8");
   assert.match(raidSource, /beatSeconds = Math\.max\(1, \(act\.endSeconds - act\.startSeconds\) \/ 10\)/);
@@ -520,4 +523,22 @@ test("SKY RAID V34 gives iPhone stick input one direct owner with redundant neut
   assert.match(gameSource, /document\.addEventListener\("visibilitychange", onVisibility\)/);
   assert.match(gameSource, /usesExternalVirtualPad/);
   assert.match(gameSource, /!usesExternalVirtualPad &&/);
+});
+
+
+test("SKY RAID grades runs and scores Formation Rush mastery", () => {
+  assert.equal(SKY_DANCER_SKY_RAID_PERFECT_RUSH_KILLS, 4);
+  assert.equal(skyDancerSkyRaidRank(19_999, 5, 12, 12), "C");
+  assert.equal(skyDancerSkyRaidRank(20_000, 0, 0, 0), "B");
+  assert.equal(skyDancerSkyRaidRank(30_000, 3, 3, 0), "A");
+  assert.equal(skyDancerSkyRaidRank(40_000, 4, 8, 4), "S");
+  assert.equal(skyDancerSkyRaidRank(50_000, 5, 10, 8), "S+");
+  assert.equal(skyDancerSkyRaidRushActive(450, SKY_DANCER_SKY_RAID_ACTS[4]), false);
+  const raidSource = readFileSync(new URL("../src/sky/SkyDancerSkyRaid.ts", import.meta.url), "utf8");
+  const overlaySource = readFileSync(new URL("../app/SkyDancerSkyRaidOverlay.tsx", import.meta.url), "utf8");
+  assert.match(raidSource, /hasCombatTarget/);
+  assert.match(raidSource, /state\.perfectRushes \+= 1/);
+  assert.match(overlaySource, /FORMATION RESULT/);
+  assert.match(overlaySource, /NEW RECORD/);
+  assert.match(overlaySource, /MAX CHAIN/);
 });

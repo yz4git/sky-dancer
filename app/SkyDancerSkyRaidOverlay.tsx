@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type CSSProperties } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import {
   SKY_DANCER_SKY_RAID_SNAPSHOT_EVENT,
   getLatestSkyDancerSkyRaidSnapshot,
@@ -24,6 +24,17 @@ function formatTime(seconds: number): string {
 export default function SkyDancerSkyRaidOverlay() {
   const initialSnapshot = getLatestSkyDancerSkyRaidSnapshot();
   const [snapshot, setSnapshot] = useState<SkyDancerSkyRaidSnapshot | null>(() => initialSnapshot);
+  const [personalBest] = useState(() => {
+    if (typeof window === "undefined") return 0;
+    try {
+      const stored = Number(window.localStorage.getItem("sky-dancer-sky-raid-best-score-v1") ?? 0);
+      return Number.isFinite(stored) ? Math.max(0, stored) : 0;
+    } catch {
+      return 0;
+    }
+  });
+  const persistedRecordScore = useRef(0);
+  const newRecord = Boolean(snapshot?.clear && snapshot.score > personalBest);
 
   useEffect(() => {
     const handler = (event: Event) => {
@@ -36,6 +47,16 @@ export default function SkyDancerSkyRaidOverlay() {
       window.removeEventListener(SKY_DANCER_SKY_RAID_SNAPSHOT_EVENT, handler);
     };
   }, []);
+
+  useEffect(() => {
+    if (!snapshot?.clear || snapshot.score <= personalBest || persistedRecordScore.current === snapshot.score) return;
+    persistedRecordScore.current = snapshot.score;
+    try {
+      window.localStorage.setItem("sky-dancer-sky-raid-best-score-v1", String(snapshot.score));
+    } catch {
+      // Storage is optional; the result screen must still work in private mode.
+    }
+  }, [personalBest, snapshot]);
 
   if (!snapshot) return null;
   const progress = Math.round(Math.min(1, snapshot.actKills / Math.max(1, snapshot.actKillTarget)) * 100);
@@ -232,9 +253,17 @@ export default function SkyDancerSkyRaidOverlay() {
 
       {snapshot.rushActive && !snapshot.clear && (
         <div className={styles.rushBanner} data-sd-noncritical-alert="rush">
-          <small>FORMATION RUSH</small>
+          <small>FORMATION RUSH · {snapshot.rushKills}/{snapshot.rushPerfectTarget}</small>
           <strong>SCORE ×2</strong>
-          <span>BREAK THE WAVE · KEEP MOVING</span>
+          <span>{snapshot.rushKills >= snapshot.rushPerfectTarget ? "PERFECT ARMED" : "BREAK THE WAVE · KEEP MOVING"}</span>
+        </div>
+      )}
+
+      {snapshot.rushResultSecondsRemaining > 0 && !snapshot.rushActive && !snapshot.clear && (
+        <div className={`${styles.rushBanner} ${styles.rushResult}`} data-perfect={snapshot.rushResult === "perfect"} data-sd-noncritical-alert="rush-result">
+          <small>FORMATION RESULT</small>
+          <strong>{snapshot.rushResult === "perfect" ? "PERFECT RUSH" : "WAVE CLEAR"}</strong>
+          <span>{snapshot.rushKills} TARGETS · {snapshot.rushResult === "perfect" ? "+BONUS" : "CHAIN FORWARD"}</span>
         </div>
       )}
 
@@ -248,9 +277,14 @@ export default function SkyDancerSkyRaidOverlay() {
 
       {snapshot.clear && (
         <div className={styles.clearBanner}>
-          <small>FREE RAID COMPLETE · {formatTime(snapshot.elapsedSeconds)}</small>
-          <strong>SKY RAID CLEAR</strong>
-          <span>SCORE {snapshot.score.toLocaleString()} · FINAL CHAIN ×{Math.max(1, snapshot.chain)}</span>
+          <small>SKY RAID CLEAR · {formatTime(snapshot.elapsedSeconds)}</small>
+          <strong>RANK {snapshot.rank}</strong>
+          <span>SCORE {snapshot.score.toLocaleString()} · {newRecord ? "NEW RECORD" : `PB ${personalBest.toLocaleString()}`}</span>
+          <div className={styles.resultStats}>
+            <b>BREAK {snapshot.actBreaks}/5</b>
+            <b>PERFECT {snapshot.perfectRushes}</b>
+            <b>MAX CHAIN ×{Math.max(1, snapshot.maxChain)}</b>
+          </div>
         </div>
       )}
 

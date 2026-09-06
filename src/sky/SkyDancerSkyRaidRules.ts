@@ -29,7 +29,7 @@ export interface SkyDancerSkyRaidAct {
 
 export const SKY_DANCER_SKY_RAID_ACT_SECONDS = 90;
 export const SKY_DANCER_SKY_RAID_OPENING_ACT_SECONDS = 120;
-export const SKY_DANCER_SKY_RAID_OPENING_BREAK_MIN_SECONDS = 90;
+export const SKY_DANCER_SKY_RAID_OPENING_BREAK_MIN_SECONDS = 0;
 
 export const SKY_DANCER_SKY_RAID_ACTS: readonly SkyDancerSkyRaidAct[] = [
   {
@@ -54,12 +54,28 @@ export const SKY_DANCER_SKY_RAID_ACTS: readonly SkyDancerSkyRaidAct[] = [
   },
 ];
 
-export const SKY_DANCER_SKY_RAID_BOSS_TRIGGER_SECONDS = 483;
+export const SKY_DANCER_SKY_RAID_BOSS_TRIGGER_SECONDS = 450;
 export const SKY_DANCER_SKY_RAID_TARGET_SECONDS = 510;
 
 // Free-flight kills need enough time for a real bank/reacquire/lock handoff on phone.
 // Longer than the old 4.2 s timer, but still short enough to reward momentum.
 export const SKY_DANCER_SKY_RAID_CHAIN_GRACE_SECONDS = 5.6;
+export const SKY_DANCER_SKY_RAID_PERFECT_RUSH_KILLS = 4;
+
+export type SkyDancerSkyRaidRank = "C" | "B" | "A" | "S" | "S+";
+
+export function skyDancerSkyRaidRank(
+  score: number,
+  actBreaks: number,
+  maxChain: number,
+  perfectRushes: number,
+): SkyDancerSkyRaidRank {
+  if (score >= 50_000 && actBreaks >= 5 && maxChain >= 10 && perfectRushes >= 8) return "S+";
+  if (score >= 40_000 && actBreaks >= 4 && maxChain >= 8 && perfectRushes >= 4) return "S";
+  if (score >= 30_000 && actBreaks >= 3) return "A";
+  if (score >= 20_000) return "B";
+  return "C";
+}
 
 // The flagship card is an entrance cue, not a persistent combat overlay.
 export const SKY_DANCER_SKY_RAID_BOSS_CUE_SECONDS = 2.4;
@@ -173,20 +189,21 @@ export function skyDancerSkyRaidActSeconds(elapsedSeconds: number, act: SkyDance
 export function skyDancerSkyRaidRushActive(elapsedSeconds: number, act: SkyDancerSkyRaidAct): boolean {
   const local = skyDancerSkyRaidActSeconds(elapsedSeconds, act);
   if (act.index === SKY_DANCER_SKY_RAID_ACTS.length - 1) {
-    return (local >= 8 && local < 18) || (local >= 30 && local < 40) || (local >= 52 && local < 62) || (local >= 74 && local < 84);
+    // Two final siege waves lead directly into the 7:30 Titan entrance.
+    // No Rush banner competes with the boss cue during the climax.
+    return (local >= 8 && local < 18) || (local >= 20 && local < 28);
   }
   const openingTail = act.index < 2 && local >= 96 && local < 106;
   return openingTail || (local >= 8 && local < 16) || (local >= 30 && local < 38) || (local >= 52 && local < 60) || (local >= 74 && local < 82);
 }
 
 export function skyDancerSkyRaidActBreakEligible(
-  elapsedSeconds: number,
+  _elapsedSeconds: number,
   act: SkyDancerSkyRaidAct,
   actKills: number,
 ): boolean {
-  if (actKills < act.killTarget) return false;
-  if (act.index >= 2) return true;
-  return skyDancerSkyRaidActSeconds(elapsedSeconds, act) >= SKY_DANCER_SKY_RAID_OPENING_BREAK_MIN_SECONDS;
+  // BREAK is earned by combat performance. The remainder becomes FREE HUNT.
+  return actKills >= act.killTarget;
 }
 
 export function skyDancerSkyRaidPressure(elapsedSeconds: number): number {
