@@ -71,7 +71,7 @@ test("close cross-pass choreography preserves a readable separation", () => {
     if (runtime.getSnapshot().status !== "running") break;
   }
   assert.ok(Number.isFinite(minCrossPassSeparation));
-  assert.ok(minCrossPassSeparation >= 0.58, `cross-pass separation ${minCrossPassSeparation}`);
+  assert.ok(minCrossPassSeparation >= 0.58, "cross-pass separation " + minCrossPassSeparation);
 });
 
 test("mastery rewards form a deterministic 33-medal unlock track", () => {
