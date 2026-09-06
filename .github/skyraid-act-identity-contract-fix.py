@@ -1,13 +1,25 @@
 from pathlib import Path
+import re
 
 path = Path("tests/sky-sky-raid.test.ts")
 source = path.read_text()
-old = '''test("SKY RAID keeps opening BREAK late and preserves explicit setpiece pressure beats", () => {\n  const dawn = SKY_DANCER_SKY_RAID_ACTS[0];\n  assert.equal(dawn.endSeconds - dawn.startSeconds, 120);\n  assert.equal(dawn.killTarget, 20);\n  assert.equal(SKY_DANCER_SKY_RAID_OPENING_BREAK_MIN_SECONDS, 0);\n  assert.equal(skyDancerSkyRaidActBreakEligible(94, dawn, dawn.killTarget), false);\n  assert.equal(skyDancerSkyRaidActBreakEligible(10, dawn, dawn.killTarget), false);\n  assert.equal(skyDancerSkyRaidActBreakEligible(96, dawn, dawn.killTarget), true);\n'''
-new = '''test("SKY RAID awards BREAK immediately at target and preserves explicit setpiece pressure beats", () => {\n  const dawn = SKY_DANCER_SKY_RAID_ACTS[0];\n  assert.equal(dawn.endSeconds - dawn.startSeconds, 120);\n  assert.equal(dawn.killTarget, 20);\n  assert.equal(SKY_DANCER_SKY_RAID_OPENING_BREAK_MIN_SECONDS, 0);\n  assert.equal(skyDancerSkyRaidActBreakEligible(10, dawn, dawn.killTarget - 1), false);\n  assert.equal(skyDancerSkyRaidActBreakEligible(10, dawn, dawn.killTarget), true);\n  assert.equal(skyDancerSkyRaidActBreakEligible(96, dawn, dawn.killTarget), true);\n'''
-if old in source:
-    source = source.replace(old, new, 1)
-else:
-    immediate_contract = '''  assert.equal(skyDancerSkyRaidActBreakEligible(12, SKY_DANCER_SKY_RAID_ACTS[0], 19), false);\n  assert.equal(skyDancerSkyRaidActBreakEligible(12, SKY_DANCER_SKY_RAID_ACTS[0], 20), true);\n'''
-    if immediate_contract not in source:
-        raise SystemExit("opening BREAK contract is neither stale nor current")
+stale_title = 'SKY RAID keeps opening BREAK late and preserves explicit setpiece pressure beats'
+
+# The product contract is already covered by the current immediate-BREAK test.
+# Remove any stale duplicate test that a historical patch path may reintroduce.
+if stale_title in source:
+    stale_test = re.compile(
+        r'\n*test\("SKY RAID keeps opening BREAK late and preserves explicit setpiece pressure beats", \(\) => \{[\s\S]*?\n\}\);\n*',
+        re.MULTILINE,
+    )
+    source, removed = stale_test.subn("\n\n", source)
+    if removed == 0:
+        raise SystemExit("stale delayed BREAK test title found but its test block could not be removed")
+
+immediate_contract = '''  assert.equal(skyDancerSkyRaidActBreakEligible(12, SKY_DANCER_SKY_RAID_ACTS[0], 19), false);\n  assert.equal(skyDancerSkyRaidActBreakEligible(12, SKY_DANCER_SKY_RAID_ACTS[0], 20), true);\n'''
+if immediate_contract not in source:
+    raise SystemExit("current immediate BREAK contract is missing")
+if stale_title in source:
+    raise SystemExit("stale delayed BREAK contract survived cleanup")
+
 path.write_text(source)
