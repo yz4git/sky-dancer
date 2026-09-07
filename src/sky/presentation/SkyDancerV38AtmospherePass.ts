@@ -4,7 +4,7 @@ import type { SkyDancerFxRuntime } from "../SkyDancerAirCombatFxV2";
 
 const SNAP = 420;
 const GROUND_Y = -66.30;
-const CLOUD_CLUSTERS = 24;
+const CLOUD_CLUSTERS = 18;
 const PUFFS_PER_CLUSTER = 4;
 const CLOUD_INSTANCES = CLOUD_CLUSTERS * PUFFS_PER_CLUSTER;
 
@@ -27,7 +27,7 @@ function hash1(value: number, salt = 0): number {
 /**
  * V38 atmosphere pass.
  * Replaces repeated cone mountains and isolated flattened cloud primitives with
- * continuous low-poly ridge strips and clustered below-flight cloud puffs.
+ * continuous low-poly ridge strips and distant below-flight cloud clusters.
  */
 export class SkyDancerV38AtmospherePass {
   private readonly sky: THREE.Mesh;
@@ -40,6 +40,8 @@ export class SkyDancerV38AtmospherePass {
   private readonly dummy = new THREE.Object3D();
   private tileX = Number.NaN;
   private tileZ = Number.NaN;
+  private playerX = 0;
+  private playerZ = 0;
 
   constructor(private readonly runtime: SkyDancerFxRuntime) {
     this.sky = this.makeSky();
@@ -52,12 +54,12 @@ export class SkyDancerV38AtmospherePass {
     const puffGeometry = new THREE.IcosahedronGeometry(1, 1);
     this.cloudMain = new THREE.InstancedMesh(
       puffGeometry,
-      new THREE.MeshBasicMaterial({ color: 0xf7fbfc, transparent: true, opacity: 0.24, depthWrite: false, depthTest: true, fog: true, toneMapped: false }),
+      new THREE.MeshBasicMaterial({ color: 0xf7fbfc, transparent: true, opacity: 0.17, depthWrite: false, depthTest: true, fog: true, toneMapped: false }),
       CLOUD_INSTANCES,
     );
     this.cloudShade = new THREE.InstancedMesh(
       puffGeometry,
-      new THREE.MeshBasicMaterial({ color: 0x9fb5be, transparent: true, opacity: 0.10, depthWrite: false, depthTest: true, fog: true, toneMapped: false }),
+      new THREE.MeshBasicMaterial({ color: 0x9fb5be, transparent: true, opacity: 0.07, depthWrite: false, depthTest: true, fog: true, toneMapped: false }),
       CLOUD_INSTANCES,
     );
     this.cloudMain.name = "sky-dancer-v38-cloud-cluster-main";
@@ -72,6 +74,8 @@ export class SkyDancerV38AtmospherePass {
   }
 
   update(snapshot: CartArenaSessionSnapshot): void {
+    this.playerX = snapshot.x;
+    this.playerZ = snapshot.z;
     this.suppressLegacyAtmosphere();
     // V30/V32 legacy cleanup/restoration runs before this pass and can touch any
     // object whose semantic name resembles cloud/ridge presentation. V38 is the
@@ -95,11 +99,11 @@ export class SkyDancerV38AtmospherePass {
       this.cloudShade.visible = showCloudDeck;
       if (this.cloudMain.material instanceof THREE.MeshBasicMaterial) {
         this.cloudMain.material.color.setHex(raidStyle === "storm" ? 0x59697a : raidStyle === "clouds" ? 0xf4fbff : 0xf7fbfc);
-        this.cloudMain.material.opacity = raidStyle === "clouds" ? 0.34 : raidStyle === "storm" ? 0.22 : 0.24;
+        this.cloudMain.material.opacity = raidStyle === "clouds" ? 0.24 : raidStyle === "storm" ? 0.15 : 0.17;
       }
       if (this.cloudShade.material instanceof THREE.MeshBasicMaterial) {
         this.cloudShade.material.color.setHex(raidStyle === "storm" ? 0x273246 : 0x9fb5be);
-        this.cloudShade.material.opacity = raidStyle === "storm" ? 0.18 : raidStyle === "clouds" ? 0.12 : 0.10;
+        this.cloudShade.material.opacity = raidStyle === "storm" ? 0.12 : raidStyle === "clouds" ? 0.09 : 0.07;
       }
     }
     this.sky.position.set(snapshot.x, 0, snapshot.z);
@@ -122,6 +126,41 @@ export class SkyDancerV38AtmospherePass {
     }
     if (!(this.runtime.scene.background instanceof THREE.Color)) this.runtime.scene.background = new THREE.Color(0x73b5d4);
     else this.runtime.scene.background.setHex(0x73b5d4);
+
+    if (typeof window !== "undefined" && navigator.webdriver) {
+      (window as unknown as Record<string, unknown>).__skyDancerGetV38Atmosphere = () => this.getDebugSnapshot();
+    }
+  }
+
+  private getDebugSnapshot(): Record<string, number | boolean> {
+    const matrix = new THREE.Matrix4();
+    const position = new THREE.Vector3();
+    const quaternion = new THREE.Quaternion();
+    const scale = new THREE.Vector3();
+    let minPlayerDistance = Number.POSITIVE_INFINITY;
+    let maxHorizontalScale = 0;
+    let minVerticalRatio = Number.POSITIVE_INFINITY;
+
+    for (let index = 0; index < this.cloudMain.count; index += 1) {
+      this.cloudMain.getMatrixAt(index, matrix);
+      matrix.decompose(position, quaternion, scale);
+      const worldX = position.x + this.cloudRoot.position.x;
+      const worldZ = position.z + this.cloudRoot.position.z;
+      minPlayerDistance = Math.min(minPlayerDistance, Math.hypot(worldX - this.playerX, worldZ - this.playerZ));
+      const horizontal = Math.max(Math.abs(scale.x), Math.abs(scale.z));
+      maxHorizontalScale = Math.max(maxHorizontalScale, horizontal);
+      if (horizontal > 0.001) minVerticalRatio = Math.min(minVerticalRatio, Math.abs(scale.y) / horizontal);
+    }
+
+    const mainMaterial = this.cloudMain.material as THREE.MeshBasicMaterial;
+    return {
+      cloudCount: this.cloudMain.count,
+      cloudVisible: this.cloudRoot.visible && this.cloudMain.visible,
+      mainOpacity: mainMaterial.opacity,
+      minPlayerDistance: Number.isFinite(minPlayerDistance) ? minPlayerDistance : 0,
+      maxHorizontalScale,
+      minVerticalRatio: Number.isFinite(minVerticalRatio) ? minVerticalRatio : 0,
+    };
   }
 
   private suppressLegacyAtmosphere(): void {
@@ -203,24 +242,28 @@ export class SkyDancerV38AtmospherePass {
   private rebuildClouds(tileX: number, tileZ: number): void {
     let instance = 0;
     for (let cluster = 0; cluster < CLOUD_CLUSTERS; cluster += 1) {
-      const side = cluster % 2 === 0 ? -1 : 1;
-      const lane = Math.floor(cluster / 2) % 8;
-      const baseX = side * (62 + (cluster % 6) * 54) + (hash1(cluster + tileX, 30) - 0.5) * 42;
-      const baseZ = 115 + lane * 60 + hash1(cluster + tileZ, 44) * 30;
-      const baseY = -50 - (cluster % 4) * 1.6;
+      const evenAngle = cluster / CLOUD_CLUSTERS * Math.PI * 2;
+      const angle = evenAngle + (hash1(cluster + tileX * 17 + tileZ * 31, 77) - 0.5) * 0.18;
+      const radius = 900 + hash1(cluster + tileX, 44) * 280;
+      const baseX = Math.cos(angle) * radius;
+      const baseZ = Math.sin(angle) * radius;
+      const baseY = -49 - (cluster % 4) * 1.5;
+
       for (let puff = 0; puff < PUFFS_PER_CLUSTER; puff += 1) {
-        const angle = (puff / PUFFS_PER_CLUSTER) * Math.PI * 2 + hash1(cluster, 77) * 0.8;
-        const size = 9.8 + hash1(cluster * 7 + puff, 91) * 8.2;
-        const x = baseX + Math.cos(angle) * size * 0.74;
-        const z = baseZ + Math.sin(angle) * size * 0.54;
-        const y = baseY + (puff % 2) * 1.0;
+        const puffAngle = (puff / PUFFS_PER_CLUSTER) * Math.PI * 2 + hash1(cluster * 11 + puff, 91) * 0.72;
+        const size = 5.4 + hash1(cluster * 7 + puff, 113) * 4.2;
+        const x = baseX + Math.cos(puffAngle) * size * 0.82;
+        const z = baseZ + Math.sin(puffAngle) * size * 0.68;
+        const y = baseY + (puff % 2) * size * 0.12;
         this.dummy.position.set(x, y, z);
-        this.dummy.rotation.set(0.03 * puff, angle * 0.35, 0.015 * cluster);
-        this.dummy.scale.set(size * 1.58, size * 0.26, size * 1.04);
+        this.dummy.rotation.set(0.05 * puff, puffAngle * 0.28, 0.025 * cluster);
+        // Keep cloud lobes volumetric. The previous 1.58 : 0.26 : 1.04
+        // squash produced huge pale discs on the ground in the iPhone view.
+        this.dummy.scale.set(size * 1.12, size * 0.62, size * 0.96);
         this.dummy.updateMatrix();
         this.cloudMain.setMatrixAt(instance, this.dummy.matrix);
-        this.dummy.position.y -= 1.7;
-        this.dummy.scale.multiplyScalar(0.94);
+        this.dummy.position.y -= size * 0.18;
+        this.dummy.scale.multiplyScalar(0.92);
         this.dummy.updateMatrix();
         this.cloudShade.setMatrixAt(instance, this.dummy.matrix);
         instance += 1;
