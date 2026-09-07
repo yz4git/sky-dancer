@@ -167,8 +167,11 @@ export class SkyDancerCloudQualityV31 {
 
   private isLegacyCloudObject(object: THREE.Object3D): boolean {
     if (object === this.root || this.layers.includes(object as THREE.InstancedMesh)) return false;
-    const name = object.name.toLowerCase();
-    if (name.includes("cloud") && !name.includes("v31")) return true;
+
+    // Only claim the historical cloud owners. Later presentation passes (V38+)
+    // are allowed to own cloud objects after V31 and must not be counted as
+    // legacy merely because their semantic name contains "cloud".
+    if ((LEGACY_CLOUD_NAMES as readonly string[]).includes(object.name)) return true;
 
     // The original Sky Dancer cloud deck is an unnamed InstancedMesh nested
     // under sky-dancer-legacy-environment. Checking only scene.children left
