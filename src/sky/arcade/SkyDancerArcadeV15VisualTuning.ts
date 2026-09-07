@@ -25,11 +25,14 @@ export function skyDancerArcadeV15CorridorVertexX(
 }
 
 export function skyDancerArcadeV15OrbitChunkVisible(index: number): boolean {
-  return index % 2 === 0;
+  // V15.1 final visual check: two structural beats are enough. Four still stacked into
+  // a tunnel silhouette once the phone FOV compressed depth.
+  return index % 4 === 0;
 }
 
 export function skyDancerArcadeV15OrbitCueVisible(index: number): boolean {
-  return index % 2 === 0;
+  // Three authored helix cues (0/4/8) describe ascent without drawing a corridor of rings.
+  return index % 4 === 0;
 }
 
 export function skyDancerArcadeV15IceFangX(x: number): number {
@@ -90,10 +93,11 @@ function tuneOrbitCues(scene: THREE.Scene): void {
       // reconnecting it into a full ring at phone scale.
       arc.visible = arcIndex === 0;
       if (!arc.visible) return;
-      const side = cueIndex % 4 === 0 ? -1 : 1;
-      arc.position.x += side * 8;
-      arc.position.y += ((cueIndex % 3) - 1) * 3.5;
-      arc.scale.setScalar(.88);
+      const beat = Math.floor(cueIndex / 4);
+      const side = beat % 2 === 0 ? -1 : 1;
+      arc.position.x += side * 12;
+      arc.position.y += (beat - 1) * 5.5;
+      arc.scale.setScalar(.78);
       arc.userData.arcadeV15OffsetHelixArc = true;
     });
   });
