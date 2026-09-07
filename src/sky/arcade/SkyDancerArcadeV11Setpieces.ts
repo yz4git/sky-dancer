@@ -197,6 +197,9 @@ export class SkyDancerArcadeV11SetpieceDirector {
     animation: AnchorAnimation = {},
   ): void {
     group.userData.arcadeV11CourseAnchor = true;
+    if (group.userData.arcadeV11SetpieceIdentity === undefined && group.userData.arcadeV13SetpieceIdentity !== undefined) {
+      group.userData.arcadeV11SetpieceIdentity = group.userData.arcadeV13SetpieceIdentity;
+    }
     group.userData.arcadeV13FlagshipAnchor = true;
     this.root.add(group);
     this.anchors.push({ group, fraction, beatIds, ...animation });
