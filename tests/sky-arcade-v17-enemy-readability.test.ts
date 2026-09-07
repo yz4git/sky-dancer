@@ -43,19 +43,22 @@ test("V17 increases phone-scale presence most for small fast aircraft", () => {
   assert.equal(skyDancerArcadeEnemyVisualScaleV17("boss"), 1);
 });
 
-test("V17 visual enlargement stays on the rendered enemy group and declares logical collision unchanged", () => {
+test("V17 visual enlargement stays presentation-only after the V18 airframe replacement", () => {
   const fighter = createSkyDancerArcadeEnemy(stage, enemy("fighter"));
   const bomber = createSkyDancerArcadeEnemy(stage, enemy("bomber"));
 
-  assert.ok(fighter.scale.x >= .69, `fighter visual scale ${fighter.scale.x}`);
-  assert.ok(bomber.scale.x >= .85, `bomber visual scale ${bomber.scale.x}`);
+  assert.ok(fighter.scale.x >= .73, `fighter visual scale ${fighter.scale.x}`);
+  assert.ok(bomber.scale.x >= .86, `bomber visual scale ${bomber.scale.x}`);
   assert.equal(fighter.userData.arcadeEnemyReadabilityV17, true);
   assert.equal(fighter.userData.arcadeEnemyLogicalCollisionUnchangedV17, true);
   assert.equal(fighter.userData.arcadeEnemyVisualScaleV17, 1.42);
-  assert.ok(fighter.getObjectByName("arcade-enemy-visibility-beacons"));
+  const beacons = fighter.getObjectByName("arcade-enemy-v18-round-beacons");
+  assert.ok(beacons instanceof THREE.Points);
+  assert.ok(beacons.material instanceof THREE.ShaderMaterial);
+  assert.match(beacons.material.fragmentShader, /if\(r>1\.0\)discard/);
 });
 
-test("V17 lock and aim point sprite has a larger fixed phone footprint", () => {
+test("V17 lock and aim point sprite keeps the larger fixed phone footprint", () => {
   const ring = createSkyDancerArcadeLockRing(0xff3970);
   const marker = ring.getObjectByName("arcade-lock-ring-mesh");
   assert.ok(marker instanceof THREE.Points);
