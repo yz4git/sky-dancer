@@ -18,9 +18,9 @@ test("V15 phone corridor tuning moves side decoration outward without touching t
   const volcano = stage("volcano-core");
   assert.equal(skyDancerArcadeV15CorridorVertexX(ice, 6), 6);
   assert.ok(skyDancerArcadeV15CorridorVertexX(canyon, 32) > 32);
-  assert.ok(skyDancerArcadeV15CorridorVertexX(ice, -32) < -32);
+  assert.ok(skyDancerArcadeV15CorridorVertexX(ice, -32) <= -42);
   assert.ok(skyDancerArcadeV15CorridorVertexX(volcano, 28) >= 38);
-  assert.equal(skyDancerArcadeV15IceFangX(12), 18.5);
+  assert.equal(skyDancerArcadeV15IceFangX(12), 20.5);
 });
 
 test("V15 live Ice Cavern keeps pressure fangs outside the hero line", () => {
@@ -29,8 +29,8 @@ test("V15 live Ice Cavern keeps pressure fangs outside the hero line", () => {
   environment.setStage(stage("ice-cavern"));
   const fangs = scene.getObjectsByProperty("name", "arcade-ice-pressure-fang");
   assert.ok(fangs.length > 0);
-  assert.ok(fangs.every((fang) => Math.abs(fang.position.x) >= 18));
-  assert.ok(fangs.every((fang) => fang.scale.x <= .8));
+  assert.ok(fangs.every((fang) => Math.abs(fang.position.x) >= 20));
+  assert.ok(fangs.every((fang) => fang.scale.x <= .76));
   const root = scene.getObjectByName("arcade-course-environment")!;
   const chunks = root.children.filter((object) => object.name.startsWith("arcade-course-chunk-"));
   assert.ok(chunks.every((chunk) => chunk.userData.arcadeV15PhoneCorridorTuned === true));
