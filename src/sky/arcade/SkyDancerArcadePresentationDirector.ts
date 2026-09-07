@@ -39,12 +39,12 @@ const clamp01 = (value: number) => Math.max(0, Math.min(1, value));
 const decay = (value: number, delta: number, speed: number) => Math.max(0, value - delta * speed);
 
 /**
- * V13 Flagship Presentation.
+ * V14 Hero Flow presentation.
  *
- * Discrete impact envelopes remain presentation-only, but the director now also reads the
- * player's live combat flow. A strong chain in a high-intensity course beat gradually widens
- * the camera and lifts bloom/exposure, so excellent play feels like the game has entered its
- * trailer shot without altering simulation, hitboxes or timing authority.
+ * V13 made excellent play more cinematic. V14 gives that rise a middle gear and makes the
+ * camera more composed as FLOW increases: FOV, pullback and light still open up, while small
+ * incidental shake is damped so a successful run feels fast rather than unstable on a phone.
+ * Damage, boss phases and major impacts still retain their authored punch.
  */
 export class SkyDancerArcadePresentationDirector {
   private turboKick = 0;
@@ -108,8 +108,13 @@ export class SkyDancerArcadePresentationDirector {
 
     const chainFlow = clamp01(((current.chain ?? 0) - 2) / 10);
     const authoredIntensity = clamp01((current.timelineIntensity ?? .5) * .72 + (current.combatDirectorIntensity ?? .5) * .28);
+    const flowRunMode = current.combatDirectorMode === "flow-run";
     const flagshipMode = current.combatDirectorMode === "showcase-break" || current.combatDirectorMode === "climax-push";
-    const flowTarget = clamp01(chainFlow * (.38 + authoredIntensity * .62) + (flagshipMode ? .28 : 0));
+    const flowTarget = clamp01(
+      chainFlow * (.38 + authoredIntensity * .62)
+      + (flowRunMode ? .14 : 0)
+      + (flagshipMode ? .28 : 0),
+    );
     const flowResponse = 1 - Math.exp(-dt * (flowTarget > this.flow ? 4.8 : 2.3));
     this.flow += (flowTarget - this.flow) * flowResponse;
 
@@ -129,6 +134,19 @@ export class SkyDancerArcadePresentationDirector {
     const flow = clamp01(this.flow);
     const rush = clamp01(this.rush + turboKick * .24 + nearMiss * .12 + kill * .08 + stageBeat * .08 + formationBreak * .07 + flow * .24 + directorShift * .08);
 
+    const rawShake = nearMiss * .12
+      + impact * .045
+      + damage * .22
+      + kill * .07
+      + boss * .085
+      + bossPhase * .13
+      + stageBeat * .1
+      + armorBreak * .08
+      + formationBreak * .06
+      + directorShift * .045
+      + encounterBeat * .025;
+    const flowStability = 1 - flow * (damage > .01 || bossPhase > .01 ? .08 : .28);
+
     const frame: SkyDancerArcadePresentationFrame = {
       rush,
       turboKick,
@@ -138,11 +156,11 @@ export class SkyDancerArcadePresentationDirector {
       kill,
       boss,
       transition,
-      fovKick: turboKick * 5.2 + nearMiss * 2.1 + kill * 1.25 + boss * 1.5 + bossPhase * 3.4 + stageBeat * 2.7 + armorBreak * 1.6 + formationBreak * 1.9 + directorShift * 2.15 + encounterBeat * 1.25 + flow * 1.35,
-      cameraShake: nearMiss * .12 + impact * .045 + damage * .22 + kill * .07 + boss * .085 + bossPhase * .13 + stageBeat * .1 + armorBreak * .08 + formationBreak * .06 + directorShift * .045 + encounterBeat * .025 + flow * .018,
-      pullback: turboKick * .7 + boss * .5 + transition * .35 + bossPhase * .82 + stageBeat * .42 + directorShift * .34 + flow * .42,
-      bloomBoost: rush * .09 + impact * .07 + kill * .11 + boss * .08 + transition * .07 + bossPhase * .11 + stageBeat * .08 + armorBreak * .13 + formationBreak * .08 + directorShift * .08 + encounterBeat * .045 + flow * .075,
-      exposureBoost: turboKick * .04 + impact * .035 + kill * .055 + transition * .045 + bossPhase * .05 + stageBeat * .04 + armorBreak * .055 + directorShift * .035 + flow * .032,
+      fovKick: Math.min(10.8, turboKick * 5.2 + nearMiss * 2.1 + kill * 1.25 + boss * 1.5 + bossPhase * 3.4 + stageBeat * 2.7 + armorBreak * 1.6 + formationBreak * 1.9 + directorShift * 2.15 + encounterBeat * 1.25 + flow * 1.55),
+      cameraShake: Math.min(.34, rawShake * flowStability),
+      pullback: Math.min(3.2, turboKick * .7 + boss * .5 + transition * .35 + bossPhase * .82 + stageBeat * .42 + directorShift * .34 + flow * .52),
+      bloomBoost: Math.min(.48, rush * .09 + impact * .07 + kill * .11 + boss * .08 + transition * .07 + bossPhase * .11 + stageBeat * .08 + armorBreak * .13 + formationBreak * .08 + directorShift * .08 + encounterBeat * .045 + flow * .085),
+      exposureBoost: Math.min(.26, turboKick * .04 + impact * .035 + kill * .055 + transition * .045 + bossPhase * .05 + stageBeat * .04 + armorBreak * .055 + directorShift * .035 + flow * .038),
     };
 
     this.turboKick = decay(this.turboKick, dt, 3.8);
