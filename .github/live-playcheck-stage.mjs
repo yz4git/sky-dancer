@@ -96,7 +96,8 @@ while ((Date.now() - started) / 1000 < 92) {
     const stage = await page.evaluate(() => typeof window.__skyDancerGetStageCycle === "function" ? window.__skyDancerGetStageCycle() : null);
     const speedFx = await page.evaluate(() => typeof window.__skyDancerGetV52SpeedFx === "function" ? window.__skyDancerGetV52SpeedFx() : null);
     const clouds = await page.evaluate(() => typeof window.__skyDancerGetV31Clouds === "function" ? window.__skyDancerGetV31Clouds() : null);
-    samples.push({ elapsed: Number(elapsed.toFixed(2)), hudText, weapon, flight, stage, speedFx, clouds });
+    const atmosphere = await page.evaluate(() => typeof window.__skyDancerGetV38Atmosphere === "function" ? window.__skyDancerGetV38Atmosphere() : null);
+    samples.push({ elapsed: Number(elapsed.toFixed(2)), hudText, weapon, flight, stage, speedFx, clouds, atmosphere });
   }
 }
 
@@ -137,6 +138,12 @@ diagnostics.maxLowCloudTopY = cloudSamples.reduce((max, clouds) => Math.max(max,
 diagnostics.minLowCloudRadius = cloudSamples.reduce((min, clouds) => Math.min(min, Number(clouds.lowMinRadius ?? Number.POSITIVE_INFINITY)), Number.POSITIVE_INFINITY);
 diagnostics.maxVisibleLegacyClouds = cloudSamples.reduce((max, clouds) => Math.max(max, Number(clouds.visibleLegacyClouds ?? 0)), 0);
 diagnostics.maxHiddenLegacyClouds = cloudSamples.reduce((max, clouds) => Math.max(max, Number(clouds.hiddenLegacyClouds ?? 0)), 0);
+const atmosphereSamples = samples.map((sample) => sample.atmosphere).filter(Boolean);
+diagnostics.atmosphereSamples = atmosphereSamples.length;
+diagnostics.minV38CloudDistance = atmosphereSamples.reduce((min, atmosphere) => Math.min(min, Number(atmosphere.minPlayerDistance ?? Number.POSITIVE_INFINITY)), Number.POSITIVE_INFINITY);
+diagnostics.maxV38CloudScale = atmosphereSamples.reduce((max, atmosphere) => Math.max(max, Number(atmosphere.maxHorizontalScale ?? 0)), 0);
+diagnostics.minV38VerticalRatio = atmosphereSamples.reduce((min, atmosphere) => Math.min(min, Number(atmosphere.minVerticalRatio ?? Number.POSITIVE_INFINITY)), Number.POSITIVE_INFINITY);
+diagnostics.maxV38CloudOpacity = atmosphereSamples.reduce((max, atmosphere) => Math.max(max, Number(atmosphere.mainOpacity ?? 0)), 0);
 await writeFile(`${outputDir}/diagnostics.json`, JSON.stringify(diagnostics, null, 2));
 await browser.close();
 if (pageErrors.length) throw new Error(`page errors: ${pageErrors.join(" | ")}`);
@@ -154,6 +161,11 @@ if (diagnostics.maxLowCloudScale > 6.5) throw new Error(`low clouds too large: $
 if (diagnostics.maxLowCloudTopY > -21) throw new Error(`low clouds intrude into combat corridor: topY=${diagnostics.maxLowCloudTopY}`);
 if (diagnostics.minLowCloudRadius < 300) throw new Error(`low clouds too close to player corridor: radius=${diagnostics.minLowCloudRadius}`);
 if (diagnostics.maxVisibleLegacyClouds > 0) throw new Error(`legacy cloud deck leaked back into view: ${diagnostics.maxVisibleLegacyClouds}`);
+if (!atmosphereSamples.length) throw new Error("V38 atmosphere diagnostics missing");
+if (diagnostics.minV38CloudDistance < 280) throw new Error(`V38 clouds entered combat corridor: distance=${diagnostics.minV38CloudDistance}`);
+if (diagnostics.maxV38CloudScale > 11.2) throw new Error(`V38 cloud puffs too large: ${diagnostics.maxV38CloudScale}`);
+if (diagnostics.minV38VerticalRatio < 0.5) throw new Error(`V38 cloud puffs became flattened discs: ratio=${diagnostics.minV38VerticalRatio}`);
+if (diagnostics.maxV38CloudOpacity > 0.25) throw new Error(`V38 cloud puffs too opaque: ${diagnostics.maxV38CloudOpacity}`);
 const preFloor = stageSamples.filter((sample) => sample.elapsed < 82);
 if (preFloor.some((sample) => sample.stage.stage !== 1 || sample.stage.phase !== "reinforcements")) {
   throw new Error("Stage 1 advanced before the 84-second combat floor");
