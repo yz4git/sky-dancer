@@ -95,7 +95,8 @@ while ((Date.now() - started) / 1000 < 92) {
     const flight = await page.evaluate(() => typeof window.__skyDancerGetFlightDebug === "function" ? window.__skyDancerGetFlightDebug() : null);
     const stage = await page.evaluate(() => typeof window.__skyDancerGetStageCycle === "function" ? window.__skyDancerGetStageCycle() : null);
     const speedFx = await page.evaluate(() => typeof window.__skyDancerGetV52SpeedFx === "function" ? window.__skyDancerGetV52SpeedFx() : null);
-    samples.push({ elapsed: Number(elapsed.toFixed(2)), hudText, weapon, flight, stage, speedFx });
+    const clouds = await page.evaluate(() => typeof window.__skyDancerGetV31Clouds === "function" ? window.__skyDancerGetV31Clouds() : null);
+    samples.push({ elapsed: Number(elapsed.toFixed(2)), hudText, weapon, flight, stage, speedFx, clouds });
   }
 }
 
@@ -127,6 +128,13 @@ diagnostics.maxSpeedStreaks = speedSamples.reduce((max, speedFx) => Math.max(max
 diagnostics.maxSpeedOpacity = speedSamples.reduce((max, speedFx) => Math.max(max, Number(speedFx.speedOpacity ?? 0)), 0);
 diagnostics.maxHitRingScale = speedSamples.reduce((max, speedFx) => Math.max(max, Number(speedFx.maxHitRingScale ?? 0)), 0);
 diagnostics.maxHitRingOpacity = speedSamples.reduce((max, speedFx) => Math.max(max, Number(speedFx.maxHitRingOpacity ?? 0)), 0);
+const cloudSamples = samples.map((sample) => sample.clouds).filter(Boolean);
+diagnostics.lowCloudSamples = cloudSamples.length;
+diagnostics.lowCloudTransparent = cloudSamples.length > 0 && cloudSamples.every((clouds) => clouds.lowTransparent === true);
+diagnostics.maxLowCloudOpacity = cloudSamples.reduce((max, clouds) => Math.max(max, Number(clouds.lowOpacity ?? 0)), 0);
+diagnostics.maxLowCloudScale = cloudSamples.reduce((max, clouds) => Math.max(max, Number(clouds.lowMaxScale ?? 0)), 0);
+diagnostics.maxLowCloudTopY = cloudSamples.reduce((max, clouds) => Math.max(max, Number(clouds.lowMaxTopY ?? Number.NEGATIVE_INFINITY)), Number.NEGATIVE_INFINITY);
+diagnostics.minLowCloudRadius = cloudSamples.reduce((min, clouds) => Math.min(min, Number(clouds.lowMinRadius ?? Number.POSITIVE_INFINITY)), Number.POSITIVE_INFINITY);
 await writeFile(`${outputDir}/diagnostics.json`, JSON.stringify(diagnostics, null, 2));
 await browser.close();
 if (pageErrors.length) throw new Error(`page errors: ${pageErrors.join(" | ")}`);
@@ -137,6 +145,12 @@ if (diagnostics.maxSpeedStreaks > 14) throw new Error(`speed field too dense: ${
 if (diagnostics.maxSpeedOpacity > 0.21) throw new Error(`speed field too opaque: ${diagnostics.maxSpeedOpacity}`);
 if (diagnostics.maxHitRingScale > 2.75) throw new Error(`hit shockwave too large: ${diagnostics.maxHitRingScale}`);
 if (diagnostics.maxHitRingOpacity > 0.49) throw new Error(`hit shockwave too opaque: ${diagnostics.maxHitRingOpacity}`);
+if (!cloudSamples.length) throw new Error("V31 low-cloud diagnostics missing");
+if (!diagnostics.lowCloudTransparent) throw new Error("low clouds became opaque again");
+if (diagnostics.maxLowCloudOpacity > 0.42) throw new Error(`low clouds too opaque: ${diagnostics.maxLowCloudOpacity}`);
+if (diagnostics.maxLowCloudScale > 6.5) throw new Error(`low clouds too large: ${diagnostics.maxLowCloudScale}`);
+if (diagnostics.maxLowCloudTopY > -21) throw new Error(`low clouds intrude into combat corridor: topY=${diagnostics.maxLowCloudTopY}`);
+if (diagnostics.minLowCloudRadius < 300) throw new Error(`low clouds too close to player corridor: radius=${diagnostics.minLowCloudRadius}`);
 const preFloor = stageSamples.filter((sample) => sample.elapsed < 82);
 if (preFloor.some((sample) => sample.stage.stage !== 1 || sample.stage.phase !== "reinforcements")) {
   throw new Error("Stage 1 advanced before the 84-second combat floor");
