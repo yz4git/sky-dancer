@@ -1,5 +1,6 @@
 import { SkyDancerArcadeRuntime, type SkyDancerArcadeRuntimeOptions, type SkyDancerArcadeSnapshot } from "./SkyDancerArcadeRuntime";
 import type { SkyDancerArcadeDemoHandle } from "./SkyDancerArcadeWebGLDemo";
+import { skyDancerArcadeEnemyVisualScaleV17 } from "./SkyDancerArcadeModels";
 
 type SnapshotHandler = (snapshot: SkyDancerArcadeSnapshot) => void;
 
@@ -86,7 +87,8 @@ export class SkyDancerArcadeCanvasDemo implements SkyDancerArcadeDemoHandle {
     }
     for (const enemy of [...snapshot.enemies].sort((a, b) => b.depth - a.depth)) {
       const projected = this.project(enemy.x, enemy.y, enemy.depth, cssWidth, cssHeight);
-      const size = projected.scale * (enemy.boss ? 28 : enemy.kind === "bomber" ? 16 : 11);
+      const readabilityScale = skyDancerArcadeEnemyVisualScaleV17(enemy.kind);
+      const size = projected.scale * (enemy.boss ? 28 : enemy.kind === "bomber" ? 16 : 11) * readabilityScale;
       context.save();
       context.translate(projected.x, projected.y);
       context.fillStyle = `#${palette.enemy.toString(16).padStart(6, "0")}`;
@@ -101,7 +103,7 @@ export class SkyDancerArcadeCanvasDemo implements SkyDancerArcadeDemoHandle {
       context.fill();
       if (enemy.locked) {
         context.strokeStyle = `#${palette.accent.toString(16).padStart(6, "0")}`;
-        context.lineWidth = 2;
+        context.lineWidth = 2.4;
         context.strokeRect(-size * 1.65, -size * 1.65, size * 3.3, size * 3.3);
       }
       context.restore();

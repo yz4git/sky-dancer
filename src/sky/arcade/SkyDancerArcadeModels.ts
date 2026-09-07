@@ -46,6 +46,22 @@ export function createSkyDancerArcadePlayer(paintScheme: SkyDancerArcadePaintSch
   return createReferenceFighter(false, false, paintScheme);
 }
 
+/**
+ * V17 presentation-only scale. Arcade combat uses logical x/y/depth snapshots for hit, lock and collision,
+ * so this multiplier can improve phone readability without silently enlarging hitboxes.
+ */
+export function skyDancerArcadeEnemyVisualScaleV17(kind: SkyDancerArcadeEnemySnapshot["kind"]): number {
+  switch (kind) {
+    case "bomber": return 1.2;
+    case "missile-boat": return 1.23;
+    case "ace": return 1.34;
+    case "interceptor": return 1.38;
+    case "fighter": return 1.42;
+    case "boss": return 1;
+    default: return 1.38;
+  }
+}
+
 function createEnemyVisibilityBeacons(): THREE.Points<THREE.BufferGeometry, THREE.PointsMaterial> {
   const geometry = new THREE.BufferGeometry();
   geometry.setAttribute("position", new THREE.Float32BufferAttribute([
@@ -59,11 +75,11 @@ function createEnemyVisibilityBeacons(): THREE.Points<THREE.BufferGeometry, THRE
     1, .88, .72,
   ], 3));
   const material = new THREE.PointsMaterial({
-    size: 5.6,
+    size: 7.2,
     sizeAttenuation: false,
     vertexColors: true,
     transparent: true,
-    opacity: .96,
+    opacity: .98,
     depthWrite: false,
     depthTest: true,
     blending: THREE.AdditiveBlending,
@@ -71,12 +87,18 @@ function createEnemyVisibilityBeacons(): THREE.Points<THREE.BufferGeometry, THRE
   });
   const points = new THREE.Points(geometry, material);
   points.name = "arcade-enemy-visibility-beacons";
+  points.userData.arcadeEnemyReadabilityV17 = true;
   points.renderOrder = 7;
   return points;
 }
 
 function createStandardEnemy(_stage: SkyDancerArcadeStageDefinition, enemy: SkyDancerArcadeEnemySnapshot): THREE.Group {
   const fighter = createReferenceFighter(true, enemy.kind === "bomber" || enemy.kind === "missile-boat");
+  const visualScale = skyDancerArcadeEnemyVisualScaleV17(enemy.kind);
+  fighter.scale.multiplyScalar(visualScale);
+  fighter.userData.arcadeEnemyReadabilityV17 = true;
+  fighter.userData.arcadeEnemyVisualScaleV17 = visualScale;
+  fighter.userData.arcadeEnemyLogicalCollisionUnchangedV17 = true;
   fighter.add(createEnemyVisibilityBeacons());
   return fighter;
 }
@@ -103,7 +125,7 @@ export function createSkyDancerArcadeLockRing(color: number): THREE.Group {
   geometry.setAttribute("position", new THREE.Float32BufferAttribute([0, 0, 0], 3));
   const material = new THREE.ShaderMaterial({
     uniforms: { tint: { value: new THREE.Color(color) } },
-    vertexShader: `void main(){gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);gl_PointSize=64.0;}`,
+    vertexShader: `void main(){gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);gl_PointSize=76.0;}`,
     fragmentShader: `uniform vec3 tint;
       void main(){vec2 p=gl_PointCoord*2.0-1.0;vec2 a=abs(p);
         float h=step(.48,a.x)*step(a.x,.9)*step(.75,a.y)*step(a.y,.9);
@@ -119,6 +141,7 @@ export function createSkyDancerArcadeLockRing(color: number): THREE.Group {
   });
   const marker = new THREE.Points(geometry, material);
   marker.name = "arcade-lock-ring-mesh";
+  marker.userData.arcadeEnemyReadabilityV17 = true;
   marker.frustumCulled = false;
   marker.renderOrder = 30;
   group.add(marker);
