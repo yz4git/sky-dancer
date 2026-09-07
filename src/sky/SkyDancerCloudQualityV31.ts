@@ -134,6 +134,8 @@ export class SkyDancerCloudQualityV31 {
     let minRadius = Number.POSITIVE_INFINITY;
     let maxTopY = Number.NEGATIVE_INFINITY;
     let minBottomY = Number.POSITIVE_INFINITY;
+    let visibleLegacyClouds = 0;
+    let hiddenLegacyClouds = 0;
 
     for (let index = 0; index < low.count; index += 1) {
       low.getMatrixAt(index, matrix);
@@ -144,6 +146,12 @@ export class SkyDancerCloudQualityV31 {
       minBottomY = Math.min(minBottomY, position.y - Math.abs(scale.y));
     }
 
+    this.runtime.scene.traverse((object) => {
+      if (!this.isLegacyCloudObject(object)) return;
+      if (object.visible) visibleLegacyClouds += 1;
+      else hiddenLegacyClouds += 1;
+    });
+
     return {
       lowCount: low.count,
       lowTransparent: material.transparent,
@@ -152,7 +160,24 @@ export class SkyDancerCloudQualityV31 {
       lowMinRadius: Number.isFinite(minRadius) ? minRadius : 0,
       lowMaxTopY: Number.isFinite(maxTopY) ? maxTopY : 0,
       lowMinBottomY: Number.isFinite(minBottomY) ? minBottomY : 0,
+      visibleLegacyClouds,
+      hiddenLegacyClouds,
     };
+  }
+
+  private isLegacyCloudObject(object: THREE.Object3D): boolean {
+    if (object === this.root || this.layers.includes(object as THREE.InstancedMesh)) return false;
+    const name = object.name.toLowerCase();
+    if (name.includes("cloud") && !name.includes("v31")) return true;
+
+    // The original Sky Dancer cloud deck is an unnamed InstancedMesh nested
+    // under sky-dancer-legacy-environment. Checking only scene.children left
+    // that deck visible even after V31 took ownership of cloud presentation.
+    if (!(object instanceof THREE.InstancedMesh)) return false;
+    if (object.geometry.type !== "DodecahedronGeometry") return false;
+    const material = object.material;
+    if (!(material instanceof THREE.MeshLambertMaterial)) return false;
+    return material.transparent && material.opacity >= 0.35 && material.opacity <= 0.5;
   }
 
   private hideLegacyClouds(): void {
@@ -161,25 +186,13 @@ export class SkyDancerCloudQualityV31 {
       if (cloud) cloud.visible = false;
     }
 
+    // Traverse the full hierarchy: the baseline deck is nested under the
+    // legacy environment root, not attached directly to the scene.
     this.runtime.scene.traverse((object) => {
-      if (object === this.root || this.layers.includes(object as THREE.InstancedMesh)) return;
-      const name = object.name.toLowerCase();
-      if (name.includes("cloud") && !name.includes("v31")) {
-        object.visible = false;
-        object.userData.skyDancerV31LegacyCloudHidden = true;
-      }
+      if (!this.isLegacyCloudObject(object)) return;
+      object.visible = false;
+      object.userData.skyDancerV31LegacyCloudHidden = true;
     });
-
-    for (const child of this.runtime.scene.children) {
-      if (!(child instanceof THREE.InstancedMesh) || this.layers.includes(child)) continue;
-      const material = child.material;
-      if (child.name) continue;
-      if (child.geometry.type !== "DodecahedronGeometry") continue;
-      if (!(material instanceof THREE.MeshLambertMaterial)) continue;
-      if (!material.transparent || material.opacity < 0.35 || material.opacity > 0.5) continue;
-      child.visible = false;
-      child.userData.skyDancerV31LegacyCloudHidden = true;
-    }
   }
 
   private buildLayer(config: CloudLayerConfig, seedOffset: number): THREE.InstancedMesh {
