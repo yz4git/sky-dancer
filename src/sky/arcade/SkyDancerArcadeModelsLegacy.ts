@@ -52,11 +52,15 @@ export function createSkyDancerArcadePlayer(paintScheme: SkyDancerArcadePaintSch
  */
 export function skyDancerArcadeEnemyVisualScaleV17(kind: SkyDancerArcadeEnemySnapshot["kind"]): number {
   switch (kind) {
+    case "gunship": return 1.16;
     case "bomber": return 1.2;
     case "missile-boat": return 1.23;
+    case "striker": return 1.3;
     case "ace": return 1.34;
+    case "raider": return 1.38;
     case "interceptor": return 1.38;
     case "fighter": return 1.42;
+    case "drone": return 1.5;
     case "boss": return 1;
     default: return 1.38;
   }

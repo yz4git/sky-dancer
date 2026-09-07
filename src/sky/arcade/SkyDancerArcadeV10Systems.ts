@@ -31,9 +31,9 @@ const STAGE_EVOLUTION: Record<SkyDancerArcadeBiome, SkyDancerArcadeStageEvolutio
 
 export function skyDancerArcadeEnemyRole(kind: SkyDancerArcadeEnemyKind | "boss", boss = kind === "boss"): SkyDancerArcadeEnemyRole {
   if (boss) return "climax";
-  if (kind === "interceptor") return "hunter";
+  if (kind === "interceptor" || kind === "raider" || kind === "striker") return "hunter";
   if (kind === "missile-boat") return "artillery";
-  if (kind === "bomber") return "heavy";
+  if (kind === "bomber" || kind === "gunship") return "heavy";
   if (kind === "ace") return "ace";
   return "skirmisher";
 }
@@ -52,7 +52,10 @@ export function skyDancerArcadeTargetPriority(role: SkyDancerArcadeEnemyRole): n
 export function skyDancerArcadeArmorRatio(kind: SkyDancerArcadeEnemyKind | "boss", boss = kind === "boss"): number {
   if (boss) return .22;
   if (kind === "missile-boat") return .18;
+  if (kind === "gunship") return .34;
   if (kind === "bomber") return .3;
+  if (kind === "striker") return .12;
+  if (kind === "raider") return .08;
   if (kind === "ace") return .14;
   return 0;
 }

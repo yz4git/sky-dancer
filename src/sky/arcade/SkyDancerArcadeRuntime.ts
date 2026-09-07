@@ -395,15 +395,55 @@ function moveToward(current: number, target: number, maxDelta: number): number {
   return current;
 }
 
-function enemyStats(kind: SkyDancerArcadeEnemyKind, hard: boolean): { hp: number; speed: number; score: number } {
+export function skyDancerArcadeEnemyStatsV20(kind: SkyDancerArcadeEnemyKind, hard: boolean): { hp: number; speed: number; score: number } {
   const healthScale = hard ? 1.24 : 1;
   switch (kind) {
+    case "drone": return { hp: 15 * healthScale, speed: hard ? 19.5 : 17.5, score: 300 };
     case "interceptor": return { hp: 24 * healthScale, speed: hard ? 18 : 16, score: 520 };
+    case "raider": return { hp: 36 * healthScale, speed: hard ? 17 : 15.2, score: 650 };
+    case "striker": return { hp: 48 * healthScale, speed: hard ? 15.2 : 13.6, score: 820 };
     case "missile-boat": return { hp: 42 * healthScale, speed: hard ? 12.4 : 11, score: 760 };
     case "bomber": return { hp: 88 * healthScale, speed: hard ? 9.5 : 8.4, score: 1380 };
+    case "gunship": return { hp: 112 * healthScale, speed: hard ? 8.7 : 7.6, score: 1760 };
     case "ace": return { hp: 68 * healthScale, speed: hard ? 16 : 14, score: 1680 };
     default: return { hp: 30 * healthScale, speed: hard ? 14.5 : 12.8, score: 440 };
   }
+}
+
+function skyDancerArcadeEnemyMotionV20(kind: SkyDancerArcadeEnemyKind | "boss"): { frequency: number; pursuitCap: number } {
+  switch (kind) {
+    case "drone": return { frequency: 2.72, pursuitCap: .78 };
+    case "interceptor": return { frequency: 2.35, pursuitCap: .74 };
+    case "raider": return { frequency: 2.08, pursuitCap: .8 };
+    case "ace": return { frequency: 1.75, pursuitCap: .84 };
+    case "striker": return { frequency: 1.46, pursuitCap: .64 };
+    case "gunship": return { frequency: .76, pursuitCap: .4 };
+    case "bomber": return { frequency: .82, pursuitCap: .42 };
+    case "missile-boat": return { frequency: .92, pursuitCap: .48 };
+    default: return { frequency: 1.02, pursuitCap: .54 };
+  }
+}
+
+function skyDancerArcadeEnemyWeaponV20(kind: SkyDancerArcadeEnemyKind | "boss"): { spread: number; guidance: number; projectileSpeed: number; cadence: number } {
+  switch (kind) {
+    case "drone": return { spread: 1, guidance: .78, projectileSpeed: 14.2, cadence: 2.35 };
+    case "raider": return { spread: 2, guidance: 1.04, projectileSpeed: 14.4, cadence: 1.86 };
+    case "striker": return { spread: 2, guidance: 1.18, projectileSpeed: 14.8, cadence: 1.76 };
+    case "gunship": return { spread: 3, guidance: 1.2, projectileSpeed: 14.2, cadence: 2.08 };
+    case "missile-boat": return { spread: 2, guidance: 1.52, projectileSpeed: 15.5, cadence: 1.68 };
+    case "bomber": return { spread: 2, guidance: 1.26, projectileSpeed: 14.5, cadence: 1.9 };
+    case "ace": return { spread: 2, guidance: 1.12, projectileSpeed: 13.2, cadence: 1.78 };
+    default: return { spread: 1, guidance: .88, projectileSpeed: 13.2, cadence: 2.18 };
+  }
+}
+
+export function skyDancerArcadeEnemyHitRadiusV20(kind: SkyDancerArcadeEnemyKind | "boss", boss = kind === "boss"): number {
+  if (boss) return .72;
+  if (kind === "gunship") return .43;
+  if (kind === "bomber") return .38;
+  if (kind === "drone") return .21;
+  if (kind === "striker") return .3;
+  return .25;
 }
 
 function rankIndex(rank: SkyDancerArcadeRank): number {
@@ -1057,7 +1097,7 @@ export class SkyDancerArcadeRuntime {
     maneuver: SkyDancerArcadeEnemyManeuver = "approach",
     maneuverSign = 1,
   ): void {
-    const stats = enemyStats(kind, this.options.difficulty === "hard");
+    const stats = skyDancerArcadeEnemyStatsV20(kind, this.options.difficulty === "hard");
     const maxArmor = Math.round(stats.hp * skyDancerArcadeArmorRatio(kind));
     this.enemies.push({
       id: this.nextEntityId++,
@@ -1337,14 +1377,14 @@ export class SkyDancerArcadeRuntime {
   private counterplayTypeForEnemy(enemy: ArcadeEnemy): SkyDancerArcadeEnemyCounterplay {
     const loadout = this.options.loadout ?? "standard";
     if (loadout === "gun-focus") {
-      if (enemy.boss || enemy.kind === "bomber" || enemy.kind === "missile-boat" || enemy.kind === "ace" || enemy.kind === "interceptor") return "armor-brace";
+      if (enemy.boss || enemy.kind === "bomber" || enemy.kind === "gunship" || enemy.kind === "missile-boat" || enemy.kind === "striker" || enemy.kind === "ace" || enemy.kind === "interceptor") return "armor-brace";
       return "none";
     }
     if (loadout === "missile-focus") {
-      if (enemy.boss || enemy.kind === "fighter" || enemy.kind === "interceptor" || enemy.kind === "ace") return "evasive-roll";
+      if (enemy.boss || enemy.kind === "fighter" || enemy.kind === "drone" || enemy.kind === "interceptor" || enemy.kind === "raider" || enemy.kind === "striker" || enemy.kind === "ace") return "evasive-roll";
       return "none";
     }
-    if (enemy.boss || enemy.kind === "missile-boat" || enemy.kind === "bomber" || enemy.kind === "ace") return "turbo-jammer";
+    if (enemy.boss || enemy.kind === "missile-boat" || enemy.kind === "gunship" || enemy.kind === "bomber" || enemy.kind === "striker" || enemy.kind === "ace") return "turbo-jammer";
     return "none";
   }
 
@@ -1449,8 +1489,9 @@ export class SkyDancerArcadeRuntime {
         enemy.x = clamp(motion.x, -ENEMY_X_LIMIT, ENEMY_X_LIMIT);
         enemy.y = clamp(motion.y, -ENEMY_Y_LIMIT, ENEMY_Y_LIMIT);
       } else {
-        const frequency = enemy.kind === "interceptor" ? 2.35 : enemy.kind === "ace" ? 1.75 : 1.02;
-        const pursuit = clamp((62 - enemy.depth) / 62, 0.12, enemy.kind === "ace" ? 0.84 : enemy.kind === "interceptor" ? 0.74 : 0.54);
+        const motionProfileV20 = skyDancerArcadeEnemyMotionV20(enemy.kind);
+        const frequency = motionProfileV20.frequency;
+        const pursuit = clamp((62 - enemy.depth) / 62, 0.12, motionProfileV20.pursuitCap);
         const close = clamp((68 - enemy.depth) / 54, 0, 1);
         const weaveX = Math.sin(enemy.age * frequency + enemy.phase) * enemy.amplitude;
         const weaveY = Math.cos(enemy.age * frequency * 0.72 + enemy.phase) * enemy.amplitude * 0.82;
@@ -1586,7 +1627,7 @@ export class SkyDancerArcadeRuntime {
     const bossIndex = enemy.boss ? enemy.bossPhase - 1 : 0;
     const desiredSpread = enemy.boss && bossProfile
       ? Math.min(5, (hard ? 1 : 0) + enemy.bossPhase + bossProfile.spreadBonus[bossIndex])
-      : enemy.kind === "missile-boat" || enemy.kind === "bomber" ? 2 : enemy.kind === "ace" ? 2 : 1;
+      : skyDancerArcadeEnemyWeaponV20(enemy.kind).spread;
     const spreadCount = Math.max(0, Math.min(desiredSpread, threatBudget - activeThreats));
     if (spreadCount <= 0) {
       enemy.fireCooldown = .38 + this.random() * .34;
@@ -1596,7 +1637,7 @@ export class SkyDancerArcadeRuntime {
       const centered = index - (spreadCount - 1) * 0.5;
       const guidance = enemy.boss && bossProfile
         ? (1.02 + enemy.bossPhase * .2) * bossProfile.guidanceScale[bossIndex]
-        : enemy.kind === "missile-boat" ? 1.52 : enemy.kind === "bomber" ? 1.26 : enemy.kind === "ace" ? 1.12 : 0.88;
+        : skyDancerArcadeEnemyWeaponV20(enemy.kind).guidance;
       const bossSpeedScale = enemy.boss && bossProfile ? bossProfile.projectileSpeedScale[bossIndex] : 1;
       const bossSpreadX = enemy.boss && bossProfile ? bossProfile.spreadX[bossIndex] : .2;
       const bossSpreadY = enemy.boss && bossProfile ? bossProfile.spreadY[bossIndex] : .11;
@@ -1607,7 +1648,7 @@ export class SkyDancerArcadeRuntime {
         y: enemy.y,
         depth: enemy.depth,
         targetEnemyId: null,
-        speed: enemy.boss ? (15.8 + enemy.bossPhase * 1.7) * bossSpeedScale : enemy.kind === "missile-boat" ? 15.5 : enemy.kind === "bomber" ? 14.5 : 13.2,
+        speed: enemy.boss ? (15.8 + enemy.bossPhase * 1.7) * bossSpeedScale : skyDancerArcadeEnemyWeaponV20(enemy.kind).projectileSpeed,
         damage: enemy.boss ? (hard ? 18 : 11) : hard ? 13 : 8,
         life: 5.6,
         vx: (this.playerX - enemy.x) * 0.28 + centered * bossSpreadX,
@@ -1617,7 +1658,7 @@ export class SkyDancerArcadeRuntime {
       });
     }
     const bossCadence = enemy.boss && bossProfile ? bossProfile.fireCadenceScale[bossIndex] : 1;
-    const base = enemy.boss ? (1.68 - enemy.bossPhase * .18) * bossCadence : enemy.kind === "missile-boat" ? 1.68 : enemy.kind === "bomber" ? 1.9 : enemy.kind === "ace" ? 1.78 : 2.18;
+    const base = enemy.boss ? (1.68 - enemy.bossPhase * .18) * bossCadence : skyDancerArcadeEnemyWeaponV20(enemy.kind).cadence;
     enemy.fireCooldown = base * (hard ? 0.8 : 1) * (0.84 + this.random() * 0.38);
   }
 
@@ -1680,7 +1721,7 @@ export class SkyDancerArcadeRuntime {
         if (!enemy.alive) continue;
         const depthDistance = Math.abs(projectile.depth - enemy.depth);
         if (depthDistance > (enemy.boss ? 3.2 : 1.9)) continue;
-        const radius = enemy.boss ? 0.72 : enemy.kind === "bomber" ? 0.38 : 0.25;
+        const radius = skyDancerArcadeEnemyHitRadiusV20(enemy.kind, enemy.boss);
         if (Math.hypot(projectile.x - enemy.x, projectile.y - enemy.y) > radius) continue;
         projectile.life = 0;
         this.damageEnemy(enemy, projectile.damage, projectile.owner === "player-missile");
@@ -1774,7 +1815,7 @@ export class SkyDancerArcadeRuntime {
     const armorBreak = armorBefore > 0 && enemy.armor <= 0;
     if (armorBreak) {
       this.armorBreaks += 1;
-      this.addScore(enemy.boss ? 1800 : enemy.kind === "bomber" ? 900 : 650, true);
+      this.addScore(enemy.boss ? 1800 : enemy.kind === "gunship" ? 1050 : enemy.kind === "bomber" ? 900 : 650, true);
       this.turbo = Math.min(100, this.turbo + (enemy.boss ? 11 : 6));
       this.message = enemy.boss ? "BOSS ARMOR BREAK · CORE EXPOSED" : "ARMOR BREAK";
       this.messageTimer = 1.05;

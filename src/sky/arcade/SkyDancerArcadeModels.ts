@@ -2,7 +2,7 @@ import * as THREE from "three";
 import { createReferenceCarrier } from "./SkyDancerArcadeReferenceAirframes";
 import { createSkyDancerArcadeEnemyAirframeV18 } from "./SkyDancerArcadeEnemyAirframes";
 import type { SkyDancerArcadeEnemySnapshot } from "./SkyDancerArcadeRuntime";
-import type { SkyDancerArcadeStageDefinition } from "./SkyDancerArcadeData";
+import type { SkyDancerArcadeEnemyKind, SkyDancerArcadeStageDefinition } from "./SkyDancerArcadeData";
 import {
   createSkyDancerArcadeHazard,
   createSkyDancerArcadeLockRing,
@@ -50,46 +50,38 @@ function applyReadableEnemyAttitudeV19(group: THREE.Group, enemy: SkyDancerArcad
   for (const visual of visuals) rig.add(visual);
   group.add(rig);
 
-  const kindIndex = enemy.kind === "fighter"
-    ? 0
-    : enemy.kind === "interceptor"
-      ? 1
-      : enemy.kind === "bomber"
-        ? 2
-        : enemy.kind === "missile-boat"
-          ? 3
-          : 4;
-  const pitchSign = (enemy.id + kindIndex) % 3 === 0 ? 1 : -1;
-  const rollSign = (enemy.id + kindIndex) % 2 === 0 ? 1 : -1;
-  const pitchMagnitude = enemy.kind === "ace"
-    ? .19
-    : enemy.kind === "interceptor"
-      ? .17
-      : enemy.kind === "fighter"
-        ? .155
-        : enemy.kind === "missile-boat"
-          ? .135
-          : .115;
-  const rollMagnitude = enemy.kind === "ace"
-    ? .105
-    : enemy.kind === "fighter" || enemy.kind === "interceptor"
-      ? .08
-      : .045;
-  const yawMagnitude = enemy.kind === "bomber" ? .035 : .055;
+  if (enemy.kind === "boss") return;
+  const kindIndex: Record<SkyDancerArcadeEnemyKind, number> = {
+    fighter: 0, interceptor: 1, bomber: 2, "missile-boat": 3, ace: 4,
+    drone: 5, striker: 6, gunship: 7, raider: 8,
+  };
+  const pitchByKind: Record<SkyDancerArcadeEnemyKind, number> = {
+    fighter: .155, interceptor: .17, bomber: .115, "missile-boat": .135, ace: .19,
+    drone: .205, striker: .16, gunship: .12, raider: .185,
+  };
+  const rollByKind: Record<SkyDancerArcadeEnemyKind, number> = {
+    fighter: .08, interceptor: .08, bomber: .045, "missile-boat": .045, ace: .105,
+    drone: .12, striker: .09, gunship: .05, raider: .115,
+  };
+  const yawByKind: Record<SkyDancerArcadeEnemyKind, number> = {
+    fighter: .055, interceptor: .055, bomber: .035, "missile-boat": .055, ace: .06,
+    drone: .07, striker: .06, gunship: .038, raider: .068,
+  };
+  const index = kindIndex[enemy.kind];
+  const pitchSign = (enemy.id + index) % 3 === 0 ? 1 : -1;
+  const rollSign = (enemy.id + index) % 2 === 0 ? 1 : -1;
 
-  // A modest deterministic three-axis bias exposes wing surface and fuselage volume instead of
-  // leaving the aircraft in a near-perfect frontal projection. Existing runtime pitch/bank still
-  // applies on the outer group, so maneuvers and hit reactions remain authoritative.
   rig.rotation.set(
-    pitchSign * pitchMagnitude,
-    rollSign * yawMagnitude,
-    rollSign * rollMagnitude,
+    pitchSign * pitchByKind[enemy.kind],
+    rollSign * yawByKind[enemy.kind],
+    rollSign * rollByKind[enemy.kind],
   );
-  rig.scale.y = enemy.kind === "bomber" || enemy.kind === "missile-boat" ? 1.08 : 1.1;
+  rig.scale.y = enemy.kind === "bomber" || enemy.kind === "missile-boat" || enemy.kind === "gunship" ? 1.08 : 1.1;
   rig.userData.arcadeEnemyReadableAttitudeV19 = true;
-  rig.userData.arcadeEnemyPitchBiasV19 = pitchSign * pitchMagnitude;
-  rig.userData.arcadeEnemyYawBiasV19 = rollSign * yawMagnitude;
-  rig.userData.arcadeEnemyRollBiasV19 = rollSign * rollMagnitude;
+  rig.userData.arcadeEnemyPitchBiasV19 = rig.rotation.x;
+  rig.userData.arcadeEnemyYawBiasV19 = rig.rotation.y;
+  rig.userData.arcadeEnemyRollBiasV19 = rig.rotation.z;
+  rig.userData.arcadeEnemyRosterV20 = enemy.kind;
   group.userData.arcadeEnemyReadableAttitudeV19 = true;
   group.userData.arcadeEnemyLogicalCollisionUnchangedV19 = true;
 }

@@ -37,7 +37,21 @@ export type SkyDancerArcadeBossKind =
   | "orbital-lance"
   | "prism-titan";
 
-export type SkyDancerArcadeEnemyKind = "fighter" | "interceptor" | "missile-boat" | "bomber" | "ace";
+export type SkyDancerArcadeEnemyKind =
+  | "fighter"
+  | "interceptor"
+  | "missile-boat"
+  | "bomber"
+  | "ace"
+  | "drone"
+  | "striker"
+  | "gunship"
+  | "raider";
+
+export const SKY_DANCER_ARCADE_ENEMY_KINDS = [
+  "fighter", "interceptor", "missile-boat", "bomber", "ace",
+  "drone", "striker", "gunship", "raider",
+] as const satisfies readonly SkyDancerArcadeEnemyKind[];
 export type SkyDancerArcadeHazardKind = "tower" | "rock" | "lightning" | "mine" | "arch" | "debris";
 export type SkyDancerArcadeFormation = "line" | "vee" | "cross" | "spiral" | "pincer" | "wall";
 
@@ -105,7 +119,7 @@ export const SKY_DANCER_ARCADE_STAGES: readonly SkyDancerArcadeStageDefinition[]
     curveStrength: 0.34,
     turbulence: 0.08,
     waveIntervalSeconds: 2.25,
-    enemies: ["fighter", "interceptor", "missile-boat"],
+    enemies: ["fighter", "drone", "interceptor", "missile-boat"],
     formations: ["line", "vee", "cross"],
     hazards: ["tower", "arch"],
     boss: "ace-wing",
@@ -126,7 +140,7 @@ export const SKY_DANCER_ARCADE_STAGES: readonly SkyDancerArcadeStageDefinition[]
     curveStrength: 0.62,
     turbulence: 0.17,
     waveIntervalSeconds: 2.45,
-    enemies: ["interceptor", "fighter", "bomber"],
+    enemies: ["interceptor", "fighter", "striker", "bomber"],
     formations: ["pincer", "cross", "line"],
     hazards: ["rock", "arch", "debris"],
     boss: "canyon-drill",
@@ -147,7 +161,7 @@ export const SKY_DANCER_ARCADE_STAGES: readonly SkyDancerArcadeStageDefinition[]
     curveStrength: 0.4,
     turbulence: 0.12,
     waveIntervalSeconds: 2.35,
-    enemies: ["fighter", "missile-boat", "bomber"],
+    enemies: ["fighter", "drone", "missile-boat", "gunship", "bomber"],
     formations: ["vee", "wall", "spiral"],
     hazards: ["debris", "mine"],
     boss: "fleet-cruiser",
@@ -168,7 +182,7 @@ export const SKY_DANCER_ARCADE_STAGES: readonly SkyDancerArcadeStageDefinition[]
     curveStrength: 0.48,
     turbulence: 0.28,
     waveIntervalSeconds: 2.2,
-    enemies: ["fighter", "interceptor", "missile-boat", "bomber"],
+    enemies: ["fighter", "interceptor", "striker", "missile-boat", "gunship", "bomber"],
     formations: ["cross", "pincer", "wall", "spiral"],
     hazards: ["lightning", "debris", "mine"],
     boss: "storm-carrier",
@@ -189,7 +203,7 @@ export const SKY_DANCER_ARCADE_STAGES: readonly SkyDancerArcadeStageDefinition[]
     curveStrength: 0.3,
     turbulence: 0.2,
     waveIntervalSeconds: 2.45,
-    enemies: ["fighter", "missile-boat", "bomber"],
+    enemies: ["fighter", "striker", "missile-boat", "gunship", "bomber"],
     formations: ["line", "wall", "pincer"],
     hazards: ["tower", "rock", "mine"],
     boss: "wall-fortress",
@@ -210,7 +224,7 @@ export const SKY_DANCER_ARCADE_STAGES: readonly SkyDancerArcadeStageDefinition[]
     curveStrength: 0.7,
     turbulence: 0.1,
     waveIntervalSeconds: 2.5,
-    enemies: ["interceptor", "fighter", "ace"],
+    enemies: ["interceptor", "raider", "fighter", "ace"],
     formations: ["spiral", "cross", "pincer"],
     hazards: ["arch", "rock", "debris"],
     boss: "ice-wyrm",
@@ -231,7 +245,7 @@ export const SKY_DANCER_ARCADE_STAGES: readonly SkyDancerArcadeStageDefinition[]
     curveStrength: 0.56,
     turbulence: 0.15,
     waveIntervalSeconds: 2.35,
-    enemies: ["fighter", "interceptor", "ace", "bomber"],
+    enemies: ["fighter", "drone", "raider", "interceptor", "ace", "bomber"],
     formations: ["spiral", "vee", "cross"],
     hazards: ["rock", "arch", "mine"],
     boss: "ruin-guardian",
@@ -252,7 +266,7 @@ export const SKY_DANCER_ARCADE_STAGES: readonly SkyDancerArcadeStageDefinition[]
     curveStrength: 0.58,
     turbulence: 0.11,
     waveIntervalSeconds: 2.15,
-    enemies: ["fighter", "interceptor", "missile-boat", "ace"],
+    enemies: ["fighter", "interceptor", "striker", "raider", "missile-boat", "ace"],
     formations: ["cross", "pincer", "spiral", "wall"],
     hazards: ["tower", "arch", "debris"],
     boss: "metro-phantom",
@@ -273,7 +287,7 @@ export const SKY_DANCER_ARCADE_STAGES: readonly SkyDancerArcadeStageDefinition[]
     curveStrength: 0.68,
     turbulence: 0.32,
     waveIntervalSeconds: 2.25,
-    enemies: ["interceptor", "bomber", "missile-boat", "ace"],
+    enemies: ["interceptor", "striker", "gunship", "bomber", "missile-boat", "ace"],
     formations: ["wall", "pincer", "spiral"],
     hazards: ["rock", "lightning", "debris"],
     boss: "magma-core",
@@ -294,7 +308,7 @@ export const SKY_DANCER_ARCADE_STAGES: readonly SkyDancerArcadeStageDefinition[]
     curveStrength: 0.26,
     turbulence: 0.18,
     waveIntervalSeconds: 2.1,
-    enemies: ["fighter", "interceptor", "missile-boat", "ace", "bomber"],
+    enemies: ["fighter", "drone", "raider", "interceptor", "striker", "missile-boat", "ace", "bomber"],
     formations: ["line", "spiral", "wall", "vee"],
     hazards: ["debris", "arch", "mine"],
     boss: "orbital-lance",
@@ -315,7 +329,7 @@ export const SKY_DANCER_ARCADE_STAGES: readonly SkyDancerArcadeStageDefinition[]
     curveStrength: 0.44,
     turbulence: 0.24,
     waveIntervalSeconds: 1.95,
-    enemies: ["fighter", "interceptor", "missile-boat", "bomber", "ace"],
+    enemies: ["fighter", "drone", "interceptor", "raider", "striker", "missile-boat", "gunship", "bomber", "ace"],
     formations: ["line", "vee", "cross", "spiral", "pincer", "wall"],
     hazards: ["tower", "debris", "mine", "arch"],
     boss: "prism-titan",
