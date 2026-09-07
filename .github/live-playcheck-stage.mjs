@@ -135,6 +135,8 @@ diagnostics.maxLowCloudOpacity = cloudSamples.reduce((max, clouds) => Math.max(m
 diagnostics.maxLowCloudScale = cloudSamples.reduce((max, clouds) => Math.max(max, Number(clouds.lowMaxScale ?? 0)), 0);
 diagnostics.maxLowCloudTopY = cloudSamples.reduce((max, clouds) => Math.max(max, Number(clouds.lowMaxTopY ?? Number.NEGATIVE_INFINITY)), Number.NEGATIVE_INFINITY);
 diagnostics.minLowCloudRadius = cloudSamples.reduce((min, clouds) => Math.min(min, Number(clouds.lowMinRadius ?? Number.POSITIVE_INFINITY)), Number.POSITIVE_INFINITY);
+diagnostics.maxVisibleLegacyClouds = cloudSamples.reduce((max, clouds) => Math.max(max, Number(clouds.visibleLegacyClouds ?? 0)), 0);
+diagnostics.maxHiddenLegacyClouds = cloudSamples.reduce((max, clouds) => Math.max(max, Number(clouds.hiddenLegacyClouds ?? 0)), 0);
 await writeFile(`${outputDir}/diagnostics.json`, JSON.stringify(diagnostics, null, 2));
 await browser.close();
 if (pageErrors.length) throw new Error(`page errors: ${pageErrors.join(" | ")}`);
@@ -151,6 +153,7 @@ if (diagnostics.maxLowCloudOpacity > 0.42) throw new Error(`low clouds too opaqu
 if (diagnostics.maxLowCloudScale > 6.5) throw new Error(`low clouds too large: ${diagnostics.maxLowCloudScale}`);
 if (diagnostics.maxLowCloudTopY > -21) throw new Error(`low clouds intrude into combat corridor: topY=${diagnostics.maxLowCloudTopY}`);
 if (diagnostics.minLowCloudRadius < 300) throw new Error(`low clouds too close to player corridor: radius=${diagnostics.minLowCloudRadius}`);
+if (diagnostics.maxVisibleLegacyClouds > 0) throw new Error(`legacy cloud deck leaked back into view: ${diagnostics.maxVisibleLegacyClouds}`);
 const preFloor = stageSamples.filter((sample) => sample.elapsed < 82);
 if (preFloor.some((sample) => sample.stage.stage !== 1 || sample.stage.phase !== "reinforcements")) {
   throw new Error("Stage 1 advanced before the 84-second combat floor");
