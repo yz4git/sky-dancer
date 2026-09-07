@@ -63,6 +63,7 @@ export function skyDancerArcadeV12CombatPlan(signals: SkyDancerArcadeV12Director
   const chain = clamp(signals.chain, 0, 20);
   const beatIntensity = clamp(signals.beatIntensity, 0, 1);
   const dominant = Math.max(gun, missile, turbo);
+  const styleSpread = dominant - Math.min(gun, missile, turbo);
   const basePressure = beatIntensity * .55
     + chain * .026
     + dominant * .13
@@ -129,9 +130,9 @@ export function skyDancerArcadeV12CombatPlan(signals: SkyDancerArcadeV12Director
   }
 
   // V14's missing middle gear. A five-plus chain should already change how the run feels,
-  // but it should not increase simultaneous density. Instead it accelerates readable passes,
-  // postpones counter-picks and points the player toward the SHOWCASE threshold.
-  if (chain >= 5 && beatIntensity >= .62 && hp >= .52 && recentDamage < .5) {
+  // but it should not steal the established gun/missile/turbo counter-game. FLOW RUN only
+  // takes ownership when live weapon usage is reasonably balanced.
+  if (chain >= 5 && beatIntensity >= .62 && hp >= .52 && recentDamage < .5 && styleSpread <= .62) {
     return {
       mode: "flow-run",
       playerStyle: "flow",
