@@ -50,17 +50,20 @@ export class SkyDancerCloudQualityV31 {
     const configs: CloudLayerConfig[] = [
       {
         name: "sky-dancer-v31-low-clouds",
-        clusters: 9,
-        lobes: 12,
-        radiusMin: 280,
-        radiusMax: 500,
-        yMin: -32,
-        yMax: -16,
-        sizeMin: 5.0,
-        sizeMax: 8.2,
-        opacity: 1,
-        solid: true,
-        fog: false,
+        // Keep the low deck atmospheric but out of the iPhone combat corridor.
+        // The old solid 5-8 unit lobes sat just above the y=-38 terrain and
+        // read as giant white polygons laid across targets and the ground.
+        clusters: 8,
+        lobes: 10,
+        radiusMin: 340,
+        radiusMax: 580,
+        yMin: -35,
+        yMax: -29,
+        sizeMin: 3.2,
+        sizeMax: 5.0,
+        opacity: 0.38,
+        solid: false,
+        fog: true,
       },
       {
         name: "sky-dancer-v31-mid-clouds",
@@ -109,10 +112,47 @@ export class SkyDancerCloudQualityV31 {
     this.hideLegacyClouds();
     const x = Math.floor(snapshot.x / WORLD_SNAP) * WORLD_SNAP;
     const z = Math.floor(snapshot.z / WORLD_SNAP) * WORLD_SNAP;
-    if (x === this.snapX && z === this.snapZ) return;
-    this.snapX = x;
-    this.snapZ = z;
-    this.root.position.set(x, 0, z);
+    if (x !== this.snapX || z !== this.snapZ) {
+      this.snapX = x;
+      this.snapZ = z;
+      this.root.position.set(x, 0, z);
+    }
+
+    if (typeof window !== "undefined" && navigator.webdriver) {
+      (window as unknown as Record<string, unknown>).__skyDancerGetV31Clouds = () => this.getDebugSnapshot();
+    }
+  }
+
+  private getDebugSnapshot(): Record<string, number | boolean> {
+    const low = this.layers[0];
+    const material = low.material as THREE.MeshBasicMaterial;
+    const matrix = new THREE.Matrix4();
+    const position = new THREE.Vector3();
+    const quaternion = new THREE.Quaternion();
+    const scale = new THREE.Vector3();
+    let maxScale = 0;
+    let minRadius = Number.POSITIVE_INFINITY;
+    let maxTopY = Number.NEGATIVE_INFINITY;
+    let minBottomY = Number.POSITIVE_INFINITY;
+
+    for (let index = 0; index < low.count; index += 1) {
+      low.getMatrixAt(index, matrix);
+      matrix.decompose(position, quaternion, scale);
+      maxScale = Math.max(maxScale, scale.x, scale.y, scale.z);
+      minRadius = Math.min(minRadius, Math.hypot(position.x, position.z));
+      maxTopY = Math.max(maxTopY, position.y + Math.abs(scale.y));
+      minBottomY = Math.min(minBottomY, position.y - Math.abs(scale.y));
+    }
+
+    return {
+      lowCount: low.count,
+      lowTransparent: material.transparent,
+      lowOpacity: material.opacity,
+      lowMaxScale: maxScale,
+      lowMinRadius: Number.isFinite(minRadius) ? minRadius : 0,
+      lowMaxTopY: Number.isFinite(maxTopY) ? maxTopY : 0,
+      lowMinBottomY: Number.isFinite(minBottomY) ? minBottomY : 0,
+    };
   }
 
   private hideLegacyClouds(): void {
