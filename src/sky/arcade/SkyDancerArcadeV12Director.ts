@@ -6,6 +6,7 @@ export type SkyDancerArcadeV12DirectorMode =
   | "hunter-sweep"
   | "jammer-net"
   | "relief-window"
+  | "flow-run"
   | "showcase-break"
   | "climax-push";
 
@@ -43,16 +44,15 @@ function clamp(value: number, min: number, max: number): number {
 }
 
 /**
- * V13 Flagship Flow builds on the V12 adaptive combat director.
+ * V14 Hero Flow builds on the V13 flagship director.
  *
- * The old director was good at counter-picking a weapon habit, but a player who was
- * flying exceptionally well still received essentially the same combat sentence.
- * V13 adds two positive-pressure states:
- *  - SHOWCASE BREAK rewards a sustained chain with faster, cleaner hero passes.
- *  - CLIMAX PUSH compresses the final approach into a short escalating assault.
+ * V13 proved that sustained mastery can turn the run into a showcase, but the jump from
+ * ordinary adaptive combat to SHOWCASE BREAK was abrupt. V14 inserts FLOW RUN as a positive
+ * mid-tier: once the player has a real chain, enemy choreography becomes cleaner and faster
+ * before the full hero sequence is earned.
  *
- * RELIEF WINDOW remains the highest-priority rule so the game never snowballs a player
- * who is already losing control.
+ * RELIEF WINDOW remains the highest-priority rule. SHOWCASE BREAK and CLIMAX PUSH remain
+ * rarer peak states; FLOW RUN never adds a health wall or extra wave count.
  */
 export function skyDancerArcadeV12CombatPlan(signals: SkyDancerArcadeV12DirectorSignals): SkyDancerArcadeV12EncounterPlan {
   const gun = clamp(signals.gunHeat, 0, 3);
@@ -125,6 +125,26 @@ export function skyDancerArcadeV12CombatPlan(signals: SkyDancerArcadeV12Director
       formationBias: ["wall", "pincer", "cross", "spiral"],
       enemyBias: ["ace", "missile-boat", "interceptor", "bomber"],
       maneuverBias: ["cross-pass", "close-bank", "overtake", "parallel"],
+    };
+  }
+
+  // V14's missing middle gear. A five-plus chain should already change how the run feels,
+  // but it should not increase simultaneous density. Instead it accelerates readable passes,
+  // postpones counter-picks and points the player toward the SHOWCASE threshold.
+  if (chain >= 5 && beatIntensity >= .62 && hp >= .52 && recentDamage < .5) {
+    return {
+      mode: "flow-run",
+      playerStyle: "flow",
+      label: "FLOW RUN",
+      intent: "BANK THROUGH · BUILD SHOWCASE",
+      intensity: clamp(.68 + chain * .018 + beatIntensity * .12, .72, .92),
+      pressure: clamp(Math.max(.72, pressure), .72, 1.02),
+      cadenceScale: signals.hard ? .77 : .84,
+      waveCountDelta: 0,
+      counterplayDelay: 1.18,
+      formationBias: ["cross", "vee", "spiral", "pincer"],
+      enemyBias: ["interceptor", "fighter", "ace"],
+      maneuverBias: ["overtake", "parallel", "cross-pass", "close-bank"],
     };
   }
 
