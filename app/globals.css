@@ -10,3 +10,54 @@ html, body { width: 100%; height: 100%; margin: 0; min-width: 320px; overflow: h
 html, body, #root { touch-action: none; overscroll-behavior: none; }
 body { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
 button { font: inherit; cursor: pointer; }
+
+/* V15 phone playcheck: keep the authored beat name, remove developer telemetry from the
+   score sightline, and surface only exceptional director states as a compact product cue. */
+@media (orientation: landscape) and (max-height: 520px) {
+  [aria-label="Current course beat"] {
+    top: max(66px, calc(env(safe-area-inset-top) + 50px)) !important;
+    width: min(250px, 31vw) !important;
+    opacity: .88 !important;
+  }
+  [aria-label="Current course beat"] > small,
+  [aria-label="Current course beat"] > span,
+  [aria-label="Current course beat"] > em {
+    display: none !important;
+  }
+  [aria-label="Current course beat"] > strong {
+    margin: 0 !important;
+    font-size: 9px !important;
+    line-height: 1.1 !important;
+    letter-spacing: .13em !important;
+  }
+  [aria-label="Current course beat"]::after {
+    display: none;
+    margin-top: 4px;
+    font-size: 6px;
+    font-weight: 800;
+    letter-spacing: .16em;
+    line-height: 1;
+    color: #d9f7ff;
+    text-shadow: 0 1px 5px #071b2a;
+  }
+  [aria-label="Current course beat"][data-director="flow-run"]::after {
+    content: "FLOW RUN";
+    display: block;
+    color: #b9f8ff;
+  }
+  [aria-label="Current course beat"][data-director="showcase-break"]::after {
+    content: "SHOWCASE BREAK";
+    display: block;
+    color: #ffe7a5;
+  }
+  [aria-label="Current course beat"][data-director="climax-push"]::after {
+    content: "CLIMAX PUSH";
+    display: block;
+    color: #ffc1ca;
+  }
+  [aria-label="Current course beat"][data-director="relief-window"]::after {
+    content: "RELIEF WINDOW";
+    display: block;
+    color: #baffdc;
+  }
+}
