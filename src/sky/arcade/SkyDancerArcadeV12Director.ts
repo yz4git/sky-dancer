@@ -5,9 +5,11 @@ export type SkyDancerArcadeV12DirectorMode =
   | "armor-screen"
   | "hunter-sweep"
   | "jammer-net"
-  | "relief-window";
+  | "relief-window"
+  | "showcase-break"
+  | "climax-push";
 
-export type SkyDancerArcadeV12PlayerStyle = "balanced" | "gun" | "missile" | "turbo" | "recover";
+export type SkyDancerArcadeV12PlayerStyle = "balanced" | "gun" | "missile" | "turbo" | "recover" | "flow" | "climax";
 export type SkyDancerArcadeV12Maneuver = "approach" | "close-bank" | "overtake" | "parallel" | "cross-pass";
 
 export interface SkyDancerArcadeV12DirectorSignals {
@@ -40,15 +42,29 @@ function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
 }
 
+/**
+ * V13 Flagship Flow builds on the V12 adaptive combat director.
+ *
+ * The old director was good at counter-picking a weapon habit, but a player who was
+ * flying exceptionally well still received essentially the same combat sentence.
+ * V13 adds two positive-pressure states:
+ *  - SHOWCASE BREAK rewards a sustained chain with faster, cleaner hero passes.
+ *  - CLIMAX PUSH compresses the final approach into a short escalating assault.
+ *
+ * RELIEF WINDOW remains the highest-priority rule so the game never snowballs a player
+ * who is already losing control.
+ */
 export function skyDancerArcadeV12CombatPlan(signals: SkyDancerArcadeV12DirectorSignals): SkyDancerArcadeV12EncounterPlan {
   const gun = clamp(signals.gunHeat, 0, 3);
   const missile = clamp(signals.missileHeat, 0, 3);
   const turbo = clamp(signals.turboHeat, 0, 3);
   const hp = clamp(signals.hpRatio, 0, 1);
   const recentDamage = clamp(signals.recentDamage, 0, 2);
+  const chain = clamp(signals.chain, 0, 20);
+  const beatIntensity = clamp(signals.beatIntensity, 0, 1);
   const dominant = Math.max(gun, missile, turbo);
-  const basePressure = signals.beatIntensity * .55
-    + clamp(signals.chain, 0, 12) * .026
+  const basePressure = beatIntensity * .55
+    + chain * .026
     + dominant * .13
     + (signals.hard ? .12 : 0)
     - (1 - hp) * .2
@@ -63,7 +79,7 @@ export function skyDancerArcadeV12CombatPlan(signals: SkyDancerArcadeV12Director
       playerStyle: "recover",
       label: "RELIEF WINDOW",
       intent: "LIGHT SCREEN · REBUILD TURBO",
-      intensity: clamp(.42 + signals.beatIntensity * .2, .42, .68),
+      intensity: clamp(.42 + beatIntensity * .2, .42, .68),
       pressure: Math.min(.62, pressure),
       cadenceScale: 1.28,
       waveCountDelta: -2,
@@ -71,6 +87,44 @@ export function skyDancerArcadeV12CombatPlan(signals: SkyDancerArcadeV12Director
       formationBias: ["line", "vee"],
       enemyBias: ["fighter", "interceptor"],
       maneuverBias: ["approach", "cross-pass"],
+    };
+  }
+
+  // Reward mastery with a readable hero sequence instead of merely adding more health.
+  // This state is deliberately driven by performance, not equipped loadout.
+  if (chain >= 9 && beatIntensity >= .68 && hp >= .56 && recentDamage < .42) {
+    return {
+      mode: "showcase-break",
+      playerStyle: "flow",
+      label: "SHOWCASE BREAK",
+      intent: "THREAD THE NEEDLE · KEEP FLOW",
+      intensity: clamp(.76 + chain * .014 + beatIntensity * .12, .82, 1),
+      pressure: clamp(Math.max(.84, pressure), .84, 1.16),
+      cadenceScale: signals.hard ? .70 : .76,
+      waveCountDelta: 1,
+      counterplayDelay: .82,
+      formationBias: ["cross", "spiral", "pincer", "vee"],
+      enemyBias: ["interceptor", "ace", "fighter"],
+      maneuverBias: ["overtake", "cross-pass", "close-bank", "parallel"],
+    };
+  }
+
+  // The authored chase immediately before a climax target should feel like the trailer shot:
+  // fast crossings, one heavy screen, then a clean lane into the boss reveal.
+  if (beatIntensity >= .96 && chain >= 3 && hp >= .56 && recentDamage < .56) {
+    return {
+      mode: "climax-push",
+      playerStyle: "climax",
+      label: "CLIMAX PUSH",
+      intent: "BREAK THE SCREEN · TAKE THE CENTER",
+      intensity: 1,
+      pressure: clamp(Math.max(1.02, pressure), 1.02, 1.22),
+      cadenceScale: signals.hard ? .66 : .72,
+      waveCountDelta: 1,
+      counterplayDelay: .7,
+      formationBias: ["wall", "pincer", "cross", "spiral"],
+      enemyBias: ["ace", "missile-boat", "interceptor", "bomber"],
+      maneuverBias: ["cross-pass", "close-bank", "overtake", "parallel"],
     };
   }
 
