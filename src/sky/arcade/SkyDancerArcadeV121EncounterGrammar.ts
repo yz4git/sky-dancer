@@ -124,9 +124,9 @@ function phase(
 }
 
 /**
- * V13 keeps the stage-authored grammar from V12.1 and adds two four-beat hero sentences.
- * They are intentionally short enough to fit the existing enemy cap: each reinforcement
- * phase carries surviving aircraft forward instead of replacing them with a new wall.
+ * V14 keeps the stage-authored V12.1 grammar and the V13 peak sequences, while adding
+ * FLOW RUN as a three-beat bridge between ordinary adaptive combat and SHOWCASE BREAK.
+ * The bridge favors overtakes, cross-passes and parallel silhouettes without adding a wave.
  */
 export function skyDancerArcadeV121EncounterGrammar(
   stageId: SkyDancerArcadeStageId,
@@ -141,9 +141,10 @@ export function skyDancerArcadeV121EncounterGrammar(
     : mode === "hunter-sweep" ? 3
       : mode === "jammer-net" ? 5
         : mode === "relief-window" ? 7
-          : mode === "showcase-break" ? 9
-            : mode === "climax-push" ? 11
-              : 0;
+          : mode === "flow-run" ? 9
+            : mode === "showcase-break" ? 11
+              : mode === "climax-push" ? 13
+                : 0;
   const variant = (Math.max(0, waveSerial) + hashText(beatId) + modeOffset) % 2 as 0 | 1;
   const formations = profile.formations[variant];
   const maneuvers = profile.maneuvers[variant];
@@ -158,6 +159,21 @@ export function skyDancerArcadeV121EncounterGrammar(
       phases: [
         phase("light-pass", "LIGHT PASS", 0, .42, "line", "approach", "cross-pass", ["fighter", "interceptor"], 6),
         phase("exit-lane", "EXIT LANE", 1.08, .42, "vee", "cross-pass", "approach", ["fighter", "interceptor"], 10),
+      ],
+    };
+  }
+
+  if (mode === "flow-run") {
+    return {
+      id: `${stageId}-${variant}-flow`,
+      label: `${label} · FLOW`,
+      intent: "SLIPSTREAM · BANK CROSS · CLEAN EXIT",
+      signature: `${stageId}:flow:${variant}`,
+      cadenceScale: .86,
+      phases: [
+        phase("flow-entry", "SLIPSTREAM", 0, .48, formations[0], "overtake", maneuvers[0], ["fighter", "interceptor", ...profile.enemyBias], 8),
+        phase("bank-cross", "BANK CROSS", .72, .50, formations[1], "cross-pass", "parallel", ["interceptor", "fighter", "ace", ...profile.enemyBias], -1, pressureBias),
+        phase("clean-exit", "CLEAN EXIT", 1.44, .40, formations[2], "parallel", "close-bank", ["interceptor", "ace", ...profile.enemyBias], -6),
       ],
     };
   }
