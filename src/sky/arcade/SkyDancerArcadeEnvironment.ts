@@ -2,6 +2,7 @@ import * as THREE from "three";
 import type { SkyDancerArcadeStageDefinition } from "./SkyDancerArcadeData";
 import { SkyDancerArcadeReferenceWorld } from "./SkyDancerArcadeReferenceWorld";
 import { applySkyDancerArcadeV15VisualTuning } from "./SkyDancerArcadeV15VisualTuning";
+import { applySkyDancerArcadeV16Setpieces } from "./SkyDancerArcadeV16Setpieces";
 
 const REFERENCE_CARRIER_NAME = "arcade-horizon-fleet-carrier";
 
@@ -25,6 +26,7 @@ export class SkyDancerArcadeEnvironment extends SkyDancerArcadeReferenceWorld {
   override setStage(stage: SkyDancerArcadeStageDefinition): void {
     super.setStage(stage);
     applySkyDancerArcadeV15VisualTuning(this.liveScene, stage);
+    applySkyDancerArcadeV16Setpieces(this.liveScene, stage);
     const carrier = this.liveScene.getObjectByName(REFERENCE_CARRIER_NAME);
     if (!carrier) return;
     carrier.visible = false;
