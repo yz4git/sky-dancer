@@ -24,7 +24,7 @@ function enemy(kind: SkyDancerArcadeEnemySnapshot["kind"]): SkyDancerArcadeEnemy
     boss: kind === "boss",
     phase: 0,
     maneuver: "approach",
-    role: kind === "boss" ? "climax" : "pressure",
+    role: kind === "boss" ? "climax" : "skirmisher",
     armor: 0,
     maxArmor: 0,
     bossPhase: 1,
