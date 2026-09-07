@@ -3,7 +3,7 @@ import type { SkyDancerArcadeStageDefinition } from "./SkyDancerArcadeData";
 
 const CHUNK_VERTEX_OFFSETS: Partial<Record<SkyDancerArcadeStageDefinition["biome"], number>> = {
   canyon: 4.5,
-  ice: 7.5,
+  ice: 10.5,
   volcano: 10.5,
 };
 
@@ -34,7 +34,7 @@ export function skyDancerArcadeV15OrbitCueVisible(index: number): boolean {
 
 export function skyDancerArcadeV15IceFangX(x: number): number {
   if (Math.abs(x) < 1e-5) return x;
-  return x + Math.sign(x) * 6.5;
+  return x + Math.sign(x) * 8.5;
 }
 
 function tuneBakedChunkGeometry(
@@ -64,12 +64,12 @@ function tuneBakedChunkGeometry(
 function tuneIceCues(scene: THREE.Scene): void {
   for (const fang of scene.getObjectsByProperty("name", "arcade-ice-pressure-fang")) {
     fang.position.x = skyDancerArcadeV15IceFangX(fang.position.x);
-    fang.scale.setScalar(.78);
+    fang.scale.setScalar(.74);
     fang.userData.arcadeV15IcePressureOutsideHeroLine = true;
   }
   for (const arch of scene.getObjectsByProperty("name", "arcade-ice-wave-arch")) {
-    if (Math.abs(arch.position.x) > 1e-5) arch.position.x += Math.sign(arch.position.x) * 3.5;
-    arch.scale.setScalar(.9);
+    if (Math.abs(arch.position.x) > 1e-5) arch.position.x += Math.sign(arch.position.x) * 4.5;
+    arch.scale.setScalar(.88);
     arch.userData.arcadeV15OpenIceRib = true;
   }
 }
