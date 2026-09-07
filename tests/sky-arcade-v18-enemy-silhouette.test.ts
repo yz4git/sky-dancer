@@ -38,6 +38,7 @@ test("V18 gives every normal enemy a dedicated aircraft silhouette", () => {
     const group = createSkyDancerArcadeEnemy(stage, snapshot(kind, index + 1));
     assert.equal(group.userData.arcadeEnemySilhouetteV18, true, kind);
     assert.equal(group.userData.arcadeEnemyLogicalCollisionUnchangedV18, true, kind);
+    assert.equal(group.userData.arcadeEnemyBodyReadabilityV18, true, kind);
     assert.ok(typeof group.userData.arcadeEnemySilhouetteIdentityV18 === "string", kind);
     identities.add(group.userData.arcadeEnemySilhouetteIdentityV18 as string);
     assert.equal(group.getObjectByName("arcade-enemy-visibility-beacons"), undefined, `${kind} still exposes the old square beacon`);
@@ -58,11 +59,12 @@ test("V18 airframes retain real nose-to-tail volume instead of reducing to a scr
   }
 });
 
-test("V18 visibility points are circular shader sprites, not square PointsMaterial blocks", () => {
+test("V18 visibility points are circular and subordinate to the aircraft body", () => {
   const fighter = createSkyDancerArcadeEnemy(stage, snapshot("fighter", 99));
   const beacons = fighter.getObjectByName("arcade-enemy-v18-round-beacons");
   assert.ok(beacons instanceof THREE.Points);
   assert.ok(beacons.material instanceof THREE.ShaderMaterial);
-  assert.match(beacons.material.vertexShader, /gl_PointSize=6\.0/);
+  assert.match(beacons.material.vertexShader, /gl_PointSize=4\.2/);
   assert.match(beacons.material.fragmentShader, /if\(r>1\.0\)discard/);
+  assert.equal(beacons.userData.arcadeEnemyBeaconPointSizeV18, 4.2);
 });
