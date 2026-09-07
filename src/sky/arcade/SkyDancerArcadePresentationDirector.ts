@@ -11,6 +11,12 @@ export interface SkyDancerArcadePresentationSignals {
   stageEventSerial?: number;
   armorBreaks?: number;
   formationBreaks?: number;
+  chain?: number;
+  timelineIntensity?: number;
+  combatDirectorIntensity?: number;
+  combatDirectorSerial?: number;
+  combatDirectorMode?: string;
+  encounterGrammarSerial?: number;
 }
 
 export interface SkyDancerArcadePresentationFrame {
@@ -33,9 +39,12 @@ const clamp01 = (value: number) => Math.max(0, Math.min(1, value));
 const decay = (value: number, delta: number, speed: number) => Math.max(0, value - delta * speed);
 
 /**
- * V9.5 Presentation Overdrive.
- * Converts discrete runtime events into short, overlapping cinematic envelopes without
- * changing hitboxes, movement, enemy logic, scoring, or timing authority.
+ * V13 Flagship Presentation.
+ *
+ * Discrete impact envelopes remain presentation-only, but the director now also reads the
+ * player's live combat flow. A strong chain in a high-intensity course beat gradually widens
+ * the camera and lifts bloom/exposure, so excellent play feels like the game has entered its
+ * trailer shot without altering simulation, hitboxes or timing authority.
  */
 export class SkyDancerArcadePresentationDirector {
   private turboKick = 0;
@@ -50,6 +59,9 @@ export class SkyDancerArcadePresentationDirector {
   private stageBeat = 0;
   private armorBreak = 0;
   private formationBreak = 0;
+  private directorShift = 0;
+  private encounterBeat = 0;
+  private flow = 0;
 
   reset(): void {
     this.turboKick = 0;
@@ -64,6 +76,9 @@ export class SkyDancerArcadePresentationDirector {
     this.stageBeat = 0;
     this.armorBreak = 0;
     this.formationBreak = 0;
+    this.directorShift = 0;
+    this.encounterBeat = 0;
+    this.flow = 0;
   }
 
   update(
@@ -84,10 +99,19 @@ export class SkyDancerArcadePresentationDirector {
     if ((current.stageEventSerial ?? 0) !== (previous.stageEventSerial ?? 0)) this.stageBeat = 1;
     if ((current.armorBreaks ?? 0) > (previous.armorBreaks ?? 0)) this.armorBreak = 1;
     if ((current.formationBreaks ?? 0) > (previous.formationBreaks ?? 0)) this.formationBreak = 1;
+    if ((current.combatDirectorSerial ?? 0) !== (previous.combatDirectorSerial ?? 0)) this.directorShift = 1;
+    if ((current.encounterGrammarSerial ?? 0) !== (previous.encounterGrammarSerial ?? 0)) this.encounterBeat = 1;
 
     const rushTarget = current.turboActive ? 1 : 0;
-    const response = 1 - Math.exp(-dt * (rushTarget > this.rush ? 8.5 : 4.4));
-    this.rush += (rushTarget - this.rush) * response;
+    const rushResponse = 1 - Math.exp(-dt * (rushTarget > this.rush ? 8.5 : 4.4));
+    this.rush += (rushTarget - this.rush) * rushResponse;
+
+    const chainFlow = clamp01(((current.chain ?? 0) - 2) / 10);
+    const authoredIntensity = clamp01((current.timelineIntensity ?? .5) * .72 + (current.combatDirectorIntensity ?? .5) * .28);
+    const flagshipMode = current.combatDirectorMode === "showcase-break" || current.combatDirectorMode === "climax-push";
+    const flowTarget = clamp01(chainFlow * (.38 + authoredIntensity * .62) + (flagshipMode ? .28 : 0));
+    const flowResponse = 1 - Math.exp(-dt * (flowTarget > this.flow ? 4.8 : 2.3));
+    this.flow += (flowTarget - this.flow) * flowResponse;
 
     const turboKick = this.turboKick;
     const nearMiss = this.nearMiss;
@@ -100,7 +124,10 @@ export class SkyDancerArcadePresentationDirector {
     const stageBeat = this.stageBeat;
     const armorBreak = this.armorBreak;
     const formationBreak = this.formationBreak;
-    const rush = clamp01(this.rush + turboKick * .24 + nearMiss * .12 + kill * .08 + stageBeat * .08 + formationBreak * .07);
+    const directorShift = this.directorShift;
+    const encounterBeat = this.encounterBeat;
+    const flow = clamp01(this.flow);
+    const rush = clamp01(this.rush + turboKick * .24 + nearMiss * .12 + kill * .08 + stageBeat * .08 + formationBreak * .07 + flow * .24 + directorShift * .08);
 
     const frame: SkyDancerArcadePresentationFrame = {
       rush,
@@ -111,11 +138,11 @@ export class SkyDancerArcadePresentationDirector {
       kill,
       boss,
       transition,
-      fovKick: turboKick * 5.2 + nearMiss * 2.1 + kill * 1.25 + boss * 1.5 + bossPhase * 3.4 + stageBeat * 2.7 + armorBreak * 1.6 + formationBreak * 1.9,
-      cameraShake: nearMiss * .12 + impact * .045 + damage * .22 + kill * .07 + boss * .085 + bossPhase * .13 + stageBeat * .1 + armorBreak * .08 + formationBreak * .06,
-      pullback: turboKick * .7 + boss * .5 + transition * .35 + bossPhase * .82 + stageBeat * .42,
-      bloomBoost: rush * .09 + impact * .07 + kill * .11 + boss * .08 + transition * .07 + bossPhase * .11 + stageBeat * .08 + armorBreak * .13 + formationBreak * .08,
-      exposureBoost: turboKick * .04 + impact * .035 + kill * .055 + transition * .045 + bossPhase * .05 + stageBeat * .04 + armorBreak * .055,
+      fovKick: turboKick * 5.2 + nearMiss * 2.1 + kill * 1.25 + boss * 1.5 + bossPhase * 3.4 + stageBeat * 2.7 + armorBreak * 1.6 + formationBreak * 1.9 + directorShift * 2.15 + encounterBeat * 1.25 + flow * 1.35,
+      cameraShake: nearMiss * .12 + impact * .045 + damage * .22 + kill * .07 + boss * .085 + bossPhase * .13 + stageBeat * .1 + armorBreak * .08 + formationBreak * .06 + directorShift * .045 + encounterBeat * .025 + flow * .018,
+      pullback: turboKick * .7 + boss * .5 + transition * .35 + bossPhase * .82 + stageBeat * .42 + directorShift * .34 + flow * .42,
+      bloomBoost: rush * .09 + impact * .07 + kill * .11 + boss * .08 + transition * .07 + bossPhase * .11 + stageBeat * .08 + armorBreak * .13 + formationBreak * .08 + directorShift * .08 + encounterBeat * .045 + flow * .075,
+      exposureBoost: turboKick * .04 + impact * .035 + kill * .055 + transition * .045 + bossPhase * .05 + stageBeat * .04 + armorBreak * .055 + directorShift * .035 + flow * .032,
     };
 
     this.turboKick = decay(this.turboKick, dt, 3.8);
@@ -129,6 +156,8 @@ export class SkyDancerArcadePresentationDirector {
     this.stageBeat = decay(this.stageBeat, dt, 2.3);
     this.armorBreak = decay(this.armorBreak, dt, 4.4);
     this.formationBreak = decay(this.formationBreak, dt, 3.5);
+    this.directorShift = decay(this.directorShift, dt, 2.8);
+    this.encounterBeat = decay(this.encounterBeat, dt, 4.1);
     return frame;
   }
 }
