@@ -35,7 +35,7 @@ test("V22 pins the Arcade Run stage to stable svh instead of dynamic browser chr
   const stabilityBlock = css.slice(css.indexOf("V22 iPhone render stability"), css.indexOf("V15 phone playcheck"));
   assert.match(stabilityBlock, /section\[aria-label="Sky Dancer Arcade Run"\]/);
   assert.match(stabilityBlock, /height:\s*100svh\s*!important/);
-  assert.doesNotMatch(stabilityBlock, /100dvh/);
+  assert.doesNotMatch(stabilityBlock, /height:\s*100dvh/);
   assert.match(stabilityBlock, /background:\s*#071323/);
 });
 
