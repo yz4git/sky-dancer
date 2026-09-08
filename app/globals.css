@@ -95,3 +95,109 @@ button { font: inherit; cursor: pointer; }
     color: #baffdc;
   }
 }
+
+/* V23 844x390 playcheck: preserve touch targets, but let the aircraft, enemies and route carry
+   the picture. Secondary telemetry is hidden only on compact landscape phones. */
+@media (orientation: landscape) and (max-height: 520px) {
+  section[aria-label="Sky Dancer Arcade Run"] > header {
+    top: max(8px, env(safe-area-inset-top)) !important;
+    left: max(22px, env(safe-area-inset-left)) !important;
+    right: max(86px, calc(env(safe-area-inset-right) + 72px)) !important;
+    grid-template-columns: minmax(150px, 1fr) auto auto !important;
+    gap: 16px !important;
+  }
+  section[aria-label="Sky Dancer Arcade Run"] > header > div:first-child > small,
+  section[aria-label="Sky Dancer Arcade Run"] > header > div:first-child > span,
+  section[aria-label="Sky Dancer Arcade Run"] > header > div:nth-child(2) > small,
+  section[aria-label="Sky Dancer Arcade Run"] > header > div:nth-child(2) > span,
+  section[aria-label="Sky Dancer Arcade Run"] > header > div:last-child > small {
+    display: none !important;
+  }
+  section[aria-label="Sky Dancer Arcade Run"] > header > div:first-child > strong {
+    margin-top: 0 !important;
+    font-size: 12px !important;
+    letter-spacing: .11em !important;
+  }
+  section[aria-label="Sky Dancer Arcade Run"] > header > div:nth-child(2) {
+    transform: none !important;
+  }
+  section[aria-label="Sky Dancer Arcade Run"] > header > div:nth-child(2) > strong {
+    font-size: 20px !important;
+  }
+  section[aria-label="Sky Dancer Arcade Run"] > header > div:last-child > strong {
+    margin-top: 0 !important;
+    font-size: 17px !important;
+  }
+  section[aria-label="Sky Dancer Arcade Run"] [aria-label^="Section "] {
+    margin-top: 6px !important;
+    transform: scale(.78) !important;
+    transform-origin: left top;
+    opacity: .68;
+  }
+
+  [aria-label="Flight status"] {
+    width: min(188px, 25vw) !important;
+    bottom: max(9px, calc(env(safe-area-inset-bottom) + 5px)) !important;
+    opacity: .82;
+  }
+  [aria-label="Flight status"] > [data-loadout] {
+    display: none !important;
+  }
+  [aria-label="Flight status"] > div:first-child > div {
+    margin-bottom: 3px !important;
+  }
+  [aria-label="Flight status"] > div:first-child > div span {
+    font-size: 7px !important;
+  }
+  [aria-label="Flight status"] > div:first-child > div strong {
+    font-size: 10px !important;
+  }
+  [aria-label="Flight status"] > div:first-child > i {
+    height: 7px !important;
+    margin-top: 0 !important;
+  }
+  [aria-label="Flight status"] > div:first-child > small {
+    display: none !important;
+  }
+
+  [aria-label="Arcade combat controls"] button {
+    background: radial-gradient(circle, rgba(111,182,211,.13), rgba(21,54,75,.10)) !important;
+    box-shadow: inset 0 0 16px rgba(163,233,255,.05), 0 1px 5px rgba(20,49,65,.14) !important;
+    outline-color: rgba(206,246,255,.09) !important;
+  }
+  [aria-label="Arcade combat controls"] button small {
+    display: none !important;
+  }
+  [aria-label="Arcade combat controls"] button svg {
+    opacity: .8;
+  }
+  [aria-label="Flight stick"] > div {
+    opacity: .64;
+    box-shadow: 0 0 0 4px rgba(224,250,255,.025), inset 0 0 0 8px rgba(222,250,255,.025) !important;
+  }
+  [aria-label="Flight stick"] span {
+    display: none !important;
+  }
+
+  section[aria-label="Sky Dancer Arcade Run"] [class*="routeOverlay"] {
+    width: min(300px, 36vw) !important;
+    opacity: .86;
+  }
+  section[aria-label="Sky Dancer Arcade Run"] [class*="routeOverlay"] > small {
+    display: none !important;
+  }
+  section[aria-label="Sky Dancer Arcade Run"] [class*="routeOption"] {
+    background: rgba(5,15,29,.10) !important;
+    border-color: rgba(255,255,255,.06) !important;
+  }
+  section[aria-label="Sky Dancer Arcade Run"] [class*="routeOption"]:not([class*="routeSelected"]) {
+    opacity: .12 !important;
+  }
+  section[aria-label="Sky Dancer Arcade Run"] [class*="routeSelected"] {
+    opacity: .96 !important;
+    background: rgba(12,24,38,.38) !important;
+  }
+  section[aria-label="Sky Dancer Arcade Run"] [class*="rendererBadge"] {
+    display: none !important;
+  }
+}
