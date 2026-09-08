@@ -3,6 +3,7 @@ import type { SkyDancerArcadeStageDefinition } from "./SkyDancerArcadeData";
 import { SkyDancerArcadeReferenceWorld } from "./SkyDancerArcadeReferenceWorld";
 import { applySkyDancerArcadeV15VisualTuning } from "./SkyDancerArcadeV15VisualTuning";
 import { applySkyDancerArcadeV16Setpieces } from "./SkyDancerArcadeV16Setpieces";
+import { applySkyDancerArcadeV23ScreenReview } from "./SkyDancerArcadeV23ScreenReview";
 
 const REFERENCE_CARRIER_NAME = "arcade-horizon-fleet-carrier";
 
@@ -27,6 +28,7 @@ export class SkyDancerArcadeEnvironment extends SkyDancerArcadeReferenceWorld {
     super.setStage(stage);
     applySkyDancerArcadeV15VisualTuning(this.liveScene, stage);
     applySkyDancerArcadeV16Setpieces(this.liveScene, stage);
+    applySkyDancerArcadeV23ScreenReview(this.liveScene, stage);
     const carrier = this.liveScene.getObjectByName(REFERENCE_CARRIER_NAME);
     if (!carrier) return;
     carrier.visible = false;
