@@ -10,6 +10,7 @@ import { arcadeCoursePose, arcadeCourseRelativeVisualPose } from "./SkyDancerArc
 import { ARCADE_SUN_DIRECTION, referenceAtmosphere } from "./SkyDancerArcadeReferenceMaterials";
 import { arcadeGroundSurfaceLocalYV1052, arcadeSharedSceneryAttitudeV1041 } from "./SkyDancerArcadeReferenceWorld";
 import { SkyDancerArcadeV11SetpieceDirector } from "./SkyDancerArcadeV11Setpieces";
+import { skyDancerArcadeV24BankTarget, skyDancerArcadeV24HeadingOffset } from "./SkyDancerArcadeV24FlightDynamics";
 import {
   createSkyDancerArcadeEnemy,
   createSkyDancerArcadeHazard,
@@ -341,14 +342,20 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
       const safeDelta = Math.max(delta, 1 / 120);
       const lateralVelocity = previousEnemy ? (enemy.x - previousEnemy.x) / safeDelta : 0;
       const verticalVelocity = previousEnemy ? (enemy.y - previousEnemy.y) / safeDelta : 0;
-      const targetHeading = enemy.maneuver === "overtake" ? course.yaw : Math.PI + course.yaw;
+      const baseHeading = enemy.maneuver === "overtake" ? course.yaw : Math.PI + course.yaw;
+      const turnHeading = enemy.boss ? 0 : skyDancerArcadeV24HeadingOffset(lateralVelocity, enemy.maneuver);
+      const targetHeading = baseHeading + turnHeading;
       const headingDelta = Math.atan2(Math.sin(targetHeading - group.rotation.y), Math.cos(targetHeading - group.rotation.y));
-      group.rotation.y += headingDelta * Math.min(1, delta * (enemy.maneuver === "overtake" ? 7.5 : 5.8));
-      const targetPitch = course.pitch * .72 + THREE.MathUtils.clamp(verticalVelocity * .035, -.2, .2) + (reaction?.pitch ?? 0);
-      const maneuverBank = THREE.MathUtils.clamp(-lateralVelocity * .095, -.64, .64);
-      const targetBank = maneuverBank + course.bank * .46 + Math.sin(enemy.phase + snapshot.runTimeSeconds * 1.8) * (enemy.boss ? .025 : .08) + (reaction?.roll ?? 0);
-      group.rotation.x += (targetPitch - group.rotation.x) * Math.min(1, delta * 8);
-      group.rotation.z += (targetBank - group.rotation.z) * Math.min(1, delta * 9);
+      // V24: the nose leads the curved trajectory with finite yaw response instead of staying camera-square while strafing.
+      group.rotation.y += headingDelta * Math.min(1, delta * (enemy.maneuver === "overtake" ? 5.4 : 4.6));
+      const turnLift = enemy.boss ? 0 : Math.min(.055, Math.abs(lateralVelocity) * .022);
+      const targetPitch = course.pitch * .72 + THREE.MathUtils.clamp(verticalVelocity * .042, -.24, .24) + turnLift + (reaction?.pitch ?? 0);
+      const maneuverBank = enemy.boss
+        ? THREE.MathUtils.clamp(-lateralVelocity * .095, -.64, .64)
+        : skyDancerArcadeV24BankTarget(lateralVelocity, enemy.maneuver);
+      const targetBank = maneuverBank + course.bank * .46 + Math.sin(enemy.phase + snapshot.runTimeSeconds * 1.45) * (enemy.boss ? .025 : .045) + (reaction?.roll ?? 0);
+      group.rotation.x += (targetPitch - group.rotation.x) * Math.min(1, delta * 6.5);
+      group.rotation.z += (targetBank - group.rotation.z) * Math.min(1, delta * 6.8);
       let existingRing = group.getObjectByName("arcade-lock-ring");
       if (enemy.locked && !existingRing) {
         group.add(createSkyDancerArcadeLockRing(0xff3970));
