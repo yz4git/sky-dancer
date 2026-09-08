@@ -35,5 +35,5 @@ test("V24 visual attitude points and banks into lateral motion", () => {
   assert.ok(skyDancerArcadeV24HeadingOffset(1.5, "close-bank") > 0.2);
   assert.ok(skyDancerArcadeV24BankTarget(1.5, "close-bank") < -0.2);
   assert.equal(skyDancerArcadeV24HeadingOffset(0, "approach"), 0);
-  assert.equal(skyDancerArcadeV24BankTarget(0, "approach"), 0);
+  assert.ok(Math.abs(skyDancerArcadeV24BankTarget(0, "approach")) < 1e-12);
 });
