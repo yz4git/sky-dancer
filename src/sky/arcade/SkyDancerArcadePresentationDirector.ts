@@ -39,12 +39,12 @@ const clamp01 = (value: number) => Math.max(0, Math.min(1, value));
 const decay = (value: number, delta: number, speed: number) => Math.max(0, value - delta * speed);
 
 /**
- * V14 Hero Flow presentation.
+ * V21 screen-stability presentation pass.
  *
- * V13 made excellent play more cinematic. V14 gives that rise a middle gear and makes the
- * camera more composed as FLOW increases: FOV, pullback and light still open up, while small
- * incidental shake is damped so a successful run feels fast rather than unstable on a phone.
- * Damage, boss phases and major impacts still retain their authored punch.
+ * Hero Flow still opens the camera and keeps authored setpiece/boss accents, but routine bullet
+ * hits and ordinary kills no longer brighten the whole framebuffer. Their punch stays in local
+ * detonation geometry, aircraft reaction, audio and camera motion instead of repeated exposure
+ * spikes that read as screen flicker on iPhone.
  */
 export class SkyDancerArcadePresentationDirector {
   private turboKick = 0;
@@ -159,8 +159,8 @@ export class SkyDancerArcadePresentationDirector {
       fovKick: Math.min(10.8, turboKick * 5.2 + nearMiss * 2.1 + kill * 1.25 + boss * 1.5 + bossPhase * 3.4 + stageBeat * 2.7 + armorBreak * 1.6 + formationBreak * 1.9 + directorShift * 2.15 + encounterBeat * 1.25 + flow * 1.55),
       cameraShake: Math.min(.34, rawShake * flowStability),
       pullback: Math.min(3.2, turboKick * .7 + boss * .5 + transition * .35 + bossPhase * .82 + stageBeat * .42 + directorShift * .34 + flow * .52),
-      bloomBoost: Math.min(.48, rush * .09 + impact * .07 + kill * .11 + boss * .08 + transition * .07 + bossPhase * .11 + stageBeat * .08 + armorBreak * .13 + formationBreak * .08 + directorShift * .08 + encounterBeat * .045 + flow * .085),
-      exposureBoost: Math.min(.26, turboKick * .04 + impact * .035 + kill * .055 + transition * .045 + bossPhase * .05 + stageBeat * .04 + armorBreak * .055 + directorShift * .035 + flow * .038),
+      bloomBoost: Math.min(.34, rush * .075 + impact * .018 + kill * .028 + boss * .075 + transition * .055 + bossPhase * .09 + stageBeat * .065 + armorBreak * .12 + formationBreak * .06 + directorShift * .06 + encounterBeat * .035 + flow * .07),
+      exposureBoost: Math.min(.14, turboKick * .025 + transition * .03 + bossPhase * .035 + stageBeat * .025 + armorBreak * .028 + directorShift * .02 + flow * .02),
     };
 
     this.turboKick = decay(this.turboKick, dt, 3.8);

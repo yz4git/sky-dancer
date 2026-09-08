@@ -6,6 +6,40 @@ const ZERO_FX: SkyDancerArcadePresentationFrame = {
   fovKick: 0, cameraShake: 0, pullback: 0, bloomBoost: 0, exposureBoost: 0,
 };
 
+export const SKY_DANCER_ARCADE_SUPPRESSED_SCREEN_FLASH_OBJECTS_V21 = [
+  "arcade-climax-flash-v5",
+  "arcade-climax-shock-ring-v51",
+] as const;
+
+export interface SkyDancerArcadeCinematicPostFxV21 {
+  bloomStrength: number;
+  rushStrength: number;
+  impactStrength: number;
+  damageStrength: number;
+  bossStrength: number;
+  transitionStrength: number;
+  exposureBoost: number;
+}
+
+/**
+ * V21 hard-bounds whole-frame light changes so dense combat cannot turn ordinary hits/kills
+ * into brightness flicker. Local explosion meshes remain untouched and carry the impact instead.
+ */
+export function skyDancerArcadeCinematicPostFxV21(
+  turbo: boolean,
+  fx: SkyDancerArcadePresentationFrame = ZERO_FX,
+): SkyDancerArcadeCinematicPostFxV21 {
+  return {
+    bloomStrength: Math.min(.5, (turbo ? .36 : .22) + Math.min(.24, Math.max(0, fx.bloomBoost))),
+    rushStrength: Math.min(1, Math.max(0, fx.rush)),
+    impactStrength: Math.min(.42, Math.max(Math.max(0, fx.impact) * .42, Math.max(0, fx.kill) * .26)),
+    damageStrength: Math.min(1, Math.max(0, fx.damage)),
+    bossStrength: Math.min(1, Math.max(0, fx.boss)),
+    transitionStrength: Math.min(1, Math.max(0, fx.transition)),
+    exposureBoost: Math.min(.1, Math.max(0, fx.exposureBoost)),
+  };
+}
+
 /**
  * Single bounded HDR target and nine-tap highlight composite.
  * V9.5 adds only two velocity-color taps and scalar uniforms: no bloom pyramid, blur veil,
@@ -75,14 +109,28 @@ export class SkyDancerArcadeCinematicRenderer {
   }
 
   render(scene:THREE.Scene,camera:THREE.Camera,turbo:boolean,fx:SkyDancerArcadePresentationFrame=ZERO_FX):void {
-    this.material.uniforms.bloomStrength.value=(turbo?.36:.22)+fx.bloomBoost;
-    this.material.uniforms.rushStrength.value=fx.rush;
-    this.material.uniforms.impactStrength.value=Math.max(fx.impact,fx.kill*.72);
-    this.material.uniforms.damageStrength.value=fx.damage;
-    this.material.uniforms.bossStrength.value=fx.boss;
-    this.material.uniforms.transitionStrength.value=fx.transition;
-    this.material.uniforms.exposureBoost.value=fx.exposureBoost;
-    this.renderer.setRenderTarget(this.target);this.renderer.render(scene,camera);
+    const postFx=skyDancerArcadeCinematicPostFxV21(turbo,fx);
+    this.material.uniforms.bloomStrength.value=postFx.bloomStrength;
+    this.material.uniforms.rushStrength.value=postFx.rushStrength;
+    this.material.uniforms.impactStrength.value=postFx.impactStrength;
+    this.material.uniforms.damageStrength.value=postFx.damageStrength;
+    this.material.uniforms.bossStrength.value=postFx.bossStrength;
+    this.material.uniforms.transitionStrength.value=postFx.transitionStrength;
+    this.material.uniforms.exposureBoost.value=postFx.exposureBoost;
+
+    // Legacy presentation still owns two camera-facing additive meshes that intentionally filled
+    // the viewport. They are now suppressed at render time: world-space detonation flashes/rings,
+    // sparks, smoke, debris and boss destruction all remain visible without a full-screen blink.
+    const suppressed=SKY_DANCER_ARCADE_SUPPRESSED_SCREEN_FLASH_OBJECTS_V21
+      .map((name)=>scene.getObjectByName(name))
+      .filter((object):object is THREE.Object3D=>Boolean(object));
+    const visibility=suppressed.map((object)=>object.visible);
+    for(const object of suppressed)object.visible=false;
+    try {
+      this.renderer.setRenderTarget(this.target);this.renderer.render(scene,camera);
+    } finally {
+      suppressed.forEach((object,index)=>{object.visible=visibility[index];});
+    }
     this.renderer.setRenderTarget(null);this.renderer.render(this.scene,this.camera);
   }
 
