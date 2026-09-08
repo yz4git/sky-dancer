@@ -1,0 +1,26 @@
+name: Apply V24 Cross Pass Margin Once
+
+on:
+  push:
+    branches: [arcade-run-v24-aircraft-behavior-20260908]
+    paths:
+      - ".github/v24-cross-pass-margin.py"
+      - ".github/workflows/v24-cross-pass-margin-once.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: arcade-run-v24-aircraft-behavior-20260908
+      - run: python3 .github/v24-cross-pass-margin.py
+      - run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/sky/arcade/SkyDancerArcadeRuntime.ts
+          git commit -m "Arcade Run V24: strengthen cross-pass altitude separation"
+          git push origin HEAD:arcade-run-v24-aircraft-behavior-20260908
