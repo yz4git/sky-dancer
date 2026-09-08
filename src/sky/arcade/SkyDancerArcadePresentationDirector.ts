@@ -159,7 +159,7 @@ export class SkyDancerArcadePresentationDirector {
       fovKick: Math.min(10.8, turboKick * 5.2 + nearMiss * 2.1 + kill * 1.25 + boss * 1.5 + bossPhase * 3.4 + stageBeat * 2.7 + armorBreak * 1.6 + formationBreak * 1.9 + directorShift * 2.15 + encounterBeat * 1.25 + flow * 1.55),
       cameraShake: Math.min(.34, rawShake * flowStability),
       pullback: Math.min(3.2, turboKick * .7 + boss * .5 + transition * .35 + bossPhase * .82 + stageBeat * .42 + directorShift * .34 + flow * .52),
-      bloomBoost: Math.min(.34, rush * .075 + impact * .018 + kill * .028 + boss * .075 + transition * .055 + bossPhase * .09 + stageBeat * .065 + armorBreak * .1 + formationBreak * .06 + directorShift * .06 + encounterBeat * .035 + flow * .07),
+      bloomBoost: Math.min(.34, rush * .075 + impact * .018 + kill * .028 + boss * .075 + transition * .055 + bossPhase * .09 + stageBeat * .065 + armorBreak * .12 + formationBreak * .06 + directorShift * .06 + encounterBeat * .035 + flow * .07),
       exposureBoost: Math.min(.14, turboKick * .025 + transition * .03 + bossPhase * .035 + stageBeat * .025 + armorBreak * .028 + directorShift * .02 + flow * .02),
     };
 
