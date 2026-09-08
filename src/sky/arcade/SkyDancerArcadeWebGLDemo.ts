@@ -124,7 +124,12 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
   private readonly audio = new SkyDancerArcadeAudio();
   private readonly resizeObserver: ResizeObserver;
   private animationFrame = 0;
+  private resizeFrame = 0;
+  private contextRecoveryTimer = 0;
   private disposed = false;
+  private contextLost = false;
+  private renderWidth = 0;
+  private renderHeight = 0;
   private lastFrame = 0;
   private accumulator = 0;
   private snapshotClock = 0;
@@ -161,9 +166,12 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.08;
-    this.renderer.setPixelRatio(Math.min(1.6, window.devicePixelRatio || 1));
+    const compactLandscape = window.innerWidth > window.innerHeight && window.innerHeight <= 520;
+    this.renderer.setPixelRatio(Math.min(compactLandscape ? 1.4 : 1.6, window.devicePixelRatio || 1));
     this.renderer.domElement.className = "sky-dancer-arcade-canvas";
     this.renderer.domElement.setAttribute("aria-label", "Sky Dancer Arcade Run WebGL game view");
+    this.renderer.domElement.addEventListener("webglcontextlost", this.handleContextLost, false);
+    this.renderer.domElement.addEventListener("webglcontextrestored", this.handleContextRestored, false);
     mount.appendChild(this.renderer.domElement);
 
     this.camera.position.set(0, 5.2, 15.8);
@@ -187,16 +195,48 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
     this.scene.userData.arcadeProductReference = "docs/arcade-run-product-reference.png";
     this.buildBranchGates(this.previousSnapshot);
 
-    this.resizeObserver = new ResizeObserver(() => this.resize());
+    this.resizeObserver = new ResizeObserver(() => this.scheduleResize());
     this.resizeObserver.observe(mount);
-    this.resize();
+    this.resize(true);
     this.onSnapshot(this.previousSnapshot);
     this.lastFrame = performance.now();
     this.animationFrame = requestAnimationFrame(this.frame);
   }
 
+  private readonly handleContextLost = (event: Event): void => {
+    event.preventDefault();
+    if (this.disposed) return;
+    this.contextLost = true;
+    this.lastFrame = performance.now();
+    if (this.contextRecoveryTimer) window.clearTimeout(this.contextRecoveryTimer);
+    this.contextRecoveryTimer = window.setTimeout(() => {
+      this.contextRecoveryTimer = 0;
+      if (!this.contextLost || this.disposed) return;
+      this.onRuntimeFailure(
+        "3D描画の復旧に時間がかかったためCanvas表示へ切り替えます。",
+        new Error("Sky Dancer Arcade WebGL context did not recover"),
+      );
+    }, 1800);
+  };
+
+  private readonly handleContextRestored = (): void => {
+    if (this.disposed) return;
+    this.contextLost = false;
+    if (this.contextRecoveryTimer) {
+      window.clearTimeout(this.contextRecoveryTimer);
+      this.contextRecoveryTimer = 0;
+    }
+    this.lastFrame = performance.now();
+    this.resize(true);
+  };
+
   private readonly frame = (now: number): void => {
     if (this.disposed) return;
+    if (this.contextLost) {
+      this.lastFrame = now;
+      this.animationFrame = requestAnimationFrame(this.frame);
+      return;
+    }
     try {
       const elapsed = Math.min(0.1, Math.max(0, (now - this.lastFrame) / 1000));
       this.lastFrame = now;
@@ -759,9 +799,23 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
     this.camera.rotateZ(this.cameraRoll);
   }
 
-  private resize(): void {
-    const width = Math.max(1, this.mount.clientWidth);
-    const height = Math.max(1, this.mount.clientHeight);
+  private scheduleResize(): void {
+    if (this.disposed || this.resizeFrame) return;
+    this.resizeFrame = requestAnimationFrame(() => {
+      this.resizeFrame = 0;
+      this.resize();
+    });
+  }
+
+  private resize(force = false): void {
+    const width = Math.max(1, Math.round(this.mount.clientWidth));
+    const height = Math.max(1, Math.round(this.mount.clientHeight));
+    // Safari may briefly report a collapsed visual viewport while browser chrome animates.
+    // Preserve the last valid WebGL backing store instead of clearing it to 1x1 for one frame.
+    if (width < 64 || height < 64) return;
+    if (!force && width === this.renderWidth && height === this.renderHeight) return;
+    this.renderWidth = width;
+    this.renderHeight = height;
     this.renderer.setSize(width, height, false);
     this.cinematic.resize(width, height);
     this.camera.aspect = width / height;
@@ -837,7 +891,11 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
     if (this.disposed) return;
     this.disposed = true;
     cancelAnimationFrame(this.animationFrame);
+    if (this.resizeFrame) cancelAnimationFrame(this.resizeFrame);
+    if (this.contextRecoveryTimer) window.clearTimeout(this.contextRecoveryTimer);
     this.resizeObserver.disconnect();
+    this.renderer.domElement.removeEventListener("webglcontextlost", this.handleContextLost, false);
+    this.renderer.domElement.removeEventListener("webglcontextrestored", this.handleContextRestored, false);
     this.audio.dispose();
     this.presentation.dispose();
     this.environment.dispose();
