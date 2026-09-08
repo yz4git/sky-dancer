@@ -247,6 +247,77 @@ function buildMissileBoat(group: THREE.Group, mat: Materials): { span: number; r
   return { span: 3.48, rearZ: 1.1, baseScale: .67 };
 }
 
+function buildDrone(group: THREE.Group, mat: Materials): { span: number; rearZ: number; baseScale: number } {
+  // Compact unmanned flying wing: no canopy, almost all silhouette is a faceted lambda wing.
+  add(group, loft([
+    [-2.75, .02, .02, 0], [-1.65, .22, .1, .01], [-.35, .48, .2, 0],
+    [.95, .38, .16, -.03], [1.65, .12, .07, -.04],
+  ], 8), mat.dark);
+  addWingPair(group, [[.18, -1.45], [3.15, -.18], [2.42, 1.2], [.48, .68]], mat.body, .105, .015);
+  addWingPair(group, [[.32, -.9], [2.5, -.03], [1.9, .68], [.52, .42]], mat.secondary, .035, .13);
+  addWingPair(group, [[.18, .58], [.95, 1.28], [.7, 1.62], [.16, 1.12]], mat.dark, .06, .05);
+  bakeArcadeAirframe(group);
+  addEngineGlow(group, 0, -.04, 1.72, .24, mat.hot);
+  return { span: 3.0, rearZ: .72, baseScale: .43 };
+}
+
+function buildStriker(group: THREE.Group, mat: Materials): { span: number; rearZ: number; baseScale: number } {
+  // Attack craft: thick center body, forward canards and clipped swept wings.
+  add(group, loft([
+    [-4.45, .02, .02, 0], [-3.0, .3, .18, .02], [-1.35, .62, .36, .05],
+    [.45, .8, .42, 0], [1.85, .62, .3, -.05], [2.65, .28, .12, -.06],
+  ], 12), mat.body);
+  addCommonCockpit(group, mat, -2.62, 1.78, .31);
+  addWingPair(group, [[.55, -1.0], [3.75, .48], [3.35, 1.34], [.9, .76]], mat.dark, .16, .015);
+  addWingPair(group, [[.42, -1.82], [1.48, -1.18], [1.28, -.76], [.28, -1.12]], mat.secondary, .07, .11);
+  addWingPair(group, [[.5, 1.12], [1.68, 1.95], [1.34, 2.38], [.38, 1.72]], mat.body, .09, .06);
+  for (const side of [-1, 1]) {
+    add(group, loft([[-.65, .16, .14, 0], [.35, .29, .21, 0], [1.62, .25, .17, 0], [2.2, .12, .08, 0]], 8), mat.dark, side * .78, -.07, .28);
+  }
+  addVerticalFin(group, 0, .2, 1.42, 1.42, 1.34, mat.dark, .3);
+  bakeArcadeAirframe(group);
+  addEngineGlow(group, -.78, -.07, 2.44, .24, mat.hot);
+  addEngineGlow(group, .78, -.07, 2.44, .24, mat.hot);
+  return { span: 3.55, rearZ: .95, baseScale: .58 };
+}
+
+function buildGunship(group: THREE.Group, mat: Materials): { span: number; rearZ: number; baseScale: number } {
+  // Heavy twin-boom gunship: broad shoulders and separated engine nacelles give it a huge readable mass.
+  add(group, loft([
+    [-3.8, .05, .04, 0], [-2.55, .45, .28, .02], [-.9, .9, .5, .03],
+    [.75, 1.08, .52, -.03], [2.35, .78, .34, -.08], [3.05, .38, .16, -.09],
+  ], 12), mat.dark);
+  addCommonCockpit(group, mat, -2.28, 1.7, .4);
+  addWingPair(group, [[.78, -1.3], [4.45, -.05], [4.0, 1.72], [1.2, 1.05]], mat.body, .22, .015);
+  addWingPair(group, [[1.0, -.72], [3.7, .12], [3.36, 1.04], [1.35, .62]], mat.secondary, .05, .18);
+  for (const side of [-1, 1]) {
+    add(group, loft([[-1.25, .2, .16, 0], [-.2, .38, .28, 0], [1.78, .34, .23, 0], [2.75, .17, .1, 0]], 8), mat.body, side * 1.42, -.1, .42);
+    addVerticalFin(group, side * 1.45, .12, 1.75, 1.38, 1.42, mat.dark, .24);
+  }
+  addWingPair(group, [[.7, 1.25], [2.35, 2.3], [1.98, 2.7], [.55, 1.86]], mat.dark, .13, .04);
+  bakeArcadeAirframe(group);
+  for (const x of [-1.42, -.52, .52, 1.42]) addEngineGlow(group, x, -.1, 2.82, .21, mat.hot);
+  return { span: 4.25, rearZ: 1.38, baseScale: .76 };
+}
+
+function buildRaider(group: THREE.Group, mat: Materials): { span: number; rearZ: number; baseScale: number } {
+  // Agile gull-wing raider: broken arrow silhouette, twin tails and a pronounced dorsal spine.
+  add(group, loft([
+    [-4.2, .02, .02, 0], [-2.95, .22, .14, .02], [-1.35, .46, .27, .05],
+    [.25, .6, .32, .01], [1.55, .47, .22, -.04], [2.3, .22, .1, -.05],
+  ], 10), mat.secondary);
+  addCommonCockpit(group, mat, -2.62, 1.72, .27);
+  addWingPair(group, [[.35, -.72], [2.08, -.25], [3.5, .72], [3.05, 1.2], [.82, .62]], mat.body, .105, .05);
+  addWingPair(group, [[.48, -.42], [1.95, -.02], [3.0, .68], [2.72, .92], [.9, .42]], mat.secondary, .035, .16);
+  addWingPair(group, [[.38, 1.08], [1.5, 1.92], [1.18, 2.32], [.3, 1.68]], mat.dark, .075, .07);
+  addVerticalFin(group, -.5, .2, 1.3, 1.2, 1.15, mat.dark, .2);
+  addVerticalFin(group, .5, .2, 1.3, 1.2, 1.15, mat.dark, .2);
+  bakeArcadeAirframe(group);
+  addEngineGlow(group, -.52, -.05, 2.34, .22, mat.hot);
+  addEngineGlow(group, .52, -.05, 2.34, .22, mat.hot);
+  return { span: 3.35, rearZ: .8, baseScale: .5 };
+}
+
 function buildAce(group: THREE.Group, mat: Materials): { span: number; rearZ: number; baseScale: number } {
   add(group, loft([
     [-4.7, .02, .02, 0], [-3.35, .23, .14, .02], [-1.8, .5, .27, .04],
@@ -274,31 +345,37 @@ export function createSkyDancerArcadeEnemyAirframeV18(
   const group = new THREE.Group();
   group.name = `arcade-enemy-v18-airframe-${kind}`;
   const mat = materials(stage);
-  const identity = kind === "fighter"
-    ? "swept-delta-fighter"
-    : kind === "interceptor"
-      ? "needle-interceptor"
-      : kind === "bomber"
-        ? "cranked-wing-bomber"
-        : kind === "missile-boat"
-          ? "pod-shoulder-missile-boat"
-          : "forward-swept-ace";
-  const built = kind === "fighter"
-    ? buildFighter(group, mat)
-    : kind === "interceptor"
-      ? buildInterceptor(group, mat)
-      : kind === "bomber"
-        ? buildBomber(group, mat)
-        : kind === "missile-boat"
-          ? buildMissileBoat(group, mat)
-          : buildAce(group, mat);
+  const identity: Record<SkyDancerArcadeEnemyKind, string> = {
+    fighter: "swept-delta-fighter",
+    interceptor: "needle-interceptor",
+    "missile-boat": "pod-shoulder-missile-boat",
+    bomber: "cranked-wing-bomber",
+    ace: "forward-swept-ace",
+    drone: "lambda-flying-wing-drone",
+    striker: "canard-attack-striker",
+    gunship: "twin-boom-heavy-gunship",
+    raider: "gull-wing-raider",
+  };
+  const builders: Record<SkyDancerArcadeEnemyKind, (root: THREE.Group, materials: Materials) => { span: number; rearZ: number; baseScale: number }> = {
+    fighter: buildFighter,
+    interceptor: buildInterceptor,
+    "missile-boat": buildMissileBoat,
+    bomber: buildBomber,
+    ace: buildAce,
+    drone: buildDrone,
+    striker: buildStriker,
+    gunship: buildGunship,
+    raider: buildRaider,
+  };
+  const built = builders[kind](group, mat);
 
   group.add(createRoundBeaconsV18(built.span, built.rearZ));
   group.scale.setScalar(built.baseScale);
   group.userData.arcadeEnemySilhouetteV18 = true;
-  group.userData.arcadeEnemySilhouetteIdentityV18 = identity;
+  group.userData.arcadeEnemySilhouetteIdentityV18 = identity[kind];
   group.userData.arcadeEnemyBaseScaleV18 = built.baseScale;
   group.userData.arcadeEnemySquareBeaconRemovedV18 = true;
   group.userData.arcadeEnemyLogicalCollisionUnchangedV18 = true;
+  group.userData.arcadeEnemyRosterV20 = kind;
   return group;
 }

@@ -88,18 +88,11 @@ export class SkyDancerArcadeCanvasDemo implements SkyDancerArcadeDemoHandle {
     for (const enemy of [...snapshot.enemies].sort((a, b) => b.depth - a.depth)) {
       const projected = this.project(enemy.x, enemy.y, enemy.depth, cssWidth, cssHeight);
       const readabilityScale = skyDancerArcadeEnemyVisualScaleV17(enemy.kind);
-      const size = projected.scale * (enemy.boss ? 28 : enemy.kind === "bomber" ? 16 : 11) * readabilityScale;
+      const size = projected.scale * (enemy.boss ? 28 : enemy.kind === "gunship" ? 18 : enemy.kind === "bomber" ? 16 : enemy.kind === "drone" ? 9.5 : 11) * readabilityScale;
       context.save();
       context.translate(projected.x, projected.y);
       context.fillStyle = `#${palette.enemy.toString(16).padStart(6, "0")}`;
-      context.beginPath();
-      context.moveTo(0, size);
-      context.lineTo(-size * 1.45, -size * 0.42);
-      context.lineTo(-size * 0.28, -size * 0.15);
-      context.lineTo(0, -size);
-      context.lineTo(size * 0.28, -size * 0.15);
-      context.lineTo(size * 1.45, -size * 0.42);
-      context.closePath();
+      this.traceEnemySilhouetteV20(context, enemy.kind, size);
       context.fill();
       if (enemy.locked) {
         context.strokeStyle = `#${palette.accent.toString(16).padStart(6, "0")}`;
@@ -126,6 +119,58 @@ export class SkyDancerArcadeCanvasDemo implements SkyDancerArcadeDemoHandle {
     }
     this.drawPlayer(context, snapshot, cssWidth, cssHeight);
     context.restore();
+  }
+
+  private traceEnemySilhouetteV20(
+    context: CanvasRenderingContext2D,
+    kind: SkyDancerArcadeSnapshot["enemies"][number]["kind"],
+    size: number,
+  ): void {
+    context.beginPath();
+    if (kind === "drone") {
+      context.moveTo(0, size * 1.05);
+      context.lineTo(-size * 1.9, -size * .3);
+      context.lineTo(-size * .34, -size * .12);
+      context.lineTo(0, -size * .76);
+      context.lineTo(size * .34, -size * .12);
+      context.lineTo(size * 1.9, -size * .3);
+    } else if (kind === "gunship") {
+      context.moveTo(0, size * 1.05);
+      context.lineTo(-size * 1.6, size * .18);
+      context.lineTo(-size * 1.75, -size * .52);
+      context.lineTo(-size * .56, -size * .32);
+      context.lineTo(0, -size * .92);
+      context.lineTo(size * .56, -size * .32);
+      context.lineTo(size * 1.75, -size * .52);
+      context.lineTo(size * 1.6, size * .18);
+    } else if (kind === "striker") {
+      context.moveTo(0, size * 1.22);
+      context.lineTo(-size * 1.6, -size * .25);
+      context.lineTo(-size * .48, -size * .18);
+      context.lineTo(-size * .72, -size * .58);
+      context.lineTo(0, -size * 1.05);
+      context.lineTo(size * .72, -size * .58);
+      context.lineTo(size * .48, -size * .18);
+      context.lineTo(size * 1.6, -size * .25);
+    } else if (kind === "raider") {
+      context.moveTo(0, size);
+      context.lineTo(-size * 1.72, -size * .08);
+      context.lineTo(-size * 1.12, -size * .55);
+      context.lineTo(-size * .28, -size * .16);
+      context.lineTo(0, -size);
+      context.lineTo(size * .28, -size * .16);
+      context.lineTo(size * 1.12, -size * .55);
+      context.lineTo(size * 1.72, -size * .08);
+    } else {
+      const width = kind === "bomber" ? 1.6 : kind === "missile-boat" ? 1.55 : kind === "interceptor" ? 1.3 : 1.45;
+      context.moveTo(0, size);
+      context.lineTo(-size * width, -size * .42);
+      context.lineTo(-size * .28, -size * .15);
+      context.lineTo(0, -size);
+      context.lineTo(size * .28, -size * .15);
+      context.lineTo(size * width, -size * .42);
+    }
+    context.closePath();
   }
 
   private drawCourse(context: CanvasRenderingContext2D, snapshot: SkyDancerArcadeSnapshot, width: number, height: number): void {

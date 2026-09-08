@@ -365,11 +365,11 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
         ring.rotation.z = -group.rotation.z;
         ring.rotation.x = this.camera.rotation.x;
       }
-      if (lockRing) lockRing.scale.setScalar(enemy.boss ? 4.2 : enemy.kind === "bomber" ? 1.7 : 1.1);
-      if (aimRing) aimRing.scale.setScalar(enemy.boss ? 3.7 : enemy.kind === "bomber" ? 1.5 : .92);
+      if (lockRing) lockRing.scale.setScalar(enemy.boss ? 4.2 : enemy.kind === "gunship" ? 1.85 : enemy.kind === "bomber" ? 1.7 : 1.1);
+      if (aimRing) aimRing.scale.setScalar(enemy.boss ? 3.7 : enemy.kind === "gunship" ? 1.65 : enemy.kind === "bomber" ? 1.5 : .92);
       if (counterplayRing) {
         const pulse = 1 + Math.sin(snapshot.runTimeSeconds * 15 + enemy.id) * .08;
-        counterplayRing.scale.setScalar((enemy.boss ? 4.75 : enemy.kind === "bomber" ? 2.05 : 1.38) * pulse);
+        counterplayRing.scale.setScalar((enemy.boss ? 4.75 : enemy.kind === "gunship" ? 2.2 : enemy.kind === "bomber" ? 2.05 : 1.38) * pulse);
       }
       if (!enemy.boss) {
         const baseScale = typeof group.userData.arcadeCombatBaseScale === "number" ? group.userData.arcadeCombatBaseScale : group.scale.x;
@@ -579,7 +579,7 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
       if (impact.serial <= this.previousSnapshot.hitSerial) continue;
       const course = arcadeCourseRelativeVisualPose(snapshot.stage, snapshot.distance, impact.depth);
       const position = new THREE.Vector3(impact.x * 8.4 + course.x, 1.2 + impact.y * 4.9 + course.y, course.z);
-      const heavyCraft = impact.kind === "bomber" || impact.kind === "missile-boat";
+      const heavyCraft = impact.kind === "bomber" || impact.kind === "gunship" || impact.kind === "missile-boat";
       this.applyEnemyHitReaction(impact, snapshot, heavyCraft);
       if (impact.armorBreak && impact.reaction !== "none") {
         this.presentation.emitRushAccent();
