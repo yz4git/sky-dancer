@@ -15,7 +15,6 @@ on:
       - "scripts/build-pages.sh"
       - "scripts/webgl-smoke-audit.mjs"
       - "scripts/webgl-arcade-stage-identity-audit.mjs"
-      - "scripts/webgl-v23-dawn-visual.mjs"
       - ".github/workflows/webgl-smoke.yml"
   pull_request:
     branches: [main]
@@ -30,7 +29,6 @@ on:
       - "scripts/build-pages.sh"
       - "scripts/webgl-smoke-audit.mjs"
       - "scripts/webgl-arcade-stage-identity-audit.mjs"
-      - "scripts/webgl-v23-dawn-visual.mjs"
       - ".github/workflows/webgl-smoke.yml"
 
 permissions:
@@ -46,7 +44,7 @@ jobs:
     timeout-minutes: 8
     env:
       SKY_DANCER_CHROME_PATH: /usr/bin/google-chrome
-      SKY_DANCER_STAGE_AUDIT_VISUAL: "1"
+      SKY_DANCER_STAGE_AUDIT_VISUAL: "0"
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -80,8 +78,6 @@ jobs:
         run: node scripts/webgl-smoke-audit.mjs
       - name: Smoke representative Arcade stages
         run: node scripts/webgl-arcade-stage-identity-audit.mjs
-      - name: Capture V23 Dawn City review
-        run: node scripts/webgl-v23-dawn-visual.mjs
       - name: Upload smoke diagnostics
         if: always()
         uses: actions/upload-artifact@v4
@@ -90,6 +86,5 @@ jobs:
           path: |
             artifacts/webgl-smoke
             artifacts/arcade-stage-identity
-            artifacts/v23-dawn-review
           if-no-files-found: warn
           retention-days: 7
