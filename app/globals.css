@@ -11,6 +11,40 @@ html, body, #root { touch-action: none; overscroll-behavior: none; }
 body { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
 button { font: inherit; cursor: pointer; }
 
+/* V22 iPhone render stability: Arcade Run is a fixed game surface, not scroll content. The
+   product stylesheet previously promoted the shell back to 100dvh, so Safari toolbar/visual
+   viewport motion could resize the WebGL backing store during play. Keep the actual stage on
+   the stable small viewport in compact landscape and give a transiently cleared canvas the same
+   dark backing color as the game instead of exposing the browser page. */
+@media (orientation: landscape) and (max-height: 520px) {
+  section[aria-label="Sky Dancer Arcade Run"] {
+    position: fixed !important;
+    inset: 0 !important;
+    width: 100vw !important;
+    height: 100svh !important;
+    min-height: 100svh !important;
+    background: #071323;
+    overflow: hidden;
+  }
+  section[aria-label="Sky Dancer Arcade Run"] > div:first-child {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    background: #071323;
+    overflow: hidden;
+    contain: layout paint size;
+  }
+  .sky-dancer-arcade-canvas {
+    display: block;
+    width: 100% !important;
+    height: 100% !important;
+    background: #071323;
+    -webkit-backface-visibility: hidden;
+    backface-visibility: hidden;
+  }
+}
+
 /* V15 phone playcheck: keep the authored beat name, remove developer telemetry from the
    score sightline, and surface only exceptional director states as a compact product cue. */
 @media (orientation: landscape) and (max-height: 520px) {
