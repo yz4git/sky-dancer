@@ -119,7 +119,7 @@ export function skyDancerArcadeV25Step(
   const turnLoad = Math.abs(bankNorm);
   const climbLoad = Math.max(0, pitchNorm);
   const descentRecovery = Math.max(0, -pitchNorm) * control.energyRecovery * .46;
-  const load = turnLoad * control.turnEnergyCost + climbLoad * control.climbEnergyCost;
+  const load = (turnLoad * control.turnEnergyCost + climbLoad * control.climbEnergyCost) * 1.55;
   // V25.1: an aircraft cannot fully recover energy while it is still pulling hard. Recovery belongs
   // to the unload/descent phase, leaving a readable speed consequence after a sustained turn.
   const aerodynamicLoad = Math.max(turnLoad, climbLoad * .85);
