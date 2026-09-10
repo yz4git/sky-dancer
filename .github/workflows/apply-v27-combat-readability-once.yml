@@ -1,0 +1,32 @@
+name: Apply Arcade V27 Combat Readability Once
+
+on:
+  push:
+    branches: [arcade-run-v27-combat-readability-20260911]
+    paths:
+      - ".github/apply-v27-combat-readability.py"
+      - ".github/workflows/apply-v27-combat-readability-once.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: arcade-run-v27-combat-readability-20260911
+      - name: Apply V27 patch
+        run: python3 .github/apply-v27-combat-readability.py
+      - name: Commit patched runtime and renderer
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/sky/arcade/SkyDancerArcadeRuntime.ts src/sky/arcade/SkyDancerArcadeWebGLDemo.ts src/sky/arcade/SkyDancerArcadeModelsLegacy.ts
+          if git diff --cached --quiet; then
+            echo "V27 patch already applied"
+            exit 0
+          fi
+          git commit -m "Arcade Run V27: combat readability integration"
+          git push origin HEAD:arcade-run-v27-combat-readability-20260911
