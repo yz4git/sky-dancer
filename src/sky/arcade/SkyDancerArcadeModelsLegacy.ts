@@ -128,8 +128,11 @@ export function createSkyDancerArcadeLockRing(color: number): THREE.Group {
   const geometry = new THREE.BufferGeometry();
   geometry.setAttribute("position", new THREE.Float32BufferAttribute([0, 0, 0], 3));
   const material = new THREE.ShaderMaterial({
-    uniforms: { tint: { value: new THREE.Color(color) } },
-    vertexShader: `void main(){gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);gl_PointSize=76.0;}`,
+    uniforms: {
+      tint: { value: new THREE.Color(color) },
+      pointSize: { value: 76 },
+    },
+    vertexShader: `uniform float pointSize;void main(){gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);gl_PointSize=pointSize;}`,
     fragmentShader: `uniform vec3 tint;
       void main(){vec2 p=gl_PointCoord*2.0-1.0;vec2 a=abs(p);
         float h=step(.48,a.x)*step(a.x,.9)*step(.75,a.y)*step(a.y,.9);
@@ -146,6 +149,7 @@ export function createSkyDancerArcadeLockRing(color: number): THREE.Group {
   const marker = new THREE.Points(geometry, material);
   marker.name = "arcade-lock-ring-mesh";
   marker.userData.arcadeEnemyReadabilityV17 = true;
+  marker.userData.arcadeCombatReadabilityV27 = true;
   marker.frustumCulled = false;
   marker.renderOrder = 30;
   group.add(marker);

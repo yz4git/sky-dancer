@@ -11,6 +11,7 @@ import { ARCADE_SUN_DIRECTION, referenceAtmosphere } from "./SkyDancerArcadeRefe
 import { arcadeGroundSurfaceLocalYV1052, arcadeSharedSceneryAttitudeV1041 } from "./SkyDancerArcadeReferenceWorld";
 import { SkyDancerArcadeV11SetpieceDirector } from "./SkyDancerArcadeV11Setpieces";
 import { skyDancerArcadeV25VisualAttitude } from "./SkyDancerArcadeV25CoordinatedFlight";
+import { skyDancerArcadeV27CuePointSize, skyDancerArcadeV27EnemyPresenceScale } from "./SkyDancerArcadeV27CombatReadability";
 import {
   createSkyDancerArcadeEnemy,
   createSkyDancerArcadeHazard,
@@ -42,6 +43,14 @@ interface EnemyHitReaction {
   roll: number;
   flash: number;
   missile: boolean;
+}
+
+function setArcadeCuePointSizeV27(root: THREE.Object3D, pointSize: number): void {
+  root.traverse((object) => {
+    if (!(object instanceof THREE.Points) || !(object.material instanceof THREE.ShaderMaterial)) return;
+    const uniform = object.material.uniforms.pointSize;
+    if (uniform) uniform.value = pointSize;
+  });
 }
 
 class SkyDancerArcadeAudio {
@@ -428,18 +437,28 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
         ring.rotation.z = -group.rotation.z;
         ring.rotation.x = this.camera.rotation.x;
       }
-      if (lockRing) lockRing.scale.setScalar(enemy.boss ? 4.2 : enemy.kind === "gunship" ? 1.85 : enemy.kind === "bomber" ? 1.7 : 1.1);
-      if (aimRing) aimRing.scale.setScalar(enemy.boss ? 3.7 : enemy.kind === "gunship" ? 1.65 : enemy.kind === "bomber" ? 1.5 : .92);
+      if (lockRing) {
+        lockRing.scale.setScalar(1);
+        setArcadeCuePointSizeV27(lockRing, skyDancerArcadeV27CuePointSize(enemy.kind, enemy.boss, enemy.depth, "lock"));
+      }
+      if (aimRing) {
+        aimRing.scale.setScalar(1);
+        setArcadeCuePointSizeV27(aimRing, skyDancerArcadeV27CuePointSize(enemy.kind, enemy.boss, enemy.depth, "aim"));
+      }
       if (counterplayRing) {
-        const pulse = 1 + Math.sin(snapshot.runTimeSeconds * 15 + enemy.id) * .08;
-        counterplayRing.scale.setScalar((enemy.boss ? 4.75 : enemy.kind === "gunship" ? 2.2 : enemy.kind === "bomber" ? 2.05 : 1.38) * pulse);
+        counterplayRing.scale.setScalar(1);
+        const pulse = 1 + Math.sin(snapshot.runTimeSeconds * 12 + enemy.id) * .045;
+        setArcadeCuePointSizeV27(
+          counterplayRing,
+          skyDancerArcadeV27CuePointSize(enemy.kind, enemy.boss, enemy.depth, "counterplay") * pulse,
+        );
       }
       if (!enemy.boss) {
         const baseScale = typeof group.userData.arcadeCombatBaseScale === "number" ? group.userData.arcadeCombatBaseScale : group.scale.x;
-        const extremeCloseClamp = 1 - THREE.MathUtils.clamp((18 - enemy.depth) / 15, 0, 1) * .18;
-        const maneuverPresence = enemy.maneuver === "parallel" || enemy.maneuver === "close-bank" ? 1.035 : 1;
-        const impactPulse = 1 + (reaction?.flash ?? 0) * .055;
-        group.scale.setScalar(baseScale * maneuverPresence * extremeCloseClamp * impactPulse);
+        const closePresenceV27 = skyDancerArcadeV27EnemyPresenceScale(enemy.depth);
+        const maneuverPresence = enemy.maneuver === "parallel" || enemy.maneuver === "close-bank" ? 1.02 : 1;
+        const impactPulse = 1 + (reaction?.flash ?? 0) * .045;
+        group.scale.setScalar(baseScale * maneuverPresence * closePresenceV27 * impactPulse);
         if (enemy.counterplay === "armor-brace") { group.scale.x *= 1.045; group.scale.y *= .96; }
         if (enemy.counterplay === "evasive-roll") group.rotation.z += Math.sin(snapshot.runTimeSeconds * 12 + enemy.id) * .065 * enemy.counterplayIntensity;
       }
