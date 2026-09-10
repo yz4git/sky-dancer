@@ -58,11 +58,14 @@ test("V17 visual enlargement stays presentation-only after the V18 airframe repl
   assert.match(beacons.material.fragmentShader, /if\(r>1\.0\)discard/);
 });
 
-test("V17 lock and aim point sprite keeps the larger fixed phone footprint", () => {
+test("V17 lock point sprite survives V27 distance-aware phone sizing", () => {
   const ring = createSkyDancerArcadeLockRing(0xff3970);
   const marker = ring.getObjectByName("arcade-lock-ring-mesh");
   assert.ok(marker instanceof THREE.Points);
   assert.ok(marker.material instanceof THREE.ShaderMaterial);
-  assert.match(marker.material.vertexShader, /gl_PointSize=76\.0/);
+  assert.match(marker.material.vertexShader, /uniform float pointSize/);
+  assert.match(marker.material.vertexShader, /gl_PointSize=pointSize/);
+  assert.equal(marker.material.uniforms.pointSize.value, 76);
   assert.equal(marker.userData.arcadeEnemyReadabilityV17, true);
+  assert.equal(marker.userData.arcadeCombatReadabilityV27, true);
 });

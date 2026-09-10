@@ -59,6 +59,12 @@ import {
 } from "./SkyDancerArcadeV122EncounterContinuity";
 import { skyDancerArcadeV25ClosureScale, skyDancerArcadeV25Step } from "./SkyDancerArcadeV25CoordinatedFlight";
 import { skyDancerArcadeV26FormationCommand } from "./SkyDancerArcadeV26FormationTactics";
+import {
+  SKY_DANCER_ARCADE_V27_PLAYER_X_LIMIT,
+  SKY_DANCER_ARCADE_V27_PLAYER_Y_LIMIT,
+  skyDancerArcadeV27CloseCombatCrowded,
+  skyDancerArcadeV27DensityCaps,
+} from "./SkyDancerArcadeV27CombatReadability";
 
 export type SkyDancerArcadeStatus =
   | "running"
@@ -328,8 +334,8 @@ interface StageStats {
 }
 
 const PLAYER_MAX_HP = 100;
-const PLAYER_X_LIMIT = 2.2;
-const PLAYER_Y_LIMIT = 1.75;
+const PLAYER_X_LIMIT = SKY_DANCER_ARCADE_V27_PLAYER_X_LIMIT;
+const PLAYER_Y_LIMIT = SKY_DANCER_ARCADE_V27_PLAYER_Y_LIMIT;
 const ENEMY_X_LIMIT = 2.62;
 const ENEMY_Y_LIMIT = 2.05;
 const GUN_COOLDOWN = 0.105;
@@ -945,9 +951,14 @@ export class SkyDancerArcadeRuntime {
     const beat = skyDancerArcadeV11Beat(this.stage.id, progress);
     const bossTime = this.stage.durationSeconds * skyDancerArcadeBossStartProgress(this.stage.id === SKY_DANCER_ARCADE_FINAL_STAGE);
     if (!this.bossSpawned && this.stageTime >= bossTime) this.spawnBoss();
-    // Keep the proven V6.2 readability ceiling; V11 changes cadence/composition, not simultaneous clutter.
-    const enemyCap = this.options.difficulty === "hard" ? 15 : 11;
-    if (!this.bossSpawned && this.encounterPhaseQueue.length === 0 && this.stageTime >= this.nextWaveAt && this.enemies.filter((enemy) => enemy.alive).length < enemyCap) {
+    // V27: total population and, more importantly, near-camera population have separate readability ceilings.
+    const hardV27 = this.options.difficulty === "hard";
+    const densityV27 = skyDancerArcadeV27DensityCaps(hardV27);
+    const closeCrowdedV27 = skyDancerArcadeV27CloseCombatCrowded(
+      this.enemies.filter((enemy) => enemy.alive && !enemy.boss).map((enemy) => enemy.depth),
+      hardV27,
+    );
+    if (!this.bossSpawned && !closeCrowdedV27 && this.encounterPhaseQueue.length === 0 && this.stageTime >= this.nextWaveAt && this.enemies.filter((enemy) => enemy.alive).length < densityV27.enemyCap) {
       this.spawnWave();
       const pressure = this.options.difficulty === "hard" ? 0.84 : 1;
       this.nextWaveAt += this.stage.waveIntervalSeconds * beat.waveIntervalScale * pressure * this.combatDirectorCadenceScale * this.encounterGrammarCadenceScale * (0.84 + this.random() * 0.34);
@@ -994,6 +1005,17 @@ export class SkyDancerArcadeRuntime {
       this.encounterPhaseQueue = [];
       return;
     }
+    const hardV27 = this.options.difficulty === "hard";
+    const crowdedV27 = skyDancerArcadeV27CloseCombatCrowded(
+      this.enemies.filter((enemy) => enemy.alive && !enemy.boss).map((enemy) => enemy.depth),
+      hardV27,
+    );
+    // V27: authored follow-up phases wait briefly if the phone-sized combat corridor is already full.
+    // The phase is delayed, not discarded, so encounter grammar survives while visual pile-ups do not.
+    if (crowdedV27 && this.encounterPhaseQueue.length > 0 && this.encounterPhaseQueue[0].at <= this.stageTime) {
+      this.encounterPhaseQueue[0].at = this.stageTime + .28;
+      return;
+    }
     while (this.encounterPhaseQueue.length > 0 && this.encounterPhaseQueue[0].at <= this.stageTime) {
       const queued = this.encounterPhaseQueue.shift();
       if (!queued) break;
@@ -1038,9 +1060,9 @@ export class SkyDancerArcadeRuntime {
     const hardBonus = this.options.difficulty === "hard" ? 1 : 0;
     const totalTarget = clamp(3 + Math.floor(this.random() * 2) + hardBonus + (beat.intensity > .9 ? 1 : 0) + plan.waveCountDelta, 2, 6);
     const plannedCount = clamp(Math.round(totalTarget * phase.countScale) + phase.countDelta, 1, 4);
-    const enemyCap = this.options.difficulty === "hard" ? 15 : 11;
+    const densityV27 = skyDancerArcadeV27DensityCaps(this.options.difficulty === "hard");
     const aliveNonBoss = this.enemies.filter((enemy) => enemy.alive && !enemy.boss).length;
-    const count = Math.max(0, Math.min(plannedCount, enemyCap - aliveNonBoss));
+    const count = Math.max(0, Math.min(plannedCount, densityV27.enemyCap - aliveNonBoss));
     if (count <= 0) return;
 
     let startIndex = 0;
