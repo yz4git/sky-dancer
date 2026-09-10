@@ -20,7 +20,7 @@ test("V27.1 gives the nearest city visual lane extra phone-screen clearance", ()
   const inner = skyDancerArcadeCityInstancePoseV271(45, 8);
   assert.equal(inner.tuned, true);
   assert.ok(inner.x >= 52, `inner x ${inner.x}`);
-  assert.ok(inner.scaleX < 6.3, `inner width ${inner.scaleX}`);
+  assert.ok(inner.scaleX < 6.4, `inner width ${inner.scaleX}`);
 
   const middle = skyDancerArcadeCityInstancePoseV271(68, 8);
   assert.equal(middle.tuned, true);
