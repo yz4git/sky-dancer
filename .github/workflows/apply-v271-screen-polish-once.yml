@@ -1,5 +1,6 @@
 name: Apply Arcade V27.1 Screen Polish Once
 
+# Retry 2 after aligning the city-width regression threshold with the authored tuning curve.
 on:
   push:
     branches: [arcade-run-v27-1-screen-polish-20260911]
