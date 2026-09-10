@@ -42,16 +42,16 @@ export function skyDancerArcadeV25ControlProfile(
   kind: SkyDancerArcadeEnemyKind | "boss",
 ): SkyDancerArcadeV25ControlProfile {
   switch (kind) {
-    case "drone": return { maxBank: .94, maxPitch: .46, rollRate: 3.8, pitchRate: 2.9, turnAcceleration: 9.6, climbAcceleration: 7.8, bankGain: .72, pitchGain: .56, energyRecovery: .34, turnEnergyCost: .115, climbEnergyCost: .09 };
-    case "interceptor": return { maxBank: .9, maxPitch: .44, rollRate: 3.45, pitchRate: 2.72, turnAcceleration: 9.1, climbAcceleration: 7.25, bankGain: .74, pitchGain: .58, energyRecovery: .36, turnEnergyCost: .105, climbEnergyCost: .082 };
-    case "raider": return { maxBank: .88, maxPitch: .43, rollRate: 3.15, pitchRate: 2.58, turnAcceleration: 8.7, climbAcceleration: 7.0, bankGain: .76, pitchGain: .59, energyRecovery: .33, turnEnergyCost: .11, climbEnergyCost: .086 };
-    case "ace": return { maxBank: .98, maxPitch: .47, rollRate: 3.65, pitchRate: 2.92, turnAcceleration: 9.45, climbAcceleration: 7.55, bankGain: .76, pitchGain: .6, energyRecovery: .4, turnEnergyCost: .092, climbEnergyCost: .076 };
-    case "striker": return { maxBank: .82, maxPitch: .4, rollRate: 2.75, pitchRate: 2.3, turnAcceleration: 7.8, climbAcceleration: 6.25, bankGain: .77, pitchGain: .6, energyRecovery: .3, turnEnergyCost: .112, climbEnergyCost: .088 };
-    case "fighter": return { maxBank: .84, maxPitch: .41, rollRate: 2.9, pitchRate: 2.42, turnAcceleration: 8.15, climbAcceleration: 6.5, bankGain: .78, pitchGain: .61, energyRecovery: .32, turnEnergyCost: .108, climbEnergyCost: .085 };
-    case "missile-boat": return { maxBank: .62, maxPitch: .31, rollRate: 1.7, pitchRate: 1.55, turnAcceleration: 5.25, climbAcceleration: 4.25, bankGain: .82, pitchGain: .65, energyRecovery: .23, turnEnergyCost: .132, climbEnergyCost: .108 };
-    case "bomber": return { maxBank: .52, maxPitch: .26, rollRate: 1.28, pitchRate: 1.22, turnAcceleration: 4.15, climbAcceleration: 3.55, bankGain: .86, pitchGain: .7, energyRecovery: .2, turnEnergyCost: .142, climbEnergyCost: .115 };
-    case "gunship": return { maxBank: .46, maxPitch: .23, rollRate: 1.05, pitchRate: 1.0, turnAcceleration: 3.55, climbAcceleration: 3.05, bankGain: .9, pitchGain: .74, energyRecovery: .18, turnEnergyCost: .15, climbEnergyCost: .12 };
-    default: return { maxBank: .48, maxPitch: .24, rollRate: 1.12, pitchRate: 1.05, turnAcceleration: 3.7, climbAcceleration: 3.2, bankGain: .88, pitchGain: .72, energyRecovery: .19, turnEnergyCost: .148, climbEnergyCost: .118 };
+    case "drone": return { maxBank: .94, maxPitch: .46, rollRate: 3.8, pitchRate: 2.9, turnAcceleration: 9.6, climbAcceleration: 7.8, bankGain: .72, pitchGain: .56, energyRecovery: .26, turnEnergyCost: .145, climbEnergyCost: .105 };
+    case "interceptor": return { maxBank: .9, maxPitch: .44, rollRate: 3.45, pitchRate: 2.72, turnAcceleration: 9.1, climbAcceleration: 7.25, bankGain: .74, pitchGain: .58, energyRecovery: .27, turnEnergyCost: .135, climbEnergyCost: .1 };
+    case "raider": return { maxBank: .88, maxPitch: .43, rollRate: 3.15, pitchRate: 2.58, turnAcceleration: 8.7, climbAcceleration: 7.0, bankGain: .76, pitchGain: .59, energyRecovery: .25, turnEnergyCost: .14, climbEnergyCost: .103 };
+    case "ace": return { maxBank: .98, maxPitch: .47, rollRate: 3.65, pitchRate: 2.92, turnAcceleration: 9.45, climbAcceleration: 7.55, bankGain: .76, pitchGain: .6, energyRecovery: .31, turnEnergyCost: .125, climbEnergyCost: .094 };
+    case "striker": return { maxBank: .82, maxPitch: .4, rollRate: 2.75, pitchRate: 2.3, turnAcceleration: 7.8, climbAcceleration: 6.25, bankGain: .77, pitchGain: .6, energyRecovery: .23, turnEnergyCost: .145, climbEnergyCost: .108 };
+    case "fighter": return { maxBank: .84, maxPitch: .41, rollRate: 2.9, pitchRate: 2.42, turnAcceleration: 8.15, climbAcceleration: 6.5, bankGain: .78, pitchGain: .61, energyRecovery: .21, turnEnergyCost: .15, climbEnergyCost: .11 };
+    case "missile-boat": return { maxBank: .62, maxPitch: .31, rollRate: 1.7, pitchRate: 1.55, turnAcceleration: 5.25, climbAcceleration: 4.25, bankGain: .82, pitchGain: .65, energyRecovery: .18, turnEnergyCost: .155, climbEnergyCost: .12 };
+    case "bomber": return { maxBank: .52, maxPitch: .26, rollRate: 1.28, pitchRate: 1.22, turnAcceleration: 4.15, climbAcceleration: 3.55, bankGain: .86, pitchGain: .7, energyRecovery: .16, turnEnergyCost: .165, climbEnergyCost: .13 };
+    case "gunship": return { maxBank: .46, maxPitch: .23, rollRate: 1.05, pitchRate: 1.0, turnAcceleration: 3.55, climbAcceleration: 3.05, bankGain: .9, pitchGain: .74, energyRecovery: .14, turnEnergyCost: .175, climbEnergyCost: .138 };
+    default: return { maxBank: .48, maxPitch: .24, rollRate: 1.12, pitchRate: 1.05, turnAcceleration: 3.7, climbAcceleration: 3.2, bankGain: .88, pitchGain: .72, energyRecovery: .15, turnEnergyCost: .17, climbEnergyCost: .135 };
   }
 }
 
@@ -118,9 +118,15 @@ export function skyDancerArcadeV25Step(
 
   const turnLoad = Math.abs(bankNorm);
   const climbLoad = Math.max(0, pitchNorm);
-  const descentRecovery = Math.max(0, -pitchNorm) * control.energyRecovery * .42;
+  const descentRecovery = Math.max(0, -pitchNorm) * control.energyRecovery * .46;
   const load = turnLoad * control.turnEnergyCost + climbLoad * control.climbEnergyCost;
-  const recovery = control.energyRecovery * (1.015 - energy) + descentRecovery;
+  // V25.1: an aircraft cannot fully recover energy while it is still pulling hard. Recovery belongs
+  // to the unload/descent phase, leaving a readable speed consequence after a sustained turn.
+  const aerodynamicLoad = Math.max(turnLoad, climbLoad * .85);
+  const unloadedRecovery = control.energyRecovery
+    * Math.max(0, 1.025 - energy)
+    * Math.max(.08, 1 - aerodynamicLoad * .88);
+  const recovery = unloadedRecovery + descentRecovery;
   const nextEnergy = clamp(energy + (recovery - load) * dt, .58, 1.06);
 
   x = clamp(x, -xLimit, xLimit);
