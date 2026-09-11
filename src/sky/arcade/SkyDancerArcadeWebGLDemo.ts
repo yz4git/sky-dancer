@@ -17,6 +17,7 @@ import {
   skyDancerArcadeV271ThreatCueScore,
 } from "./SkyDancerArcadeV271ScreenPolish";
 import { skyDancerArcadeV28ReadableAttitude } from "./SkyDancerArcadeV28DogfightReadability";
+import { skyDancerArcadeV401WorldBreakBriefing } from "./SkyDancerArcadeV401WorldBreakPolish";
 import {
   createSkyDancerArcadeEnemy,
   createSkyDancerArcadeHazard,
@@ -1385,11 +1386,20 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
 
     const targetX = pose.x + shakeX;
     const targetY = pose.y + shakeY;
+    const worldBreakBriefing = skyDancerArcadeV401WorldBreakBriefing(
+      snapshot.stage.id,
+      snapshot.stageProgress,
+      snapshot.stageDurationSeconds,
+      snapshot.status === "running" && !snapshot.bossActive,
+    );
+    const worldBreakAnticipation = worldBreakBriefing.active
+      ? Math.sin(worldBreakBriefing.progress * Math.PI * .5)
+      : 0;
     this.camera.position.x += (targetX - this.camera.position.x) * xAlpha;
     this.camera.position.y += (targetY - this.camera.position.y) * yAlpha;
-    // V11 course beats may widen or pull back the shot, but never own world rotation/translation.
-    this.camera.position.z += (pose.z + this.presentationFx.pullback + snapshot.timelineCameraPullback + this.cameraImpactKick - this.camera.position.z) * zAlpha;
-    this.camera.fov += (pose.fov + this.presentationFx.fovKick + snapshot.timelineCameraFov - this.camera.fov) * fovAlpha;
+    // V40.1 opens the frame slightly before a signature challenge; gameplay/world transforms remain untouched.
+    this.camera.position.z += (pose.z + this.presentationFx.pullback + snapshot.timelineCameraPullback + this.cameraImpactKick + worldBreakAnticipation * .72 - this.camera.position.z) * zAlpha;
+    this.camera.fov += (pose.fov + this.presentationFx.fovKick + snapshot.timelineCameraFov + worldBreakAnticipation * 1.5 - this.camera.fov) * fovAlpha;
     this.camera.updateProjectionMatrix();
 
     const desiredLookX = pose.lookX;

@@ -53,3 +53,12 @@
 
 /* Arcade Run V40 WORLD BREAK phase 6: final-world telemetry remains one compact landscape line. */
 .worldBreakLine{max-width:min(850px,90vw)}
+
+
+/* Arcade Run V40.1 WORLD BREAK briefing polish. */
+.worldBreakBriefing{position:absolute;z-index:9;left:50%;top:31%;transform:translate(-50%,-50%);width:min(380px,44vw);text-align:center;pointer-events:none;color:#effcff;text-shadow:0 2px 8px rgba(3,14,26,.88);animation:v401WorldBreakBriefingIn .22s ease-out both;transition:opacity .15s ease,filter .15s ease}
+.worldBreakBriefing small,.worldBreakBriefing strong,.worldBreakBriefing span{display:block}.worldBreakBriefing small{font-size:6px;font-weight:1000;letter-spacing:.22em;color:rgba(202,243,255,.72)}.worldBreakBriefing strong{margin-top:3px;font-size:clamp(14px,2vw,20px);font-weight:850;letter-spacing:.16em}.worldBreakBriefing span{margin-top:4px;font-size:7px;font-weight:900;letter-spacing:.13em;color:rgba(242,251,255,.82)}.worldBreakBriefing>i{display:block;width:min(260px,72%);height:2px;margin:7px auto 0;background:rgba(185,232,245,.16);overflow:hidden}.worldBreakBriefing>i b{display:block;height:100%;background:#91eaff;box-shadow:0 0 8px rgba(95,226,255,.68);transition:width .075s linear}.worldBreakBriefing[data-tone="assault"] strong,.worldBreakBriefing[data-tone="final"] strong{color:#ffe1bd}.worldBreakBriefing[data-tone="survival"] strong{color:#d9f7ff}.worldBreakBriefing[data-tone="choice"] strong{color:#e7d8ff}.worldBreakBriefing[data-tone="speed"] strong{color:#bdf4ff}.worldBreakBriefing[data-tone="final"]>i b{background:#fff0bd;box-shadow:0 0 10px rgba(255,224,148,.72)}.worldBreakBriefing[data-suppressed="true"]{opacity:.16!important;filter:blur(.35px)}
+@keyframes v401WorldBreakBriefingIn{from{opacity:0;transform:translate(-50%,-44%) scale(.98)}to{opacity:1;transform:translate(-50%,-50%) scale(1)}}
+@media(max-height:520px){.worldBreakBriefing{top:31.5%;width:min(330px,42vw)}.worldBreakBriefing small{font-size:5px}.worldBreakBriefing strong{font-size:13px}.worldBreakBriefing span{font-size:6px;margin-top:3px}.worldBreakBriefing>i{margin-top:5px}}
+@media(orientation:portrait){.worldBreakBriefing{top:38%;width:72vw}.worldBreakBriefing strong{font-size:17px}.worldBreakBriefing span{font-size:7px}}
+@media(prefers-reduced-motion: reduce){.worldBreakBriefing{animation:none}.worldBreakBriefing>i b{transition:none}}

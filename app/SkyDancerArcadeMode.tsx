@@ -31,6 +31,10 @@ import {
   type SkyDancerArcadeDemoHandle,
 } from "../src/sky/arcade/SkyDancerArcadeWebGLDemo";
 import { skyDancerArcadeV40RouteDoctrine, skyDancerArcadeV40RouteEffect } from "../src/sky/arcade/SkyDancerArcadeV40WorldBreak";
+import {
+  skyDancerArcadeV401CuePriority,
+  skyDancerArcadeV401WorldBreakBriefing,
+} from "../src/sky/arcade/SkyDancerArcadeV401WorldBreakPolish";
 import styles from "./SkyDancerArcadeMode.module.css";
 import productStyles from "./SkyDancerArcadeProduct.module.css";
 
@@ -433,7 +437,14 @@ export default function SkyDancerArcadeMode({ request, onReturnTitle }: SkyDance
   );
   const [missileCueCount = "0", missileCueDanger = "0", missileCueBoss = "0"] = (missileCue.value ?? "0|0|0").split("|");
   const messageIsBossWarning = Boolean(messageCue.value?.startsWith("WARNING ·") && snapshot.bossActive);
-  const cuePriority = skyDancerArcadeV35CuePriority(messageCue.value, bossApproach.active, missileCueDanger === "1");
+  const worldBreakBriefing = skyDancerArcadeV401WorldBreakBriefing(
+    snapshot.stage.id,
+    snapshot.stageProgress,
+    snapshot.stageDurationSeconds,
+    snapshot.status === "running" && !snapshot.bossActive,
+  );
+  const v35CuePriority = skyDancerArcadeV35CuePriority(messageCue.value, bossApproach.active, missileCueDanger === "1");
+  const cuePriority = skyDancerArcadeV401CuePriority(v35CuePriority, worldBreakBriefing.active);
   const controlsVisible = snapshot.status === "running";
   const finalOverlay = snapshot.status === "run-clear" || snapshot.status === "practice-clear" || snapshot.status === "game-over";
   const persistedArcadeProgress = loadSkyDancerArcadeProgress();
@@ -516,6 +527,21 @@ export default function SkyDancerArcadeMode({ request, onReturnTitle }: SkyDance
             </em>
           )}
         </div>
+
+        {worldBreakBriefing.active && (
+          <div
+            className={styles.worldBreakBriefing}
+            data-tone={worldBreakBriefing.tone}
+            data-suppressed={cuePriority === "critical"}
+            aria-live="polite"
+            aria-label="World Break signature briefing"
+          >
+            <small>WORLD BREAK · SIGNATURE IN {worldBreakBriefing.remainingSeconds.toFixed(1)}s</small>
+            <strong>{worldBreakBriefing.signature}</strong>
+            <span>{worldBreakBriefing.hint}</span>
+            <i aria-hidden="true"><b style={{ width: `${Math.round(worldBreakBriefing.progress * 100)}%` }} /></i>
+          </div>
+        )}
 
         {messageCue.value && !messageIsBossWarning && (
           <div key={messageCue.value} className={`${styles.message} ${productStyles.flightMessage}`} data-exiting={messageCue.exiting} data-priority={cuePriority}>{messageCue.value}</div>
