@@ -508,6 +508,8 @@ export default function SkyDancerArcadeMode({ request, onReturnTitle }: SkyDance
               {snapshot.stage.id === "desert-fortress" ? ` · BREACH ${snapshot.worldBreakFortressBreachResolved ? snapshot.worldBreakFortressBreachSuccess ? "CLEAR" : "FAILED" : snapshot.worldBreakFortressBreachOpen ? "OPEN" : "LOCKED"}` : ""}
               {snapshot.stage.id === "ice-cavern" ? ` · ESCAPE ${snapshot.worldBreakIceHits + snapshot.worldBreakIceMisses}/${snapshot.worldBreakIceTotal}${snapshot.worldBreakIceIndex >= 0 ? ` · APERTURE ${snapshot.worldBreakIceIndex + 1}` : snapshot.worldBreakIcePerfect ? " · PERFECT" : ""}` : ""}
               {snapshot.stage.id === "floating-ruins" ? ` · PORTAL ${snapshot.worldBreakPortalDoctrine}${snapshot.worldBreakPortalChoiceIndex >= 0 ? ` ×${snapshot.worldBreakPortalScoreMultiplier.toFixed(2)}` : " · CHOOSE"}` : ""}
+              {snapshot.stage.id === "night-metro" ? ` · ${snapshot.worldBreakPursuitCaught ? "CAUGHT" : snapshot.worldBreakPursuitResolved ? "ESCAPED" : "CHASE"} · GAP ${Math.round(snapshot.worldBreakPursuitGap)}m · TRACK ${snapshot.worldBreakPursuitTrackedSeconds.toFixed(1)}s` : ""}
+              {snapshot.stage.id === "volcano-core" ? ` · ${snapshot.worldBreakMagmaEscaped ? "OUTRUN" : "LEAD"} ${Math.max(0, Math.round(snapshot.worldBreakMagmaLead))}m · PRESSURE ${Math.round(snapshot.worldBreakMagmaPressure * 100)}%${snapshot.worldBreakMagmaHits > 0 ? ` · HIT ${snapshot.worldBreakMagmaHits}` : ""}` : ""}
               {snapshot.worldBreakRouteDoctrine !== "LOCKED" ? ` · ${snapshot.worldBreakRouteDoctrine} ×${snapshot.worldBreakScoreMultiplier.toFixed(2)}` : ""}
             </em>
           )}

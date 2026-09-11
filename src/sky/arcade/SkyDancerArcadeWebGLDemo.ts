@@ -137,6 +137,8 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
   private readonly worldBreakFortressRoot = new THREE.Group();
   private readonly worldBreakIceRoot = new THREE.Group();
   private readonly worldBreakPortalRoot = new THREE.Group();
+  private readonly worldBreakPursuitRoot = new THREE.Group();
+  private readonly worldBreakMagmaRoot = new THREE.Group();
   private readonly enemyGroups = new Map<number, THREE.Group>();
   private readonly projectileMeshes = new Map<number, THREE.Mesh>();
   private readonly hazardGroups = new Map<number, THREE.Group>();
@@ -217,7 +219,10 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
     this.worldBreakFortressRoot.name = "arcade-world-break-fortress-gate";
     this.worldBreakIceRoot.name = "arcade-world-break-crystal-collapse";
     this.worldBreakPortalRoot.name = "arcade-world-break-sky-labyrinth";
+    this.worldBreakPursuitRoot.name = "arcade-world-break-neon-pursuit";
+    this.worldBreakMagmaRoot.name = "arcade-world-break-magma-pressure";
     this.worldBreakRoot.add(this.worldBreakKnifeRoot, this.worldBreakStormRoot, this.worldBreakFortressRoot, this.worldBreakIceRoot, this.worldBreakPortalRoot);
+    this.worldBreakRoot.add(this.worldBreakPursuitRoot, this.worldBreakMagmaRoot);
     this.scene.add(this.entityRoot, this.projectileRoot, this.hazardRoot, this.branchRoot, this.worldBreakRoot, this.player);
     this.environment = new SkyDancerArcadeEnvironment(this.scene);
     this.environment.setStage(this.previousSnapshot.stage);
@@ -317,6 +322,8 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
     this.syncWorldBreakFortressBreach(snapshot);
     this.syncWorldBreakIceCollapse(snapshot);
     this.syncWorldBreakFloatingPortals(snapshot);
+    this.syncWorldBreakNeonPursuit(snapshot);
+    this.syncWorldBreakMagmaPressure(snapshot);
     this.syncBranchGates(snapshot, delta);
     this.syncEffects(snapshot);
     this.syncAudio(snapshot);
@@ -929,6 +936,58 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
     }
   }
 
+  private syncWorldBreakNeonPursuit(snapshot: SkyDancerArcadeSnapshot): void {
+    const active = snapshot.stage.id === "night-metro" && snapshot.worldBreakPursuitActive && snapshot.worldBreakPursuitDepth > -14;
+    this.worldBreakPursuitRoot.visible = active;
+    if (!active) return;
+    if (this.worldBreakPursuitRoot.children.length === 0) {
+      const neon = new THREE.MeshBasicMaterial({ color: 0xff4fbb, transparent: true, opacity: .9, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false });
+      const cyan = new THREE.MeshBasicMaterial({ color: 0x41f2ff, transparent: true, opacity: .72, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false });
+      const body = new THREE.Mesh(new THREE.ConeGeometry(.54, 3.8, 5), neon.clone());
+      body.rotation.x = Math.PI / 2;
+      body.position.z = -.2;
+      const wing = new THREE.Mesh(new THREE.BoxGeometry(4.8, .12, 1.2), cyan.clone());
+      wing.rotation.x = -.12;
+      const trail = new THREE.Mesh(new THREE.CylinderGeometry(.12, .42, 6.4, 6), neon.clone());
+      trail.rotation.x = Math.PI / 2;
+      trail.position.z = 3.9;
+      trail.material.opacity = .38;
+      this.worldBreakPursuitRoot.add(body, wing, trail);
+    }
+    const course = arcadeCourseRelativeVisualPose(snapshot.stage, snapshot.distance, Math.max(-12, snapshot.worldBreakPursuitDepth));
+    this.worldBreakPursuitRoot.position.set(snapshot.worldBreakPursuitX * 8.4 + course.x, 1.2 + snapshot.worldBreakPursuitY * 4.9 + course.y, course.z);
+    this.worldBreakPursuitRoot.rotation.set(course.pitch, course.yaw + Math.PI, course.bank + Math.sin(snapshot.runTimeSeconds * 7.5) * .08);
+    const caughtPulse = snapshot.worldBreakPursuitCaught ? 1.35 : 1 + Math.sin(snapshot.runTimeSeconds * 12) * .08;
+    this.worldBreakPursuitRoot.scale.setScalar(caughtPulse);
+  }
+
+  private syncWorldBreakMagmaPressure(snapshot: SkyDancerArcadeSnapshot): void {
+    const active = snapshot.stage.id === "volcano-core" && (snapshot.worldBreakMagmaActive || (snapshot.worldBreakMagmaResolved && snapshot.worldBreakMagmaPressure > .08));
+    this.worldBreakMagmaRoot.visible = active;
+    if (!active) return;
+    if (this.worldBreakMagmaRoot.children.length === 0) {
+      const heat = new THREE.MeshBasicMaterial({ color: 0xff6a22, transparent: true, opacity: .2, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false, side: THREE.DoubleSide });
+      const wall = new THREE.Mesh(new THREE.PlaneGeometry(34, 9), heat.clone());
+      wall.name = "arcade-world-break-magma-wall";
+      this.worldBreakMagmaRoot.add(wall);
+      for (let index = 0; index < 9; index += 1) {
+        const jet = new THREE.Mesh(new THREE.ConeGeometry(.5 + (index % 3) * .15, 3.2 + (index % 2) * 1.4, 6), heat.clone());
+        jet.position.set((index - 4) * 3.2, -2.1 + (index % 2) * .7, -.35);
+        jet.name = "arcade-world-break-magma-jet";
+        this.worldBreakMagmaRoot.add(jet);
+      }
+    }
+    const pressure = snapshot.worldBreakMagmaPressure;
+    this.worldBreakMagmaRoot.position.set(0, -5.7 + pressure * 2.2, 4.8 + pressure * .9);
+    this.worldBreakMagmaRoot.scale.set(1 + pressure * .16, .72 + pressure * .48, 1);
+    const pulse = .12 + pressure * .32 + Math.sin(snapshot.runTimeSeconds * 19) * .035;
+    this.worldBreakMagmaRoot.traverse((object) => {
+      if (!(object instanceof THREE.Mesh) || !(object.material instanceof THREE.MeshBasicMaterial)) return;
+      object.material.opacity = object.name === "arcade-world-break-magma-wall" ? Math.max(.08, pulse * .7) : Math.max(.1, pulse);
+      object.material.color.setHex(snapshot.worldBreakMagmaHits > 0 ? 0xff4020 : 0xff7a24);
+    });
+  }
+
   private buildBranchGates(snapshot: SkyDancerArcadeSnapshot): void {
     for (const child of this.branchRoot.children) this.disposeObject(child);
     this.branchRoot.clear();
@@ -1299,6 +1358,8 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
     for (const child of this.worldBreakFortressRoot.children) this.disposeObject(child);
     for (const child of this.worldBreakIceRoot.children) this.disposeObject(child);
     for (const child of this.worldBreakPortalRoot.children) this.disposeObject(child);
+    for (const child of this.worldBreakPursuitRoot.children) this.disposeObject(child);
+    for (const child of this.worldBreakMagmaRoot.children) this.disposeObject(child);
     this.entityRoot.clear();
     this.projectileRoot.clear();
     this.hazardRoot.clear();
@@ -1307,8 +1368,11 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
     this.worldBreakFortressRoot.clear();
     this.worldBreakIceRoot.clear();
     this.worldBreakPortalRoot.clear();
+    this.worldBreakPursuitRoot.clear();
+    this.worldBreakMagmaRoot.clear();
     this.worldBreakRoot.clear();
     this.worldBreakRoot.add(this.worldBreakKnifeRoot, this.worldBreakStormRoot, this.worldBreakFortressRoot, this.worldBreakIceRoot, this.worldBreakPortalRoot);
+    this.worldBreakRoot.add(this.worldBreakPursuitRoot, this.worldBreakMagmaRoot);
     this.enemyGroups.clear();
     this.projectileMeshes.clear();
     this.hazardGroups.clear();

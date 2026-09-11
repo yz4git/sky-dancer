@@ -86,8 +86,8 @@ const PROFILES: Record<SkyDancerArcadeStageId, SkyDancerArcadeV40WorldProfile> =
   "desert-fortress": { stageId: "desert-fortress", objective: "BREACH THE WALL", signature: "FORTRESS GATE", live: true },
   "ice-cavern": { stageId: "ice-cavern", objective: "ESCAPE THE COLLAPSE", signature: "CRYSTAL TUNNEL", live: true },
   "floating-ruins": { stageId: "floating-ruins", objective: "CHOOSE THE PORTAL", signature: "SKY LABYRINTH", live: true },
-  "night-metro": { stageId: "night-metro", objective: "CATCH THE PHANTOM", signature: "NEON PURSUIT", live: false },
-  "volcano-core": { stageId: "volcano-core", objective: "OUTRUN THE ERUPTION", signature: "MAGMA PRESSURE", live: false },
+  "night-metro": { stageId: "night-metro", objective: "CATCH THE PHANTOM", signature: "NEON PURSUIT", live: true },
+  "volcano-core": { stageId: "volcano-core", objective: "OUTRUN THE ERUPTION", signature: "MAGMA PRESSURE", live: true },
   "orbital-ascent": { stageId: "orbital-ascent", objective: "CLIMB THE DEBRIS SHAFT", signature: "ZERO-G ASCENT", live: false },
   "prism-citadel": { stageId: "prism-citadel", objective: "BREAK THE SEVEN SKIES", signature: "ROUTE REPRISE", live: false },
 };
@@ -183,6 +183,33 @@ export const SKY_DANCER_ARCADE_V40_FLOATING_PORTALS: readonly SkyDancerArcadeV40
   { index: 1, x: 0, y: -.05, radius: .72, doctrine: "SCORE", label: "SCORE PORTAL", score: 2600, scoreMultiplier: 1.22, pressureScale: .96, hpRecovery: 4, turboRecovery: 10 },
   { index: 2, x: 1.32, y: .14, radius: .68, doctrine: "DANGER", label: "DANGER PORTAL", score: 4200, scoreMultiplier: 1.38, pressureScale: .8, hpRecovery: 0, turboRecovery: 8 },
 ];
+
+export const SKY_DANCER_ARCADE_V40_NEON_PURSUIT_START = .11;
+export const SKY_DANCER_ARCADE_V40_NEON_PURSUIT_END = .37;
+export const SKY_DANCER_ARCADE_V40_NEON_PURSUIT_INITIAL_GAP = 72;
+export const SKY_DANCER_ARCADE_V40_NEON_PURSUIT_CATCH_GAP = 11;
+export const SKY_DANCER_ARCADE_V40_NEON_PURSUIT_TICK_SECONDS = .65;
+export const SKY_DANCER_ARCADE_V40_NEON_PURSUIT_CATCH_SCORE = 5600;
+
+export const SKY_DANCER_ARCADE_V40_MAGMA_START = .12;
+export const SKY_DANCER_ARCADE_V40_MAGMA_END = .43;
+export const SKY_DANCER_ARCADE_V40_MAGMA_INITIAL_LEAD = 58;
+export const SKY_DANCER_ARCADE_V40_MAGMA_SAFE_LEAD = 26;
+export const SKY_DANCER_ARCADE_V40_MAGMA_ESCAPE_SCORE = 5400;
+
+export function skyDancerArcadeV40NeonPhantomX(stageTimeSeconds: number): number {
+  const time = Math.max(0, stageTimeSeconds);
+  return Math.sin(time * 2.45) * 1.22 + Math.sin(time * 5.1 + .8) * .24;
+}
+
+export function skyDancerArcadeV40NeonPhantomY(stageTimeSeconds: number): number {
+  const time = Math.max(0, stageTimeSeconds);
+  return Math.sin(time * 1.8 + 1.2) * .48 + Math.cos(time * 4.05 + .35) * .12;
+}
+
+export function skyDancerArcadeV40MagmaPressure(lead: number): number {
+  return Math.max(0, Math.min(1, 1 - Math.max(0, lead) / SKY_DANCER_ARCADE_V40_MAGMA_INITIAL_LEAD));
+}
 
 export function skyDancerArcadeV40WorldProfile(stageId: SkyDancerArcadeStageId): SkyDancerArcadeV40WorldProfile {
   return PROFILES[stageId];

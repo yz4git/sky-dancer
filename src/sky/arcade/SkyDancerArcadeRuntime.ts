@@ -77,6 +77,17 @@ import {
   SKY_DANCER_ARCADE_V40_FLOATING_PORTALS,
   SKY_DANCER_ARCADE_V40_ICE_APERTURES,
   SKY_DANCER_ARCADE_V40_ICE_PERFECT_BONUS,
+  SKY_DANCER_ARCADE_V40_MAGMA_END,
+  SKY_DANCER_ARCADE_V40_MAGMA_ESCAPE_SCORE,
+  SKY_DANCER_ARCADE_V40_MAGMA_INITIAL_LEAD,
+  SKY_DANCER_ARCADE_V40_MAGMA_SAFE_LEAD,
+  SKY_DANCER_ARCADE_V40_MAGMA_START,
+  SKY_DANCER_ARCADE_V40_NEON_PURSUIT_CATCH_GAP,
+  SKY_DANCER_ARCADE_V40_NEON_PURSUIT_CATCH_SCORE,
+  SKY_DANCER_ARCADE_V40_NEON_PURSUIT_END,
+  SKY_DANCER_ARCADE_V40_NEON_PURSUIT_INITIAL_GAP,
+  SKY_DANCER_ARCADE_V40_NEON_PURSUIT_START,
+  SKY_DANCER_ARCADE_V40_NEON_PURSUIT_TICK_SECONDS,
   SKY_DANCER_ARCADE_V40_RED_CANYON_KNIFE_CEILING_Y,
   SKY_DANCER_ARCADE_V40_RED_CANYON_KNIFE_END,
   SKY_DANCER_ARCADE_V40_RED_CANYON_KNIFE_START,
@@ -89,6 +100,9 @@ import {
   skyDancerArcadeV40IceApertureAnchorDistance,
   skyDancerArcadeV40IceApertureScale,
   skyDancerArcadeV40IceApertureX,
+  skyDancerArcadeV40MagmaPressure,
+  skyDancerArcadeV40NeonPhantomX,
+  skyDancerArcadeV40NeonPhantomY,
   skyDancerArcadeV40StormLaneAnchorDistance,
   skyDancerArcadeV40StormLaneX,
   skyDancerArcadeV40RouteDoctrine,
@@ -366,6 +380,23 @@ export interface SkyDancerArcadeSnapshot {
   worldBreakPortalScoreMultiplier: number;
   worldBreakPortalPressureScale: number;
   worldBreakPortals: SkyDancerArcadeWorldBreakPortalSnapshot[];
+  worldBreakPursuitActive: boolean;
+  worldBreakPursuitX: number;
+  worldBreakPursuitY: number;
+  worldBreakPursuitDepth: number;
+  worldBreakPursuitGap: number;
+  worldBreakPursuitTargetGap: number;
+  worldBreakPursuitTrackedSeconds: number;
+  worldBreakPursuitCaught: boolean;
+  worldBreakPursuitResolved: boolean;
+  worldBreakPursuitSerial: number;
+  worldBreakMagmaActive: boolean;
+  worldBreakMagmaLead: number;
+  worldBreakMagmaPressure: number;
+  worldBreakMagmaHits: number;
+  worldBreakMagmaResolved: boolean;
+  worldBreakMagmaEscaped: boolean;
+  worldBreakMagmaSerial: number;
   enemies: SkyDancerArcadeEnemySnapshot[];
   projectiles: SkyDancerArcadeProjectileSnapshot[];
   impacts: SkyDancerArcadeImpactSnapshot[];
@@ -702,6 +733,18 @@ export class SkyDancerArcadeRuntime {
   private worldBreakPortalChoiceIndex = -1;
   private worldBreakPortalDoctrine: SkyDancerArcadeV40PortalDoctrine | "NONE" = "NONE";
   private worldBreakPortalSerial = 0;
+  private worldBreakPursuitGap = SKY_DANCER_ARCADE_V40_NEON_PURSUIT_INITIAL_GAP;
+  private worldBreakPursuitTrackedSeconds = 0;
+  private worldBreakPursuitTick = 0;
+  private worldBreakPursuitCaught = false;
+  private worldBreakPursuitResolved = false;
+  private worldBreakPursuitResolvedAt = -1;
+  private worldBreakPursuitSerial = 0;
+  private worldBreakMagmaLead = SKY_DANCER_ARCADE_V40_MAGMA_INITIAL_LEAD;
+  private worldBreakMagmaHits = 0;
+  private worldBreakMagmaResolved = false;
+  private worldBreakMagmaEscaped = false;
+  private worldBreakMagmaSerial = 0;
   private nextEntityId = 1;
   private waveSerial = 0;
   private nextWaveAt = 2.8;
@@ -838,6 +881,16 @@ export class SkyDancerArcadeRuntime {
       this.worldBreakResolvedIceApertureIndices.clear();
       this.worldBreakPortalChoiceIndex = -1;
       this.worldBreakPortalDoctrine = "NONE";
+      this.worldBreakPursuitGap = SKY_DANCER_ARCADE_V40_NEON_PURSUIT_INITIAL_GAP;
+      this.worldBreakPursuitTrackedSeconds = 0;
+      this.worldBreakPursuitTick = 0;
+      this.worldBreakPursuitCaught = false;
+      this.worldBreakPursuitResolved = false;
+      this.worldBreakPursuitResolvedAt = -1;
+      this.worldBreakMagmaLead = SKY_DANCER_ARCADE_V40_MAGMA_INITIAL_LEAD;
+      this.worldBreakMagmaHits = 0;
+      this.worldBreakMagmaResolved = false;
+      this.worldBreakMagmaEscaped = false;
     }
     this.worldBreakGates = this.stage.id === "dawn-city"
       ? SKY_DANCER_ARCADE_V40_DAWN_CITY_GATES.map((gate) => {
@@ -1026,6 +1079,8 @@ export class SkyDancerArcadeRuntime {
     this.updateWorldBreakFortressBreach();
     this.updateWorldBreakIceCollapse();
     this.updateWorldBreakFloatingPortal();
+    this.updateWorldBreakNeonPursuit(delta, turboActive);
+    this.updateWorldBreakMagmaPressure(delta, turboActive);
     this.updateBranch();
     this.updateV11Timeline();
     this.updateDirector();
@@ -1229,6 +1284,76 @@ export class SkyDancerArcadeRuntime {
     const awarded = this.addScore(portal.score, portal.doctrine !== "FLOW");
     this.message = `SKY LABYRINTH · ${portal.label} · +${awarded}`;
     this.messageTimer = 1.55;
+  }
+
+  private updateWorldBreakNeonPursuit(delta: number, turboActive: boolean): void {
+    if (this.stage.id !== "night-metro" || this.worldBreakPursuitResolved) return;
+    const progress = clamp(this.stageTime / Math.max(.001, this.stage.durationSeconds), 0, 1);
+    if (progress < SKY_DANCER_ARCADE_V40_NEON_PURSUIT_START) return;
+    if (progress > SKY_DANCER_ARCADE_V40_NEON_PURSUIT_END) {
+      this.worldBreakPursuitResolved = true;
+      this.worldBreakPursuitResolvedAt = this.stageTime;
+      this.worldBreakPursuitSerial += 1;
+      this.message = `NEON PURSUIT · PHANTOM ESCAPED · GAP ${Math.round(this.worldBreakPursuitGap)}m`;
+      this.messageTimer = 1.35;
+      return;
+    }
+    const targetX = skyDancerArcadeV40NeonPhantomX(this.stageTime);
+    const targetY = skyDancerArcadeV40NeonPhantomY(this.stageTime);
+    const normalizedDistance = Math.hypot((this.playerX - targetX) / 1.18, (this.playerY - targetY) / .92);
+    const alignment = clamp(1 - normalizedDistance, 0, 1);
+    const aligned = normalizedDistance <= 1;
+    const closureRate = aligned ? 4.6 + alignment * 3.2 + (turboActive ? 7.8 : 0) : -3.2;
+    this.worldBreakPursuitGap = clamp(this.worldBreakPursuitGap - closureRate * delta, 5, 92);
+    this.worldBreakPursuitTrackedSeconds = Math.max(0, this.worldBreakPursuitTrackedSeconds + (aligned ? delta : -delta * .35));
+    const targetTick = Math.floor(this.worldBreakPursuitTrackedSeconds / SKY_DANCER_ARCADE_V40_NEON_PURSUIT_TICK_SECONDS);
+    while (this.worldBreakPursuitTick < targetTick) {
+      this.worldBreakPursuitTick += 1;
+      this.addScore(360 + this.worldBreakPursuitTick * 85, true);
+      this.turbo = Math.min(100, this.turbo + 2.5);
+      this.worldBreakPursuitSerial += 1;
+    }
+    if (this.worldBreakPursuitGap > SKY_DANCER_ARCADE_V40_NEON_PURSUIT_CATCH_GAP) return;
+    this.worldBreakPursuitGap = SKY_DANCER_ARCADE_V40_NEON_PURSUIT_CATCH_GAP;
+    this.worldBreakPursuitCaught = true;
+    this.worldBreakPursuitResolved = true;
+    this.worldBreakPursuitResolvedAt = this.stageTime;
+    this.worldBreakPursuitSerial += 1;
+    const awarded = this.addScore(SKY_DANCER_ARCADE_V40_NEON_PURSUIT_CATCH_SCORE, true);
+    this.turbo = Math.min(100, this.turbo + 20);
+    this.message = `WORLD BREAK · PHANTOM CAUGHT · +${awarded}`;
+    this.messageTimer = 1.65;
+  }
+
+  private updateWorldBreakMagmaPressure(delta: number, turboActive: boolean): void {
+    if (this.stage.id !== "volcano-core" || this.worldBreakMagmaResolved) return;
+    const progress = clamp(this.stageTime / Math.max(.001, this.stage.durationSeconds), 0, 1);
+    if (progress < SKY_DANCER_ARCADE_V40_MAGMA_START) return;
+    if (progress > SKY_DANCER_ARCADE_V40_MAGMA_END) {
+      this.worldBreakMagmaResolved = true;
+      this.worldBreakMagmaEscaped = this.worldBreakMagmaHits === 0 && this.worldBreakMagmaLead >= SKY_DANCER_ARCADE_V40_MAGMA_SAFE_LEAD;
+      this.worldBreakMagmaSerial += 1;
+      if (this.worldBreakMagmaEscaped) {
+        const awarded = this.addScore(SKY_DANCER_ARCADE_V40_MAGMA_ESCAPE_SCORE, true);
+        this.turbo = Math.min(100, this.turbo + 18);
+        this.message = `WORLD BREAK · ERUPTION OUTRUN · +${awarded}`;
+      } else {
+        this.message = `MAGMA PRESSURE · ESCAPE SURVIVED · LEAD ${Math.round(this.worldBreakMagmaLead)}m`;
+      }
+      this.messageTimer = 1.55;
+      return;
+    }
+    const eruptionRate = this.options.difficulty === "hard" ? 8.1 : 7.2;
+    const escapeRate = turboActive ? 11.2 : 2.05;
+    const lineBonus = Math.abs(this.playerX) < 1.12 ? .8 : 0;
+    this.worldBreakMagmaLead = clamp(this.worldBreakMagmaLead + (escapeRate + lineBonus - eruptionRate) * delta, -2, 76);
+    if (this.worldBreakMagmaLead > 0) return;
+    this.worldBreakMagmaHits += 1;
+    this.worldBreakMagmaSerial += 1;
+    this.takeDamage(this.options.difficulty === "hard" ? 24 : 18);
+    this.worldBreakMagmaLead = 22;
+    this.message = `MAGMA PRESSURE · ERUPTION HIT ${this.worldBreakMagmaHits} · TURBO NOW`;
+    this.messageTimer = 1.25;
   }
 
   private resolveV40FleetTarget(enemy: ArcadeEnemy, destroyed: boolean): void {
@@ -2889,6 +3014,22 @@ export class SkyDancerArcadeRuntime {
       ? skyDancerArcadeV40FloatingPortalAnchorDistance(this.stage.durationSeconds, this.stage.courseSpeed) - this.distance
       : -999;
     const portalDefinition = this.worldBreakPortalDefinition();
+    const worldBreakStageProgress = clamp(this.stageTime / Math.max(.001, this.stage.durationSeconds), 0, 1);
+    const pursuitX = this.stage.id === "night-metro" ? skyDancerArcadeV40NeonPhantomX(this.stageTime) : 0;
+    const pursuitY = this.stage.id === "night-metro" ? skyDancerArcadeV40NeonPhantomY(this.stageTime) : 0;
+    const pursuitExitAge = this.worldBreakPursuitResolvedAt >= 0 ? this.stageTime - this.worldBreakPursuitResolvedAt : Infinity;
+    const pursuitPresenting = this.stage.id === "night-metro"
+      && ((!this.worldBreakPursuitResolved
+        && worldBreakStageProgress >= SKY_DANCER_ARCADE_V40_NEON_PURSUIT_START
+        && worldBreakStageProgress <= SKY_DANCER_ARCADE_V40_NEON_PURSUIT_END)
+        || (this.worldBreakPursuitCaught && pursuitExitAge <= 1.15));
+    const pursuitDepth = this.worldBreakPursuitCaught
+      ? this.worldBreakPursuitGap - Math.max(0, pursuitExitAge) * 22
+      : this.worldBreakPursuitGap;
+    const magmaActive = this.stage.id === "volcano-core"
+      && !this.worldBreakMagmaResolved
+      && worldBreakStageProgress >= SKY_DANCER_ARCADE_V40_MAGMA_START
+      && worldBreakStageProgress <= SKY_DANCER_ARCADE_V40_MAGMA_END;
     const activeStageCount = Math.max(1, this.stagesCleared + (this.status === "running" ? 1 : 0));
     const rank = skyDancerArcadeRankForScore(this.score, activeStageCount, this.damageTaken, this.continuesUsed);
     return {
@@ -3076,6 +3217,23 @@ export class SkyDancerArcadeRuntime {
             doctrine: portal.doctrine, label: portal.label, selected: portal.index === this.worldBreakPortalChoiceIndex,
           }))
         : [],
+      worldBreakPursuitActive: pursuitPresenting,
+      worldBreakPursuitX: pursuitX,
+      worldBreakPursuitY: pursuitY,
+      worldBreakPursuitDepth: pursuitDepth,
+      worldBreakPursuitGap: this.worldBreakPursuitGap,
+      worldBreakPursuitTargetGap: SKY_DANCER_ARCADE_V40_NEON_PURSUIT_CATCH_GAP,
+      worldBreakPursuitTrackedSeconds: this.worldBreakPursuitTrackedSeconds,
+      worldBreakPursuitCaught: this.worldBreakPursuitCaught,
+      worldBreakPursuitResolved: this.worldBreakPursuitResolved,
+      worldBreakPursuitSerial: this.worldBreakPursuitSerial,
+      worldBreakMagmaActive: magmaActive,
+      worldBreakMagmaLead: this.worldBreakMagmaLead,
+      worldBreakMagmaPressure: skyDancerArcadeV40MagmaPressure(this.worldBreakMagmaLead),
+      worldBreakMagmaHits: this.worldBreakMagmaHits,
+      worldBreakMagmaResolved: this.worldBreakMagmaResolved,
+      worldBreakMagmaEscaped: this.worldBreakMagmaEscaped,
+      worldBreakMagmaSerial: this.worldBreakMagmaSerial,
       enemies: this.enemies.filter((enemy) => enemy.alive).map((enemy) => ({
         id: enemy.id,
         kind: enemy.kind,
@@ -3224,6 +3382,37 @@ export class SkyDancerArcadeRuntime {
     this.playerX = clamp(portal.x, -PLAYER_X_LIMIT, PLAYER_X_LIMIT);
     this.playerY = clamp(portal.y, -PLAYER_Y_LIMIT, PLAYER_Y_LIMIT);
     this.updateWorldBreakFloatingPortal();
+  }
+
+  triggerV40NeonPursuitForTests(caught: boolean): void {
+    if (this.stage.id !== "night-metro") return;
+    this.stageTime = this.stage.durationSeconds * (SKY_DANCER_ARCADE_V40_NEON_PURSUIT_START + .03);
+    this.distance = this.stageTime * this.stage.courseSpeed;
+    this.playerX = caught ? clamp(skyDancerArcadeV40NeonPhantomX(this.stageTime), -PLAYER_X_LIMIT, PLAYER_X_LIMIT) : PLAYER_X_LIMIT;
+    this.playerY = caught ? clamp(skyDancerArcadeV40NeonPhantomY(this.stageTime), -PLAYER_Y_LIMIT, PLAYER_Y_LIMIT) : PLAYER_Y_LIMIT;
+    if (caught) {
+      this.worldBreakPursuitGap = SKY_DANCER_ARCADE_V40_NEON_PURSUIT_CATCH_GAP + .4;
+      this.updateWorldBreakNeonPursuit(.12, true);
+    } else {
+      this.stageTime = this.stage.durationSeconds * (SKY_DANCER_ARCADE_V40_NEON_PURSUIT_END + .01);
+      this.distance = this.stageTime * this.stage.courseSpeed;
+      this.updateWorldBreakNeonPursuit(0, false);
+    }
+  }
+
+  triggerV40MagmaPressureForTests(hit: boolean): void {
+    if (this.stage.id !== "volcano-core") return;
+    this.stageTime = this.stage.durationSeconds * (SKY_DANCER_ARCADE_V40_MAGMA_START + .03);
+    this.distance = this.stageTime * this.stage.courseSpeed;
+    if (hit) {
+      this.worldBreakMagmaLead = .2;
+      this.updateWorldBreakMagmaPressure(.08, false);
+    } else {
+      this.worldBreakMagmaLead = SKY_DANCER_ARCADE_V40_MAGMA_INITIAL_LEAD;
+      this.stageTime = this.stage.durationSeconds * (SKY_DANCER_ARCADE_V40_MAGMA_END + .01);
+      this.distance = this.stageTime * this.stage.courseSpeed;
+      this.updateWorldBreakMagmaPressure(0, true);
+    }
   }
 
   /** Deterministic V12 hook for adaptive encounter regression tests. */

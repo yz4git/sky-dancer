@@ -46,3 +46,6 @@
 
 /* Arcade Run V40 WORLD BREAK phase 4: collapse/portal telemetry stays legible on compact iPhone landscape. */
 .worldBreakLine{max-width:min(720px,86vw)}
+
+/* Arcade Run V40 WORLD BREAK phase 5: pursuit/eruption telemetry on compact landscape. */
+.worldBreakLine{max-width:min(790px,88vw)}

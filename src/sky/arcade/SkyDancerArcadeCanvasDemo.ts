@@ -76,6 +76,8 @@ export class SkyDancerArcadeCanvasDemo implements SkyDancerArcadeDemoHandle {
     this.drawWorldBreakFortressBreach(context, snapshot, cssWidth, cssHeight);
     this.drawWorldBreakIceCollapse(context, snapshot, cssWidth, cssHeight);
     this.drawWorldBreakFloatingPortals(context, snapshot, cssWidth, cssHeight);
+    this.drawWorldBreakNeonPursuit(context, snapshot, cssWidth, cssHeight);
+    this.drawWorldBreakMagmaPressure(context, snapshot, cssWidth, cssHeight);
     this.drawBranch(context, snapshot, cssWidth, cssHeight);
     for (const hazard of [...snapshot.hazards].sort((a, b) => b.depth - a.depth)) {
       const projected = this.project(hazard.x, hazard.y, hazard.depth, cssWidth, cssHeight);
@@ -348,6 +350,50 @@ export class SkyDancerArcadeCanvasDemo implements SkyDancerArcadeDemoHandle {
       context.fillText(portal.doctrine, p.x, p.y - radius - 6);
       context.restore();
     }
+  }
+
+  private drawWorldBreakNeonPursuit(context: CanvasRenderingContext2D, snapshot: SkyDancerArcadeSnapshot, width: number, height: number): void {
+    if (!snapshot.worldBreakPursuitActive) return;
+    const p = this.project(snapshot.worldBreakPursuitX, snapshot.worldBreakPursuitY, Math.max(2, snapshot.worldBreakPursuitDepth), width, height);
+    const size = Math.max(13, p.scale * 18);
+    context.save();
+    context.translate(p.x, p.y);
+    context.strokeStyle = snapshot.worldBreakPursuitCaught ? "#ffffff" : "#ff4fbb";
+    context.fillStyle = "#41f2ff";
+    context.lineWidth = 2.4;
+    context.beginPath();
+    context.moveTo(0, -size * 1.2);
+    context.lineTo(-size * 1.6, size * .7);
+    context.lineTo(0, size * .28);
+    context.lineTo(size * 1.6, size * .7);
+    context.closePath();
+    context.stroke();
+    context.beginPath();
+    context.arc(0, 0, size * 1.9, 0, Math.PI * 2);
+    context.globalAlpha = .45;
+    context.stroke();
+    context.restore();
+    context.fillStyle = "#ff8add";
+    context.font = "800 10px system-ui, sans-serif";
+    context.textAlign = "center";
+    context.fillText(`PHANTOM GAP ${Math.round(snapshot.worldBreakPursuitGap)}m`, p.x, p.y - size * 2.2);
+  }
+
+  private drawWorldBreakMagmaPressure(context: CanvasRenderingContext2D, snapshot: SkyDancerArcadeSnapshot, width: number, height: number): void {
+    if (snapshot.stage.id !== "volcano-core" || (!snapshot.worldBreakMagmaActive && snapshot.worldBreakMagmaPressure <= .08)) return;
+    const pressure = snapshot.worldBreakMagmaPressure;
+    const heightSpan = Math.max(18, height * (.08 + pressure * .28));
+    const gradient = context.createLinearGradient(0, height - heightSpan, 0, height);
+    gradient.addColorStop(0, "rgba(255,92,28,0)");
+    gradient.addColorStop(1, `rgba(255,72,24,${(.18 + pressure * .42).toFixed(3)})`);
+    context.save();
+    context.fillStyle = gradient;
+    context.fillRect(0, height - heightSpan, width, heightSpan);
+    context.fillStyle = pressure > .68 ? "#ffb05b" : "#ffd18a";
+    context.font = "800 10px system-ui, sans-serif";
+    context.textAlign = "center";
+    context.fillText(`MAGMA LEAD ${Math.max(0, Math.round(snapshot.worldBreakMagmaLead))}m · PRESSURE ${Math.round(pressure * 100)}%`, width * .5, height - heightSpan + 14);
+    context.restore();
   }
 
   private drawBranch(context: CanvasRenderingContext2D, snapshot: SkyDancerArcadeSnapshot, width: number, height: number): void {
