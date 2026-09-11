@@ -27,6 +27,28 @@ jobs:
         run: python3 scripts/arcade-run-v403-recovery-drama.py
       - name: Install dependencies
         run: npm ci --no-audit --no-fund
+      - name: Debug recovery classification
+        run: |
+          node --import tsx --input-type=module <<'EOF'
+          import { skyDancerArcadeV403RecoveryFromMessage } from './src/sky/arcade/SkyDancerArcadeV403WorldBreakRecovery.ts';
+          const cases = [
+            ['dawn-city','WORLD BREAK · GATE 2 MISSED',true],
+            ['red-canyon','WORLD BREAK · KNIFE RUN LOST · 2.1s',false],
+            ['cloud-fleet','DECK STRIKE · BRIDGE CORE ESCAPED',true],
+            ['storm-carrier','LIGHTNING GRID · STRIKE 2 · MOVE TO LANE',true],
+            ['desert-fortress','FORTRESS GATE · BREACH MISSED',false],
+            ['ice-cavern','CRYSTAL TUNNEL · COLLAPSE HIT 2',true],
+            ['floating-ruins','WARNING · ROUTE UNSTABLE',true],
+            ['night-metro','NEON PURSUIT · PHANTOM ESCAPED · GAP 42m',false],
+            ['volcano-core','MAGMA PRESSURE · ERUPTION HIT 1 · TURBO NOW',true],
+            ['orbital-ascent','ZERO-G ASCENT · DEBRIS STRIKE 1 · FIND AXIS',true],
+            ['prism-citadel','TOWER SLALOM REPRISE · SKY 4 FRACTURED',true],
+          ];
+          for (const [stage,message,expected] of cases) {
+            const cue = skyDancerArcadeV403RecoveryFromMessage(stage, message);
+            console.log(stage, 'expected=', expected, 'actual=', cue?.retryable, 'headline=', cue?.headline);
+          }
+          EOF
       - name: Verify V40.3 recovery drama
         run: |
           npm run check:arcade
