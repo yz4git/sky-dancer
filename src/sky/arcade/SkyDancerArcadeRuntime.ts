@@ -88,6 +88,14 @@ import {
   SKY_DANCER_ARCADE_V40_NEON_PURSUIT_INITIAL_GAP,
   SKY_DANCER_ARCADE_V40_NEON_PURSUIT_START,
   SKY_DANCER_ARCADE_V40_NEON_PURSUIT_TICK_SECONDS,
+  SKY_DANCER_ARCADE_V40_ORBIT_COMPLETE_SCORE,
+  SKY_DANCER_ARCADE_V40_ORBIT_CORRIDOR_WIDTH,
+  SKY_DANCER_ARCADE_V40_ORBIT_END,
+  SKY_DANCER_ARCADE_V40_ORBIT_START,
+  SKY_DANCER_ARCADE_V40_ORBIT_STRIKE_SECONDS,
+  SKY_DANCER_ARCADE_V40_ORBIT_TARGET_ALTITUDE,
+  SKY_DANCER_ARCADE_V40_PRISM_PERFECT_BONUS,
+  SKY_DANCER_ARCADE_V40_PRISM_TRIALS,
   SKY_DANCER_ARCADE_V40_RED_CANYON_KNIFE_CEILING_Y,
   SKY_DANCER_ARCADE_V40_RED_CANYON_KNIFE_END,
   SKY_DANCER_ARCADE_V40_RED_CANYON_KNIFE_START,
@@ -103,6 +111,11 @@ import {
   skyDancerArcadeV40MagmaPressure,
   skyDancerArcadeV40NeonPhantomX,
   skyDancerArcadeV40NeonPhantomY,
+  skyDancerArcadeV40OrbitalSafeX,
+  skyDancerArcadeV40PrismTrialAnchorDistance,
+  skyDancerArcadeV40PrismTrialStageId,
+  skyDancerArcadeV40PrismTrialX,
+  skyDancerArcadeV40PrismTrialY,
   skyDancerArcadeV40StormLaneAnchorDistance,
   skyDancerArcadeV40StormLaneX,
   skyDancerArcadeV40RouteDoctrine,
@@ -397,6 +410,29 @@ export interface SkyDancerArcadeSnapshot {
   worldBreakMagmaResolved: boolean;
   worldBreakMagmaEscaped: boolean;
   worldBreakMagmaSerial: number;
+  worldBreakOrbitActive: boolean;
+  worldBreakOrbitSafeX: number;
+  worldBreakOrbitWidth: number;
+  worldBreakOrbitAltitude: number;
+  worldBreakOrbitTargetAltitude: number;
+  worldBreakOrbitAligned: boolean;
+  worldBreakOrbitStrikes: number;
+  worldBreakOrbitResolved: boolean;
+  worldBreakOrbitComplete: boolean;
+  worldBreakOrbitSerial: number;
+  worldBreakPrismActive: boolean;
+  worldBreakPrismIndex: number;
+  worldBreakPrismTotal: number;
+  worldBreakPrismHits: number;
+  worldBreakPrismMisses: number;
+  worldBreakPrismSerial: number;
+  worldBreakPrismLabel: string | null;
+  worldBreakPrismX: number;
+  worldBreakPrismY: number;
+  worldBreakPrismDepth: number;
+  worldBreakPrismRadius: number;
+  worldBreakPrismComplete: boolean;
+  worldBreakPrismPerfect: boolean;
   enemies: SkyDancerArcadeEnemySnapshot[];
   projectiles: SkyDancerArcadeProjectileSnapshot[];
   impacts: SkyDancerArcadeImpactSnapshot[];
@@ -745,6 +781,19 @@ export class SkyDancerArcadeRuntime {
   private worldBreakMagmaResolved = false;
   private worldBreakMagmaEscaped = false;
   private worldBreakMagmaSerial = 0;
+  private worldBreakOrbitAltitude = 0;
+  private worldBreakOrbitStrikeTimer = 0;
+  private worldBreakOrbitStrikes = 0;
+  private worldBreakOrbitTick = 0;
+  private worldBreakOrbitResolved = false;
+  private worldBreakOrbitComplete = false;
+  private worldBreakOrbitResolvedAt = -1;
+  private worldBreakOrbitSerial = 0;
+  private worldBreakPrismHits = 0;
+  private worldBreakPrismMisses = 0;
+  private worldBreakPrismSerial = 0;
+  private worldBreakPrismResolvedAt = -1;
+  private readonly worldBreakResolvedPrismTrialIndices = new Set<number>();
   private nextEntityId = 1;
   private waveSerial = 0;
   private nextWaveAt = 2.8;
@@ -891,6 +940,17 @@ export class SkyDancerArcadeRuntime {
       this.worldBreakMagmaHits = 0;
       this.worldBreakMagmaResolved = false;
       this.worldBreakMagmaEscaped = false;
+      this.worldBreakOrbitAltitude = 0;
+      this.worldBreakOrbitStrikeTimer = 0;
+      this.worldBreakOrbitStrikes = 0;
+      this.worldBreakOrbitTick = 0;
+      this.worldBreakOrbitResolved = false;
+      this.worldBreakOrbitComplete = false;
+      this.worldBreakOrbitResolvedAt = -1;
+      this.worldBreakPrismHits = 0;
+      this.worldBreakPrismMisses = 0;
+      this.worldBreakPrismResolvedAt = -1;
+      this.worldBreakResolvedPrismTrialIndices.clear();
     }
     this.worldBreakGates = this.stage.id === "dawn-city"
       ? SKY_DANCER_ARCADE_V40_DAWN_CITY_GATES.map((gate) => {
@@ -1081,6 +1141,8 @@ export class SkyDancerArcadeRuntime {
     this.updateWorldBreakFloatingPortal();
     this.updateWorldBreakNeonPursuit(delta, turboActive);
     this.updateWorldBreakMagmaPressure(delta, turboActive);
+    this.updateWorldBreakOrbitalAscent(delta, turboActive);
+    this.updateWorldBreakPrismReprise();
     this.updateBranch();
     this.updateV11Timeline();
     this.updateDirector();
@@ -1354,6 +1416,97 @@ export class SkyDancerArcadeRuntime {
     this.worldBreakMagmaLead = 22;
     this.message = `MAGMA PRESSURE · ERUPTION HIT ${this.worldBreakMagmaHits} · TURBO NOW`;
     this.messageTimer = 1.25;
+  }
+
+  private updateWorldBreakOrbitalAscent(delta: number, turboActive: boolean): void {
+    if (this.stage.id !== "orbital-ascent" || this.worldBreakOrbitResolved) return;
+    const progress = clamp(this.stageTime / Math.max(.001, this.stage.durationSeconds), 0, 1);
+    if (progress < SKY_DANCER_ARCADE_V40_ORBIT_START) return;
+    if (progress > SKY_DANCER_ARCADE_V40_ORBIT_END) {
+      this.worldBreakOrbitResolved = true;
+      this.worldBreakOrbitResolvedAt = this.stageTime;
+      this.worldBreakOrbitComplete = this.worldBreakOrbitAltitude >= SKY_DANCER_ARCADE_V40_ORBIT_TARGET_ALTITUDE;
+      this.worldBreakOrbitSerial += 1;
+      this.message = `ZERO-G ASCENT · SHAFT LOST · ALT ${Math.round(this.worldBreakOrbitAltitude)}`;
+      this.messageTimer = 1.35;
+      return;
+    }
+    const safeX = skyDancerArcadeV40OrbitalSafeX(this.stageTime);
+    const aligned = Math.abs(this.playerX - safeX) <= SKY_DANCER_ARCADE_V40_ORBIT_CORRIDOR_WIDTH && this.playerY >= .18;
+    if (aligned) {
+      const climbRate = 4.8 + Math.max(0, this.playerY) * 1.35 + (turboActive ? 8.4 : 0);
+      this.worldBreakOrbitAltitude = Math.min(SKY_DANCER_ARCADE_V40_ORBIT_TARGET_ALTITUDE, this.worldBreakOrbitAltitude + climbRate * delta);
+      this.worldBreakOrbitStrikeTimer = Math.max(0, this.worldBreakOrbitStrikeTimer - delta * .7);
+      const nextTick = Math.floor(this.worldBreakOrbitAltitude / 20);
+      while (this.worldBreakOrbitTick < nextTick) {
+        this.worldBreakOrbitTick += 1;
+        this.addScore(520 + this.worldBreakOrbitTick * 120, true);
+        this.turbo = Math.min(100, this.turbo + 4);
+        this.worldBreakOrbitSerial += 1;
+      }
+    } else {
+      this.worldBreakOrbitAltitude = Math.max(0, this.worldBreakOrbitAltitude - delta * 1.05);
+      this.worldBreakOrbitStrikeTimer += delta;
+      if (this.worldBreakOrbitStrikeTimer >= SKY_DANCER_ARCADE_V40_ORBIT_STRIKE_SECONDS) {
+        this.worldBreakOrbitStrikeTimer = 0;
+        this.worldBreakOrbitStrikes += 1;
+        this.worldBreakOrbitSerial += 1;
+        this.takeDamage(this.options.difficulty === "hard" ? 16 : 12);
+        this.message = `ZERO-G ASCENT · DEBRIS STRIKE ${this.worldBreakOrbitStrikes} · FIND AXIS`;
+        this.messageTimer = 1.05;
+      }
+    }
+    if (this.worldBreakOrbitAltitude < SKY_DANCER_ARCADE_V40_ORBIT_TARGET_ALTITUDE) return;
+    this.worldBreakOrbitComplete = true;
+    this.worldBreakOrbitResolved = true;
+    this.worldBreakOrbitResolvedAt = this.stageTime;
+    this.worldBreakOrbitSerial += 1;
+    const awarded = this.addScore(SKY_DANCER_ARCADE_V40_ORBIT_COMPLETE_SCORE, true);
+    this.turbo = Math.min(100, this.turbo + 22);
+    this.message = `WORLD BREAK · ZERO-G ASCENT CLEAR · +${awarded}`;
+    this.messageTimer = 1.65;
+  }
+
+  private updateWorldBreakPrismReprise(): void {
+    if (this.stage.id !== "prism-citadel") return;
+    for (const trial of SKY_DANCER_ARCADE_V40_PRISM_TRIALS) {
+      if (this.worldBreakResolvedPrismTrialIndices.has(trial.index)) continue;
+      const anchorDistance = skyDancerArcadeV40PrismTrialAnchorDistance(trial, this.stage.durationSeconds, this.stage.courseSpeed);
+      const depth = anchorDistance - this.distance;
+      if (depth > 2.4) return;
+      const routeStageId = skyDancerArcadeV40PrismTrialStageId(this.route, trial.index);
+      const x = skyDancerArcadeV40PrismTrialX(trial, routeStageId, this.stageTime);
+      const y = skyDancerArcadeV40PrismTrialY(trial, routeStageId, this.stageTime);
+      const clean = Math.hypot((this.playerX - x) / trial.radius, (this.playerY - y) / trial.radius) <= 1;
+      this.worldBreakResolvedPrismTrialIndices.add(trial.index);
+      this.worldBreakPrismSerial += 1;
+      const label = `${skyDancerArcadeV40WorldProfile(routeStageId).signature} REPRISE`;
+      if (clean) {
+        this.worldBreakPrismHits += 1;
+        const awarded = this.addScore(trial.score + this.worldBreakPrismHits * 190, true);
+        this.turbo = Math.min(100, this.turbo + 7);
+        this.message = `${label} · SKY ${trial.index + 1} BROKEN · +${awarded}`;
+      } else {
+        this.worldBreakPrismMisses += 1;
+        this.takeDamage(this.options.difficulty === "hard" ? 15 : 11);
+        this.message = `${label} · SKY ${trial.index + 1} FRACTURED`;
+      }
+      this.messageTimer = 1.12;
+      if (this.worldBreakResolvedPrismTrialIndices.size >= SKY_DANCER_ARCADE_V40_PRISM_TRIALS.length) {
+        this.worldBreakPrismResolvedAt = this.stageTime;
+        if (this.worldBreakPrismMisses === 0) {
+          const awarded = this.addScore(SKY_DANCER_ARCADE_V40_PRISM_PERFECT_BONUS, true);
+          this.turbo = Math.min(100, this.turbo + 24);
+          this.worldBreakPrismSerial += 1;
+          this.message = `WORLD BREAK · SEVEN SKIES BREAK · +${awarded}`;
+          this.messageTimer = 1.8;
+        } else {
+          this.message = `ROUTE REPRISE · SEVEN SKIES CLEARED · MISS ${this.worldBreakPrismMisses}`;
+          this.messageTimer = 1.55;
+        }
+      }
+      return;
+    }
   }
 
   private resolveV40FleetTarget(enemy: ArcadeEnemy, destroyed: boolean): void {
@@ -3030,6 +3183,28 @@ export class SkyDancerArcadeRuntime {
       && !this.worldBreakMagmaResolved
       && worldBreakStageProgress >= SKY_DANCER_ARCADE_V40_MAGMA_START
       && worldBreakStageProgress <= SKY_DANCER_ARCADE_V40_MAGMA_END;
+    const orbitExitAge = this.worldBreakOrbitResolvedAt >= 0 ? this.stageTime - this.worldBreakOrbitResolvedAt : Infinity;
+    const orbitSafeX = this.stage.id === "orbital-ascent" ? skyDancerArcadeV40OrbitalSafeX(this.stageTime) : 0;
+    const orbitAligned = this.stage.id === "orbital-ascent"
+      && Math.abs(this.playerX - orbitSafeX) <= SKY_DANCER_ARCADE_V40_ORBIT_CORRIDOR_WIDTH
+      && this.playerY >= .18;
+    const orbitActive = this.stage.id === "orbital-ascent"
+      && ((!this.worldBreakOrbitResolved
+        && worldBreakStageProgress >= SKY_DANCER_ARCADE_V40_ORBIT_START
+        && worldBreakStageProgress <= SKY_DANCER_ARCADE_V40_ORBIT_END)
+        || (this.worldBreakOrbitComplete && orbitExitAge <= 1.1));
+    const unresolvedPrismTrial = this.stage.id === "prism-citadel"
+      ? SKY_DANCER_ARCADE_V40_PRISM_TRIALS.find((trial) => !this.worldBreakResolvedPrismTrialIndices.has(trial.index)) ?? null
+      : null;
+    const prismExitAge = this.worldBreakPrismResolvedAt >= 0 ? this.stageTime - this.worldBreakPrismResolvedAt : Infinity;
+    const prismTrial = unresolvedPrismTrial ?? (this.stage.id === "prism-citadel" && prismExitAge <= 1.05 ? SKY_DANCER_ARCADE_V40_PRISM_TRIALS.at(-1) ?? null : null);
+    const prismRouteStageId = prismTrial ? skyDancerArcadeV40PrismTrialStageId(this.route, prismTrial.index) : null;
+    const prismDepth = prismTrial
+      ? skyDancerArcadeV40PrismTrialAnchorDistance(prismTrial, this.stage.durationSeconds, this.stage.courseSpeed) - this.distance
+      : -999;
+    const prismX = prismTrial && prismRouteStageId ? skyDancerArcadeV40PrismTrialX(prismTrial, prismRouteStageId, this.stageTime) : 0;
+    const prismY = prismTrial && prismRouteStageId ? skyDancerArcadeV40PrismTrialY(prismTrial, prismRouteStageId, this.stageTime) : 0;
+    const prismLabel = prismRouteStageId ? `${skyDancerArcadeV40WorldProfile(prismRouteStageId).signature} REPRISE` : null;
     const activeStageCount = Math.max(1, this.stagesCleared + (this.status === "running" ? 1 : 0));
     const rank = skyDancerArcadeRankForScore(this.score, activeStageCount, this.damageTaken, this.continuesUsed);
     return {
@@ -3234,6 +3409,29 @@ export class SkyDancerArcadeRuntime {
       worldBreakMagmaResolved: this.worldBreakMagmaResolved,
       worldBreakMagmaEscaped: this.worldBreakMagmaEscaped,
       worldBreakMagmaSerial: this.worldBreakMagmaSerial,
+      worldBreakOrbitActive: orbitActive,
+      worldBreakOrbitSafeX: orbitSafeX,
+      worldBreakOrbitWidth: SKY_DANCER_ARCADE_V40_ORBIT_CORRIDOR_WIDTH,
+      worldBreakOrbitAltitude: this.worldBreakOrbitAltitude,
+      worldBreakOrbitTargetAltitude: SKY_DANCER_ARCADE_V40_ORBIT_TARGET_ALTITUDE,
+      worldBreakOrbitAligned: orbitAligned,
+      worldBreakOrbitStrikes: this.worldBreakOrbitStrikes,
+      worldBreakOrbitResolved: this.worldBreakOrbitResolved,
+      worldBreakOrbitComplete: this.worldBreakOrbitComplete,
+      worldBreakOrbitSerial: this.worldBreakOrbitSerial,
+      worldBreakPrismActive: Boolean(prismTrial && prismDepth > -14 && prismDepth < 145),
+      worldBreakPrismIndex: prismTrial?.index ?? -1,
+      worldBreakPrismTotal: this.stage.id === "prism-citadel" ? SKY_DANCER_ARCADE_V40_PRISM_TRIALS.length : 0,
+      worldBreakPrismHits: this.worldBreakPrismHits,
+      worldBreakPrismMisses: this.worldBreakPrismMisses,
+      worldBreakPrismSerial: this.worldBreakPrismSerial,
+      worldBreakPrismLabel: prismLabel,
+      worldBreakPrismX: prismX,
+      worldBreakPrismY: prismY,
+      worldBreakPrismDepth: prismDepth,
+      worldBreakPrismRadius: prismTrial?.radius ?? 0,
+      worldBreakPrismComplete: this.stage.id === "prism-citadel" && this.worldBreakResolvedPrismTrialIndices.size >= SKY_DANCER_ARCADE_V40_PRISM_TRIALS.length,
+      worldBreakPrismPerfect: this.stage.id === "prism-citadel" && this.worldBreakResolvedPrismTrialIndices.size >= SKY_DANCER_ARCADE_V40_PRISM_TRIALS.length && this.worldBreakPrismMisses === 0,
       enemies: this.enemies.filter((enemy) => enemy.alive).map((enemy) => ({
         id: enemy.id,
         kind: enemy.kind,
@@ -3413,6 +3611,34 @@ export class SkyDancerArcadeRuntime {
       this.distance = this.stageTime * this.stage.courseSpeed;
       this.updateWorldBreakMagmaPressure(0, true);
     }
+  }
+
+  triggerV40OrbitalAscentForTests(clean: boolean): void {
+    if (this.stage.id !== "orbital-ascent") return;
+    this.stageTime = this.stage.durationSeconds * (SKY_DANCER_ARCADE_V40_ORBIT_START + .03);
+    this.distance = this.stageTime * this.stage.courseSpeed;
+    const safeX = skyDancerArcadeV40OrbitalSafeX(this.stageTime);
+    this.playerX = clean ? clamp(safeX, -PLAYER_X_LIMIT, PLAYER_X_LIMIT) : PLAYER_X_LIMIT;
+    this.playerY = clean ? .9 : -PLAYER_Y_LIMIT;
+    if (clean) {
+      this.worldBreakOrbitAltitude = 4;
+      this.updateWorldBreakOrbitalAscent(8, true);
+    } else {
+      this.updateWorldBreakOrbitalAscent(SKY_DANCER_ARCADE_V40_ORBIT_STRIKE_SECONDS + .08, false);
+    }
+  }
+
+  triggerV40PrismTrialForTests(index: number, clean: boolean): void {
+    if (this.stage.id !== "prism-citadel") return;
+    const trial = SKY_DANCER_ARCADE_V40_PRISM_TRIALS.find((candidate) => candidate.index === index);
+    if (!trial) return;
+    const anchorDistance = skyDancerArcadeV40PrismTrialAnchorDistance(trial, this.stage.durationSeconds, this.stage.courseSpeed);
+    this.distance = anchorDistance - 2.2;
+    this.stageTime = this.distance / Math.max(1, this.stage.courseSpeed);
+    const routeStageId = skyDancerArcadeV40PrismTrialStageId(this.route, trial.index);
+    this.playerX = clean ? clamp(skyDancerArcadeV40PrismTrialX(trial, routeStageId, this.stageTime), -PLAYER_X_LIMIT, PLAYER_X_LIMIT) : PLAYER_X_LIMIT;
+    this.playerY = clean ? clamp(skyDancerArcadeV40PrismTrialY(trial, routeStageId, this.stageTime), -PLAYER_Y_LIMIT, PLAYER_Y_LIMIT) : PLAYER_Y_LIMIT;
+    this.updateWorldBreakPrismReprise();
   }
 
   /** Deterministic V12 hook for adaptive encounter regression tests. */

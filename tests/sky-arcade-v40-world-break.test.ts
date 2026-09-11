@@ -23,7 +23,9 @@ test("V40 gives every Arcade Run world a signature objective and tracks the curr
   assert.equal(skyDancerArcadeV40WorldProfile("floating-ruins").live, true);
   assert.equal(skyDancerArcadeV40WorldProfile("night-metro").live, true);
   assert.equal(skyDancerArcadeV40WorldProfile("volcano-core").live, true);
-  assert.equal(profiles.filter((profile) => profile.live).length, 9);
+  assert.equal(skyDancerArcadeV40WorldProfile("orbital-ascent").live, true);
+  assert.equal(skyDancerArcadeV40WorldProfile("prism-citadel").live, true);
+  assert.equal(profiles.filter((profile) => profile.live).length, 11);
 });
 
 test("V40 route doctrine turns two-way and three-way gates into explicit risk contracts", () => {

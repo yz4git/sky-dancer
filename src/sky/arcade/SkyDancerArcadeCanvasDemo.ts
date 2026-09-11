@@ -78,6 +78,8 @@ export class SkyDancerArcadeCanvasDemo implements SkyDancerArcadeDemoHandle {
     this.drawWorldBreakFloatingPortals(context, snapshot, cssWidth, cssHeight);
     this.drawWorldBreakNeonPursuit(context, snapshot, cssWidth, cssHeight);
     this.drawWorldBreakMagmaPressure(context, snapshot, cssWidth, cssHeight);
+    this.drawWorldBreakOrbitalAscent(context, snapshot, cssWidth, cssHeight);
+    this.drawWorldBreakPrismReprise(context, snapshot, cssWidth, cssHeight);
     this.drawBranch(context, snapshot, cssWidth, cssHeight);
     for (const hazard of [...snapshot.hazards].sort((a, b) => b.depth - a.depth)) {
       const projected = this.project(hazard.x, hazard.y, hazard.depth, cssWidth, cssHeight);
@@ -394,6 +396,57 @@ export class SkyDancerArcadeCanvasDemo implements SkyDancerArcadeDemoHandle {
     context.textAlign = "center";
     context.fillText(`MAGMA LEAD ${Math.max(0, Math.round(snapshot.worldBreakMagmaLead))}m · PRESSURE ${Math.round(pressure * 100)}%`, width * .5, height - heightSpan + 14);
     context.restore();
+  }
+
+  private drawWorldBreakOrbitalAscent(context: CanvasRenderingContext2D, snapshot: SkyDancerArcadeSnapshot, width: number, height: number): void {
+    if (snapshot.stage.id !== "orbital-ascent" || !snapshot.worldBreakOrbitActive) return;
+    const axis = this.project(snapshot.worldBreakOrbitSafeX, .38, 18, width, height);
+    const corridor = Math.max(24, axis.scale * snapshot.worldBreakOrbitWidth * 42);
+    context.save();
+    context.strokeStyle = snapshot.worldBreakOrbitAligned ? "#75ffca" : "#59ddff";
+    context.lineWidth = 2.4;
+    context.setLineDash([9, 7]);
+    context.beginPath();
+    context.moveTo(axis.x - corridor, height * .25);
+    context.lineTo(axis.x - corridor * .55, height * .82);
+    context.moveTo(axis.x + corridor, height * .25);
+    context.lineTo(axis.x + corridor * .55, height * .82);
+    context.stroke();
+    context.setLineDash([]);
+    const ratio = Math.min(1, snapshot.worldBreakOrbitAltitude / Math.max(1, snapshot.worldBreakOrbitTargetAltitude));
+    context.fillStyle = "rgba(89,221,255,.18)";
+    context.fillRect(width * .48, height * .22, width * .04, height * .46);
+    context.fillStyle = snapshot.worldBreakOrbitAligned ? "#75ffca" : "#59ddff";
+    context.fillRect(width * .48, height * (.68 - .46 * ratio), width * .04, height * .46 * ratio);
+    context.font = "800 10px system-ui, sans-serif";
+    context.textAlign = "center";
+    context.fillText(`ZERO-G ALT ${Math.round(snapshot.worldBreakOrbitAltitude)}/${Math.round(snapshot.worldBreakOrbitTargetAltitude)}${snapshot.worldBreakOrbitAligned ? " · CLIMB" : " · FIND AXIS"}`, width * .5, height * .19);
+    context.restore();
+  }
+
+  private drawWorldBreakPrismReprise(context: CanvasRenderingContext2D, snapshot: SkyDancerArcadeSnapshot, width: number, height: number): void {
+    if (snapshot.stage.id !== "prism-citadel" || !snapshot.worldBreakPrismActive || snapshot.worldBreakPrismIndex < 0) return;
+    const p = this.project(snapshot.worldBreakPrismX, snapshot.worldBreakPrismY, snapshot.worldBreakPrismDepth, width, height);
+    const radius = Math.max(20, p.scale * snapshot.worldBreakPrismRadius * 46);
+    const colors = ["#72eeff", "#ffd86b", "#ff77a6", "#9cff8d", "#a58cff", "#ff9a62", "#ffffff"];
+    context.save();
+    context.translate(p.x, p.y);
+    context.rotate(snapshot.runTimeSeconds * .35);
+    context.strokeStyle = colors[snapshot.worldBreakPrismIndex % colors.length] ?? "#fff";
+    context.lineWidth = 3;
+    context.globalAlpha = .9;
+    context.beginPath();
+    context.arc(0, 0, radius, 0, Math.PI * 2);
+    context.stroke();
+    context.globalAlpha = .55;
+    context.beginPath();
+    context.arc(0, 0, radius * .72, 0, Math.PI * 2);
+    context.stroke();
+    context.restore();
+    context.fillStyle = colors[snapshot.worldBreakPrismIndex % colors.length] ?? "#fff";
+    context.font = "800 9px system-ui, sans-serif";
+    context.textAlign = "center";
+    context.fillText(`${snapshot.worldBreakPrismLabel ?? "ROUTE REPRISE"} · ${snapshot.worldBreakPrismIndex + 1}/${snapshot.worldBreakPrismTotal}`, p.x, p.y - radius - 7);
   }
 
   private drawBranch(context: CanvasRenderingContext2D, snapshot: SkyDancerArcadeSnapshot, width: number, height: number): void {

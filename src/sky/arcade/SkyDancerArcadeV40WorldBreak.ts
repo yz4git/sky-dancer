@@ -78,6 +78,15 @@ export interface SkyDancerArcadeV40PortalDefinition {
   turboRecovery: number;
 }
 
+export interface SkyDancerArcadeV40PrismTrialDefinition {
+  index: number;
+  progress: number;
+  x: number;
+  y: number;
+  radius: number;
+  score: number;
+}
+
 const PROFILES: Record<SkyDancerArcadeStageId, SkyDancerArcadeV40WorldProfile> = {
   "dawn-city": { stageId: "dawn-city", objective: "THREAD SKYLINE GATES", signature: "TOWER SLALOM", live: true },
   "red-canyon": { stageId: "red-canyon", objective: "HOLD LOW ALTITUDE", signature: "KNIFE RUN", live: true },
@@ -88,8 +97,8 @@ const PROFILES: Record<SkyDancerArcadeStageId, SkyDancerArcadeV40WorldProfile> =
   "floating-ruins": { stageId: "floating-ruins", objective: "CHOOSE THE PORTAL", signature: "SKY LABYRINTH", live: true },
   "night-metro": { stageId: "night-metro", objective: "CATCH THE PHANTOM", signature: "NEON PURSUIT", live: true },
   "volcano-core": { stageId: "volcano-core", objective: "OUTRUN THE ERUPTION", signature: "MAGMA PRESSURE", live: true },
-  "orbital-ascent": { stageId: "orbital-ascent", objective: "CLIMB THE DEBRIS SHAFT", signature: "ZERO-G ASCENT", live: false },
-  "prism-citadel": { stageId: "prism-citadel", objective: "BREAK THE SEVEN SKIES", signature: "ROUTE REPRISE", live: false },
+  "orbital-ascent": { stageId: "orbital-ascent", objective: "CLIMB THE DEBRIS SHAFT", signature: "ZERO-G ASCENT", live: true },
+  "prism-citadel": { stageId: "prism-citadel", objective: "BREAK THE SEVEN SKIES", signature: "ROUTE REPRISE", live: true },
 };
 
 const ROUTE_EFFECTS: Record<SkyDancerArcadeV40RouteDoctrine, SkyDancerArcadeV40RouteEffect> = {
@@ -196,6 +205,68 @@ export const SKY_DANCER_ARCADE_V40_MAGMA_END = .43;
 export const SKY_DANCER_ARCADE_V40_MAGMA_INITIAL_LEAD = 58;
 export const SKY_DANCER_ARCADE_V40_MAGMA_SAFE_LEAD = 26;
 export const SKY_DANCER_ARCADE_V40_MAGMA_ESCAPE_SCORE = 5400;
+
+export const SKY_DANCER_ARCADE_V40_ORBIT_START = .1;
+export const SKY_DANCER_ARCADE_V40_ORBIT_END = .42;
+export const SKY_DANCER_ARCADE_V40_ORBIT_TARGET_ALTITUDE = 100;
+export const SKY_DANCER_ARCADE_V40_ORBIT_CORRIDOR_WIDTH = .86;
+export const SKY_DANCER_ARCADE_V40_ORBIT_COMPLETE_SCORE = 6200;
+export const SKY_DANCER_ARCADE_V40_ORBIT_STRIKE_SECONDS = 1.35;
+
+export const SKY_DANCER_ARCADE_V40_PRISM_TRIALS: readonly SkyDancerArcadeV40PrismTrialDefinition[] = [
+  { index: 0, progress: .105, x: -1.04, y: .18, radius: .82, score: 1250 },
+  { index: 1, progress: .15, x: .86, y: -.2, radius: .77, score: 1450 },
+  { index: 2, progress: .195, x: -.28, y: .38, radius: .73, score: 1700 },
+  { index: 3, progress: .24, x: 1.02, y: .08, radius: .69, score: 2050 },
+  { index: 4, progress: .285, x: -.92, y: -.27, radius: .65, score: 2400 },
+  { index: 5, progress: .33, x: .36, y: .3, radius: .62, score: 2850 },
+  { index: 6, progress: .375, x: 0, y: 0, radius: .58, score: 3600 },
+];
+export const SKY_DANCER_ARCADE_V40_PRISM_PERFECT_BONUS = 7800;
+export const SKY_DANCER_ARCADE_V40_PRISM_FALLBACK_ROUTE: readonly SkyDancerArcadeStageId[] = [
+  "dawn-city", "red-canyon", "storm-carrier", "ice-cavern", "night-metro", "orbital-ascent", "prism-citadel",
+];
+
+export function skyDancerArcadeV40OrbitalSafeX(stageTimeSeconds: number): number {
+  const time = Math.max(0, stageTimeSeconds);
+  return Math.sin(time * 1.55) * .86 + Math.sin(time * 3.8 + .7) * .18;
+}
+
+export function skyDancerArcadeV40PrismTrialAnchorDistance(
+  trial: SkyDancerArcadeV40PrismTrialDefinition,
+  stageDurationSeconds: number,
+  courseSpeed: number,
+): number {
+  return Math.max(0, stageDurationSeconds) * Math.max(0, courseSpeed) * trial.progress;
+}
+
+export function skyDancerArcadeV40PrismTrialStageId(route: readonly SkyDancerArcadeStageId[], index: number): SkyDancerArcadeStageId {
+  if (index >= SKY_DANCER_ARCADE_V40_PRISM_TRIALS.length - 1) return "prism-citadel";
+  const flown = route.filter((stageId) => stageId !== "prism-citadel");
+  return flown[index] ?? SKY_DANCER_ARCADE_V40_PRISM_FALLBACK_ROUTE[index] ?? "dawn-city";
+}
+
+function skyDancerArcadeV40StagePhase(stageId: SkyDancerArcadeStageId): number {
+  let value = 0;
+  for (let index = 0; index < stageId.length; index += 1) value += stageId.charCodeAt(index) * (index + 3);
+  return value * .013;
+}
+
+export function skyDancerArcadeV40PrismTrialX(
+  trial: SkyDancerArcadeV40PrismTrialDefinition,
+  stageId: SkyDancerArcadeStageId,
+  stageTimeSeconds: number,
+): number {
+  return trial.x + Math.sin(Math.max(0, stageTimeSeconds) * 1.72 + skyDancerArcadeV40StagePhase(stageId) + trial.index) * .18;
+}
+
+export function skyDancerArcadeV40PrismTrialY(
+  trial: SkyDancerArcadeV40PrismTrialDefinition,
+  stageId: SkyDancerArcadeStageId,
+  stageTimeSeconds: number,
+): number {
+  return trial.y + Math.cos(Math.max(0, stageTimeSeconds) * 1.33 + skyDancerArcadeV40StagePhase(stageId) * .7 + trial.index) * .12;
+}
 
 export function skyDancerArcadeV40NeonPhantomX(stageTimeSeconds: number): number {
   const time = Math.max(0, stageTimeSeconds);

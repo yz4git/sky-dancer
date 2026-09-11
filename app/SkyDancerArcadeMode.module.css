@@ -49,3 +49,7 @@
 
 /* Arcade Run V40 WORLD BREAK phase 5: pursuit/eruption telemetry on compact landscape. */
 .worldBreakLine{max-width:min(790px,88vw)}
+
+
+/* Arcade Run V40 WORLD BREAK phase 6: final-world telemetry remains one compact landscape line. */
+.worldBreakLine{max-width:min(850px,90vw)}
