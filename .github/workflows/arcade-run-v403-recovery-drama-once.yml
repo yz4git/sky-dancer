@@ -28,13 +28,127 @@ jobs:
           python3 scripts/arcade-run-v403-recovery-drama.py
           python3 - <<'PY'
           from pathlib import Path
-          p = Path('tests/sky-arcade-v403-world-break-recovery.test.ts')
-          s = p.read_text()
-          old = '    assert.ok(cue.action.includes("·"));'
-          new = '    assert.ok(cue.action.length >= 12, `${stageId} should expose an actionable recovery instruction`);'
-          if old not in s:
+
+          test_path = Path('tests/sky-arcade-v403-world-break-recovery.test.ts')
+          test_source = test_path.read_text()
+          old_test = '    assert.ok(cue.action.includes("·"));'
+          new_test = '    assert.ok(cue.action.length >= 12, `${stageId} should expose an actionable recovery instruction`);'
+          if old_test not in test_source:
               raise SystemExit('V40.3 action assertion anchor not found')
-          p.write_text(s.replace(old, new, 1))
+          test_path.write_text(test_source.replace(old_test, new_test, 1))
+
+          ui_path = Path('app/SkyDancerArcadeMode.tsx')
+          ui_source = ui_path.read_text()
+          old_hook = '''function useWorldBreakDrama(stageId: SkyDancerArcadeSnapshot["stage"]["id"], message: string | null): WorldBreakDramaOutput {
+            const state = useRef<{
+              stageId: SkyDancerArcadeSnapshot["stage"]["id"];
+              lastMessage: string | null;
+              recoveryDebt: boolean;
+              output: WorldBreakDramaOutput;
+            }>({
+              stageId,
+              lastMessage: null,
+              recoveryDebt: false,
+              output: { recovery: null, comeback: null, celebration: null },
+            });
+
+            if (state.current.stageId !== stageId) {
+              state.current = {
+                stageId,
+                lastMessage: null,
+                recoveryDebt: false,
+                output: { recovery: null, comeback: null, celebration: null },
+              };
+            }
+            if (state.current.lastMessage !== message) {
+              const recovery = skyDancerArcadeV403RecoveryFromMessage(stageId, message);
+              const baseCelebration = skyDancerArcadeV402CelebrationFromMessage(stageId, message);
+              const resolvedRecovery = skyDancerArcadeV403ResolvedRecoveryFromMessage(stageId, message);
+              const comeback = resolvedRecovery
+                ?? (baseCelebration && state.current.recoveryDebt
+                  ? skyDancerArcadeV403ComebackFromCelebration(stageId, baseCelebration)
+                  : null);
+              state.current.output = {
+                recovery,
+                comeback,
+                celebration: comeback ? null : baseCelebration,
+              };
+              if (recovery) state.current.recoveryDebt = recovery.retryable;
+              else if (comeback || baseCelebration) state.current.recoveryDebt = false;
+              state.current.lastMessage = message;
+            }
+            return state.current.output;
+          }'''
+          new_hook = '''function useWorldBreakDrama(stageId: SkyDancerArcadeSnapshot["stage"]["id"], message: string | null): WorldBreakDramaOutput {
+            const emptyOutput = useMemo<WorldBreakDramaOutput>(() => ({ recovery: null, comeback: null, celebration: null }), []);
+            const memoryRef = useRef<{
+              stageId: SkyDancerArcadeSnapshot["stage"]["id"];
+              lastMessage: string | null;
+              recoveryDebt: boolean;
+              output: WorldBreakDramaOutput;
+            }>({
+              stageId,
+              lastMessage: null,
+              recoveryDebt: false,
+              output: emptyOutput,
+            });
+            const syncTimerRef = useRef<number | null>(null);
+            const [renderState, setRenderState] = useState<{
+              stageId: SkyDancerArcadeSnapshot["stage"]["id"];
+              message: string | null;
+              output: WorldBreakDramaOutput;
+            }>({ stageId, message, output: emptyOutput });
+
+            useEffect(() => {
+              if (syncTimerRef.current !== null) window.clearTimeout(syncTimerRef.current);
+              syncTimerRef.current = null;
+
+              let memory = memoryRef.current;
+              if (memory.stageId !== stageId) {
+                memory = { stageId, lastMessage: null, recoveryDebt: false, output: emptyOutput };
+              }
+              if (memory.lastMessage !== message) {
+                const recovery = skyDancerArcadeV403RecoveryFromMessage(stageId, message);
+                const baseCelebration = skyDancerArcadeV402CelebrationFromMessage(stageId, message);
+                const resolvedRecovery = skyDancerArcadeV403ResolvedRecoveryFromMessage(stageId, message);
+                const comeback = resolvedRecovery
+                  ?? (baseCelebration && memory.recoveryDebt
+                    ? skyDancerArcadeV403ComebackFromCelebration(stageId, baseCelebration)
+                    : null);
+                let recoveryDebt = memory.recoveryDebt;
+                if (recovery) recoveryDebt = recovery.retryable;
+                else if (comeback || baseCelebration) recoveryDebt = false;
+                memory = {
+                  stageId,
+                  lastMessage: message,
+                  recoveryDebt,
+                  output: { recovery, comeback, celebration: comeback ? null : baseCelebration },
+                };
+                memoryRef.current = memory;
+              } else if (memoryRef.current !== memory) {
+                memoryRef.current = memory;
+              }
+
+              const nextOutput = memory.output;
+              // Match V34 cue synchronization: publish presentation state on the next browser task.
+              syncTimerRef.current = window.setTimeout(() => {
+                setRenderState({ stageId, message, output: nextOutput });
+                syncTimerRef.current = null;
+              }, 0);
+
+              return () => {
+                if (syncTimerRef.current !== null) window.clearTimeout(syncTimerRef.current);
+                syncTimerRef.current = null;
+              };
+            }, [emptyOutput, message, stageId]);
+
+            return renderState.stageId === stageId && renderState.message === message
+              ? renderState.output
+              : emptyOutput;
+          }'''
+          if old_hook not in ui_source:
+              raise SystemExit('V40.3 render-time ref hook anchor not found')
+          ui_path.write_text(ui_source.replace(old_hook, new_hook, 1))
           PY
       - name: Install dependencies
         run: npm ci --no-audit --no-fund
