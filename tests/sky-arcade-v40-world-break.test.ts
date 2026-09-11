@@ -10,12 +10,14 @@ import {
 import { SKY_DANCER_ARCADE_STAGES } from "../src/sky/arcade/SkyDancerArcadeData";
 import { SkyDancerArcadeRuntime } from "../src/sky/arcade/SkyDancerArcadeRuntime";
 
-test("V40 gives every Arcade Run world a signature objective while Dawn City is the first live World Break stage", () => {
+test("V40 gives every Arcade Run world a signature objective and tracks the currently implemented World Break stages", () => {
   const profiles = SKY_DANCER_ARCADE_STAGES.map((stage) => skyDancerArcadeV40WorldProfile(stage.id));
   assert.equal(profiles.length, 11);
   assert.equal(new Set(profiles.map((profile) => profile.objective)).size, 11);
   assert.equal(skyDancerArcadeV40WorldProfile("dawn-city").live, true);
-  assert.equal(profiles.filter((profile) => profile.live).length, 1);
+  assert.equal(skyDancerArcadeV40WorldProfile("red-canyon").live, true);
+  assert.equal(skyDancerArcadeV40WorldProfile("cloud-fleet").live, true);
+  assert.equal(profiles.filter((profile) => profile.live).length, 3);
 });
 
 test("V40 route doctrine turns two-way and three-way gates into explicit risk contracts", () => {
