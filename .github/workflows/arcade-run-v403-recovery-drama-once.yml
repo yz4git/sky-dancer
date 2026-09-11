@@ -27,8 +27,9 @@ jobs:
         run: python3 scripts/arcade-run-v403-recovery-drama.py
       - name: Install dependencies
         run: npm ci --no-audit --no-fund
-      - name: Debug recovery classification
+      - name: Trace recovery test
         run: |
+          nl -ba tests/sky-arcade-v403-world-break-recovery.test.ts | sed -n '40,58p'
           node --import tsx --input-type=module <<'EOF'
           import { skyDancerArcadeV403RecoveryFromMessage } from './src/sky/arcade/SkyDancerArcadeV403WorldBreakRecovery.ts';
           const cases = [
@@ -46,9 +47,10 @@ jobs:
           ];
           for (const [stage,message,expected] of cases) {
             const cue = skyDancerArcadeV403RecoveryFromMessage(stage, message);
-            console.log(stage, 'expected=', expected, 'actual=', cue?.retryable, 'headline=', cue?.headline);
+            console.log(stage, 'expected=', expected, 'actual=', cue?.retryable, 'headline=', cue?.headline, 'fov=', cue?.cameraFovKick, 'pullback=', cue?.cameraPullback);
           }
           EOF
+          node --import tsx --test tests/sky-arcade-v403-world-break-recovery.test.ts || true
       - name: Verify V40.3 recovery drama
         run: |
           npm run check:arcade
