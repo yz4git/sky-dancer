@@ -25,6 +25,12 @@ import {
   skyDancerArcadeV403ResolvedRecoveryFromMessage,
 } from "./SkyDancerArcadeV403WorldBreakRecovery";
 import {
+  skyDancerArcadeV406BossDrone,
+  skyDancerArcadeV406FinalBossCue,
+  skyDancerArcadeV406FormMotion,
+  type SkyDancerArcadeV406FinalBossCue,
+} from "./SkyDancerArcadeV406FinalBossPresentation";
+import {
   createSkyDancerArcadeEnemy,
   createSkyDancerArcadeHazard,
   createSkyDancerArcadeLockRing,
@@ -69,6 +75,8 @@ class SkyDancerArcadeAudio {
   private context: AudioContext | null = null;
   private engine: OscillatorNode | null = null;
   private engineGain: GainNode | null = null;
+  private bossDrone: OscillatorNode | null = null;
+  private bossDroneGain: GainNode | null = null;
 
   activate(): void {
     if (typeof AudioContext === "undefined") return;
@@ -76,11 +84,18 @@ class SkyDancerArcadeAudio {
       this.context = new AudioContext();
       this.engine = this.context.createOscillator();
       this.engineGain = this.context.createGain();
+      this.bossDrone = this.context.createOscillator();
+      this.bossDroneGain = this.context.createGain();
       this.engine.type = "sawtooth";
       this.engine.frequency.value = 62;
       this.engineGain.gain.value = 0.018;
       this.engine.connect(this.engineGain).connect(this.context.destination);
       this.engine.start();
+      this.bossDrone.type = "triangle";
+      this.bossDrone.frequency.value = 54;
+      this.bossDroneGain.gain.value = 0;
+      this.bossDrone.connect(this.bossDroneGain).connect(this.context.destination);
+      this.bossDrone.start();
     }
     if (this.context.state === "suspended") void this.context.resume();
   }
@@ -90,6 +105,9 @@ class SkyDancerArcadeAudio {
     const now = this.context.currentTime;
     this.engine.frequency.setTargetAtTime(snapshot.turboActive ? 118 : 68 + snapshot.stage.courseSpeed * 0.12, now, 0.08);
     this.engineGain.gain.setTargetAtTime(snapshot.status === "running" ? (snapshot.turboActive ? 0.032 : 0.018) : 0.006, now, 0.12);
+    const bossDrone = skyDancerArcadeV406BossDrone(snapshot.finalBossForm, snapshot.bossPhase, snapshot.finalBossReactive && snapshot.bossActive && snapshot.status === "running");
+    this.bossDrone?.frequency.setTargetAtTime(bossDrone.frequencyHz, now, .18);
+    this.bossDroneGain?.gain.setTargetAtTime(bossDrone.gain, now, .28);
   }
 
   tone(frequency: number, duration: number, volume: number, type: OscillatorType = "square"): void {
@@ -110,6 +128,7 @@ class SkyDancerArcadeAudio {
   dispose(): void {
     try {
       this.engine?.stop();
+      this.bossDrone?.stop();
     } catch {
       // The oscillator may already have been stopped during a renderer handoff.
     }
@@ -117,6 +136,8 @@ class SkyDancerArcadeAudio {
     this.context = null;
     this.engine = null;
     this.engineGain = null;
+    this.bossDrone = null;
+    this.bossDroneGain = null;
   }
 }
 
@@ -188,6 +209,10 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
   private worldBreakRecoveryMode: "failure" | "comeback" | null = null;
   private worldBreakRecoveryDebt = false;
   private worldBreakRecoveryResolvedMessage: string | null = null;
+  // V40.6: final-boss presentation consumes V40.5 telemetry only; simulation timing and hit rules remain untouched.
+  private finalBossPresentationTimer = 0;
+  private finalBossPresentationDuration = 1;
+  private finalBossPresentationCue: SkyDancerArcadeV406FinalBossCue | null = null;
   // V10.3.8: sightline and roll persist across stage handoffs so the camera has one coherent damped frame.
   private readonly cameraLookTarget = new THREE.Vector3(0, .8, -34);
   private cameraRoll = 0;
@@ -359,6 +384,7 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
     this.syncWorldBreakPrismReprise(snapshot);
     this.syncBranchGates(snapshot, delta);
     this.syncEffects(snapshot);
+    this.syncFinalBossPresentation(snapshot, delta);
     this.syncWorldBreakRecovery(snapshot, delta);
     this.syncWorldBreakCelebration(snapshot, delta);
     this.syncAudio(snapshot);
@@ -656,10 +682,11 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
         }
         const finalBossRig = group.getObjectByName("arcade-v405-final-boss-form");
         if (finalBossRig) {
-          const pulse = 1 + Math.sin(snapshot.runTimeSeconds * (2.8 + enemy.bossPhase * .7)) * (.025 + enemy.bossPhase * .008);
-          finalBossRig.scale.setScalar(pulse);
-          finalBossRig.rotation.z += delta * (.08 + enemy.bossPhase * .045);
-          finalBossRig.rotation.y += delta * .025;
+          const formMotion = skyDancerArcadeV406FormMotion(enemy.finalBossForm, enemy.bossPhase, snapshot.runTimeSeconds);
+          finalBossRig.scale.setScalar(formMotion.scale);
+          finalBossRig.rotation.z += delta * formMotion.spinZ;
+          finalBossRig.rotation.y += delta * formMotion.spinY;
+          finalBossRig.rotation.x = formMotion.wobble;
         }
       }
     }
@@ -1294,20 +1321,12 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
       this.cameraShake = Math.min(.72, this.cameraShake + .22);
       this.audio.tone(snapshot.worldBreakFortressBreachOpen ? 260 : 92, .22, .028, "sawtooth");
     }
-    if (snapshot.bossPhaseSerial !== this.previousSnapshot.bossPhaseSerial) {
+    if (snapshot.bossPhaseSerial !== this.previousSnapshot.bossPhaseSerial && !snapshot.finalBossReactive) {
       this.presentation.emitRushAccent();
       this.cameraImpactKick = Math.max(this.cameraImpactKick, .5);
       this.cameraShake = Math.min(.9, this.cameraShake + .28);
       this.audio.tone(74, .32, .05, "sawtooth");
       this.audio.tone(296, .2, .018, "triangle");
-    }
-    if (snapshot.finalBossSerial !== this.previousSnapshot.finalBossSerial && snapshot.finalBossReactive) {
-      this.presentation.emitRushAccent();
-      this.cameraImpactKick = Math.max(this.cameraImpactKick, .66);
-      this.cameraShake = Math.min(1, this.cameraShake + .34);
-      const formTone = snapshot.finalBossForm === "HELLSTAR" ? 92 : snapshot.finalBossForm === "PRISM_CROWN" ? 392 : snapshot.finalBossForm === "MIRROR_AEGIS" ? 244 : 326;
-      this.audio.tone(formTone, .34, .052, "sawtooth");
-      this.audio.tone(formTone * 1.5, .22, .022, "triangle");
     }
     if (snapshot.stageEventSerial !== this.previousSnapshot.stageEventSerial) {
       this.presentation.emitRushAccent();
@@ -1340,6 +1359,39 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
     }
     if (snapshot.turboActive && !this.previousSnapshot.turboActive) this.presentation.emitRushAccent();
     if (snapshot.bossActive && !this.previousSnapshot.bossActive) this.presentation.emitBossArrival();
+  }
+
+  private syncFinalBossPresentation(snapshot: SkyDancerArcadeSnapshot, delta: number): void {
+    this.finalBossPresentationTimer = Math.max(0, this.finalBossPresentationTimer - delta);
+    if (!snapshot.finalBossReactive || !snapshot.finalBossForm) {
+      this.finalBossPresentationCue = null;
+      return;
+    }
+    const arrival = snapshot.bossActive && !this.previousSnapshot.bossActive;
+    const phaseShift = snapshot.bossPhaseSerial !== this.previousSnapshot.bossPhaseSerial;
+    const defeat = snapshot.finalBossSerial !== this.previousSnapshot.finalBossSerial && snapshot.message?.startsWith("SOVEREIGN DOWN");
+    const event = defeat ? "defeat" : phaseShift ? "phase" : arrival ? "arrival" : null;
+    if (event) {
+      const cue = skyDancerArcadeV406FinalBossCue(snapshot.finalBossForm, snapshot.bossPhase, event);
+      if (cue) {
+        this.finalBossPresentationCue = cue;
+        this.finalBossPresentationTimer = cue.durationSeconds;
+        this.finalBossPresentationDuration = cue.durationSeconds;
+        this.cameraShake = Math.min(1, this.cameraShake + cue.cameraShake);
+        this.cameraImpactKick = Math.max(this.cameraImpactKick, event === "defeat" ? .78 : .46 * cue.strength);
+        this.presentation.emitRushAccent();
+        this.audio.tone(cue.audioLowHz, event === "defeat" ? .48 : .31, .035 + cue.strength * .012, event === "defeat" ? "sawtooth" : "triangle");
+        this.audio.tone(cue.audioHighHz, event === "defeat" ? .34 : .2, .018 + cue.strength * .007, event === "phase" ? "square" : "triangle");
+        if (event === "defeat") this.audio.tone(cue.audioHighHz * .5, .72, .024, "sine");
+      }
+    }
+    const envelope = this.finalBossPresentationTimer > 0
+      ? Math.sin((1 - this.finalBossPresentationTimer / Math.max(.001, this.finalBossPresentationDuration)) * Math.PI)
+      : 0;
+    if (envelope > 0 && this.finalBossPresentationCue) {
+      this.presentationFx.bloomBoost = Math.max(this.presentationFx.bloomBoost, envelope * this.finalBossPresentationCue.bloomBoost);
+      this.presentationFx.exposureBoost = Math.max(this.presentationFx.exposureBoost, envelope * this.finalBossPresentationCue.exposureBoost);
+    }
   }
 
   /** Small deterministic outdoor reflection map for the ceramic skin and canopy. */
@@ -1552,23 +1604,26 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
     const worldBreakRecoveryEnvelope = this.worldBreakRecoveryTimer > 0
       ? Math.sin((1 - this.worldBreakRecoveryTimer / Math.max(.001, this.worldBreakRecoveryDuration)) * Math.PI)
       : 0;
+    const finalBossEnvelope = this.finalBossPresentationTimer > 0 && this.finalBossPresentationCue
+      ? Math.sin((1 - this.finalBossPresentationTimer / Math.max(.001, this.finalBossPresentationDuration)) * Math.PI)
+      : 0;
     this.camera.position.x += (targetX - this.camera.position.x) * xAlpha;
     this.camera.position.y += (targetY - this.camera.position.y) * yAlpha;
     // V40.1 opens the frame slightly before a signature challenge; gameplay/world transforms remain untouched.
-    this.camera.position.z += (pose.z + this.presentationFx.pullback + snapshot.timelineCameraPullback + this.cameraImpactKick + worldBreakAnticipation * .72 + worldBreakCelebrationEnvelope * this.worldBreakCelebrationPullback + worldBreakRecoveryEnvelope * this.worldBreakRecoveryPullback - this.camera.position.z) * zAlpha;
-    this.camera.fov += (pose.fov + this.presentationFx.fovKick + snapshot.timelineCameraFov + worldBreakAnticipation * 1.5 + worldBreakCelebrationEnvelope * this.worldBreakCelebrationFovKick + worldBreakRecoveryEnvelope * this.worldBreakRecoveryFovKick - this.camera.fov) * fovAlpha;
+    this.camera.position.z += (pose.z + this.presentationFx.pullback + snapshot.timelineCameraPullback + this.cameraImpactKick + worldBreakAnticipation * .72 + worldBreakCelebrationEnvelope * this.worldBreakCelebrationPullback + worldBreakRecoveryEnvelope * this.worldBreakRecoveryPullback + finalBossEnvelope * (this.finalBossPresentationCue?.cameraPullback ?? 0) - this.camera.position.z) * zAlpha;
+    this.camera.fov += (pose.fov + this.presentationFx.fovKick + snapshot.timelineCameraFov + worldBreakAnticipation * 1.5 + worldBreakCelebrationEnvelope * this.worldBreakCelebrationFovKick + worldBreakRecoveryEnvelope * this.worldBreakRecoveryFovKick + finalBossEnvelope * (this.finalBossPresentationCue?.cameraFovKick ?? 0) - this.camera.fov) * fovAlpha;
     this.camera.updateProjectionMatrix();
 
     const desiredLookX = pose.lookX;
-    const desiredLookY = pose.lookY;
-    const desiredLookZ = pose.lookZ;
+    const desiredLookY = pose.lookY + finalBossEnvelope * (this.finalBossPresentationCue?.lookLift ?? 0);
+    const desiredLookZ = pose.lookZ - finalBossEnvelope * (this.finalBossPresentationCue?.strength ?? 0) * .72;
     this.cameraLookTarget.x += (desiredLookX - this.cameraLookTarget.x) * lookAlpha;
     this.cameraLookTarget.y += (desiredLookY - this.cameraLookTarget.y) * lookAlpha;
     this.cameraLookTarget.z += (desiredLookZ - this.cameraLookTarget.z) * lookAlpha;
     this.camera.lookAt(this.cameraLookTarget);
 
     // Course roll is already expressed by the single local scenery frame and by aircraft attitude.
-    const desiredRoll = pose.roll;
+    const desiredRoll = pose.roll + finalBossEnvelope * (this.finalBossPresentationCue?.cameraRoll ?? 0);
     this.cameraRoll += (desiredRoll - this.cameraRoll) * rollAlpha;
     this.camera.rotateZ(this.cameraRoll);
   }

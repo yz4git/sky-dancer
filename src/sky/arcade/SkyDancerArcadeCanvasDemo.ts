@@ -1,6 +1,7 @@
 import { SkyDancerArcadeRuntime, type SkyDancerArcadeRuntimeOptions, type SkyDancerArcadeSnapshot } from "./SkyDancerArcadeRuntime";
 import type { SkyDancerArcadeDemoHandle } from "./SkyDancerArcadeWebGLDemo";
 import { skyDancerArcadeEnemyVisualScaleV17 } from "./SkyDancerArcadeModels";
+import { skyDancerArcadeV406FinalBossCue, skyDancerArcadeV406FormMotion, skyDancerArcadeV406FormLabel } from "./SkyDancerArcadeV406FinalBossPresentation";
 
 type SnapshotHandler = (snapshot: SkyDancerArcadeSnapshot) => void;
 
@@ -70,6 +71,7 @@ export class SkyDancerArcadeCanvasDemo implements SkyDancerArcadeDemoHandle {
     context.fillStyle = gradient;
     context.fillRect(0, 0, cssWidth, cssHeight);
     this.drawCourse(context, snapshot, cssWidth, cssHeight);
+    this.drawFinalBossPresentation(context, snapshot, cssWidth, cssHeight);
     this.drawWorldBreakGates(context, snapshot, cssWidth, cssHeight);
     this.drawWorldBreakKnifeRun(context, snapshot, cssWidth, cssHeight);
     this.drawWorldBreakStormLane(context, snapshot, cssWidth, cssHeight);
@@ -151,6 +153,52 @@ export class SkyDancerArcadeCanvasDemo implements SkyDancerArcadeDemoHandle {
       context.fill();
     }
     this.drawPlayer(context, snapshot, cssWidth, cssHeight);
+    context.restore();
+  }
+
+  private drawFinalBossPresentation(context: CanvasRenderingContext2D, snapshot: SkyDancerArcadeSnapshot, width: number, height: number): void {
+    if (!snapshot.finalBossReactive || !snapshot.finalBossForm) return;
+    const boss = snapshot.enemies.find((enemy) => enemy.boss);
+    const defeated = snapshot.message?.startsWith("SOVEREIGN DOWN") ?? false;
+    if (!boss && !defeated) return;
+    const accent = boss?.finalBossAccent ?? snapshot.stage.palette.accent;
+    const hex = `#${accent.toString(16).padStart(6, "0")}`;
+    const motion = skyDancerArcadeV406FormMotion(snapshot.finalBossForm, snapshot.bossPhase, snapshot.runTimeSeconds);
+    const cue = skyDancerArcadeV406FinalBossCue(snapshot.finalBossForm, snapshot.bossPhase, defeated ? "defeat" : "phase");
+    const cx = width * .5;
+    const cy = height * .38;
+    context.save();
+    const glow = context.createRadialGradient(cx, cy, 8, cx, cy, Math.max(width, height) * .48);
+    glow.addColorStop(0, `${hex}38`);
+    glow.addColorStop(.48, `${hex}14`);
+    glow.addColorStop(1, `${hex}00`);
+    context.fillStyle = glow;
+    context.fillRect(0, 0, width, height);
+    context.translate(cx, cy);
+    context.rotate(motion.wobble + snapshot.runTimeSeconds * motion.spinZ * .08);
+    context.strokeStyle = hex;
+    context.globalAlpha = defeated ? .82 : .36 + snapshot.bossPhase * .11;
+    context.lineWidth = defeated ? 4 : 2.2;
+    const ringCount = snapshot.finalBossForm === "SEVEN_SKY" ? 7 : snapshot.finalBossForm === "MIRROR_AEGIS" ? 4 : snapshot.finalBossForm === "PRISM_CROWN" ? 5 : 3;
+    for (let ring = 0; ring < ringCount; ring += 1) {
+      const radius = (36 + ring * 18) * motion.scale;
+      context.beginPath();
+      const start = snapshot.runTimeSeconds * motion.spinZ * (ring % 2 === 0 ? 1 : -1);
+      context.arc(0, 0, radius, start, start + Math.PI * (snapshot.finalBossForm === "HELLSTAR" ? 1.36 : 1.7));
+      context.stroke();
+    }
+    context.restore();
+    context.save();
+    context.textAlign = "center";
+    context.fillStyle = hex;
+    context.globalAlpha = .92;
+    context.font = "800 10px system-ui, sans-serif";
+    context.fillText(`${skyDancerArcadeV406FormLabel(snapshot.finalBossForm)} · PHASE ${snapshot.bossPhase}`, cx, height * .105);
+    if (cue) {
+      context.globalAlpha = .68;
+      context.font = "700 8px system-ui, sans-serif";
+      context.fillText(cue.label, cx, height * .105 + 13);
+    }
     context.restore();
   }
 
