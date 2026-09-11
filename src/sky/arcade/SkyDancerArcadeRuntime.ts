@@ -65,6 +65,14 @@ import {
   skyDancerArcadeV27DensityCaps,
 } from "./SkyDancerArcadeV27CombatReadability";
 import { skyDancerArcadeV271CombatCorridorCrowded } from "./SkyDancerArcadeV271ScreenPolish";
+import {
+  SKY_DANCER_ARCADE_V40_DAWN_CITY_GATES,
+  skyDancerArcadeV40DawnCityGateAnchorDistance,
+  skyDancerArcadeV40RouteDoctrine,
+  skyDancerArcadeV40RouteEffect,
+  skyDancerArcadeV40WorldProfile,
+  type SkyDancerArcadeV40RouteDoctrine,
+} from "./SkyDancerArcadeV40WorldBreak";
 
 export type SkyDancerArcadeStatus =
   | "running"
@@ -144,6 +152,18 @@ export interface SkyDancerArcadeHazardSnapshot {
   y: number;
   depth: number;
   scale: number;
+}
+
+export interface SkyDancerArcadeWorldBreakGateSnapshot {
+  id: number;
+  index: number;
+  x: number;
+  y: number;
+  depth: number;
+  radiusX: number;
+  radiusY: number;
+  resolved: boolean;
+  success: boolean | null;
 }
 
 export interface SkyDancerArcadeSnapshot {
@@ -243,6 +263,18 @@ export interface SkyDancerArcadeSnapshot {
   timelineCameraPullback: number;
   timelineSerial: number;
   routeRiskLabels: readonly SkyDancerArcadeV11RouteRisk[];
+  worldBreakObjective: string;
+  worldBreakSignature: string;
+  worldBreakLive: boolean;
+  worldBreakRouteDoctrine: SkyDancerArcadeV40RouteDoctrine;
+  worldBreakScoreMultiplier: number;
+  worldBreakPressureScale: number;
+  worldBreakGateHits: number;
+  worldBreakGateMisses: number;
+  worldBreakGateStreak: number;
+  worldBreakGateSerial: number;
+  worldBreakGateTotal: number;
+  worldBreakGates: SkyDancerArcadeWorldBreakGateSnapshot[];
   enemies: SkyDancerArcadeEnemySnapshot[];
   projectiles: SkyDancerArcadeProjectileSnapshot[];
   impacts: SkyDancerArcadeImpactSnapshot[];
@@ -313,6 +345,11 @@ interface ArcadeHazard extends SkyDancerArcadeHazardSnapshot {
   courseAnchorDistance: number | null;
   // V30: boss ingress releases old hazards from the course and lets them sweep off-screen.
   retiring?: boolean;
+}
+
+interface ArcadeWorldBreakGate extends SkyDancerArcadeWorldBreakGateSnapshot {
+  anchorDistance: number;
+  scoreValue: number;
 }
 
 interface ArcadeInput {
@@ -539,6 +576,13 @@ export class SkyDancerArcadeRuntime {
   private impactEvents: SkyDancerArcadeImpactSnapshot[] = [];
   private readonly impactEventAges = new Map<number, number>();
   private hazards: ArcadeHazard[] = [];
+  // V40 WORLD BREAK: authored world-navigation objectives coexist with combat actors.
+  private worldBreakGates: ArcadeWorldBreakGate[] = [];
+  private worldBreakRouteDoctrine: SkyDancerArcadeV40RouteDoctrine = "LOCKED";
+  private worldBreakGateHits = 0;
+  private worldBreakGateMisses = 0;
+  private worldBreakGateStreak = 0;
+  private worldBreakGateSerial = 0;
   private nextEntityId = 1;
   private waveSerial = 0;
   private nextWaveAt = 2.8;
@@ -653,6 +697,22 @@ export class SkyDancerArcadeRuntime {
     this.impactEvents = [];
     this.impactEventAges.clear();
     this.hazards = [];
+    if (rewindTime <= 0) {
+      this.worldBreakGateHits = 0;
+      this.worldBreakGateMisses = 0;
+      this.worldBreakGateStreak = 0;
+    }
+    this.worldBreakGates = this.stage.id === "dawn-city"
+      ? SKY_DANCER_ARCADE_V40_DAWN_CITY_GATES.map((gate) => {
+          const anchorDistance = skyDancerArcadeV40DawnCityGateAnchorDistance(gate, this.stage.durationSeconds, this.stage.courseSpeed);
+          const alreadyPassed = rewindTime > 0 && anchorDistance <= this.distance + 2.4;
+          return {
+            id: this.nextEntityId++, index: gate.index, x: gate.x, y: gate.y,
+            depth: anchorDistance - this.distance, radiusX: gate.radiusX, radiusY: gate.radiusY,
+            resolved: alreadyPassed, success: null, anchorDistance, scoreValue: gate.score,
+          };
+        })
+      : [];
     this.waveSerial = 0;
     // Give each section a readable establishing beat before the first pressure wave.
     this.nextWaveAt = this.stageTime + (rewindTime > 0 ? 1.35 : 2.35);
@@ -821,6 +881,7 @@ export class SkyDancerArcadeRuntime {
     if (this.messageTimer <= 0) this.message = null;
     this.updateV12CombatSignals(delta, turboActive);
     this.updatePlayer(delta, turboActive);
+    this.updateWorldBreakGates();
     this.updateBranch();
     this.updateV11Timeline();
     this.updateDirector();
@@ -856,6 +917,33 @@ export class SkyDancerArcadeRuntime {
     else this.turbo = Math.min(100, this.turbo + 13.5 * (jammerCount > 0 ? .58 : 1) * delta);
   }
 
+  private updateWorldBreakGates(): void {
+    if (this.worldBreakGates.length === 0) return;
+    for (const gate of this.worldBreakGates) {
+      gate.depth = gate.anchorDistance - this.distance;
+      if (gate.resolved || gate.depth > 2.4) continue;
+      const dx = (this.playerX - gate.x) / gate.radiusX;
+      const dy = (this.playerY - gate.y) / gate.radiusY;
+      const clean = Math.hypot(dx, dy) <= 1;
+      gate.resolved = true;
+      gate.success = clean;
+      this.worldBreakGateSerial += 1;
+      if (clean) {
+        this.worldBreakGateHits += 1;
+        this.worldBreakGateStreak += 1;
+        const awarded = this.addScore(gate.scoreValue + Math.max(0, this.worldBreakGateStreak - 1) * 280, true);
+        this.turbo = Math.min(100, this.turbo + 8 + this.worldBreakGateStreak * 2);
+        this.message = `WORLD BREAK · GATE ${gate.index + 1} CLEAN · +${awarded}`;
+        this.messageTimer = 1.05;
+      } else {
+        this.worldBreakGateMisses += 1;
+        this.worldBreakGateStreak = 0;
+        this.message = `WORLD BREAK · GATE ${gate.index + 1} MISSED`;
+        this.messageTimer = .82;
+      }
+    }
+  }
+
   private get branchActive(): boolean {
     if (this.stage.next.length <= 1 || this.branchWasResolved) return false;
     const start = this.stage.durationSeconds * 0.27;
@@ -885,9 +973,11 @@ export class SkyDancerArcadeRuntime {
       this.branchSelection = this.stage.next[index] ?? this.stage.next[0] ?? null;
     }
     if (this.branchSelection) {
-      this.message = `ROUTE LOCKED · ${skyDancerArcadeStageById(this.branchSelection).name}`;
+      const selectedIndex = this.stage.next.indexOf(this.branchSelection);
+      const doctrine = skyDancerArcadeV40RouteDoctrine(selectedIndex, this.stage.next.length);
+      this.message = `ROUTE LOCKED · ${doctrine} · ${skyDancerArcadeStageById(this.branchSelection).name}`;
       this.messageTimer = 2.4;
-      this.addScore(2500, false);
+      this.addScore(doctrine === "DANGER" ? 3600 : doctrine === "SCORE" ? 3000 : 2500, false);
     }
   }
 
@@ -982,6 +1072,7 @@ export class SkyDancerArcadeRuntime {
     this.updateV121EncounterQueue();
     const progress = clamp(this.stageTime / this.stage.durationSeconds, 0, 1);
     const beat = skyDancerArcadeV11Beat(this.stage.id, progress);
+    const worldBreakPressureScale = skyDancerArcadeV40RouteEffect(this.worldBreakRouteDoctrine).pressureScale;
     const bossTime = this.stage.durationSeconds * skyDancerArcadeBossStartProgress(this.stage.id === SKY_DANCER_ARCADE_FINAL_STAGE);
     if (!this.bossSpawned && this.stageTime >= bossTime) this.spawnBoss();
     // V27: total population and, more importantly, near-camera population have separate readability ceilings.
@@ -994,11 +1085,11 @@ export class SkyDancerArcadeRuntime {
     if (!this.bossSpawned && !corridorCrowdedV271 && this.encounterPhaseQueue.length === 0 && this.stageTime >= this.nextWaveAt && this.enemies.filter((enemy) => enemy.alive).length < densityV27.enemyCap) {
       this.spawnWave();
       const pressure = this.options.difficulty === "hard" ? 0.84 : 1;
-      this.nextWaveAt += this.stage.waveIntervalSeconds * beat.waveIntervalScale * pressure * this.combatDirectorCadenceScale * this.encounterGrammarCadenceScale * (0.84 + this.random() * 0.34);
+      this.nextWaveAt += this.stage.waveIntervalSeconds * beat.waveIntervalScale * pressure * worldBreakPressureScale * this.combatDirectorCadenceScale * this.encounterGrammarCadenceScale * (0.84 + this.random() * 0.34);
     }
     if (!this.bossSpawned && this.stageTime >= this.nextHazardAt && this.hazards.length < 8) {
       this.spawnHazardPattern();
-      this.nextHazardAt += (3.8 - this.stage.turbulence * 2.6) * beat.hazardIntervalScale * (0.82 + this.random() * 0.42);
+      this.nextHazardAt += (3.8 - this.stage.turbulence * 2.6) * beat.hazardIntervalScale * worldBreakPressureScale * (0.82 + this.random() * 0.42);
     }
   }
 
@@ -2169,7 +2260,8 @@ export class SkyDancerArcadeRuntime {
   private addScore(base: number, risk: boolean): number {
     const chainMultiplier = 1 + Math.min(12, this.chain) * 0.1;
     const riskMultiplier = risk ? 1.25 : 1;
-    const awarded = Math.round(base * chainMultiplier * riskMultiplier);
+    const routeMultiplier = skyDancerArcadeV40RouteEffect(this.worldBreakRouteDoctrine).scoreMultiplier;
+    const awarded = Math.round(base * chainMultiplier * riskMultiplier * routeMultiplier);
     this.score += awarded;
     return awarded;
   }
@@ -2347,13 +2439,17 @@ export class SkyDancerArcadeRuntime {
       this.status = "run-clear";
       return;
     }
+    const selectedIndex = this.branchSelection ? this.stage.next.indexOf(this.branchSelection) : -1;
+    const nextDoctrine = skyDancerArcadeV40RouteDoctrine(selectedIndex, this.stage.next.length);
     this.stage = skyDancerArcadeStageById(nextId);
+    this.worldBreakRouteDoctrine = nextDoctrine;
+    const routeEffect = skyDancerArcadeV40RouteEffect(nextDoctrine);
     this.route.push(nextId);
     this.stageNumber += 1;
     this.status = "running";
-    this.playerHp = Math.min(PLAYER_MAX_HP, this.playerHp + 28);
-    this.turbo = Math.min(100, this.turbo + 38);
-    this.message = `${this.stage.name} · DROP IN`;
+    this.playerHp = Math.min(PLAYER_MAX_HP, this.playerHp + routeEffect.entryHpRecovery);
+    this.turbo = Math.min(100, this.turbo + routeEffect.entryTurboRecovery);
+    this.message = `${this.stage.name} · ${nextDoctrine === "LOCKED" ? "DROP IN" : `${nextDoctrine} ROUTE`}`;
     this.messageTimer = 2.8;
     this.stageSerial += 1;
     this.resetStageState(0);
@@ -2363,6 +2459,7 @@ export class SkyDancerArcadeRuntime {
     this.enemies = this.enemies.filter((enemy) => enemy.alive && enemy.depth > -13);
     this.projectiles = this.projectiles.filter((projectile) => projectile.life > 0 && projectile.depth > -5 && projectile.depth < 145);
     this.hazards = this.hazards.filter((hazard) => hazard.depth > -6);
+    this.worldBreakGates = this.worldBreakGates.filter((gate) => gate.depth > -10);
   }
 
   getSnapshot(): SkyDancerArcadeSnapshot {
@@ -2470,6 +2567,21 @@ export class SkyDancerArcadeRuntime {
       timelineCameraPullback: skyDancerArcadeV11Beat(this.stage.id, clamp(this.stageTime / this.stage.durationSeconds, 0, 1)).cameraPullback,
       timelineSerial: this.timelineSerial,
       routeRiskLabels: this.stage.next.map((_, index) => skyDancerArcadeV11RouteRisk(index, this.stage.next.length)),
+      worldBreakObjective: skyDancerArcadeV40WorldProfile(this.stage.id).objective,
+      worldBreakSignature: skyDancerArcadeV40WorldProfile(this.stage.id).signature,
+      worldBreakLive: skyDancerArcadeV40WorldProfile(this.stage.id).live,
+      worldBreakRouteDoctrine: this.worldBreakRouteDoctrine,
+      worldBreakScoreMultiplier: skyDancerArcadeV40RouteEffect(this.worldBreakRouteDoctrine).scoreMultiplier,
+      worldBreakPressureScale: skyDancerArcadeV40RouteEffect(this.worldBreakRouteDoctrine).pressureScale,
+      worldBreakGateHits: this.worldBreakGateHits,
+      worldBreakGateMisses: this.worldBreakGateMisses,
+      worldBreakGateStreak: this.worldBreakGateStreak,
+      worldBreakGateSerial: this.worldBreakGateSerial,
+      worldBreakGateTotal: this.stage.id === "dawn-city" ? SKY_DANCER_ARCADE_V40_DAWN_CITY_GATES.length : 0,
+      worldBreakGates: this.worldBreakGates.filter((gate) => gate.depth < 135).map((gate) => ({
+        id: gate.id, index: gate.index, x: gate.x, y: gate.y, depth: gate.depth,
+        radiusX: gate.radiusX, radiusY: gate.radiusY, resolved: gate.resolved, success: gate.success,
+      })),
       enemies: this.enemies.filter((enemy) => enemy.alive).map((enemy) => ({
         id: enemy.id,
         kind: enemy.kind,
@@ -2524,6 +2636,16 @@ export class SkyDancerArcadeRuntime {
       stageSerial: this.stageSerial,
       resultSerial: this.resultSerial,
     };
+  }
+
+  /** Deterministic V40 hook for skyline-gate gameplay regression tests. */
+  triggerV40WorldBreakGateForTests(index: number, playerX: number, playerY: number): void {
+    const gate = this.worldBreakGates.find((candidate) => candidate.index === index);
+    if (!gate) return;
+    this.playerX = clamp(playerX, -PLAYER_X_LIMIT, PLAYER_X_LIMIT);
+    this.playerY = clamp(playerY, -PLAYER_Y_LIMIT, PLAYER_Y_LIMIT);
+    this.distance = gate.anchorDistance - 2.2;
+    this.updateWorldBreakGates();
   }
 
   /** Deterministic V12 hook for adaptive encounter regression tests. */

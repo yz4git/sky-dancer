@@ -70,6 +70,7 @@ export class SkyDancerArcadeCanvasDemo implements SkyDancerArcadeDemoHandle {
     context.fillStyle = gradient;
     context.fillRect(0, 0, cssWidth, cssHeight);
     this.drawCourse(context, snapshot, cssWidth, cssHeight);
+    this.drawWorldBreakGates(context, snapshot, cssWidth, cssHeight);
     this.drawBranch(context, snapshot, cssWidth, cssHeight);
     for (const hazard of [...snapshot.hazards].sort((a, b) => b.depth - a.depth)) {
       const projected = this.project(hazard.x, hazard.y, hazard.depth, cssWidth, cssHeight);
@@ -204,6 +205,27 @@ export class SkyDancerArcadeCanvasDemo implements SkyDancerArcadeDemoHandle {
       context.stroke();
     }
     context.globalAlpha = 1;
+  }
+
+  private drawWorldBreakGates(context: CanvasRenderingContext2D, snapshot: SkyDancerArcadeSnapshot, width: number, height: number): void {
+    for (const gate of snapshot.worldBreakGates) {
+      const projected = this.project(gate.x, gate.y, gate.depth, width, height);
+      const radius = Math.max(15, projected.scale * 42);
+      context.save();
+      context.translate(projected.x, projected.y);
+      context.strokeStyle = gate.resolved ? (gate.success ? "#75ffab" : "#ff647b") : "#66ecff";
+      context.globalAlpha = gate.resolved ? .55 : .9;
+      context.lineWidth = gate.resolved ? 4 : 3;
+      context.beginPath();
+      context.arc(0, 0, radius, 0, Math.PI * 2);
+      context.stroke();
+      context.rotate(Math.PI / 4);
+      context.globalAlpha *= .55;
+      context.beginPath();
+      context.arc(0, 0, radius * .78, 0, Math.PI * 2);
+      context.stroke();
+      context.restore();
+    }
   }
 
   private drawBranch(context: CanvasRenderingContext2D, snapshot: SkyDancerArcadeSnapshot, width: number, height: number): void {

@@ -131,9 +131,11 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
   private readonly projectileRoot = new THREE.Group();
   private readonly hazardRoot = new THREE.Group();
   private readonly branchRoot = new THREE.Group();
+  private readonly worldBreakRoot = new THREE.Group();
   private readonly enemyGroups = new Map<number, THREE.Group>();
   private readonly projectileMeshes = new Map<number, THREE.Mesh>();
   private readonly hazardGroups = new Map<number, THREE.Group>();
+  private readonly worldBreakGateGroups = new Map<number, THREE.Group>();
   private readonly engineGlows: THREE.Object3D[];
   private readonly engineTrails: THREE.Object3D[];
   private readonly audio = new SkyDancerArcadeAudio();
@@ -204,7 +206,8 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
     this.projectileRoot.name = "arcade-projectiles";
     this.hazardRoot.name = "arcade-hazards";
     this.branchRoot.name = "arcade-route-gates";
-    this.scene.add(this.entityRoot, this.projectileRoot, this.hazardRoot, this.branchRoot, this.player);
+    this.worldBreakRoot.name = "arcade-world-break-gates";
+    this.scene.add(this.entityRoot, this.projectileRoot, this.hazardRoot, this.branchRoot, this.worldBreakRoot, this.player);
     this.environment = new SkyDancerArcadeEnvironment(this.scene);
     this.environment.setStage(this.previousSnapshot.stage);
     this.v11Setpieces = new SkyDancerArcadeV11SetpieceDirector(this.scene);
@@ -297,6 +300,7 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
     this.syncEnemies(snapshot, delta);
     this.syncProjectiles(snapshot);
     this.syncHazards(snapshot, delta);
+    this.syncWorldBreakGates(snapshot, delta);
     this.syncBranchGates(snapshot, delta);
     this.syncEffects(snapshot);
     this.syncAudio(snapshot);
@@ -659,6 +663,50 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
     }
   }
 
+  private syncWorldBreakGates(snapshot: SkyDancerArcadeSnapshot, delta: number): void {
+    const active = new Set<number>();
+    for (const gate of snapshot.worldBreakGates) {
+      active.add(gate.id);
+      let group = this.worldBreakGateGroups.get(gate.id);
+      if (!group) {
+        group = new THREE.Group();
+        group.name = `arcade-world-break-gate-${gate.index}`;
+        const material = new THREE.MeshBasicMaterial({ color: 0x66ecff, transparent: true, opacity: .88, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false });
+        const outer = new THREE.Mesh(new THREE.TorusGeometry(5.15, .19, 7, 40), material);
+        const inner = new THREE.Mesh(new THREE.TorusGeometry(4.48, .055, 5, 36), material.clone());
+        inner.rotation.z = Math.PI / 4;
+        group.add(outer, inner);
+        for (let markerIndex = 0; markerIndex < 4; markerIndex += 1) {
+          const marker = new THREE.Mesh(new THREE.BoxGeometry(1.25, .12, .12), material.clone());
+          const angle = markerIndex / 4 * Math.PI * 2;
+          marker.position.set(Math.cos(angle) * 5.15, Math.sin(angle) * 5.15, 0);
+          marker.rotation.z = angle + Math.PI / 2;
+          group.add(marker);
+        }
+        this.worldBreakGateGroups.set(gate.id, group);
+        this.worldBreakRoot.add(group);
+      }
+      const course = arcadeCourseRelativeVisualPose(snapshot.stage, snapshot.distance, gate.depth);
+      group.position.set(gate.x * 8.4 + course.x, 1.2 + gate.y * 4.9 + course.y, course.z);
+      group.rotation.y = course.yaw;
+      group.rotation.x = course.pitch;
+      group.rotation.z += delta * .9;
+      const pulse = gate.resolved ? (gate.success ? 1.16 : .88) : 1 + Math.sin(snapshot.runTimeSeconds * 8 + gate.index) * .035;
+      group.scale.setScalar(pulse);
+      group.traverse((object) => {
+        if (!(object instanceof THREE.Mesh) || !(object.material instanceof THREE.MeshBasicMaterial)) return;
+        object.material.color.setHex(gate.resolved ? (gate.success ? 0x75ffab : 0xff647b) : 0x66ecff);
+        object.material.opacity = gate.resolved ? .5 : .88;
+      });
+    }
+    for (const [id, group] of this.worldBreakGateGroups) {
+      if (active.has(id)) continue;
+      this.worldBreakGateGroups.delete(id);
+      this.worldBreakRoot.remove(group);
+      this.disposeObject(group);
+    }
+  }
+
   private buildBranchGates(snapshot: SkyDancerArcadeSnapshot): void {
     for (const child of this.branchRoot.children) this.disposeObject(child);
     this.branchRoot.clear();
@@ -907,6 +955,11 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
     if (snapshot.bossMechanicSerial !== this.previousSnapshot.bossMechanicSerial) { this.audio.tone(96, .2, .035, "sawtooth"); this.audio.tone(288, .12, .018, "triangle"); }
     if (snapshot.stageSerial !== this.previousSnapshot.stageSerial) this.audio.tone(330, .18, .025, "triangle");
     if (snapshot.timelineSerial !== this.previousSnapshot.timelineSerial) { this.audio.tone(520, .12, .018, "triangle"); this.audio.tone(780, .08, .012, "square"); }
+    if (snapshot.worldBreakGateSerial !== this.previousSnapshot.worldBreakGateSerial) {
+      const clean = snapshot.worldBreakGateHits > this.previousSnapshot.worldBreakGateHits;
+      this.audio.tone(clean ? 1040 : 180, clean ? .12 : .18, .026, clean ? "triangle" : "sawtooth");
+      if (clean) this.audio.tone(1560, .07, .014, "triangle");
+    }
     const incoming = snapshot.projectiles.some((projectile) => projectile.owner === "enemy" && projectile.depth > 2.2 && projectile.depth < 30);
     const wasIncoming = this.previousSnapshot.projectiles.some((projectile) => projectile.owner === "enemy" && projectile.depth > 2.2 && projectile.depth < 30);
     if (incoming && !wasIncoming) this.audio.tone(880, 0.12, 0.026, "square");
@@ -986,12 +1039,15 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
       (mesh.material as THREE.Material).dispose();
     }
     for (const group of this.hazardGroups.values()) this.disposeObject(group);
+    for (const group of this.worldBreakGateGroups.values()) this.disposeObject(group);
     this.entityRoot.clear();
     this.projectileRoot.clear();
     this.hazardRoot.clear();
+    this.worldBreakRoot.clear();
     this.enemyGroups.clear();
     this.projectileMeshes.clear();
     this.hazardGroups.clear();
+    this.worldBreakGateGroups.clear();
   }
 
   private disposeObject(group: THREE.Object3D): void {

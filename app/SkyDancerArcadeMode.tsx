@@ -30,6 +30,7 @@ import {
   SkyDancerArcadeWebGLDemo,
   type SkyDancerArcadeDemoHandle,
 } from "../src/sky/arcade/SkyDancerArcadeWebGLDemo";
+import { skyDancerArcadeV40RouteDoctrine, skyDancerArcadeV40RouteEffect } from "../src/sky/arcade/SkyDancerArcadeV40WorldBreak";
 import styles from "./SkyDancerArcadeMode.module.css";
 import productStyles from "./SkyDancerArcadeProduct.module.css";
 
@@ -497,6 +498,13 @@ export default function SkyDancerArcadeMode({ request, onReturnTitle }: SkyDance
           <span>{snapshot.timelineSetpiece}</span>
           <em className={productStyles.v12DirectorLine}>COMBAT DIRECTOR · {snapshot.combatDirectorLabel} · {snapshot.combatDirectorIntent}</em>
           <em className={productStyles.v121GrammarLine}>ENCOUNTER · {snapshot.encounterGrammarLabel} · {snapshot.encounterGrammarPhaseLabel} {snapshot.encounterGrammarPhaseIndex}/{snapshot.encounterGrammarPhaseCount} · {snapshot.encounterContinuityLabel}</em>
+          {(snapshot.worldBreakLive || snapshot.worldBreakRouteDoctrine !== "LOCKED") && (
+            <em className={styles.worldBreakLine} data-live={snapshot.worldBreakLive}>
+              WORLD BREAK · {snapshot.worldBreakObjective}
+              {snapshot.worldBreakGateTotal > 0 ? ` · GATE ${snapshot.worldBreakGateHits + snapshot.worldBreakGateMisses}/${snapshot.worldBreakGateTotal} · STREAK ${snapshot.worldBreakGateStreak}` : ""}
+              {snapshot.worldBreakRouteDoctrine !== "LOCKED" ? ` · ${snapshot.worldBreakRouteDoctrine} ×${snapshot.worldBreakScoreMultiplier.toFixed(2)}` : ""}
+            </em>
+          )}
         </div>
 
         {messageCue.value && !messageIsBossWarning && (
@@ -540,10 +548,13 @@ export default function SkyDancerArcadeMode({ request, onReturnTitle }: SkyDance
             <div className={styles.routeOptions}>
               {snapshot.branchOptions.map((id, index) => {
                 const stage = skyDancerArcadeStageById(id);
+                const doctrine = skyDancerArcadeV40RouteDoctrine(index, snapshot.branchOptions.length);
+                const effect = skyDancerArcadeV40RouteEffect(doctrine);
                 return (
-                  <div key={id} className={`${styles.routeOption} ${snapshot.branchSelection === id ? styles.routeSelected : ""}`}>
-                    <span>{index === 0 ? "LEFT" : index === snapshot.branchOptions.length - 1 ? "RIGHT" : "CENTER"} · {snapshot.routeRiskLabels[index] ?? "ROUTE"}</span>
+                  <div key={id} className={`${styles.routeOption} ${snapshot.branchSelection === id ? styles.routeSelected : ""}`} data-doctrine={doctrine}>
+                    <span>{index === 0 ? "LEFT" : index === snapshot.branchOptions.length - 1 ? "RIGHT" : "CENTER"} · {doctrine}</span>
                     <strong>{stage.name}</strong>
+                    <em>{effect.detail}</em>
                   </div>
                 );
               })}
