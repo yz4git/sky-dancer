@@ -150,6 +150,9 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
   private snapshotClock = 0;
   private previousSnapshot: SkyDancerArcadeSnapshot;
   private currentStageId: string;
+  // V33: route gates own a short exit shot after route resolution instead of hard-toggling invisible.
+  private branchGateExitTimer = 0;
+  private branchGateExitSelection: string | null = null;
   private cameraShake = 0;
   private cameraImpactKick = 0;
   // V10.3.8: sightline and roll persist across stage handoffs so the camera has one coherent damped frame.
@@ -687,19 +690,55 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
   }
 
   private syncBranchGates(snapshot: SkyDancerArcadeSnapshot, delta: number): void {
-    this.branchRoot.visible = snapshot.branchActive;
-    if (!snapshot.branchActive) return;
-    const gateDepth = 82;
+    const resolvedThisFrame = this.previousSnapshot.branchActive && !snapshot.branchActive && snapshot.branchSelection !== null;
+    if (snapshot.branchActive) {
+      this.branchGateExitTimer = .82;
+      this.branchGateExitSelection = snapshot.branchSelection;
+    } else if (resolvedThisFrame) {
+      this.branchGateExitTimer = .82;
+      this.branchGateExitSelection = snapshot.branchSelection;
+    } else {
+      this.branchGateExitTimer = Math.max(0, this.branchGateExitTimer - delta);
+    }
+
+    const exiting = !snapshot.branchActive && this.branchGateExitTimer > 0;
+    const presenting = snapshot.branchActive || exiting;
+    this.branchRoot.visible = presenting;
+    if (!presenting) return;
+
+    const exitProgress = exiting ? THREE.MathUtils.clamp(1 - this.branchGateExitTimer / .82, 0, 1) : 0;
+    const gateDepth = exiting ? 82 - exitProgress * 34 : 82;
     const course = arcadeCourseRelativeVisualPose(snapshot.stage, snapshot.distance, gateDepth);
+    const selectedId = snapshot.branchSelection ?? this.branchGateExitSelection;
     this.branchRoot.children.forEach((child, index) => {
       const baseX = typeof child.userData.baseX === "number" ? child.userData.baseX : 0;
-      child.position.set(baseX + course.x, 1.2 + course.y, course.z);
+      const selected = selectedId === snapshot.branchOptions[index];
+      const side = Math.abs(baseX) > .01 ? Math.sign(baseX) : index % 2 === 0 ? -1 : 1;
+      const exitX = exiting && !selected ? side * exitProgress * 4.6 : 0;
+      child.position.set(baseX + exitX + course.x, 1.2 + course.y + (exiting && selected ? exitProgress * .35 : 0), course.z);
       child.rotation.y = course.yaw;
       child.rotation.x = course.pitch;
-      child.rotation.z += delta * (index % 2 === 0 ? 0.7 : -0.7);
-      const selected = snapshot.branchSelection === snapshot.branchOptions[index];
-      child.scale.setScalar(selected ? 1.2 + Math.sin(performance.now() * 0.012) * 0.08 : 0.92);
+      child.rotation.z += delta * (index % 2 === 0 ? 0.7 : -0.7) * (exiting ? 1.75 : 1);
+
+      if (exiting) {
+        child.scale.setScalar(selected ? 1.2 + exitProgress * 1.18 : Math.max(.2, .92 * (1 - exitProgress * .72)));
+      } else {
+        child.scale.setScalar(selected ? 1.2 + Math.sin(performance.now() * 0.012) * 0.08 : 0.92);
+      }
+
+      child.traverse((object) => {
+        if (!(object instanceof THREE.Mesh) || !(object.material instanceof THREE.MeshBasicMaterial)) return;
+        if (!exiting) {
+          object.material.opacity = .82;
+          return;
+        }
+        const selectedAlpha = exitProgress < .3
+          ? .82 + exitProgress * .4
+          : Math.max(0, .94 * (1 - (exitProgress - .3) / .7));
+        object.material.opacity = selected ? selectedAlpha : .82 * Math.pow(1 - exitProgress, 1.7);
+      });
     });
+    if (!snapshot.branchActive && this.branchGateExitTimer <= 0) this.branchGateExitSelection = null;
   }
 
   private applyEnemyHitReaction(impact: SkyDancerArcadeImpactSnapshot, snapshot: SkyDancerArcadeSnapshot, heavyCraft: boolean): void {

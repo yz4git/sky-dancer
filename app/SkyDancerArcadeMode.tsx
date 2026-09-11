@@ -351,6 +351,12 @@ export default function SkyDancerArcadeMode({ request, onReturnTitle }: SkyDance
   const bossPercent = snapshot.bossMaxHp > 0 ? Math.round(snapshot.bossHp / snapshot.bossMaxHp * 100) : 0;
   const bossEnemy = snapshot.enemies.find((enemy) => enemy.boss) ?? null;
   const bossArmorPercent = bossEnemy && bossEnemy.maxArmor > 0 ? Math.round(bossEnemy.armor / bossEnemy.maxArmor * 100) : 0;
+  const bossHudVisible = snapshot.bossActive || Boolean(bossEnemy && bossEnemy.hp <= 0);
+  const routeOverlayVisible = snapshot.branchActive || Boolean(
+    snapshot.branchSelection
+    && snapshot.stageProgress >= .26
+    && snapshot.stageProgress < .47
+  );
   const incomingMissiles = snapshot.projectiles.filter((projectile) => projectile.owner === "enemy"
     && projectile.depth > 2.2 && projectile.depth < 34
     && Math.hypot(projectile.x - snapshot.playerX, projectile.y - snapshot.playerY) < 1.9);
@@ -420,16 +426,19 @@ export default function SkyDancerArcadeMode({ request, onReturnTitle }: SkyDance
           </div>
         )}
 
-        {snapshot.bossActive && (
-          <div className={styles.bossHud} aria-label="Climax target">
-            <div><small>CLIMAX TARGET · PHASE {snapshot.bossPhase}{snapshot.bossWeakpointOpen ? " · CORE OPEN" : bossArmorPercent > 0 ? ` · ARMOR ${bossArmorPercent}%` : ""}</small><strong>{snapshot.bossName}<em>{snapshot.bossMechanicLabel}</em></strong><span>{bossPercent}%</span></div>
+        {bossHudVisible && (
+          <div className={`${styles.bossHud} ${!snapshot.bossActive ? styles.bossHudExit : ""}`} aria-label="Climax target">
+            <div>
+              <small>{snapshot.bossActive ? `CLIMAX TARGET · PHASE ${snapshot.bossPhase}${snapshot.bossWeakpointOpen ? " · CORE OPEN" : bossArmorPercent > 0 ? ` · ARMOR ${bossArmorPercent}%` : ""}` : "TARGET DESTROYED · WRECK CLEARING"}</small>
+              <strong>{snapshot.bossName}<em>{snapshot.bossMechanicLabel}</em></strong><span>{bossPercent}%</span>
+            </div>
             <i><b style={{ width: `${bossPercent}%` }} /></i>
           </div>
         )}
 
-        {snapshot.branchActive && (
-          <div className={styles.routeOverlay}>
-            <small>FLY THROUGH A ROUTE GATE</small>
+        {routeOverlayVisible && (
+          <div className={`${styles.routeOverlay} ${!snapshot.branchActive ? styles.routeResolved : ""}`}>
+            <small>{snapshot.branchActive ? "FLY THROUGH A ROUTE GATE" : "ROUTE COMMITTED"}</small>
             <div className={styles.routeOptions}>
               {snapshot.branchOptions.map((id, index) => {
                 const stage = skyDancerArcadeStageById(id);
