@@ -551,6 +551,8 @@ export default function SkyDancerArcadeMode({ request, onReturnTitle }: SkyDance
   const loadoutTacticalHint = snapshot.loadout === "gun-focus" ? "SHRED ARMOR · FORCE STAGGER" : snapshot.loadout === "missile-focus" ? "CRUSH ARMOR · SHOCK TARGET" : "TURBO LINK · FINISH FOR REFUND";
   const activeCounterplay = snapshot.enemies.find((enemy) => enemy.counterplay !== "none")?.counterplay ?? "none";
   const counterplayHudLabel = activeCounterplay === "armor-brace" ? "ARMOR BRACE · STAGGER IT" : activeCounterplay === "evasive-roll" ? "EVASIVE ROLL · TRACK IT" : activeCounterplay === "turbo-jammer" ? "TURBO JAMMER · BREAK IT" : "";
+  const rivalAceHpPercent = snapshot.rivalAceActive ? Math.round(snapshot.rivalAceHp / Math.max(1, snapshot.rivalAceMaxHp) * 100) : 0;
+  const rivalAceAdvantagePercent = snapshot.rivalAceActive ? Math.round(snapshot.rivalAceAdvantage / Math.max(.001, snapshot.rivalAceAdvantageTarget) * 100) : 0;
 
   return (
     <main className={`${styles.shell} ${productStyles.productShell}`} onContextMenu={(event) => event.preventDefault()}>
@@ -612,6 +614,18 @@ export default function SkyDancerArcadeMode({ request, onReturnTitle }: SkyDance
             </em>
           )}
         </div>
+
+
+        {snapshot.rivalAceActive && (
+          <div className={styles.rivalAceHud} data-contact={snapshot.rivalAceAppearance} aria-live="polite" aria-label="Rival Ace contact">
+            <small>RIVAL ACE · CONTACT {snapshot.rivalAceAppearance}/3</small>
+            <div><strong>{snapshot.rivalAceName}</strong><b>{snapshot.rivalAceAdaptation}</b></div>
+            <span><i style={{ width: `${rivalAceHpPercent}%` }} /></span>
+            <span className={styles.rivalAceAdvantage}><i style={{ width: `${rivalAceAdvantagePercent}%` }} /></span>
+            <em>HULL {rivalAceHpPercent}% · ADVANTAGE {rivalAceAdvantagePercent}% · BREAK OR OUTFIGHT</em>
+          </div>
+        )}
+
 
         {worldBreakBriefing.active && (
           <div

@@ -66,6 +66,17 @@ import {
 } from "./SkyDancerArcadeV27CombatReadability";
 import { skyDancerArcadeV271CombatCorridorCrowded } from "./SkyDancerArcadeV271ScreenPolish";
 import {
+  SKY_DANCER_ARCADE_V404_RIVAL_NAME,
+  skyDancerArcadeV404RivalAdaptation,
+  skyDancerArcadeV404RivalAdvantageTarget,
+  skyDancerArcadeV404RivalEncounterForSection,
+  skyDancerArcadeV404RivalHp,
+  skyDancerArcadeV404RivalManeuver,
+  skyDancerArcadeV404RivalManeuverSign,
+  skyDancerArcadeV404RivalPressureGain,
+  type SkyDancerArcadeV404RivalOutcome,
+} from "./SkyDancerArcadeV404RivalAce";
+import {
   SKY_DANCER_ARCADE_V40_DAWN_CITY_GATES,
   SKY_DANCER_ARCADE_V40_CLOUD_FLEET_TARGETS,
   SKY_DANCER_ARCADE_V40_DESERT_BREACH_RADIUS_X,
@@ -170,6 +181,10 @@ export interface SkyDancerArcadeEnemySnapshot {
   worldBreakTarget?: boolean;
   worldBreakTargetIndex?: number;
   worldBreakLabel?: string;
+  // V40.4: NOVA-7 is a persistent named opponent, still rendered through the proven ace airframe.
+  rivalAce?: boolean;
+  rivalAceAppearance?: number;
+  rivalAceResolved?: boolean;
 }
 
 export interface SkyDancerArcadeProjectileSnapshot {
@@ -328,6 +343,19 @@ export interface SkyDancerArcadeSnapshot {
   timelineCameraPullback: number;
   timelineSerial: number;
   routeRiskLabels: readonly SkyDancerArcadeV11RouteRisk[];
+  rivalAceActive: boolean;
+  rivalAceName: string;
+  rivalAceAppearance: number;
+  rivalAceAdaptation: string;
+  rivalAceHp: number;
+  rivalAceMaxHp: number;
+  rivalAceAdvantage: number;
+  rivalAceAdvantageTarget: number;
+  rivalAceEncounters: number;
+  rivalAcePlayerWins: number;
+  rivalAceEscapes: number;
+  rivalAceOutcome: SkyDancerArcadeV404RivalOutcome;
+  rivalAceSerial: number;
   worldBreakObjective: string;
   worldBreakSignature: string;
   worldBreakLive: boolean;
@@ -794,6 +822,19 @@ export class SkyDancerArcadeRuntime {
   private worldBreakPrismSerial = 0;
   private worldBreakPrismResolvedAt = -1;
   private readonly worldBreakResolvedPrismTrialIndices = new Set<number>();
+  // V40.4 RIVAL ACE: the rivalry persists across route handoffs while the active aircraft does not.
+  private rivalAceActiveId: number | null = null;
+  private rivalAceAppearance = 0;
+  private rivalAceAdaptation = "NO CONTACT";
+  private rivalAceAdvantage = 0;
+  private rivalAceAdvantageTarget = 1;
+  private rivalAceOutcome: SkyDancerArcadeV404RivalOutcome = "NONE";
+  private rivalAceEncounters = 0;
+  private rivalAcePlayerWins = 0;
+  private rivalAceEscapes = 0;
+  private rivalAceSerial = 0;
+  private readonly rivalAceSeenAppearances = new Set<number>();
+  private readonly rivalAceResolvedAppearances = new Set<number>();
   private nextEntityId = 1;
   private waveSerial = 0;
   private nextWaveAt = 2.8;
@@ -908,6 +949,12 @@ export class SkyDancerArcadeRuntime {
     this.impactEvents = [];
     this.impactEventAges.clear();
     this.hazards = [];
+    this.rivalAceActiveId = null;
+    this.rivalAceAdvantage = 0;
+    this.rivalAceAdvantageTarget = 1;
+    this.rivalAceOutcome = "NONE";
+    this.rivalAceAppearance = 0;
+    this.rivalAceAdaptation = "NO CONTACT";
     if (rewindTime <= 0) {
       this.worldBreakGateHits = 0;
       this.worldBreakGateMisses = 0;
@@ -1143,6 +1190,7 @@ export class SkyDancerArcadeRuntime {
     this.updateWorldBreakMagmaPressure(delta, turboActive);
     this.updateWorldBreakOrbitalAscent(delta, turboActive);
     this.updateWorldBreakPrismReprise();
+    this.updateV404RivalAce(delta, turboActive);
     this.updateBranch();
     this.updateV11Timeline();
     this.updateDirector();
@@ -1508,6 +1556,137 @@ export class SkyDancerArcadeRuntime {
       return;
     }
   }
+
+
+  private activeV404Rival(): ArcadeEnemy | null {
+    if (this.rivalAceActiveId === null) return null;
+    return this.enemies.find((enemy) => enemy.id === this.rivalAceActiveId && enemy.alive && enemy.rivalAce && !enemy.rivalAceResolved) ?? null;
+  }
+
+  private spawnV404RivalAce(): ArcadeEnemy | null {
+    if (this.options.mode !== "arcade-run" || this.bossSpawned) return null;
+    const encounter = skyDancerArcadeV404RivalEncounterForSection(this.stageNumber);
+    if (!encounter || this.rivalAceResolvedAppearances.has(encounter.appearance)) return null;
+    const active = this.activeV404Rival();
+    if (active) return active;
+
+    const hard = this.options.difficulty === "hard";
+    const hp = skyDancerArcadeV404RivalHp(encounter, hard, this.worldBreakRouteDoctrine);
+    const sign = encounter.appearance % 2 === 0 ? 1 : -1;
+    this.spawnEnemy("ace", sign * 1.58, .42 - encounter.appearance * .12, 56 + encounter.appearance * 3, "cross-pass", sign);
+    const rival = this.enemies.at(-1);
+    if (!rival) return null;
+    rival.rivalAce = true;
+    rival.rivalAceAppearance = encounter.appearance;
+    rival.rivalAceResolved = false;
+    rival.hp = hp;
+    rival.maxHp = hp;
+    rival.armor = Math.round(hp * (encounter.appearance >= 3 ? .34 : .27));
+    rival.maxArmor = rival.armor;
+    rival.speed *= 1.08 + encounter.appearance * .035;
+    rival.scoreValue = 0;
+    rival.amplitude = 1.02 + encounter.appearance * .12;
+    rival.fireCooldown = .72 + encounter.appearance * .08;
+    rival.counterplayCooldown = .34;
+    rival.flightEnergy = 1;
+
+    this.rivalAceActiveId = rival.id;
+    this.rivalAceAppearance = encounter.appearance;
+    this.rivalAceAdaptation = skyDancerArcadeV404RivalAdaptation(
+      this.options.loadout ?? "standard",
+      this.worldBreakRouteDoctrine,
+      encounter.appearance,
+    );
+    this.rivalAceAdvantage = 0;
+    this.rivalAceAdvantageTarget = skyDancerArcadeV404RivalAdvantageTarget(encounter, hard, this.worldBreakRouteDoctrine);
+    this.rivalAceOutcome = "NONE";
+    if (!this.rivalAceSeenAppearances.has(encounter.appearance)) {
+      this.rivalAceSeenAppearances.add(encounter.appearance);
+      this.rivalAceEncounters += 1;
+    }
+    this.rivalAceSerial += 1;
+    this.message = `RIVAL ACE · ${SKY_DANCER_ARCADE_V404_RIVAL_NAME} · ${encounter.label}`;
+    this.messageTimer = 2.35;
+    this.stageEventLabel = `RIVAL CONTACT ${encounter.appearance}/3`;
+    this.stageEventTimer = 1.72;
+    this.stageEventSerial += 1;
+    return rival;
+  }
+
+  private resolveV404RivalAce(enemy: ArcadeEnemy, outcome: Exclude<SkyDancerArcadeV404RivalOutcome, "NONE">): void {
+    if (!enemy.rivalAce || enemy.rivalAceResolved) return;
+    const encounter = skyDancerArcadeV404RivalEncounterForSection(this.stageNumber);
+    enemy.rivalAceResolved = true;
+    enemy.locked = false;
+    enemy.retreating = true;
+    enemy.retreatTimer = 0;
+    enemy.retreatSign = enemy.x < 0 ? -1 : 1;
+    enemy.retreatDepthDirection = outcome === "ESCAPED" ? 1 : -1;
+    enemy.counterplay = "none";
+    enemy.counterplayTimer = 0;
+    enemy.counterplayIntensity = 0;
+    enemy.fireCooldown = 999;
+    this.rivalAceActiveId = null;
+    this.rivalAceOutcome = outcome;
+    if (encounter) this.rivalAceResolvedAppearances.add(encounter.appearance);
+    if (outcome === "ESCAPED") {
+      this.rivalAceEscapes += 1;
+      this.message = encounter?.appearance === 3
+        ? `RIVAL ACE · ${SKY_DANCER_ARCADE_V404_RIVAL_NAME} SURVIVES · FINAL DEBT`
+        : `RIVAL ACE · ${SKY_DANCER_ARCADE_V404_RIVAL_NAME} ESCAPED · REMATCH`;
+      this.messageTimer = 1.75;
+    } else {
+      this.rivalAcePlayerWins += 1;
+      const baseScore = encounter?.score ?? 3200;
+      const awarded = this.addScore(Math.round(baseScore * (outcome === "OUTFLOWN" ? 1.12 : 1)), true);
+      this.turbo = Math.min(100, this.turbo + (encounter?.appearance === 3 ? 24 : 16));
+      this.message = encounter?.appearance === 3
+        ? `RIVAL ACE · ${SKY_DANCER_ARCADE_V404_RIVAL_NAME} DEFEATED · SKY IS YOURS · +${awarded}`
+        : outcome === "OUTFLOWN"
+          ? `RIVAL ACE · ${SKY_DANCER_ARCADE_V404_RIVAL_NAME} OUTFLOWN · +${awarded}`
+          : `RIVAL ACE · ${SKY_DANCER_ARCADE_V404_RIVAL_NAME} BROKEN · DISENGAGING · +${awarded}`;
+      this.messageTimer = 2.0;
+    }
+    this.rivalAceSerial += 1;
+  }
+
+  private updateV404RivalAce(delta: number, turboActive: boolean): void {
+    if (this.options.mode !== "arcade-run") return;
+    const encounter = skyDancerArcadeV404RivalEncounterForSection(this.stageNumber);
+    if (!encounter || this.rivalAceResolvedAppearances.has(encounter.appearance)) return;
+    const progress = clamp(this.stageTime / Math.max(.001, this.stage.durationSeconds), 0, 1);
+    if (progress < encounter.startProgress) return;
+    let rival = this.activeV404Rival();
+    if (!rival && progress <= encounter.endProgress) rival = this.spawnV404RivalAce();
+    if (!rival) return;
+
+    rival.maneuver = skyDancerArcadeV404RivalManeuver(encounter.appearance, rival.age);
+    rival.maneuverSign = skyDancerArcadeV404RivalManeuverSign(encounter.appearance, rival.age);
+    // Keep the named duel in the readable phone corridor while the standard V24/V25 solver owns actual inertia.
+    rival.baseX = clamp(this.playerX * .18 + rival.maneuverSign * .32, -1.2, 1.2);
+    rival.baseY = clamp(this.playerY * .12 + Math.sin(rival.age * .74 + encounter.appearance) * .18, -.82, .82);
+
+    if (progress > encounter.endProgress) {
+      this.resolveV404RivalAce(rival, "ESCAPED");
+      return;
+    }
+
+    const reticleDistance = Math.hypot(rival.x - this.playerX, rival.y - this.playerY);
+    const depthReadable = rival.depth >= 5 && rival.depth <= 66;
+    const alignment = depthReadable ? clamp(1 - reticleDistance / 1.05, 0, 1) : 0;
+    const gain = skyDancerArcadeV404RivalPressureGain(
+      encounter.appearance,
+      alignment,
+      this.input.fire,
+      this.input.lock,
+      turboActive,
+    );
+    this.rivalAceAdvantage = clamp(this.rivalAceAdvantage + gain * delta, 0, this.rivalAceAdvantageTarget);
+    if (this.rivalAceAdvantage >= this.rivalAceAdvantageTarget - .0001) {
+      this.resolveV404RivalAce(rival, "OUTFLOWN");
+    }
+  }
+
 
   private resolveV40FleetTarget(enemy: ArcadeEnemy, destroyed: boolean): void {
     if (!enemy.worldBreakTarget || enemy.worldBreakResolved || enemy.worldBreakTargetIndex === undefined) return;
@@ -2390,6 +2569,11 @@ export class SkyDancerArcadeRuntime {
         }
         continue;
       }
+      if (enemy.rivalAce) {
+        const appearance = (enemy.rivalAceAppearance ?? this.rivalAceAppearance) || 1;
+        enemy.maneuver = skyDancerArcadeV404RivalManeuver(appearance, enemy.age);
+        enemy.maneuverSign = skyDancerArcadeV404RivalManeuverSign(appearance, enemy.age);
+      }
       enemy.stagger = Math.max(0, enemy.stagger - delta * (enemy.boss ? .82 : 1.35));
       this.updateEnemyCounterplay(enemy, delta, turboActive);
       if (enemy.boss) {
@@ -2883,6 +3067,11 @@ export class SkyDancerArcadeRuntime {
       const retired = this.impactEvents.splice(0, this.impactEvents.length - 16);
       for (const impact of retired) this.impactEventAges.delete(impact.serial);
     }
+    if (destroyed && enemy.rivalAce) {
+      // NOVA-7 loses the pass but never becomes a disposable kill; the same pilot returns later in the run.
+      this.resolveV404RivalAce(enemy, "BROKEN");
+      return;
+    }
     if (!destroyed) {
       this.rewardEnemyCounterplayBreak(enemy, counterplay, missile, false, armorBreak);
       return;
@@ -3205,6 +3394,7 @@ export class SkyDancerArcadeRuntime {
     const prismX = prismTrial && prismRouteStageId ? skyDancerArcadeV40PrismTrialX(prismTrial, prismRouteStageId, this.stageTime) : 0;
     const prismY = prismTrial && prismRouteStageId ? skyDancerArcadeV40PrismTrialY(prismTrial, prismRouteStageId, this.stageTime) : 0;
     const prismLabel = prismRouteStageId ? `${skyDancerArcadeV40WorldProfile(prismRouteStageId).signature} REPRISE` : null;
+    const rivalAce = this.activeV404Rival();
     const activeStageCount = Math.max(1, this.stagesCleared + (this.status === "running" ? 1 : 0));
     const rank = skyDancerArcadeRankForScore(this.score, activeStageCount, this.damageTaken, this.continuesUsed);
     return {
@@ -3304,6 +3494,19 @@ export class SkyDancerArcadeRuntime {
       timelineCameraPullback: skyDancerArcadeV11Beat(this.stage.id, clamp(this.stageTime / this.stage.durationSeconds, 0, 1)).cameraPullback,
       timelineSerial: this.timelineSerial,
       routeRiskLabels: this.stage.next.map((_, index) => skyDancerArcadeV11RouteRisk(index, this.stage.next.length)),
+      rivalAceActive: Boolean(rivalAce),
+      rivalAceName: SKY_DANCER_ARCADE_V404_RIVAL_NAME,
+      rivalAceAppearance: rivalAce?.rivalAceAppearance ?? this.rivalAceAppearance,
+      rivalAceAdaptation: this.rivalAceAdaptation,
+      rivalAceHp: rivalAce?.hp ?? 0,
+      rivalAceMaxHp: rivalAce?.maxHp ?? 1,
+      rivalAceAdvantage: this.rivalAceAdvantage,
+      rivalAceAdvantageTarget: this.rivalAceAdvantageTarget,
+      rivalAceEncounters: this.rivalAceEncounters,
+      rivalAcePlayerWins: this.rivalAcePlayerWins,
+      rivalAceEscapes: this.rivalAceEscapes,
+      rivalAceOutcome: this.rivalAceOutcome,
+      rivalAceSerial: this.rivalAceSerial,
       worldBreakObjective: skyDancerArcadeV40WorldProfile(this.stage.id).objective,
       worldBreakSignature: skyDancerArcadeV40WorldProfile(this.stage.id).signature,
       worldBreakLive: skyDancerArcadeV40WorldProfile(this.stage.id).live,
@@ -3455,6 +3658,9 @@ export class SkyDancerArcadeRuntime {
         worldBreakTarget: enemy.worldBreakTarget,
         worldBreakTargetIndex: enemy.worldBreakTargetIndex,
         worldBreakLabel: enemy.worldBreakLabel,
+        rivalAce: enemy.rivalAce,
+        rivalAceAppearance: enemy.rivalAceAppearance,
+        rivalAceResolved: enemy.rivalAceResolved,
       })),
       projectiles: this.projectiles.filter((projectile) => projectile.life > 0).map((projectile) => ({
         id: projectile.id,
@@ -3490,6 +3696,36 @@ export class SkyDancerArcadeRuntime {
       resultSerial: this.resultSerial,
     };
   }
+
+
+  /** Deterministic V40.4 hooks for the persistent Rival Ace campaign contract. */
+  triggerV404RivalSpawnForTests(): number | null {
+    const encounter = skyDancerArcadeV404RivalEncounterForSection(this.stageNumber);
+    if (!encounter) return null;
+    this.stageTime = this.stage.durationSeconds * (encounter.startProgress + .01);
+    this.distance = this.stageTime * this.stage.courseSpeed;
+    this.updateV404RivalAce(0, false);
+    return this.rivalAceActiveId;
+  }
+
+  triggerV404RivalOutcomeForTests(outcome: Exclude<SkyDancerArcadeV404RivalOutcome, "NONE">): void {
+    const encounter = skyDancerArcadeV404RivalEncounterForSection(this.stageNumber);
+    if (!encounter) return;
+    if (this.rivalAceActiveId === null) this.triggerV404RivalSpawnForTests();
+    const rival = this.activeV404Rival();
+    if (!rival) return;
+    if (outcome === "BROKEN") {
+      this.damageEnemy(rival, rival.maxHp * 20, false);
+      return;
+    }
+    if (outcome === "OUTFLOWN") {
+      this.rivalAceAdvantage = this.rivalAceAdvantageTarget;
+      this.updateV404RivalAce(0, false);
+      return;
+    }
+    this.resolveV404RivalAce(rival, "ESCAPED");
+  }
+
 
   /** Deterministic V40 hook for skyline-gate gameplay regression tests. */
   triggerV40WorldBreakGateForTests(index: number, playerX: number, playerY: number): void {

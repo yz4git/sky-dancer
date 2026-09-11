@@ -435,6 +435,20 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
         group = createSkyDancerArcadeEnemy(snapshot.stage, enemy);
         const course = arcadeCourseRelativeVisualPose(snapshot.stage, snapshot.distance, enemy.depth);
         group.userData.arcadeCombatBaseScale = group.scale.x;
+        if (enemy.rivalAce) {
+          // V40.4: NOVA-7 keeps one unmistakable magenta/cyan signature across every biome.
+          const identity = new THREE.Group();
+          identity.name = "arcade-rival-ace-identity";
+          const magenta = new THREE.MeshBasicMaterial({ color: 0xff4fc8, transparent: true, opacity: .88, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false });
+          const cyan = new THREE.MeshBasicMaterial({ color: 0x67edff, transparent: true, opacity: .78, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false });
+          const left = new THREE.Mesh(new THREE.SphereGeometry(.11, 6, 5), magenta);
+          const right = new THREE.Mesh(new THREE.SphereGeometry(.11, 6, 5), cyan);
+          left.position.set(-.68, .08, .26); right.position.set(.68, .08, .26);
+          const halo = new THREE.Mesh(new THREE.TorusGeometry(.82, .035, 5, 24), magenta.clone());
+          halo.rotation.x = Math.PI / 2; halo.position.z = .42;
+          identity.add(left, right, halo);
+          group.add(identity);
+        }
         group.rotation.y = enemy.maneuver === "overtake" ? course.yaw : Math.PI + course.yaw;
         group.position.set(enemy.x * 8.4 + course.x, 1.2 + enemy.y * 4.9 + course.y, course.z);
         this.enemyGroups.set(enemy.id, group);
@@ -611,6 +625,12 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
           counterplayRing,
           skyDancerArcadeV27CuePointSize(enemy.kind, enemy.boss, enemy.depth, "counterplay") * pulse,
         );
+      }
+      const rivalIdentity = group.getObjectByName("arcade-rival-ace-identity");
+      if (rivalIdentity) {
+        const pulse = 1 + Math.sin(snapshot.runTimeSeconds * 8.5 + enemy.id) * .08;
+        rivalIdentity.scale.setScalar(pulse);
+        rivalIdentity.rotation.z = -group.rotation.z * .35;
       }
       if (!enemy.boss) {
         const baseScale = typeof group.userData.arcadeCombatBaseScale === "number" ? group.userData.arcadeCombatBaseScale : group.scale.x;
@@ -1435,6 +1455,15 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
       const frequency = snapshot.loadout === "gun-focus" ? 980 : snapshot.loadout === "missile-focus" ? 640 : 760;
       this.audio.tone(frequency, .09, .02, snapshot.loadout === "missile-focus" ? "square" : "triangle");
       this.audio.tone(frequency * .5, .13, .018, "sawtooth");
+    }
+    if (snapshot.rivalAceSerial !== this.previousSnapshot.rivalAceSerial) {
+      const playerWon = snapshot.rivalAceOutcome === "BROKEN" || snapshot.rivalAceOutcome === "OUTFLOWN";
+      this.presentation.emitRushAccent();
+      this.cameraImpactKick = Math.max(this.cameraImpactKick, playerWon ? .42 : .28);
+      this.cameraShake = Math.min(.82, this.cameraShake + (playerWon ? .24 : .14));
+      if (snapshot.rivalAceOutcome === "NONE") { this.audio.tone(126, .3, .032, "sawtooth"); this.audio.tone(504, .14, .018, "triangle"); }
+      else if (playerWon) { this.audio.tone(220, .22, .03, "triangle"); this.audio.tone(880, .13, .02, "triangle"); }
+      else { this.audio.tone(92, .26, .028, "sawtooth"); this.audio.tone(184, .13, .012, "square"); }
     }
     if (snapshot.bossActive && !this.previousSnapshot.bossActive) { this.audio.tone(72, .42, .052, "sawtooth"); this.audio.tone(144, .34, .025, "triangle"); }
     if (snapshot.bossMechanicSerial !== this.previousSnapshot.bossMechanicSerial) { this.audio.tone(96, .2, .035, "sawtooth"); this.audio.tone(288, .12, .018, "triangle"); }
