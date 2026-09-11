@@ -43,3 +43,5 @@ jobs:
           git add src/sky/arcade/SkyDancerArcadeV406FinalBossPresentation.ts src/sky/arcade/SkyDancerArcadeWebGLDemo.ts src/sky/arcade/SkyDancerArcadeCanvasDemo.ts tests/sky-arcade-v406-final-boss-presentation.test.ts
           git commit -m "Arcade Run V40.6: finish final boss presentation"
           git push origin HEAD:main
+
+# retry: preserve V40.5 finalBossSerial presentation contract
