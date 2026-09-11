@@ -5,7 +5,7 @@
 
 /* Arcade Run V34: micro-continuity for transient combat HUD and result handoff. */
 .message{animation:v34CueEnter .2s cubic-bezier(.2,.8,.2,1)}
-.message[data-exiting="true"],.chain[data-exiting="true"],.missileWarning[data-exiting="true"]{pointer-events:none;animation:v34CueExit .24s ease-in forwards}
+.message[data-exiting="true"]{pointer-events:none;animation:v34MessageExit .24s ease-in forwards}.chain[data-exiting="true"]{pointer-events:none;animation:v34ChainExit .24s ease-in forwards}.missileWarning[data-exiting="true"]{pointer-events:none;animation:v34MissileExit .24s ease-in forwards}
 .chain{transform-origin:50% 50%}
 .chain[data-exiting="false"]{animation:v34ChainSettle .18s ease-out}
 .bossHud:not(.bossHudExit){animation:v34BossHudEnter .38s cubic-bezier(.16,.82,.24,1)}
@@ -15,7 +15,7 @@
 .resultOverlay[data-practice="true"]{animation:v34ResultBackdropIn .22s ease-out,v34ResultBackdropOut .24s ease-in 2.5s forwards}
 .resultOverlay[data-practice="true"] .stageResultPanel{animation:v34ResultPanelIn .28s cubic-bezier(.16,.82,.24,1),v34ResultPanelOut .24s ease-in 2.5s forwards}
 @keyframes v34CueEnter{from{opacity:0;transform:translateX(-50%) translateY(-5px) scale(.96)}to{opacity:1;transform:translateX(-50%) translateY(0) scale(1)}}
-@keyframes v34CueExit{from{opacity:1;filter:brightness(1)}to{opacity:0;filter:brightness(.72);transform:translateY(-7px) scale(.96)}}
+@keyframes v34MessageExit{from{opacity:1;filter:brightness(1);transform:translateX(-50%) translateY(0) scale(1)}to{opacity:0;filter:brightness(.72);transform:translateX(-50%) translateY(-7px) scale(.96)}}@keyframes v34ChainExit{from{opacity:1;filter:brightness(1);transform:translateX(-50%) rotate(-4deg) scale(1)}to{opacity:0;filter:brightness(.72);transform:translateX(-50%) translateY(-7px) rotate(-4deg) scale(.96)}}@keyframes v34MissileExit{from{opacity:1;filter:brightness(1);transform:translateY(0) scale(1)}to{opacity:0;filter:brightness(.72);transform:translateY(-7px) scale(.96)}}
 @keyframes v34ChainSettle{from{opacity:.55;filter:brightness(1.25)}to{opacity:1;filter:brightness(1)}}
 @keyframes v34BossHudEnter{from{opacity:0;transform:translateX(-50%) translateY(-10px) scaleX(.78)}to{opacity:1;transform:translateX(-50%) translateY(0) scaleX(1)}}
 @keyframes v34BossHudExit{0%{opacity:1;transform:translateX(-50%) scale(1)}55%{opacity:.68;transform:translateX(-50%) translateY(-3px) scaleX(.94)}100%{opacity:0;transform:translateX(-50%) translateY(-8px) scaleX(.78)}}

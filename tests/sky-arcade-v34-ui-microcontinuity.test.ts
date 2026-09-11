@@ -11,7 +11,10 @@ test("V34 transient combat HUD cues linger through a short exit instead of unmou
   assert.match(mode, /useExitLinger\(snapshot\.message, 220\)/);
   assert.match(mode, /snapshot\.chain > 1 \? snapshot\.chain : null, 260/);
   assert.match(mode, /data-exiting=\{missileCue\.exiting\}/);
-  assert.match(css, /v34CueExit/);
+  assert.match(css, /v34MessageExit/);
+  assert.match(css, /v34ChainExit/);
+  assert.match(css, /v34MissileExit/);
+  assert.match(css, /translateX\(-50%\).*rotate\(-4deg\)/);
 });
 
 test("V34 boss HUD enters on the same authored boss beat and exits with the wreck shot", () => {
