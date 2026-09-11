@@ -43,6 +43,57 @@ function formatTime(seconds: number): string {
   return `${minutes}:${String(rest).padStart(2, "0")}`;
 }
 
+interface ExitLingerValue<T> {
+  value: T | null;
+  exiting: boolean;
+}
+
+/** V34 keeps short-lived HUD cues mounted briefly after their gameplay condition ends. */
+function useExitLinger<T>(value: T | null, exitMs: number): ExitLingerValue<T> {
+  const valueRef = useRef<T | null>(value);
+  const syncTimerRef = useRef<number | null>(null);
+  const exitTimerRef = useRef<number | null>(null);
+  const [displayValue, setDisplayValue] = useState<T | null>(value);
+  const [exiting, setExiting] = useState(false);
+
+  useEffect(() => {
+    if (syncTimerRef.current !== null) window.clearTimeout(syncTimerRef.current);
+    if (exitTimerRef.current !== null) window.clearTimeout(exitTimerRef.current);
+    syncTimerRef.current = null;
+    exitTimerRef.current = null;
+
+    if (value !== null) {
+      valueRef.current = value;
+      // React's set-state-in-effect rule is respected by synchronizing on the next browser task.
+      syncTimerRef.current = window.setTimeout(() => {
+        setDisplayValue(value);
+        setExiting(false);
+        syncTimerRef.current = null;
+      }, 0);
+    } else if (valueRef.current !== null) {
+      syncTimerRef.current = window.setTimeout(() => {
+        setExiting(true);
+        syncTimerRef.current = null;
+      }, 0);
+      exitTimerRef.current = window.setTimeout(() => {
+        valueRef.current = null;
+        setDisplayValue(null);
+        setExiting(false);
+        exitTimerRef.current = null;
+      }, exitMs);
+    }
+
+    return () => {
+      if (syncTimerRef.current !== null) window.clearTimeout(syncTimerRef.current);
+      if (exitTimerRef.current !== null) window.clearTimeout(exitTimerRef.current);
+      syncTimerRef.current = null;
+      exitTimerRef.current = null;
+    };
+  }, [exitMs, value]);
+
+  return { value: displayValue, exiting };
+}
+
 function CombatIcon({ kind }: { kind: "fire" | "lock" | "turbo" }) {
   return <svg viewBox="0 0 32 32" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden="true">
     {kind === "fire" ? <><path d="M11 24V13l5-7 5 7v11M11 16h10M16 3v-2M6 13H3m26 0h-3M16 27v4" /><path d="M14 22h4v5h-4z" /></>
@@ -361,6 +412,13 @@ export default function SkyDancerArcadeMode({ request, onReturnTitle }: SkyDance
     && projectile.depth > 2.2 && projectile.depth < 34
     && Math.hypot(projectile.x - snapshot.playerX, projectile.y - snapshot.playerY) < 1.9);
   const missileDanger = incomingMissiles.some((projectile) => projectile.depth < 17);
+  const messageCue = useExitLinger(snapshot.message, 220);
+  const chainCue = useExitLinger(snapshot.chain > 1 ? snapshot.chain : null, 260);
+  const missileCue = useExitLinger(
+    incomingMissiles.length > 0 ? `${incomingMissiles.length}|${missileDanger ? 1 : 0}|${snapshot.bossActive ? 1 : 0}` : null,
+    260,
+  );
+  const [missileCueCount = "0", missileCueDanger = "0", missileCueBoss = "0"] = (missileCue.value ?? "0|0|0").split("|");
   const controlsVisible = snapshot.status === "running";
   const finalOverlay = snapshot.status === "run-clear" || snapshot.status === "practice-clear" || snapshot.status === "game-over";
   const persistedArcadeProgress = loadSkyDancerArcadeProgress();
@@ -418,11 +476,15 @@ export default function SkyDancerArcadeMode({ request, onReturnTitle }: SkyDance
           <em className={productStyles.v121GrammarLine}>ENCOUNTER · {snapshot.encounterGrammarLabel} · {snapshot.encounterGrammarPhaseLabel} {snapshot.encounterGrammarPhaseIndex}/{snapshot.encounterGrammarPhaseCount} · {snapshot.encounterContinuityLabel}</em>
         </div>
 
-        {snapshot.message && <div className={`${styles.message} ${productStyles.flightMessage}`}>{snapshot.message}</div>}
-        {snapshot.chain > 1 && <div className={`${styles.chain} ${productStyles.chainReadout}`}>CHAIN <strong>×{snapshot.chain}</strong></div>}
-        {incomingMissiles.length > 0 && (
-          <div className={`${styles.missileWarning} ${snapshot.bossActive ? styles.missileWarningBoss : ""} ${missileDanger ? styles.missileDanger : ""}`} aria-live="polite">
-            <span>MISSILE</span><strong>×{incomingMissiles.length}</strong><small>{missileDanger ? "BREAK NOW" : "INCOMING"}</small>
+        {messageCue.value && <div key={messageCue.value} className={`${styles.message} ${productStyles.flightMessage}`} data-exiting={messageCue.exiting}>{messageCue.value}</div>}
+        {chainCue.value !== null && <div className={`${styles.chain} ${productStyles.chainReadout}`} data-exiting={chainCue.exiting}>CHAIN <strong>×{chainCue.value}</strong></div>}
+        {missileCue.value && (
+          <div
+            className={`${styles.missileWarning} ${missileCueBoss === "1" ? styles.missileWarningBoss : ""} ${missileCueDanger === "1" ? styles.missileDanger : ""}`}
+            data-exiting={missileCue.exiting}
+            aria-live="polite"
+          >
+            <span>MISSILE</span><strong>×{missileCueCount}</strong><small>{missileCueDanger === "1" ? "BREAK NOW" : "INCOMING"}</small>
           </div>
         )}
 
@@ -514,7 +576,7 @@ export default function SkyDancerArcadeMode({ request, onReturnTitle }: SkyDance
         {runtimeMessage && <div className={styles.runtimeMessage}>{runtimeMessage}</div>}
 
         {snapshot.status === "stage-clear" && (
-          <div className={styles.resultOverlay} role="dialog" aria-modal="true" aria-label="Section clear">
+          <div className={styles.resultOverlay} data-practice={snapshot.mode === "stage-practice"} role="dialog" aria-modal="true" aria-label="Section clear">
             <div className={styles.stageResultPanel}>
               <small>{snapshot.lastStageNoDamage ? "NO DAMAGE · " : ""}SECTION CLEAR</small>
               <h2>{snapshot.lastStageRank}</h2>
