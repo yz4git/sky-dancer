@@ -20,6 +20,11 @@ import { skyDancerArcadeV28ReadableAttitude } from "./SkyDancerArcadeV28Dogfight
 import { skyDancerArcadeV401WorldBreakBriefing } from "./SkyDancerArcadeV401WorldBreakPolish";
 import { skyDancerArcadeV402CelebrationFromMessage } from "./SkyDancerArcadeV402WorldBreakCelebration";
 import {
+  skyDancerArcadeV403ComebackFromCelebration,
+  skyDancerArcadeV403RecoveryFromMessage,
+  skyDancerArcadeV403ResolvedRecoveryFromMessage,
+} from "./SkyDancerArcadeV403WorldBreakRecovery";
+import {
   createSkyDancerArcadeEnemy,
   createSkyDancerArcadeHazard,
   createSkyDancerArcadeLockRing,
@@ -174,6 +179,15 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
   private worldBreakCelebrationStrength = 0;
   private worldBreakCelebrationPullback = 0;
   private worldBreakCelebrationFovKick = 0;
+  // V40.3: presentation-only failure debt and one-shot comeback framing.
+  private worldBreakRecoveryTimer = 0;
+  private worldBreakRecoveryDuration = 1;
+  private worldBreakRecoveryStrength = 0;
+  private worldBreakRecoveryPullback = 0;
+  private worldBreakRecoveryFovKick = 0;
+  private worldBreakRecoveryMode: "failure" | "comeback" | null = null;
+  private worldBreakRecoveryDebt = false;
+  private worldBreakRecoveryResolvedMessage: string | null = null;
   // V10.3.8: sightline and roll persist across stage handoffs so the camera has one coherent damped frame.
   private readonly cameraLookTarget = new THREE.Vector3(0, .8, -34);
   private cameraRoll = 0;
@@ -320,6 +334,10 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
       this.v11Setpieces.setStage(snapshot.stage);
       this.updateReflections(snapshot);
       this.presentation.setStage();
+      this.worldBreakRecoveryDebt = false;
+      this.worldBreakRecoveryResolvedMessage = null;
+      this.worldBreakRecoveryTimer = 0;
+      this.worldBreakRecoveryMode = null;
       this.clearEntityVisuals();
       this.buildBranchGates(snapshot);
     }
@@ -341,6 +359,7 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
     this.syncWorldBreakPrismReprise(snapshot);
     this.syncBranchGates(snapshot, delta);
     this.syncEffects(snapshot);
+    this.syncWorldBreakRecovery(snapshot, delta);
     this.syncWorldBreakCelebration(snapshot, delta);
     this.syncAudio(snapshot);
     this.updateCamera(snapshot, delta);
@@ -1318,9 +1337,66 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
     generator.dispose(); texture.dispose();
   }
 
+  private syncWorldBreakRecovery(snapshot: SkyDancerArcadeSnapshot, delta: number): void {
+    this.worldBreakRecoveryTimer = Math.max(0, this.worldBreakRecoveryTimer - delta);
+    const newMessage = snapshot.message !== this.previousSnapshot.message;
+    const recovery = skyDancerArcadeV403RecoveryFromMessage(snapshot.stage.id, snapshot.message);
+    const baseCelebration = skyDancerArcadeV402CelebrationFromMessage(snapshot.stage.id, snapshot.message);
+    const resolvedRecovery = skyDancerArcadeV403ResolvedRecoveryFromMessage(snapshot.stage.id, snapshot.message);
+
+    if (newMessage) {
+      const comeback = resolvedRecovery
+        ?? (baseCelebration && this.worldBreakRecoveryDebt
+          ? skyDancerArcadeV403ComebackFromCelebration(snapshot.stage.id, baseCelebration)
+          : null);
+      if (recovery) {
+        this.worldBreakRecoveryDebt = recovery.retryable;
+        this.worldBreakRecoveryResolvedMessage = null;
+        this.worldBreakRecoveryTimer = recovery.durationSeconds;
+        this.worldBreakRecoveryDuration = recovery.durationSeconds;
+        this.worldBreakRecoveryStrength = recovery.strength;
+        this.worldBreakRecoveryPullback = recovery.cameraPullback;
+        this.worldBreakRecoveryFovKick = recovery.cameraFovKick;
+        this.worldBreakRecoveryMode = "failure";
+        this.cameraShake = Math.min(.88, this.cameraShake + recovery.cameraShake);
+        this.audio.tone(recovery.audioLowHz, .17, .02 + recovery.strength * .006, "sawtooth");
+        this.audio.tone(recovery.audioHighHz, .09, .009 + recovery.strength * .004, "triangle");
+      } else if (comeback) {
+        this.worldBreakRecoveryDebt = false;
+        this.worldBreakRecoveryResolvedMessage = snapshot.message;
+        this.worldBreakRecoveryTimer = comeback.durationSeconds;
+        this.worldBreakRecoveryDuration = comeback.durationSeconds;
+        this.worldBreakRecoveryStrength = comeback.strength;
+        this.worldBreakRecoveryPullback = comeback.cameraPullback;
+        this.worldBreakRecoveryFovKick = comeback.cameraFovKick;
+        this.worldBreakRecoveryMode = "comeback";
+        this.cameraShake = Math.min(.9, this.cameraShake + comeback.cameraShake);
+        this.presentation.emitRushAccent();
+        this.audio.tone(comeback.audioLowHz, .2, .022, comeback.tone === "assault" ? "sawtooth" : "triangle");
+        this.audio.tone(comeback.audioHighHz, .14, .018, "triangle");
+        this.audio.tone(comeback.audioHighHz * 1.25, .08, .01, comeback.tone === "final" ? "square" : "triangle");
+      } else if (baseCelebration) {
+        this.worldBreakRecoveryDebt = false;
+        this.worldBreakRecoveryResolvedMessage = null;
+      } else {
+        this.worldBreakRecoveryResolvedMessage = null;
+      }
+    }
+
+    const worldBreakRecoveryEnvelope = this.worldBreakRecoveryTimer > 0
+      ? Math.sin((1 - this.worldBreakRecoveryTimer / Math.max(.001, this.worldBreakRecoveryDuration)) * Math.PI)
+      : 0;
+    if (worldBreakRecoveryEnvelope > 0 && this.worldBreakRecoveryMode === "comeback") {
+      this.presentationFx.bloomBoost = Math.max(this.presentationFx.bloomBoost, worldBreakRecoveryEnvelope * .15 * this.worldBreakRecoveryStrength);
+      this.presentationFx.exposureBoost = Math.max(this.presentationFx.exposureBoost, worldBreakRecoveryEnvelope * .052 * this.worldBreakRecoveryStrength);
+    }
+  }
+
   private syncWorldBreakCelebration(snapshot: SkyDancerArcadeSnapshot, delta: number): void {
     this.worldBreakCelebrationTimer = Math.max(0, this.worldBreakCelebrationTimer - delta);
-    const celebration = skyDancerArcadeV402CelebrationFromMessage(snapshot.stage.id, snapshot.message);
+    const celebration = snapshot.message === this.worldBreakRecoveryResolvedMessage
+      ? null
+      : skyDancerArcadeV402CelebrationFromMessage(snapshot.stage.id, snapshot.message);
     if (celebration && snapshot.message !== this.previousSnapshot.message) {
       this.worldBreakCelebrationTimer = celebration.durationSeconds;
       this.worldBreakCelebrationDuration = celebration.durationSeconds;
@@ -1429,11 +1505,14 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
     const worldBreakCelebrationEnvelope = this.worldBreakCelebrationTimer > 0
       ? Math.sin((1 - this.worldBreakCelebrationTimer / Math.max(.001, this.worldBreakCelebrationDuration)) * Math.PI)
       : 0;
+    const worldBreakRecoveryEnvelope = this.worldBreakRecoveryTimer > 0
+      ? Math.sin((1 - this.worldBreakRecoveryTimer / Math.max(.001, this.worldBreakRecoveryDuration)) * Math.PI)
+      : 0;
     this.camera.position.x += (targetX - this.camera.position.x) * xAlpha;
     this.camera.position.y += (targetY - this.camera.position.y) * yAlpha;
     // V40.1 opens the frame slightly before a signature challenge; gameplay/world transforms remain untouched.
-    this.camera.position.z += (pose.z + this.presentationFx.pullback + snapshot.timelineCameraPullback + this.cameraImpactKick + worldBreakAnticipation * .72 + worldBreakCelebrationEnvelope * this.worldBreakCelebrationPullback - this.camera.position.z) * zAlpha;
-    this.camera.fov += (pose.fov + this.presentationFx.fovKick + snapshot.timelineCameraFov + worldBreakAnticipation * 1.5 + worldBreakCelebrationEnvelope * this.worldBreakCelebrationFovKick - this.camera.fov) * fovAlpha;
+    this.camera.position.z += (pose.z + this.presentationFx.pullback + snapshot.timelineCameraPullback + this.cameraImpactKick + worldBreakAnticipation * .72 + worldBreakCelebrationEnvelope * this.worldBreakCelebrationPullback + worldBreakRecoveryEnvelope * this.worldBreakRecoveryPullback - this.camera.position.z) * zAlpha;
+    this.camera.fov += (pose.fov + this.presentationFx.fovKick + snapshot.timelineCameraFov + worldBreakAnticipation * 1.5 + worldBreakCelebrationEnvelope * this.worldBreakCelebrationFovKick + worldBreakRecoveryEnvelope * this.worldBreakRecoveryFovKick - this.camera.fov) * fovAlpha;
     this.camera.updateProjectionMatrix();
 
     const desiredLookX = pose.lookX;

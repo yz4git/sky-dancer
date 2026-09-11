@@ -35,7 +35,13 @@ import {
   skyDancerArcadeV401CuePriority,
   skyDancerArcadeV401WorldBreakBriefing,
 } from "../src/sky/arcade/SkyDancerArcadeV401WorldBreakPolish";
-import { skyDancerArcadeV402CelebrationFromMessage } from "../src/sky/arcade/SkyDancerArcadeV402WorldBreakCelebration";
+import { skyDancerArcadeV402CelebrationFromMessage, type SkyDancerArcadeV402CelebrationCue } from "../src/sky/arcade/SkyDancerArcadeV402WorldBreakCelebration";
+import {
+  skyDancerArcadeV403ComebackFromCelebration,
+  skyDancerArcadeV403RecoveryFromMessage,
+  skyDancerArcadeV403ResolvedRecoveryFromMessage,
+  type SkyDancerArcadeV403RecoveryCue,
+} from "../src/sky/arcade/SkyDancerArcadeV403WorldBreakRecovery";
 import styles from "./SkyDancerArcadeMode.module.css";
 import productStyles from "./SkyDancerArcadeProduct.module.css";
 
@@ -103,6 +109,82 @@ function useExitLinger<T>(value: T | null, exitMs: number): ExitLingerValue<T> {
   }, [exitMs, value]);
 
   return { value: displayValue, exiting };
+}
+
+
+interface WorldBreakDramaOutput {
+  recovery: SkyDancerArcadeV403RecoveryCue | null;
+  comeback: SkyDancerArcadeV403RecoveryCue | null;
+  celebration: SkyDancerArcadeV402CelebrationCue | null;
+}
+
+/** V40.3 remembers only presentation debt: one recoverable miss can amplify exactly the next authored success. */
+function useWorldBreakDrama(stageId: SkyDancerArcadeSnapshot["stage"]["id"], message: string | null): WorldBreakDramaOutput {
+  const emptyOutput = useMemo<WorldBreakDramaOutput>(() => ({ recovery: null, comeback: null, celebration: null }), []);
+  const memoryRef = useRef<{
+    stageId: SkyDancerArcadeSnapshot["stage"]["id"];
+    lastMessage: string | null;
+    recoveryDebt: boolean;
+    output: WorldBreakDramaOutput;
+  }>({
+    stageId,
+    lastMessage: null,
+    recoveryDebt: false,
+    output: emptyOutput,
+  });
+  const syncTimerRef = useRef<number | null>(null);
+  const [renderState, setRenderState] = useState<{
+    stageId: SkyDancerArcadeSnapshot["stage"]["id"];
+    message: string | null;
+    output: WorldBreakDramaOutput;
+  }>({ stageId, message, output: emptyOutput });
+
+  useEffect(() => {
+    if (syncTimerRef.current !== null) window.clearTimeout(syncTimerRef.current);
+    syncTimerRef.current = null;
+
+    let memory = memoryRef.current;
+    if (memory.stageId !== stageId) {
+      memory = { stageId, lastMessage: null, recoveryDebt: false, output: emptyOutput };
+    }
+    if (memory.lastMessage !== message) {
+      const recovery = skyDancerArcadeV403RecoveryFromMessage(stageId, message);
+      const baseCelebration = skyDancerArcadeV402CelebrationFromMessage(stageId, message);
+      const resolvedRecovery = skyDancerArcadeV403ResolvedRecoveryFromMessage(stageId, message);
+      const comeback = resolvedRecovery
+        ?? (baseCelebration && memory.recoveryDebt
+          ? skyDancerArcadeV403ComebackFromCelebration(stageId, baseCelebration)
+          : null);
+      let recoveryDebt = memory.recoveryDebt;
+      if (recovery) recoveryDebt = recovery.retryable;
+      else if (comeback || baseCelebration) recoveryDebt = false;
+      memory = {
+        stageId,
+        lastMessage: message,
+        recoveryDebt,
+        output: { recovery, comeback, celebration: comeback ? null : baseCelebration },
+      };
+      memoryRef.current = memory;
+    } else if (memoryRef.current !== memory) {
+      memoryRef.current = memory;
+    }
+
+    const nextOutput = memory.output;
+    // Match V34 cue synchronization: publish presentation state on the next browser task.
+    syncTimerRef.current = window.setTimeout(() => {
+      setRenderState({ stageId, message, output: nextOutput });
+      syncTimerRef.current = null;
+    }, 0);
+
+    return () => {
+      if (syncTimerRef.current !== null) window.clearTimeout(syncTimerRef.current);
+      syncTimerRef.current = null;
+    };
+  }, [emptyOutput, message, stageId]);
+
+  return renderState.stageId === stageId && renderState.message === message
+    ? renderState.output
+    : emptyOutput;
 }
 
 function CombatIcon({ kind }: { kind: "fire" | "lock" | "turbo" }) {
@@ -446,7 +528,8 @@ export default function SkyDancerArcadeMode({ request, onReturnTitle }: SkyDance
   );
   const v35CuePriority = skyDancerArcadeV35CuePriority(messageCue.value, bossApproach.active, missileCueDanger === "1");
   const cuePriority = skyDancerArcadeV401CuePriority(v35CuePriority, worldBreakBriefing.active);
-  const worldBreakCelebration = skyDancerArcadeV402CelebrationFromMessage(snapshot.stage.id, messageCue.value);
+  const worldBreakDrama = useWorldBreakDrama(snapshot.stage.id, messageCue.value);
+  const { recovery: worldBreakRecovery, comeback: worldBreakComeback, celebration: worldBreakCelebration } = worldBreakDrama;
   const controlsVisible = snapshot.status === "running";
   const finalOverlay = snapshot.status === "run-clear" || snapshot.status === "practice-clear" || snapshot.status === "game-over";
   const persistedArcadeProgress = loadSkyDancerArcadeProgress();
@@ -545,6 +628,40 @@ export default function SkyDancerArcadeMode({ request, onReturnTitle }: SkyDance
           </div>
         )}
 
+        {worldBreakComeback && (
+          <div
+            key={`${snapshot.stage.id}-${messageCue.value}-comeback`}
+            className={styles.worldBreakComeback}
+            data-tone={worldBreakComeback.tone}
+            data-suppressed={cuePriority === "critical"}
+            aria-live="polite"
+            aria-label="World Break comeback"
+          >
+            <small>WORLD BREAK · COMEBACK</small>
+            <strong>{worldBreakComeback.headline}</strong>
+            <span>{worldBreakComeback.detail}</span>
+            <em>{worldBreakComeback.action}</em>
+            <i aria-hidden="true" />
+          </div>
+        )}
+
+        {worldBreakRecovery && !worldBreakComeback && (
+          <div
+            key={`${snapshot.stage.id}-${messageCue.value}-recovery`}
+            className={styles.worldBreakRecovery}
+            data-tone={worldBreakRecovery.tone}
+            data-retryable={worldBreakRecovery.retryable}
+            data-suppressed={cuePriority === "critical"}
+            aria-live="polite"
+            aria-label="World Break recovery guidance"
+          >
+            <small>{worldBreakRecovery.retryable ? "WORLD BREAK · RECOVER" : "WORLD BREAK · OBJECTIVE LOST"}</small>
+            <strong>{worldBreakRecovery.headline}</strong>
+            <span>{worldBreakRecovery.detail}</span>
+            <em>{worldBreakRecovery.action}</em>
+          </div>
+        )}
+
         {worldBreakCelebration && (
           <div
             key={`${snapshot.stage.id}-${messageCue.value}`}
@@ -562,7 +679,7 @@ export default function SkyDancerArcadeMode({ request, onReturnTitle }: SkyDance
           </div>
         )}
 
-        {messageCue.value && !messageIsBossWarning && !worldBreakCelebration && (
+        {messageCue.value && !messageIsBossWarning && !worldBreakCelebration && !worldBreakRecovery && !worldBreakComeback && (
           <div key={messageCue.value} className={`${styles.message} ${productStyles.flightMessage}`} data-exiting={messageCue.exiting} data-priority={cuePriority}>{messageCue.value}</div>
         )}
         {chainCue.value !== null && (
