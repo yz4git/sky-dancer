@@ -47,6 +47,7 @@ import {
   skyDancerArcadeV407HudFocus,
   skyDancerArcadeV407RendererBadgeVisible,
 } from "../src/sky/arcade/SkyDancerArcadeV407FullRunPolish";
+import { skyDancerArcadeV408SceneFocus } from "../src/sky/arcade/SkyDancerArcadeV408CinematicFocus";
 import styles from "./SkyDancerArcadeMode.module.css";
 import productStyles from "./SkyDancerArcadeProduct.module.css";
 
@@ -579,11 +580,20 @@ export default function SkyDancerArcadeMode({ request, onReturnTitle }: SkyDance
     nextDoctrineEffect?.detail ?? null,
   );
   const rendererBadgeVisible = skyDancerArcadeV407RendererBadgeVisible(rendererName, snapshot.stageNumber, snapshot.stageTimeSeconds, snapshot.status);
+  const v408Focus = skyDancerArcadeV408SceneFocus({
+    status: snapshot.status,
+    stageProgress: snapshot.stageProgress,
+    worldBreakLive: snapshot.worldBreakLive,
+    rivalAceActive: snapshot.rivalAceActive,
+    bossActive: snapshot.bossActive,
+    finalBossReactive: snapshot.finalBossReactive,
+  });
 
   return (
     <main className={`${styles.shell} ${productStyles.productShell}`} onContextMenu={(event) => event.preventDefault()}>
-      <section className={styles.stage} data-v407-focus={v407Focus} aria-label="Sky Dancer Arcade Run">
+      <section className={styles.stage} data-v407-focus={v407Focus} data-v408-scene={v408Focus.mode} aria-label="Sky Dancer Arcade Run">
         <div ref={mountRef} className={styles.viewport} />
+        <div className={styles.cinematicFocusV408} data-scene={v408Focus.mode} aria-hidden="true" />
         <div className={productStyles.aimGuide} aria-hidden="true"><i /><b /></div>
 
         {sectionIntroVisible && (

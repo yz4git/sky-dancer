@@ -2,6 +2,7 @@ import { SkyDancerArcadeRuntime, type SkyDancerArcadeRuntimeOptions, type SkyDan
 import type { SkyDancerArcadeDemoHandle } from "./SkyDancerArcadeWebGLDemo";
 import { skyDancerArcadeEnemyVisualScaleV17 } from "./SkyDancerArcadeModels";
 import { skyDancerArcadeV406FinalBossCue, skyDancerArcadeV406FormMotion, skyDancerArcadeV406FormLabel } from "./SkyDancerArcadeV406FinalBossPresentation";
+import { skyDancerArcadeV408SceneFocus } from "./SkyDancerArcadeV408CinematicFocus";
 
 type SnapshotHandler = (snapshot: SkyDancerArcadeSnapshot) => void;
 
@@ -153,6 +154,39 @@ export class SkyDancerArcadeCanvasDemo implements SkyDancerArcadeDemoHandle {
       context.fill();
     }
     this.drawPlayer(context, snapshot, cssWidth, cssHeight);
+    this.drawCinematicFocusV408(context, snapshot, cssWidth, cssHeight);
+    context.restore();
+  }
+
+  private drawCinematicFocusV408(context: CanvasRenderingContext2D, snapshot: SkyDancerArcadeSnapshot, width: number, height: number): void {
+    const focus = skyDancerArcadeV408SceneFocus({
+      status: snapshot.status, stageProgress: snapshot.stageProgress, worldBreakLive: snapshot.worldBreakLive,
+      rivalAceActive: snapshot.rivalAceActive, bossActive: snapshot.bossActive, finalBossReactive: snapshot.finalBossReactive,
+    });
+    const target = focus.mode === "boss"
+      ? snapshot.enemies.find((enemy) => enemy.boss) ?? null
+      : focus.mode === "rival" ? snapshot.enemies.find((enemy) => enemy.rivalAce) ?? null : null;
+    if (!target) return;
+    const projected = this.project(target.x, target.y, target.depth, width, height);
+    const radius = Math.max(24, Math.min(68, projected.scale * (focus.mode === "boss" ? 58 : 46)));
+    const corner = radius * .34;
+    const accent = focus.mode === "rival"
+      ? "#ff65d5"
+      : `#${snapshot.stage.palette.accent.toString(16).padStart(6, "0")}`;
+    context.save();
+    context.strokeStyle = accent;
+    context.globalAlpha = .18 + focus.strength * .2;
+    context.lineWidth = focus.mode === "boss" ? 1.6 : 1.35;
+    const x0 = projected.x - radius;
+    const x1 = projected.x + radius;
+    const y0 = projected.y - radius;
+    const y1 = projected.y + radius;
+    context.beginPath();
+    context.moveTo(x0 + corner, y0); context.lineTo(x0, y0); context.lineTo(x0, y0 + corner);
+    context.moveTo(x1 - corner, y0); context.lineTo(x1, y0); context.lineTo(x1, y0 + corner);
+    context.moveTo(x0, y1 - corner); context.lineTo(x0, y1); context.lineTo(x0 + corner, y1);
+    context.moveTo(x1 - corner, y1); context.lineTo(x1, y1); context.lineTo(x1, y1 - corner);
+    context.stroke();
     context.restore();
   }
 
