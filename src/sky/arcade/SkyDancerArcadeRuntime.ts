@@ -286,6 +286,11 @@ interface ArcadeEnemy extends SkyDancerArcadeEnemySnapshot {
   counterplayTimer: number;
   counterplayCooldown: number;
   counterplayRewarded: boolean;
+  // V30: standard enemies stay alive briefly during boss ingress so they can visibly peel away.
+  retreating?: boolean;
+  retreatTimer?: number;
+  retreatSign?: -1 | 1;
+  retreatDepthDirection?: -1 | 1;
 }
 
 interface ArcadeProjectile extends SkyDancerArcadeProjectileSnapshot {
@@ -296,6 +301,8 @@ interface ArcadeProjectile extends SkyDancerArcadeProjectileSnapshot {
   vy: number;
   guidance: number;
   nearMissChecked: boolean;
+  // V30: outgoing hostile fire coasts out harmlessly instead of popping out of existence.
+  retiring?: boolean;
 }
 
 interface ArcadeHazard extends SkyDancerArcadeHazardSnapshot {
@@ -304,6 +311,8 @@ interface ArcadeHazard extends SkyDancerArcadeHazardSnapshot {
   // V10.5: terrain/architecture hazards live at one absolute point on the course.
   // Dynamic hazards leave this null and retain their independent closing speed.
   courseAnchorDistance: number | null;
+  // V30: boss ingress releases old hazards from the course and lets them sweep off-screen.
+  retiring?: boolean;
 }
 
 interface ArcadeInput {
@@ -1177,14 +1186,34 @@ export class SkyDancerArcadeRuntime {
     this.bossSpawned = true;
     this.encounterPhaseQueue = [];
     this.encounterGrammarPhaseLabel = "CLIMAX";
-    // V10.1: boss ingress owns the arena. Retire leftover wave pressure instead of stacking it under the climax target.
+    // V30: boss ingress owns the arena without teleporting the previous fight away.
+    // Standard aircraft break lock, stop attacking and visibly peel out of the lane before they are culled.
     for (const enemy of this.enemies) {
-      if (enemy.boss) continue;
-      enemy.alive = false;
+      if (enemy.boss || !enemy.alive) continue;
       enemy.locked = false;
+      enemy.retreating = true;
+      enemy.retreatTimer = 0;
+      enemy.retreatSign = enemy.x < -0.05 ? -1 : enemy.x > 0.05 ? 1 : enemy.id % 2 === 0 ? -1 : 1;
+      // Aircraft already close to the player complete their fly-by; distant aircraft bank away into the background.
+      enemy.retreatDepthDirection = enemy.depth <= 30 ? -1 : 1;
+      enemy.counterplay = "none";
+      enemy.counterplayTimer = 0;
+      enemy.counterplayIntensity = 0;
+      enemy.fireCooldown = 999;
     }
-    this.projectiles = this.projectiles.filter((projectile) => projectile.owner !== "enemy");
-    this.hazards = [];
+    // Do not make bullets and hazards blink out either. They become harmless and clear the frame under motion.
+    for (const projectile of this.projectiles) {
+      if (projectile.owner !== "enemy" || projectile.life <= 0) continue;
+      projectile.retiring = true;
+      projectile.damage = 0;
+      projectile.guidance = 0;
+      projectile.life = Math.min(projectile.life, 0.9);
+    }
+    for (const hazard of this.hazards) {
+      hazard.retiring = true;
+      hazard.courseAnchorDistance = null;
+      hazard.speed = Math.max(hazard.speed, 68);
+    }
     const final = this.stage.id === SKY_DANCER_ARCADE_FINAL_STAGE;
     // Climax targets must survive a full attack run instead of evaporating under one gun burst.
     const baseHp = final ? 1280 : 440 + this.stage.act * 110;
@@ -1295,13 +1324,13 @@ export class SkyDancerArcadeRuntime {
   private updateLocking(delta: number): void {
     this.lockCooldown = Math.max(0, this.lockCooldown - delta);
     if (!this.input.lock || this.lockCooldown > 0) return;
-    const locked = this.enemies.filter((enemy) => enemy.alive && enemy.locked).length;
+    const locked = this.enemies.filter((enemy) => enemy.alive && !enemy.retreating && enemy.locked).length;
     if (locked >= SKY_DANCER_ARCADE_MAX_LOCKS) return;
     const turboLink = this.input.turbo && this.turbo > 0.5;
     let candidate: ArcadeEnemy | null = null;
     let best = Number.POSITIVE_INFINITY;
     for (const enemy of this.enemies) {
-      if (!enemy.alive || enemy.locked || enemy.depth < 4 || enemy.depth > 92) continue;
+      if (!enemy.alive || enemy.retreating || enemy.locked || enemy.depth < 4 || enemy.depth > 92) continue;
       const dx = enemy.x - this.playerX;
       const dy = enemy.y - this.playerY;
       const reticleDistance = Math.hypot(dx, dy);
@@ -1358,7 +1387,7 @@ export class SkyDancerArcadeRuntime {
     let target: ArcadeEnemy | null = null;
     let best = Number.POSITIVE_INFINITY;
     for (const enemy of this.enemies) {
-      if (!enemy.alive || enemy.depth < 2 || enemy.depth > 72) continue;
+      if (!enemy.alive || enemy.retreating || enemy.depth < 2 || enemy.depth > 72) continue;
       const dx = enemy.x - this.playerX;
       const dy = enemy.y - this.playerY;
       const cone = Math.hypot(dx, dy);
@@ -1472,7 +1501,7 @@ export class SkyDancerArcadeRuntime {
   }
 
   private activeTurboJammerCount(): number {
-    return this.enemies.filter((enemy) => enemy.alive && enemy.counterplay === "turbo-jammer" && enemy.counterplayTimer > 0).length;
+    return this.enemies.filter((enemy) => enemy.alive && !enemy.retreating && enemy.counterplay === "turbo-jammer" && enemy.counterplayTimer > 0).length;
   }
 
   private rewardEnemyCounterplayBreak(
@@ -1508,6 +1537,49 @@ export class SkyDancerArcadeRuntime {
     for (const enemy of this.enemies) {
       if (!enemy.alive) continue;
       enemy.age += delta;
+      if (enemy.retreating && !enemy.boss) {
+        enemy.retreatTimer = (enemy.retreatTimer ?? 0) + delta;
+        enemy.locked = false;
+        enemy.counterplay = "none";
+        enemy.counterplayTimer = 0;
+        enemy.counterplayIntensity = 0;
+        enemy.fireCooldown = 999;
+        const retreatSign = enemy.retreatSign ?? (enemy.x < 0 ? -1 : 1);
+        const depthDirection = enemy.retreatDepthDirection ?? 1;
+        const verticalSign = enemy.id % 3 === 0 ? -1 : 1;
+        const targetX = clamp(retreatSign * (2.34 + Math.min(.22, enemy.retreatTimer * .14)), -ENEMY_X_LIMIT, ENEMY_X_LIMIT);
+        const targetY = clamp(verticalSign * (1.3 + Math.min(.48, enemy.retreatTimer * .3)), -ENEMY_Y_LIMIT, ENEMY_Y_LIMIT);
+        // Reuse the coordinated-flight solver so the exit is a banked aircraft maneuver rather than a tween.
+        const flightState = skyDancerArcadeV25Step(
+          {
+            x: enemy.x, y: enemy.y, vx: enemy.flightVX, vy: enemy.flightVY,
+            bank: enemy.flightBank, pitch: enemy.flightPitch, energy: enemy.flightEnergy,
+          },
+          targetX,
+          targetY,
+          enemy.kind,
+          delta,
+          1.35,
+          ENEMY_X_LIMIT,
+          ENEMY_Y_LIMIT,
+        );
+        enemy.x = flightState.x;
+        enemy.y = flightState.y;
+        enemy.flightVX = flightState.vx;
+        enemy.flightVY = flightState.vy;
+        enemy.flightBank = flightState.bank;
+        enemy.flightPitch = flightState.pitch;
+        enemy.flightEnergy = flightState.energy;
+        const retreatSpeed = Math.max(26, enemy.speed * (depthDirection < 0 ? 2.9 : 2.35))
+          * (1 + Math.min(.55, enemy.retreatTimer * .3));
+        enemy.depth += depthDirection * retreatSpeed * delta;
+        if (
+          (depthDirection < 0 && enemy.depth < -12.5)
+          || (depthDirection > 0 && enemy.depth > 126)
+          || enemy.retreatTimer > 2.6
+        ) enemy.alive = false;
+        continue;
+      }
       enemy.stagger = Math.max(0, enemy.stagger - delta * (enemy.boss ? .82 : 1.35));
       this.updateEnemyCounterplay(enemy, delta, turboActive);
       if (enemy.boss) {
@@ -1658,7 +1730,7 @@ export class SkyDancerArcadeRuntime {
         // maneuver state while making pairs establish pincer lanes, split through crossings and
         // re-form after a pass instead of independently converging on the same screen point.
         const formationNeighborsV26 = this.enemies
-          .filter((other) => other.alive && !other.boss && other.id !== enemy.id && Math.abs(other.depth - enemy.depth) <= 18)
+          .filter((other) => other.alive && !other.boss && !other.retreating && other.id !== enemy.id && Math.abs(other.depth - enemy.depth) <= 18)
           .slice(0, 4)
           .map((other) => ({
             id: other.id,
@@ -1787,14 +1859,14 @@ export class SkyDancerArcadeRuntime {
       projectile.life -= delta;
       if (projectile.life <= 0) continue;
       if (projectile.owner === "player-missile") {
-        const target = this.enemies.find((enemy) => enemy.id === projectile.targetEnemyId && enemy.alive) ?? null;
+        const target = this.enemies.find((enemy) => enemy.id === projectile.targetEnemyId && enemy.alive && !enemy.retreating) ?? null;
         if (target) {
           projectile.x = moveToward(projectile.x, target.x, delta * 2.8);
           projectile.y = moveToward(projectile.y, target.y, delta * 2.8);
         }
         projectile.depth += projectile.speed * delta;
       } else if (projectile.owner === "player-gun") {
-        const target = this.enemies.find((enemy) => enemy.id === projectile.targetEnemyId && enemy.alive) ?? null;
+        const target = this.enemies.find((enemy) => enemy.id === projectile.targetEnemyId && enemy.alive && !enemy.retreating) ?? null;
         if (target) {
           projectile.x = moveToward(projectile.x, target.x, delta * 2.2);
           projectile.y = moveToward(projectile.y, target.y, delta * 2.2);
@@ -1820,6 +1892,10 @@ export class SkyDancerArcadeRuntime {
       }
 
       if (projectile.owner === "enemy") {
+        if (projectile.retiring) {
+          if (projectile.depth < -3) projectile.life = 0;
+          continue;
+        }
         if (projectile.depth > 2.2) continue;
         const distance = Math.hypot(projectile.x - this.playerX, projectile.y - this.playerY);
         if (distance < 0.26) {
@@ -1838,7 +1914,7 @@ export class SkyDancerArcadeRuntime {
       }
 
       for (const enemy of this.enemies) {
-        if (!enemy.alive) continue;
+        if (!enemy.alive || enemy.retreating) continue;
         const depthDistance = Math.abs(projectile.depth - enemy.depth);
         if (depthDistance > (enemy.boss ? 3.2 : 1.9)) continue;
         const radius = skyDancerArcadeEnemyHitRadiusV20(enemy.kind, enemy.boss);
@@ -1852,6 +1928,12 @@ export class SkyDancerArcadeRuntime {
 
   private updateHazards(delta: number, turboActive: boolean): void {
     for (const hazard of this.hazards) {
+      if (hazard.retiring) {
+        hazard.courseAnchorDistance = null;
+        hazard.depth -= Math.max(68, hazard.speed * 3.2) * delta;
+        if (hazard.depth < -5.8) hazard.depth = -10;
+        continue;
+      }
       if (hazard.courseAnchorDistance !== null) {
         // V10.5: architecture/terrain advances only because the aircraft advances along the course.
         // This keeps its position phase-locked with scenery at normal speed and under turbo.
