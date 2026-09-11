@@ -32,5 +32,10 @@ replacement = '''    const worldBreakRecoveryEnvelope = this.worldBreakRecoveryT
 '''
 if anchor not in webgl:
     raise SystemExit("V40.6 updateCamera envelope anchor not found")
-webgl_path.write_text(webgl.replace(anchor, replacement, 1))
-print("V40.6 presentation compile fixes applied")
+webgl = webgl.replace(anchor, replacement, 1)
+old_defeat = '    const defeat = snapshot.message !== this.previousSnapshot.message && snapshot.message?.startsWith("SOVEREIGN DOWN");'
+new_defeat = '    const defeat = snapshot.finalBossSerial !== this.previousSnapshot.finalBossSerial && snapshot.message?.startsWith("SOVEREIGN DOWN");'
+if old_defeat not in webgl:
+    raise SystemExit("V40.6 finalBossSerial defeat anchor not found")
+webgl_path.write_text(webgl.replace(old_defeat, new_defeat, 1))
+print("V40.6 presentation compile/serial fixes applied")
