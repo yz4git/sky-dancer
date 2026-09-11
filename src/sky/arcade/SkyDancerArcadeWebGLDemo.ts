@@ -31,6 +31,7 @@ import {
   type SkyDancerArcadeV406FinalBossCue,
 } from "./SkyDancerArcadeV406FinalBossPresentation";
 import { skyDancerArcadeV408SceneFocus, skyDancerArcadeV408TargetLookBias } from "./SkyDancerArcadeV408CinematicFocus";
+import { skyDancerArcadeV409PhoneClarity } from "./SkyDancerArcadeV409PhoneClarity";
 import {
   createSkyDancerArcadeEnemy,
   createSkyDancerArcadeHazard,
@@ -429,6 +430,16 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
     const active = new Set<number>();
     const compactLandscapeV271 = this.renderWidth > this.renderHeight && this.renderHeight <= 560;
     const cueBudgetV271 = skyDancerArcadeV271CueBudget(compactLandscapeV271);
+    const v409Focus = skyDancerArcadeV408SceneFocus({
+      status: snapshot.status, stageProgress: snapshot.stageProgress, worldBreakLive: snapshot.worldBreakLive,
+      rivalAceActive: snapshot.rivalAceActive, bossActive: snapshot.bossActive, finalBossReactive: snapshot.finalBossReactive,
+    });
+    const v409IncomingThreats = snapshot.projectiles.filter((projectile) =>
+      projectile.owner === "enemy" && projectile.depth > 2.2 && projectile.depth < 30
+    ).length;
+    const v409Clarity = skyDancerArcadeV409PhoneClarity({
+      compactLandscape: compactLandscapeV271, sceneMode: v409Focus.mode, incomingThreats: v409IncomingThreats,
+    });
     const cueScoreV271 = (enemy: SkyDancerArcadeSnapshot["enemies"][number]): number =>
       skyDancerArcadeV271ThreatCueScore(
         enemy.depth,
@@ -440,7 +451,7 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
       snapshot.enemies
         .filter((enemy) => enemy.locked)
         .sort((a, b) => cueScoreV271(b) - cueScoreV271(a))
-        .slice(0, cueBudgetV271.primaryLocks)
+        .slice(0, Math.min(cueBudgetV271.primaryLocks, v409Clarity.primaryLocks))
         .map((enemy) => enemy.id),
     );
     const aimCueIdsV271 = new Set(
@@ -452,14 +463,14 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
           return aimDistance < aimThreshold;
         })
         .sort((a, b) => cueScoreV271(b) - cueScoreV271(a))
-        .slice(0, cueBudgetV271.aimCues)
+        .slice(0, Math.min(cueBudgetV271.aimCues, v409Clarity.aimCues))
         .map((enemy) => enemy.id),
     );
     const counterplayCueIdsV271 = new Set(
       snapshot.enemies
         .filter((enemy) => enemy.counterplay !== "none" && !enemy.locked && enemy.depth > 7 && enemy.depth < 56)
         .sort((a, b) => cueScoreV271(b) - cueScoreV271(a))
-        .slice(0, cueBudgetV271.counterplayCues)
+        .slice(0, Math.min(cueBudgetV271.counterplayCues, v409Clarity.counterplayCues))
         .map((enemy) => enemy.id),
     );
     for (const enemy of snapshot.enemies) {
@@ -645,14 +656,22 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
           lockRing,
           primaryLockV271
             ? fullLockSizeV271
-            : Math.max(18, Math.round(fullLockSizeV271 * cueBudgetV271.secondaryLockScale)),
+            : Math.max(18, Math.round(fullLockSizeV271 * Math.min(cueBudgetV271.secondaryLockScale, v409Clarity.secondaryLockScale))),
         );
       }
       if (aimRing) {
+        aimRing.traverse((object) => {
+          if (!(object instanceof THREE.Mesh) || !(object.material instanceof THREE.MeshBasicMaterial)) return;
+          object.material.opacity = .34 * v409Clarity.cueOpacity;
+        });
         aimRing.scale.setScalar(1);
         setArcadeCuePointSizeV27(aimRing, skyDancerArcadeV27CuePointSize(enemy.kind, enemy.boss, enemy.depth, "aim"));
       }
       if (counterplayRing) {
+        counterplayRing.traverse((object) => {
+          if (!(object instanceof THREE.Mesh) || !(object.material instanceof THREE.MeshBasicMaterial)) return;
+          object.material.opacity = .42 * v409Clarity.cueOpacity;
+        });
         counterplayRing.scale.setScalar(1);
         const pulse = 1 + Math.sin(snapshot.runTimeSeconds * 12 + enemy.id) * .045;
         setArcadeCuePointSizeV27(

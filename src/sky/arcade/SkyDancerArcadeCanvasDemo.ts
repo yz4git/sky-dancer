@@ -3,6 +3,7 @@ import type { SkyDancerArcadeDemoHandle } from "./SkyDancerArcadeWebGLDemo";
 import { skyDancerArcadeEnemyVisualScaleV17 } from "./SkyDancerArcadeModels";
 import { skyDancerArcadeV406FinalBossCue, skyDancerArcadeV406FormMotion, skyDancerArcadeV406FormLabel } from "./SkyDancerArcadeV406FinalBossPresentation";
 import { skyDancerArcadeV408SceneFocus } from "./SkyDancerArcadeV408CinematicFocus";
+import { skyDancerArcadeV409PhoneClarity } from "./SkyDancerArcadeV409PhoneClarity";
 
 type SnapshotHandler = (snapshot: SkyDancerArcadeSnapshot) => void;
 
@@ -66,6 +67,24 @@ export class SkyDancerArcadeCanvasDemo implements SkyDancerArcadeDemoHandle {
     context.scale(ratio, ratio);
     const cssWidth = width / ratio;
     const cssHeight = height / ratio;
+    const v409Focus = skyDancerArcadeV408SceneFocus({
+      status: snapshot.status, stageProgress: snapshot.stageProgress, worldBreakLive: snapshot.worldBreakLive,
+      rivalAceActive: snapshot.rivalAceActive, bossActive: snapshot.bossActive, finalBossReactive: snapshot.finalBossReactive,
+    });
+    const v409Clarity = skyDancerArcadeV409PhoneClarity({
+      compactLandscape: cssWidth > cssHeight && cssHeight <= 560,
+      sceneMode: v409Focus.mode,
+      incomingThreats: snapshot.projectiles.filter((projectile) => projectile.owner === "enemy" && projectile.depth > 2.2 && projectile.depth < 30).length,
+    });
+    const v409PrimaryLockIds = new Set(snapshot.enemies
+      .filter((enemy) => enemy.locked)
+      .sort((a, b) => {
+        const priorityA = a.boss ? 3 : a.rivalAce ? 2 : a.worldBreakTarget ? 1 : 0;
+        const priorityB = b.boss ? 3 : b.rivalAce ? 2 : b.worldBreakTarget ? 1 : 0;
+        return priorityB - priorityA || a.depth - b.depth;
+      })
+      .slice(0, v409Clarity.canvasLockLimit)
+      .map((enemy) => enemy.id));
     const gradient = context.createLinearGradient(0, 0, 0, cssHeight);
     gradient.addColorStop(0, `#${palette.sky.toString(16).padStart(6, "0")}`);
     gradient.addColorStop(1, `#${palette.fog.toString(16).padStart(6, "0")}`);
@@ -130,7 +149,7 @@ export class SkyDancerArcadeCanvasDemo implements SkyDancerArcadeDemoHandle {
         context.stroke();
         context.globalAlpha = 1;
       }
-      if (enemy.locked) {
+      if (enemy.locked && v409PrimaryLockIds.has(enemy.id)) {
         context.strokeStyle = `#${palette.accent.toString(16).padStart(6, "0")}`;
         context.lineWidth = 2.4;
         context.strokeRect(-size * 1.65, -size * 1.65, size * 3.3, size * 3.3);
