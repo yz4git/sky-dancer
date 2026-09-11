@@ -11,6 +11,7 @@ on:
 permissions:
   contents: write
 
+# Retry after advancing the persistent V40 foundation test from phase 1 to phase 2.
 jobs:
   apply:
     runs-on: ubuntu-latest
