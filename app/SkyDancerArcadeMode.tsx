@@ -506,6 +506,8 @@ export default function SkyDancerArcadeMode({ request, onReturnTitle }: SkyDance
               {snapshot.stage.id === "storm-carrier" ? ` · GRID ${snapshot.worldBreakStormHits + snapshot.worldBreakStormMisses}/${snapshot.worldBreakStormTotal}${snapshot.worldBreakStormIndex >= 0 ? ` · LANE ${snapshot.worldBreakStormIndex + 1}` : ""}` : ""}
               {snapshot.worldBreakTargetTotal > 0 ? ` · ${snapshot.stage.id === "desert-fortress" ? "BATTERY" : "DECK"} ${snapshot.worldBreakTargetHits + snapshot.worldBreakTargetMisses}/${snapshot.worldBreakTargetTotal}${snapshot.worldBreakTargetCurrentLabel ? ` · ${snapshot.worldBreakTargetCurrentLabel} ${Math.round(snapshot.worldBreakTargetCurrentHp / Math.max(1, snapshot.worldBreakTargetCurrentMaxHp) * 100)}%` : ""}` : ""}
               {snapshot.stage.id === "desert-fortress" ? ` · BREACH ${snapshot.worldBreakFortressBreachResolved ? snapshot.worldBreakFortressBreachSuccess ? "CLEAR" : "FAILED" : snapshot.worldBreakFortressBreachOpen ? "OPEN" : "LOCKED"}` : ""}
+              {snapshot.stage.id === "ice-cavern" ? ` · ESCAPE ${snapshot.worldBreakIceHits + snapshot.worldBreakIceMisses}/${snapshot.worldBreakIceTotal}${snapshot.worldBreakIceIndex >= 0 ? ` · APERTURE ${snapshot.worldBreakIceIndex + 1}` : snapshot.worldBreakIcePerfect ? " · PERFECT" : ""}` : ""}
+              {snapshot.stage.id === "floating-ruins" ? ` · PORTAL ${snapshot.worldBreakPortalDoctrine}${snapshot.worldBreakPortalChoiceIndex >= 0 ? ` ×${snapshot.worldBreakPortalScoreMultiplier.toFixed(2)}` : " · CHOOSE"}` : ""}
               {snapshot.worldBreakRouteDoctrine !== "LOCKED" ? ` · ${snapshot.worldBreakRouteDoctrine} ×${snapshot.worldBreakScoreMultiplier.toFixed(2)}` : ""}
             </em>
           )}

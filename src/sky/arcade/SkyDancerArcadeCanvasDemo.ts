@@ -74,6 +74,8 @@ export class SkyDancerArcadeCanvasDemo implements SkyDancerArcadeDemoHandle {
     this.drawWorldBreakKnifeRun(context, snapshot, cssWidth, cssHeight);
     this.drawWorldBreakStormLane(context, snapshot, cssWidth, cssHeight);
     this.drawWorldBreakFortressBreach(context, snapshot, cssWidth, cssHeight);
+    this.drawWorldBreakIceCollapse(context, snapshot, cssWidth, cssHeight);
+    this.drawWorldBreakFloatingPortals(context, snapshot, cssWidth, cssHeight);
     this.drawBranch(context, snapshot, cssWidth, cssHeight);
     for (const hazard of [...snapshot.hazards].sort((a, b) => b.depth - a.depth)) {
       const projected = this.project(hazard.x, hazard.y, hazard.depth, cssWidth, cssHeight);
@@ -299,6 +301,53 @@ export class SkyDancerArcadeCanvasDemo implements SkyDancerArcadeDemoHandle {
     context.textAlign = "center";
     context.fillText(snapshot.worldBreakFortressBreachOpen ? "BREACH OPEN" : "DESTROY WALL BATTERIES", center.x, center.y - gapY - 8);
     context.restore();
+  }
+
+
+  private drawWorldBreakIceCollapse(context: CanvasRenderingContext2D, snapshot: SkyDancerArcadeSnapshot, width: number, height: number): void {
+    if (!snapshot.worldBreakIceActive || snapshot.worldBreakIceIndex < 0) return;
+    const center = this.project(snapshot.worldBreakIceX, snapshot.worldBreakIceY, snapshot.worldBreakIceDepth, width, height);
+    const rx = Math.max(20, center.scale * snapshot.worldBreakIceRadiusX * 43);
+    const ry = Math.max(18, center.scale * snapshot.worldBreakIceRadiusY * 38);
+    context.save();
+    context.translate(center.x, center.y);
+    context.rotate(Math.PI / 4);
+    context.strokeStyle = "#b7f5ff";
+    context.lineWidth = Math.max(2.2, center.scale * 3);
+    context.globalAlpha = .86;
+    context.strokeRect(-rx, -ry, rx * 2, ry * 2);
+    context.globalAlpha = .48;
+    context.strokeRect(-rx * .78, -ry * .78, rx * 1.56, ry * 1.56);
+    context.restore();
+    context.fillStyle = "#d8fbff";
+    context.font = "800 10px system-ui, sans-serif";
+    context.textAlign = "center";
+    context.fillText(`COLLAPSE ${snapshot.worldBreakIceIndex + 1}/${snapshot.worldBreakIceTotal}`, center.x, center.y - ry - 8);
+  }
+
+  private drawWorldBreakFloatingPortals(context: CanvasRenderingContext2D, snapshot: SkyDancerArcadeSnapshot, width: number, height: number): void {
+    if (snapshot.stage.id !== "floating-ruins" || snapshot.worldBreakPortals.length === 0 || snapshot.worldBreakPortalDepth < -18) return;
+    const colors = ["#76efff", "#ffdd73", "#ff6e96"];
+    for (const portal of snapshot.worldBreakPortals) {
+      if (snapshot.worldBreakPortalChoiceIndex >= 0 && !portal.selected) continue;
+      const p = this.project(portal.x, portal.y, portal.depth, width, height);
+      const radius = Math.max(22, p.scale * portal.radius * 44);
+      context.save();
+      context.strokeStyle = colors[portal.index] ?? "#fff";
+      context.lineWidth = portal.selected ? 6 : 3;
+      context.globalAlpha = portal.selected ? .96 : .78;
+      context.beginPath();
+      context.arc(p.x, p.y, portal.selected ? radius * 1.2 : radius, 0, Math.PI * 2);
+      context.stroke();
+      context.beginPath();
+      context.arc(p.x, p.y, radius * .72, 0, Math.PI * 2);
+      context.stroke();
+      context.fillStyle = colors[portal.index] ?? "#fff";
+      context.font = "800 9px system-ui, sans-serif";
+      context.textAlign = "center";
+      context.fillText(portal.doctrine, p.x, p.y - radius - 6);
+      context.restore();
+    }
   }
 
   private drawBranch(context: CanvasRenderingContext2D, snapshot: SkyDancerArcadeSnapshot, width: number, height: number): void {

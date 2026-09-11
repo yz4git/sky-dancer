@@ -74,6 +74,9 @@ import {
   SKY_DANCER_ARCADE_V40_DESERT_BREACH_X,
   SKY_DANCER_ARCADE_V40_DESERT_BREACH_Y,
   SKY_DANCER_ARCADE_V40_DESERT_FORTRESS_TURRETS,
+  SKY_DANCER_ARCADE_V40_FLOATING_PORTALS,
+  SKY_DANCER_ARCADE_V40_ICE_APERTURES,
+  SKY_DANCER_ARCADE_V40_ICE_PERFECT_BONUS,
   SKY_DANCER_ARCADE_V40_RED_CANYON_KNIFE_CEILING_Y,
   SKY_DANCER_ARCADE_V40_RED_CANYON_KNIFE_END,
   SKY_DANCER_ARCADE_V40_RED_CANYON_KNIFE_START,
@@ -82,11 +85,16 @@ import {
   skyDancerArcadeV40DawnCityGateAnchorDistance,
   skyDancerArcadeV40FleetTargetAnchorDistance,
   skyDancerArcadeV40FortressBreachAnchorDistance,
+  skyDancerArcadeV40FloatingPortalAnchorDistance,
+  skyDancerArcadeV40IceApertureAnchorDistance,
+  skyDancerArcadeV40IceApertureScale,
+  skyDancerArcadeV40IceApertureX,
   skyDancerArcadeV40StormLaneAnchorDistance,
   skyDancerArcadeV40StormLaneX,
   skyDancerArcadeV40RouteDoctrine,
   skyDancerArcadeV40RouteEffect,
   skyDancerArcadeV40WorldProfile,
+  type SkyDancerArcadeV40PortalDoctrine,
   type SkyDancerArcadeV40RouteDoctrine,
 } from "./SkyDancerArcadeV40WorldBreak";
 
@@ -183,6 +191,17 @@ export interface SkyDancerArcadeWorldBreakGateSnapshot {
   radiusY: number;
   resolved: boolean;
   success: boolean | null;
+}
+
+export interface SkyDancerArcadeWorldBreakPortalSnapshot {
+  index: number;
+  x: number;
+  y: number;
+  depth: number;
+  radius: number;
+  doctrine: SkyDancerArcadeV40PortalDoctrine;
+  label: string;
+  selected: boolean;
 }
 
 export interface SkyDancerArcadeSnapshot {
@@ -327,6 +346,26 @@ export interface SkyDancerArcadeSnapshot {
   worldBreakFortressBreachRadiusX: number;
   worldBreakFortressBreachRadiusY: number;
   worldBreakFortressSerial: number;
+  worldBreakIceActive: boolean;
+  worldBreakIceX: number;
+  worldBreakIceY: number;
+  worldBreakIceRadiusX: number;
+  worldBreakIceRadiusY: number;
+  worldBreakIceDepth: number;
+  worldBreakIceIndex: number;
+  worldBreakIceHits: number;
+  worldBreakIceMisses: number;
+  worldBreakIceSerial: number;
+  worldBreakIceTotal: number;
+  worldBreakIcePerfect: boolean;
+  worldBreakPortalActive: boolean;
+  worldBreakPortalChoiceIndex: number;
+  worldBreakPortalDoctrine: SkyDancerArcadeV40PortalDoctrine | "NONE";
+  worldBreakPortalSerial: number;
+  worldBreakPortalDepth: number;
+  worldBreakPortalScoreMultiplier: number;
+  worldBreakPortalPressureScale: number;
+  worldBreakPortals: SkyDancerArcadeWorldBreakPortalSnapshot[];
   enemies: SkyDancerArcadeEnemySnapshot[];
   projectiles: SkyDancerArcadeProjectileSnapshot[];
   impacts: SkyDancerArcadeImpactSnapshot[];
@@ -656,6 +695,13 @@ export class SkyDancerArcadeRuntime {
   private worldBreakFortressBreachResolved = false;
   private worldBreakFortressBreachSuccess = false;
   private worldBreakFortressSerial = 0;
+  private worldBreakIceHits = 0;
+  private worldBreakIceMisses = 0;
+  private worldBreakIceSerial = 0;
+  private readonly worldBreakResolvedIceApertureIndices = new Set<number>();
+  private worldBreakPortalChoiceIndex = -1;
+  private worldBreakPortalDoctrine: SkyDancerArcadeV40PortalDoctrine | "NONE" = "NONE";
+  private worldBreakPortalSerial = 0;
   private nextEntityId = 1;
   private waveSerial = 0;
   private nextWaveAt = 2.8;
@@ -787,6 +833,11 @@ export class SkyDancerArcadeRuntime {
       this.worldBreakFortressBreachOpen = false;
       this.worldBreakFortressBreachResolved = false;
       this.worldBreakFortressBreachSuccess = false;
+      this.worldBreakIceHits = 0;
+      this.worldBreakIceMisses = 0;
+      this.worldBreakResolvedIceApertureIndices.clear();
+      this.worldBreakPortalChoiceIndex = -1;
+      this.worldBreakPortalDoctrine = "NONE";
     }
     this.worldBreakGates = this.stage.id === "dawn-city"
       ? SKY_DANCER_ARCADE_V40_DAWN_CITY_GATES.map((gate) => {
@@ -973,6 +1024,8 @@ export class SkyDancerArcadeRuntime {
     this.updateWorldBreakKnifeRun(delta);
     this.updateWorldBreakStormGrid();
     this.updateWorldBreakFortressBreach();
+    this.updateWorldBreakIceCollapse();
+    this.updateWorldBreakFloatingPortal();
     this.updateBranch();
     this.updateV11Timeline();
     this.updateDirector();
@@ -1116,6 +1169,66 @@ export class SkyDancerArcadeRuntime {
       ? "FORTRESS GATE · BREACH MISSED"
       : "FORTRESS GATE · BREACH DENIED · BATTERIES ACTIVE";
     this.messageTimer = 1.35;
+  }
+
+
+  private updateWorldBreakIceCollapse(): void {
+    if (this.stage.id !== "ice-cavern") return;
+    for (const aperture of SKY_DANCER_ARCADE_V40_ICE_APERTURES) {
+      if (this.worldBreakResolvedIceApertureIndices.has(aperture.index)) continue;
+      const anchorDistance = skyDancerArcadeV40IceApertureAnchorDistance(aperture, this.stage.durationSeconds, this.stage.courseSpeed);
+      const depth = anchorDistance - this.distance;
+      if (depth > 2.4) return;
+      const safeX = skyDancerArcadeV40IceApertureX(aperture, this.stageTime);
+      const scale = skyDancerArcadeV40IceApertureScale(depth);
+      const dx = (this.playerX - safeX) / Math.max(.2, aperture.radiusX * scale);
+      const dy = (this.playerY - aperture.y) / Math.max(.2, aperture.radiusY * scale);
+      const clean = Math.hypot(dx, dy) <= 1;
+      this.worldBreakResolvedIceApertureIndices.add(aperture.index);
+      this.worldBreakIceSerial += 1;
+      if (clean) {
+        this.worldBreakIceHits += 1;
+        const awarded = this.addScore(aperture.score + this.worldBreakIceHits * 170, true);
+        this.turbo = Math.min(100, this.turbo + 6);
+        this.message = `CRYSTAL TUNNEL · APERTURE ${aperture.index + 1} CLEAR · +${awarded}`;
+        this.messageTimer = 1.05;
+      } else {
+        this.worldBreakIceMisses += 1;
+        this.takeDamage(this.options.difficulty === "hard" ? 14 : 10);
+        this.message = `CRYSTAL TUNNEL · COLLAPSE HIT ${aperture.index + 1}`;
+        this.messageTimer = 1.05;
+      }
+      if (this.worldBreakResolvedIceApertureIndices.size >= SKY_DANCER_ARCADE_V40_ICE_APERTURES.length && this.worldBreakIceMisses === 0) {
+        const awarded = this.addScore(SKY_DANCER_ARCADE_V40_ICE_PERFECT_BONUS, true);
+        this.turbo = Math.min(100, this.turbo + 18);
+        this.worldBreakIceSerial += 1;
+        this.message = `WORLD BREAK · CRYSTAL ESCAPE PERFECT · +${awarded}`;
+        this.messageTimer = 1.5;
+      }
+      return;
+    }
+  }
+
+  private worldBreakPortalDefinition() {
+    return SKY_DANCER_ARCADE_V40_FLOATING_PORTALS.find((portal) => portal.index === this.worldBreakPortalChoiceIndex) ?? null;
+  }
+
+  private updateWorldBreakFloatingPortal(): void {
+    if (this.stage.id !== "floating-ruins" || this.worldBreakPortalChoiceIndex >= 0) return;
+    const anchorDistance = skyDancerArcadeV40FloatingPortalAnchorDistance(this.stage.durationSeconds, this.stage.courseSpeed);
+    const depth = anchorDistance - this.distance;
+    if (depth > 2.4) return;
+    const portal = [...SKY_DANCER_ARCADE_V40_FLOATING_PORTALS]
+      .sort((a, b) => Math.abs(this.playerX - a.x) - Math.abs(this.playerX - b.x))[0];
+    if (!portal) return;
+    this.worldBreakPortalChoiceIndex = portal.index;
+    this.worldBreakPortalDoctrine = portal.doctrine;
+    this.worldBreakPortalSerial += 1;
+    this.playerHp = Math.min(PLAYER_MAX_HP, this.playerHp + portal.hpRecovery);
+    this.turbo = Math.min(100, this.turbo + portal.turboRecovery);
+    const awarded = this.addScore(portal.score, portal.doctrine !== "FLOW");
+    this.message = `SKY LABYRINTH · ${portal.label} · +${awarded}`;
+    this.messageTimer = 1.55;
   }
 
   private resolveV40FleetTarget(enemy: ArcadeEnemy, destroyed: boolean): void {
@@ -1275,7 +1388,8 @@ export class SkyDancerArcadeRuntime {
     this.updateV121EncounterQueue();
     const progress = clamp(this.stageTime / this.stage.durationSeconds, 0, 1);
     const beat = skyDancerArcadeV11Beat(this.stage.id, progress);
-    const worldBreakPressureScale = skyDancerArcadeV40RouteEffect(this.worldBreakRouteDoctrine).pressureScale;
+    const portalPressureScale = this.stage.id === "floating-ruins" ? (this.worldBreakPortalDefinition()?.pressureScale ?? 1) : 1;
+    const worldBreakPressureScale = skyDancerArcadeV40RouteEffect(this.worldBreakRouteDoctrine).pressureScale * portalPressureScale;
     const bossTime = this.stage.durationSeconds * skyDancerArcadeBossStartProgress(this.stage.id === SKY_DANCER_ARCADE_FINAL_STAGE);
     if (!this.bossSpawned && this.stageTime >= bossTime) this.spawnBoss();
     // V27: total population and, more importantly, near-camera population have separate readability ceilings.
@@ -2546,7 +2660,8 @@ export class SkyDancerArcadeRuntime {
     const chainMultiplier = 1 + Math.min(12, this.chain) * 0.1;
     const riskMultiplier = risk ? 1.25 : 1;
     const routeMultiplier = skyDancerArcadeV40RouteEffect(this.worldBreakRouteDoctrine).scoreMultiplier;
-    const awarded = Math.round(base * chainMultiplier * riskMultiplier * routeMultiplier);
+    const portalMultiplier = this.stage.id === "floating-ruins" ? (this.worldBreakPortalDefinition()?.scoreMultiplier ?? 1) : 1;
+    const awarded = Math.round(base * chainMultiplier * riskMultiplier * routeMultiplier * portalMultiplier);
     this.score += awarded;
     return awarded;
   }
@@ -2763,6 +2878,17 @@ export class SkyDancerArcadeRuntime {
     const fortressBreachDepth = this.stage.id === "desert-fortress"
       ? skyDancerArcadeV40FortressBreachAnchorDistance(this.stage.durationSeconds, this.stage.courseSpeed) - this.distance
       : -999;
+    const iceAperture = this.stage.id === "ice-cavern"
+      ? SKY_DANCER_ARCADE_V40_ICE_APERTURES.find((aperture) => !this.worldBreakResolvedIceApertureIndices.has(aperture.index)) ?? null
+      : null;
+    const iceDepth = iceAperture
+      ? skyDancerArcadeV40IceApertureAnchorDistance(iceAperture, this.stage.durationSeconds, this.stage.courseSpeed) - this.distance
+      : -999;
+    const iceScale = iceAperture ? skyDancerArcadeV40IceApertureScale(iceDepth) : 1;
+    const portalDepth = this.stage.id === "floating-ruins"
+      ? skyDancerArcadeV40FloatingPortalAnchorDistance(this.stage.durationSeconds, this.stage.courseSpeed) - this.distance
+      : -999;
+    const portalDefinition = this.worldBreakPortalDefinition();
     const activeStageCount = Math.max(1, this.stagesCleared + (this.status === "running" ? 1 : 0));
     const rank = skyDancerArcadeRankForScore(this.score, activeStageCount, this.damageTaken, this.continuesUsed);
     return {
@@ -2923,6 +3049,33 @@ export class SkyDancerArcadeRuntime {
       worldBreakFortressBreachRadiusX: SKY_DANCER_ARCADE_V40_DESERT_BREACH_RADIUS_X,
       worldBreakFortressBreachRadiusY: SKY_DANCER_ARCADE_V40_DESERT_BREACH_RADIUS_Y,
       worldBreakFortressSerial: this.worldBreakFortressSerial,
+      worldBreakIceActive: Boolean(iceAperture && iceDepth > -10 && iceDepth < 145),
+      worldBreakIceX: iceAperture ? skyDancerArcadeV40IceApertureX(iceAperture, this.stageTime) : 0,
+      worldBreakIceY: iceAperture?.y ?? 0,
+      worldBreakIceRadiusX: (iceAperture?.radiusX ?? 0) * iceScale,
+      worldBreakIceRadiusY: (iceAperture?.radiusY ?? 0) * iceScale,
+      worldBreakIceDepth: iceDepth,
+      worldBreakIceIndex: iceAperture?.index ?? -1,
+      worldBreakIceHits: this.worldBreakIceHits,
+      worldBreakIceMisses: this.worldBreakIceMisses,
+      worldBreakIceSerial: this.worldBreakIceSerial,
+      worldBreakIceTotal: this.stage.id === "ice-cavern" ? SKY_DANCER_ARCADE_V40_ICE_APERTURES.length : 0,
+      worldBreakIcePerfect: this.stage.id === "ice-cavern"
+        && this.worldBreakResolvedIceApertureIndices.size >= SKY_DANCER_ARCADE_V40_ICE_APERTURES.length
+        && this.worldBreakIceMisses === 0,
+      worldBreakPortalActive: this.stage.id === "floating-ruins" && this.worldBreakPortalChoiceIndex < 0 && portalDepth > -10 && portalDepth < 145,
+      worldBreakPortalChoiceIndex: this.worldBreakPortalChoiceIndex,
+      worldBreakPortalDoctrine: this.worldBreakPortalDoctrine,
+      worldBreakPortalSerial: this.worldBreakPortalSerial,
+      worldBreakPortalDepth: portalDepth,
+      worldBreakPortalScoreMultiplier: portalDefinition?.scoreMultiplier ?? 1,
+      worldBreakPortalPressureScale: portalDefinition?.pressureScale ?? 1,
+      worldBreakPortals: this.stage.id === "floating-ruins"
+        ? SKY_DANCER_ARCADE_V40_FLOATING_PORTALS.map((portal) => ({
+            index: portal.index, x: portal.x, y: portal.y, depth: portalDepth, radius: portal.radius,
+            doctrine: portal.doctrine, label: portal.label, selected: portal.index === this.worldBreakPortalChoiceIndex,
+          }))
+        : [],
       enemies: this.enemies.filter((enemy) => enemy.alive).map((enemy) => ({
         id: enemy.id,
         kind: enemy.kind,
@@ -3048,6 +3201,29 @@ export class SkyDancerArcadeRuntime {
     this.playerX = clean ? SKY_DANCER_ARCADE_V40_DESERT_BREACH_X : PLAYER_X_LIMIT;
     this.playerY = clean ? SKY_DANCER_ARCADE_V40_DESERT_BREACH_Y : PLAYER_Y_LIMIT;
     this.updateWorldBreakFortressBreach();
+  }
+
+  triggerV40IceApertureForTests(index: number, clean: boolean): void {
+    const aperture = SKY_DANCER_ARCADE_V40_ICE_APERTURES.find((candidate) => candidate.index === index);
+    if (!aperture) return;
+    const anchorDistance = skyDancerArcadeV40IceApertureAnchorDistance(aperture, this.stage.durationSeconds, this.stage.courseSpeed);
+    this.distance = anchorDistance - 2.2;
+    this.stageTime = this.distance / Math.max(1, this.stage.courseSpeed);
+    const safeX = skyDancerArcadeV40IceApertureX(aperture, this.stageTime);
+    this.playerX = clean ? clamp(safeX, -PLAYER_X_LIMIT, PLAYER_X_LIMIT) : PLAYER_X_LIMIT;
+    this.playerY = clean ? clamp(aperture.y, -PLAYER_Y_LIMIT, PLAYER_Y_LIMIT) : PLAYER_Y_LIMIT;
+    this.updateWorldBreakIceCollapse();
+  }
+
+  triggerV40FloatingPortalForTests(index: number): void {
+    const portal = SKY_DANCER_ARCADE_V40_FLOATING_PORTALS.find((candidate) => candidate.index === index);
+    if (!portal) return;
+    const anchorDistance = skyDancerArcadeV40FloatingPortalAnchorDistance(this.stage.durationSeconds, this.stage.courseSpeed);
+    this.distance = anchorDistance - 2.2;
+    this.stageTime = this.distance / Math.max(1, this.stage.courseSpeed);
+    this.playerX = clamp(portal.x, -PLAYER_X_LIMIT, PLAYER_X_LIMIT);
+    this.playerY = clamp(portal.y, -PLAYER_Y_LIMIT, PLAYER_Y_LIMIT);
+    this.updateWorldBreakFloatingPortal();
   }
 
   /** Deterministic V12 hook for adaptive encounter regression tests. */

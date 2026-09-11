@@ -42,3 +42,7 @@
 
 /* Arcade Run V40 WORLD BREAK phase 3: storm-grid and fortress-breach telemetry. */
 .worldBreakLine{max-width:min(660px,82vw)}
+
+
+/* Arcade Run V40 WORLD BREAK phase 4: collapse/portal telemetry stays legible on compact iPhone landscape. */
+.worldBreakLine{max-width:min(720px,86vw)}

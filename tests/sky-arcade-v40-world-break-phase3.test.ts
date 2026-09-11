@@ -66,7 +66,7 @@ test("V40 Desert Fortress keeps the wall lethal when a required battery escapes"
 
 test("V40 WebGL keeps authored World Break roots attached across stage handoffs", () => {
   const source = readFileSync("src/sky/arcade/SkyDancerArcadeWebGLDemo.ts", "utf8");
-  assert.match(source, /worldBreakRoot\.add\(this\.worldBreakKnifeRoot, this\.worldBreakStormRoot, this\.worldBreakFortressRoot\)/);
+  assert.match(source, /worldBreakRoot\.add\(this\.worldBreakKnifeRoot, this\.worldBreakStormRoot, this\.worldBreakFortressRoot, this\.worldBreakIceRoot, this\.worldBreakPortalRoot\)/);
   assert.match(source, /syncWorldBreakStormLane\(snapshot\)/);
   assert.match(source, /syncWorldBreakFortressBreach\(snapshot\)/);
 });

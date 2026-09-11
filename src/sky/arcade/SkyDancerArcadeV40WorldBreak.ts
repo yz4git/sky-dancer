@@ -50,14 +50,42 @@ export interface SkyDancerArcadeV40StormLaneDefinition {
   score: number;
 }
 
+export interface SkyDancerArcadeV40IceApertureDefinition {
+  index: number;
+  progress: number;
+  x: number;
+  y: number;
+  driftAmplitude: number;
+  phase: number;
+  radiusX: number;
+  radiusY: number;
+  score: number;
+}
+
+export type SkyDancerArcadeV40PortalDoctrine = "FLOW" | "SCORE" | "DANGER";
+
+export interface SkyDancerArcadeV40PortalDefinition {
+  index: number;
+  x: number;
+  y: number;
+  radius: number;
+  doctrine: SkyDancerArcadeV40PortalDoctrine;
+  label: string;
+  score: number;
+  scoreMultiplier: number;
+  pressureScale: number;
+  hpRecovery: number;
+  turboRecovery: number;
+}
+
 const PROFILES: Record<SkyDancerArcadeStageId, SkyDancerArcadeV40WorldProfile> = {
   "dawn-city": { stageId: "dawn-city", objective: "THREAD SKYLINE GATES", signature: "TOWER SLALOM", live: true },
   "red-canyon": { stageId: "red-canyon", objective: "HOLD LOW ALTITUDE", signature: "KNIFE RUN", live: true },
   "cloud-fleet": { stageId: "cloud-fleet", objective: "DISMANTLE THE FLAGSHIP", signature: "DECK STRIKE", live: true },
   "storm-carrier": { stageId: "storm-carrier", objective: "READ THE SAFE LANE", signature: "LIGHTNING GRID", live: true },
   "desert-fortress": { stageId: "desert-fortress", objective: "BREACH THE WALL", signature: "FORTRESS GATE", live: true },
-  "ice-cavern": { stageId: "ice-cavern", objective: "ESCAPE THE COLLAPSE", signature: "CRYSTAL TUNNEL", live: false },
-  "floating-ruins": { stageId: "floating-ruins", objective: "CHOOSE THE PORTAL", signature: "SKY LABYRINTH", live: false },
+  "ice-cavern": { stageId: "ice-cavern", objective: "ESCAPE THE COLLAPSE", signature: "CRYSTAL TUNNEL", live: true },
+  "floating-ruins": { stageId: "floating-ruins", objective: "CHOOSE THE PORTAL", signature: "SKY LABYRINTH", live: true },
   "night-metro": { stageId: "night-metro", objective: "CATCH THE PHANTOM", signature: "NEON PURSUIT", live: false },
   "volcano-core": { stageId: "volcano-core", objective: "OUTRUN THE ERUPTION", signature: "MAGMA PRESSURE", live: false },
   "orbital-ascent": { stageId: "orbital-ascent", objective: "CLIMB THE DEBRIS SHAFT", signature: "ZERO-G ASCENT", live: false },
@@ -140,6 +168,22 @@ export const SKY_DANCER_ARCADE_V40_DESERT_BREACH_RADIUS_X = .72;
 export const SKY_DANCER_ARCADE_V40_DESERT_BREACH_RADIUS_Y = .78;
 export const SKY_DANCER_ARCADE_V40_DESERT_BREACH_SCORE = 5200;
 
+export const SKY_DANCER_ARCADE_V40_ICE_APERTURES: readonly SkyDancerArcadeV40IceApertureDefinition[] = [
+  { index: 0, progress: .14, x: -.82, y: .18, driftAmplitude: .16, phase: .2, radiusX: .88, radiusY: .82, score: 1100 },
+  { index: 1, progress: .185, x: .74, y: -.14, driftAmplitude: .22, phase: 1.35, radiusX: .8, radiusY: .75, score: 1350 },
+  { index: 2, progress: .23, x: -.12, y: .34, driftAmplitude: .28, phase: 2.45, radiusX: .73, radiusY: .69, score: 1650 },
+  { index: 3, progress: .275, x: .92, y: .04, driftAmplitude: .2, phase: 3.65, radiusX: .66, radiusY: .63, score: 2000 },
+  { index: 4, progress: .325, x: -.66, y: -.24, driftAmplitude: .25, phase: 4.85, radiusX: .61, radiusY: .58, score: 2450 },
+];
+export const SKY_DANCER_ARCADE_V40_ICE_PERFECT_BONUS = 4800;
+
+export const SKY_DANCER_ARCADE_V40_FLOATING_PORTAL_PROGRESS = .235;
+export const SKY_DANCER_ARCADE_V40_FLOATING_PORTALS: readonly SkyDancerArcadeV40PortalDefinition[] = [
+  { index: 0, x: -1.32, y: .12, radius: .76, doctrine: "FLOW", label: "FLOW PORTAL", score: 1200, scoreMultiplier: 1, pressureScale: 1.18, hpRecovery: 14, turboRecovery: 24 },
+  { index: 1, x: 0, y: -.05, radius: .72, doctrine: "SCORE", label: "SCORE PORTAL", score: 2600, scoreMultiplier: 1.22, pressureScale: .96, hpRecovery: 4, turboRecovery: 10 },
+  { index: 2, x: 1.32, y: .14, radius: .68, doctrine: "DANGER", label: "DANGER PORTAL", score: 4200, scoreMultiplier: 1.38, pressureScale: .8, hpRecovery: 0, turboRecovery: 8 },
+];
+
 export function skyDancerArcadeV40WorldProfile(stageId: SkyDancerArcadeStageId): SkyDancerArcadeV40WorldProfile {
   return PROFILES[stageId];
 }
@@ -185,4 +229,25 @@ export function skyDancerArcadeV40StormLaneX(lane: SkyDancerArcadeV40StormLaneDe
 
 export function skyDancerArcadeV40FortressBreachAnchorDistance(stageDurationSeconds: number, courseSpeed: number): number {
   return Math.max(0, stageDurationSeconds) * Math.max(0, courseSpeed) * SKY_DANCER_ARCADE_V40_DESERT_BREACH_PROGRESS;
+}
+
+export function skyDancerArcadeV40IceApertureAnchorDistance(
+  aperture: SkyDancerArcadeV40IceApertureDefinition,
+  stageDurationSeconds: number,
+  courseSpeed: number,
+): number {
+  return Math.max(0, stageDurationSeconds) * Math.max(0, courseSpeed) * aperture.progress;
+}
+
+export function skyDancerArcadeV40IceApertureX(aperture: SkyDancerArcadeV40IceApertureDefinition, stageTimeSeconds: number): number {
+  return aperture.x + Math.sin(Math.max(0, stageTimeSeconds) * 1.72 + aperture.phase) * aperture.driftAmplitude;
+}
+
+export function skyDancerArcadeV40IceApertureScale(depth: number): number {
+  const approach = Math.max(0, Math.min(1, Math.max(0, depth) / 42));
+  return .52 + approach * .48;
+}
+
+export function skyDancerArcadeV40FloatingPortalAnchorDistance(stageDurationSeconds: number, courseSpeed: number): number {
+  return Math.max(0, stageDurationSeconds) * Math.max(0, courseSpeed) * SKY_DANCER_ARCADE_V40_FLOATING_PORTAL_PROGRESS;
 }
