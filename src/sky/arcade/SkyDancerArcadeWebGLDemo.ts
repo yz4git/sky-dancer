@@ -132,6 +132,7 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
   private readonly hazardRoot = new THREE.Group();
   private readonly branchRoot = new THREE.Group();
   private readonly worldBreakRoot = new THREE.Group();
+  private readonly worldBreakKnifeRoot = new THREE.Group();
   private readonly enemyGroups = new Map<number, THREE.Group>();
   private readonly projectileMeshes = new Map<number, THREE.Mesh>();
   private readonly hazardGroups = new Map<number, THREE.Group>();
@@ -207,6 +208,8 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
     this.hazardRoot.name = "arcade-hazards";
     this.branchRoot.name = "arcade-route-gates";
     this.worldBreakRoot.name = "arcade-world-break-gates";
+    this.worldBreakKnifeRoot.name = "arcade-world-break-knife-run";
+    this.worldBreakRoot.add(this.worldBreakKnifeRoot);
     this.scene.add(this.entityRoot, this.projectileRoot, this.hazardRoot, this.branchRoot, this.worldBreakRoot, this.player);
     this.environment = new SkyDancerArcadeEnvironment(this.scene);
     this.environment.setStage(this.previousSnapshot.stage);
@@ -301,6 +304,7 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
     this.syncProjectiles(snapshot);
     this.syncHazards(snapshot, delta);
     this.syncWorldBreakGates(snapshot, delta);
+    this.syncWorldBreakKnifeRun(snapshot);
     this.syncBranchGates(snapshot, delta);
     this.syncEffects(snapshot);
     this.syncAudio(snapshot);
@@ -456,6 +460,25 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
         readableRigV28.userData.arcadeEnemyReadableAttitudeV28 = true;
         readableRigV28.userData.arcadeEnemyRevealV28 = readableV28.reveal;
         group.userData.arcadeEnemyLogicalCollisionUnchangedV28 = true;
+      }
+      let missionRing = group.getObjectByName("arcade-world-break-target-ring");
+      if (enemy.worldBreakTarget && !missionRing) {
+        missionRing = createSkyDancerArcadeLockRing(0xffdf69);
+        missionRing.name = "arcade-world-break-target-ring";
+        missionRing.position.z = .16;
+        missionRing.traverse((object) => {
+          if (!(object instanceof THREE.Mesh)) return;
+          const material = object.material as THREE.MeshBasicMaterial;
+          material.opacity = .58;
+        });
+        group.add(missionRing);
+      }
+      if (missionRing) {
+        missionRing.rotation.y = -group.rotation.y;
+        missionRing.rotation.z = -group.rotation.z;
+        missionRing.rotation.x = this.camera.rotation.x;
+        const pulse = 1 + Math.sin(snapshot.runTimeSeconds * 7 + enemy.id) * .06;
+        setArcadeCuePointSizeV27(missionRing, skyDancerArcadeV27CuePointSize(enemy.kind, false, enemy.depth, "counterplay") * 1.18 * pulse);
       }
       let existingRing = group.getObjectByName("arcade-lock-ring");
       if (enemy.locked && !existingRing) {
@@ -705,6 +728,31 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
       this.worldBreakRoot.remove(group);
       this.disposeObject(group);
     }
+  }
+
+  private syncWorldBreakKnifeRun(snapshot: SkyDancerArcadeSnapshot): void {
+    this.worldBreakKnifeRoot.visible = snapshot.worldBreakKnifeActive;
+    if (!snapshot.worldBreakKnifeActive) return;
+    if (this.worldBreakKnifeRoot.children.length === 0) {
+      const material = new THREE.MeshBasicMaterial({ color: 0x72eeff, transparent: true, opacity: .38, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false });
+      for (let index = 0; index < 4; index += 1) {
+        const ring = new THREE.Mesh(new THREE.TorusGeometry(4.7, .075, 5, 28), material.clone());
+        ring.userData.arcadeKnifeDepth = 22 + index * 18;
+        this.worldBreakKnifeRoot.add(ring);
+      }
+    }
+    this.worldBreakKnifeRoot.children.forEach((child, index) => {
+      const depth = Number(child.userData.arcadeKnifeDepth ?? (22 + index * 18));
+      const course = arcadeCourseRelativeVisualPose(snapshot.stage, snapshot.distance, depth);
+      child.position.set(course.x, 1.2 + snapshot.worldBreakKnifeCeilingY * 4.9 + course.y, course.z);
+      child.rotation.set(course.pitch, course.yaw, 0);
+      child.scale.setScalar(snapshot.worldBreakKnifeAltitudeOk ? 1.08 : .94);
+      child.traverse((object) => {
+        if (!(object instanceof THREE.Mesh) || !(object.material instanceof THREE.MeshBasicMaterial)) return;
+        object.material.color.setHex(snapshot.worldBreakKnifeAltitudeOk ? 0x76ffba : 0x72eeff);
+        object.material.opacity = snapshot.worldBreakKnifeAltitudeOk ? .62 : .32;
+      });
+    });
   }
 
   private buildBranchGates(snapshot: SkyDancerArcadeSnapshot): void {
@@ -959,6 +1007,16 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
       const clean = snapshot.worldBreakGateHits > this.previousSnapshot.worldBreakGateHits;
       this.audio.tone(clean ? 1040 : 180, clean ? .12 : .18, .026, clean ? "triangle" : "sawtooth");
       if (clean) this.audio.tone(1560, .07, .014, "triangle");
+    }
+    if (snapshot.worldBreakKnifeSerial !== this.previousSnapshot.worldBreakKnifeSerial) {
+      const complete = snapshot.worldBreakKnifeComplete && !this.previousSnapshot.worldBreakKnifeComplete;
+      this.audio.tone(complete ? 920 : 660, complete ? .2 : .07, complete ? .03 : .012, "triangle");
+      if (complete) this.presentation.emitRushAccent();
+    }
+    if (snapshot.worldBreakTargetSerial !== this.previousSnapshot.worldBreakTargetSerial) {
+      const destroyed = snapshot.worldBreakTargetHits > this.previousSnapshot.worldBreakTargetHits;
+      this.audio.tone(destroyed ? 128 : 190, destroyed ? .24 : .13, destroyed ? .045 : .02, destroyed ? "sawtooth" : "triangle");
+      if (destroyed) this.presentation.emitRushAccent();
     }
     const incoming = snapshot.projectiles.some((projectile) => projectile.owner === "enemy" && projectile.depth > 2.2 && projectile.depth < 30);
     const wasIncoming = this.previousSnapshot.projectiles.some((projectile) => projectile.owner === "enemy" && projectile.depth > 2.2 && projectile.depth < 30);

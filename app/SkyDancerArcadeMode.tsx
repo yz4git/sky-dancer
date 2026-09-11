@@ -502,6 +502,8 @@ export default function SkyDancerArcadeMode({ request, onReturnTitle }: SkyDance
             <em className={styles.worldBreakLine} data-live={snapshot.worldBreakLive}>
               WORLD BREAK · {snapshot.worldBreakObjective}
               {snapshot.worldBreakGateTotal > 0 ? ` · GATE ${snapshot.worldBreakGateHits + snapshot.worldBreakGateMisses}/${snapshot.worldBreakGateTotal} · STREAK ${snapshot.worldBreakGateStreak}` : ""}
+              {snapshot.stage.id === "red-canyon" ? ` · LOW ${snapshot.worldBreakKnifeSeconds.toFixed(1)}/${snapshot.worldBreakKnifeTargetSeconds.toFixed(1)}s${snapshot.worldBreakKnifeActive ? snapshot.worldBreakKnifeAltitudeOk ? " · HOLD" : " · DESCEND" : snapshot.worldBreakKnifeComplete ? " · CLEAR" : ""}` : ""}
+              {snapshot.worldBreakTargetTotal > 0 ? ` · DECK ${snapshot.worldBreakTargetHits + snapshot.worldBreakTargetMisses}/${snapshot.worldBreakTargetTotal}${snapshot.worldBreakTargetCurrentLabel ? ` · ${snapshot.worldBreakTargetCurrentLabel} ${Math.round(snapshot.worldBreakTargetCurrentHp / Math.max(1, snapshot.worldBreakTargetCurrentMaxHp) * 100)}%` : ""}` : ""}
               {snapshot.worldBreakRouteDoctrine !== "LOCKED" ? ` · ${snapshot.worldBreakRouteDoctrine} ×${snapshot.worldBreakScoreMultiplier.toFixed(2)}` : ""}
             </em>
           )}

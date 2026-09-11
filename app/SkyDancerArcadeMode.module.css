@@ -34,3 +34,7 @@
 
 /* Arcade Run V40 WORLD BREAK phase 1: world objective + route-contract readability. */
 .worldBreakLine{display:block;margin-top:3px;color:#7ef2ff!important;font-style:normal!important;font-size:6px!important;font-weight:1000!important;letter-spacing:.1em!important;text-shadow:0 0 12px rgba(64,222,255,.32)}.worldBreakLine[data-live="true"]{animation:v40WorldBreakPulse 1.6s ease-in-out infinite}.routeOption em{display:block;margin-top:2px;font-size:5px;font-style:normal;font-weight:900;letter-spacing:.08em;color:rgba(255,255,255,.58);white-space:nowrap}.routeOption[data-doctrine="SAFE"] em{color:#85f3ff}.routeOption[data-doctrine="SCORE"] em{color:#ffe083}.routeOption[data-doctrine="DANGER"] em{color:#ff8d9d}.routeOption[data-doctrine="DANGER"]{box-shadow:inset 0 0 18px rgba(255,68,93,.08)}@keyframes v40WorldBreakPulse{0%,100%{opacity:.72}50%{opacity:1}}
+
+
+/* Arcade Run V40 WORLD BREAK phase 2: low-altitude and flagship-objective emphasis. */
+.worldBreakLine{max-width:min(540px,76vw)}.worldBreakLine[data-live="true"]{filter:drop-shadow(0 0 5px rgba(88,230,255,.22))}

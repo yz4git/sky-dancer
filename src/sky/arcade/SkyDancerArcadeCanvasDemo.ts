@@ -71,6 +71,7 @@ export class SkyDancerArcadeCanvasDemo implements SkyDancerArcadeDemoHandle {
     context.fillRect(0, 0, cssWidth, cssHeight);
     this.drawCourse(context, snapshot, cssWidth, cssHeight);
     this.drawWorldBreakGates(context, snapshot, cssWidth, cssHeight);
+    this.drawWorldBreakKnifeRun(context, snapshot, cssWidth, cssHeight);
     this.drawBranch(context, snapshot, cssWidth, cssHeight);
     for (const hazard of [...snapshot.hazards].sort((a, b) => b.depth - a.depth)) {
       const projected = this.project(hazard.x, hazard.y, hazard.depth, cssWidth, cssHeight);
@@ -95,6 +96,15 @@ export class SkyDancerArcadeCanvasDemo implements SkyDancerArcadeDemoHandle {
       context.fillStyle = `#${palette.enemy.toString(16).padStart(6, "0")}`;
       this.traceEnemySilhouetteV20(context, enemy.kind, size);
       context.fill();
+      if (enemy.worldBreakTarget) {
+        context.strokeStyle = "#ffdf69";
+        context.globalAlpha = .84;
+        context.lineWidth = 2.2;
+        context.beginPath();
+        context.arc(0, 0, size * 1.9, 0, Math.PI * 2);
+        context.stroke();
+        context.globalAlpha = 1;
+      }
       if (enemy.locked) {
         context.strokeStyle = `#${palette.accent.toString(16).padStart(6, "0")}`;
         context.lineWidth = 2.4;
@@ -226,6 +236,25 @@ export class SkyDancerArcadeCanvasDemo implements SkyDancerArcadeDemoHandle {
       context.stroke();
       context.restore();
     }
+  }
+
+  private drawWorldBreakKnifeRun(context: CanvasRenderingContext2D, snapshot: SkyDancerArcadeSnapshot, width: number, height: number): void {
+    if (!snapshot.worldBreakKnifeActive) return;
+    const marker = this.project(0, snapshot.worldBreakKnifeCeilingY, 12, width, height);
+    context.save();
+    context.strokeStyle = snapshot.worldBreakKnifeAltitudeOk ? "rgba(118,255,186,.82)" : "rgba(114,238,255,.52)";
+    context.lineWidth = 2;
+    context.setLineDash([10, 8]);
+    context.beginPath();
+    context.moveTo(width * .16, marker.y);
+    context.lineTo(width * .84, marker.y);
+    context.stroke();
+    context.setLineDash([]);
+    context.fillStyle = snapshot.worldBreakKnifeAltitudeOk ? "#76ffba" : "#72eeff";
+    context.font = "700 10px system-ui, sans-serif";
+    context.textAlign = "center";
+    context.fillText(`KNIFE ALTITUDE · ${snapshot.worldBreakKnifeSeconds.toFixed(1)} / ${snapshot.worldBreakKnifeTargetSeconds.toFixed(1)}s`, width * .5, marker.y - 8);
+    context.restore();
   }
 
   private drawBranch(context: CanvasRenderingContext2D, snapshot: SkyDancerArcadeSnapshot, width: number, height: number): void {

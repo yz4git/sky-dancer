@@ -67,7 +67,13 @@ import {
 import { skyDancerArcadeV271CombatCorridorCrowded } from "./SkyDancerArcadeV271ScreenPolish";
 import {
   SKY_DANCER_ARCADE_V40_DAWN_CITY_GATES,
+  SKY_DANCER_ARCADE_V40_CLOUD_FLEET_TARGETS,
+  SKY_DANCER_ARCADE_V40_RED_CANYON_KNIFE_CEILING_Y,
+  SKY_DANCER_ARCADE_V40_RED_CANYON_KNIFE_END,
+  SKY_DANCER_ARCADE_V40_RED_CANYON_KNIFE_START,
+  SKY_DANCER_ARCADE_V40_RED_CANYON_KNIFE_TARGET_SECONDS,
   skyDancerArcadeV40DawnCityGateAnchorDistance,
+  skyDancerArcadeV40FleetTargetAnchorDistance,
   skyDancerArcadeV40RouteDoctrine,
   skyDancerArcadeV40RouteEffect,
   skyDancerArcadeV40WorldProfile,
@@ -116,6 +122,9 @@ export interface SkyDancerArcadeEnemySnapshot {
   stagger: number;
   counterplay: SkyDancerArcadeEnemyCounterplay;
   counterplayIntensity: number;
+  worldBreakTarget?: boolean;
+  worldBreakTargetIndex?: number;
+  worldBreakLabel?: string;
 }
 
 export interface SkyDancerArcadeProjectileSnapshot {
@@ -275,6 +284,20 @@ export interface SkyDancerArcadeSnapshot {
   worldBreakGateSerial: number;
   worldBreakGateTotal: number;
   worldBreakGates: SkyDancerArcadeWorldBreakGateSnapshot[];
+  worldBreakKnifeActive: boolean;
+  worldBreakKnifeAltitudeOk: boolean;
+  worldBreakKnifeSeconds: number;
+  worldBreakKnifeTargetSeconds: number;
+  worldBreakKnifeCeilingY: number;
+  worldBreakKnifeComplete: boolean;
+  worldBreakKnifeSerial: number;
+  worldBreakTargetHits: number;
+  worldBreakTargetMisses: number;
+  worldBreakTargetSerial: number;
+  worldBreakTargetTotal: number;
+  worldBreakTargetCurrentLabel: string | null;
+  worldBreakTargetCurrentHp: number;
+  worldBreakTargetCurrentMaxHp: number;
   enemies: SkyDancerArcadeEnemySnapshot[];
   projectiles: SkyDancerArcadeProjectileSnapshot[];
   impacts: SkyDancerArcadeImpactSnapshot[];
@@ -323,6 +346,10 @@ interface ArcadeEnemy extends SkyDancerArcadeEnemySnapshot {
   retreatTimer?: number;
   retreatSign?: -1 | 1;
   retreatDepthDirection?: -1 | 1;
+  // V40 phase 2: capital-ship subsystems are targetable combat actors anchored to the course.
+  worldBreakAnchorDistance?: number;
+  worldBreakScoreBonus?: number;
+  worldBreakResolved?: boolean;
 }
 
 interface ArcadeProjectile extends SkyDancerArcadeProjectileSnapshot {
@@ -583,6 +610,15 @@ export class SkyDancerArcadeRuntime {
   private worldBreakGateMisses = 0;
   private worldBreakGateStreak = 0;
   private worldBreakGateSerial = 0;
+  private worldBreakKnifeSeconds = 0;
+  private worldBreakKnifeTick = 0;
+  private worldBreakKnifeComplete = false;
+  private worldBreakKnifeResolved = false;
+  private worldBreakKnifeSerial = 0;
+  private worldBreakTargetHits = 0;
+  private worldBreakTargetMisses = 0;
+  private worldBreakTargetSerial = 0;
+  private readonly worldBreakResolvedTargetIndices = new Set<number>();
   private nextEntityId = 1;
   private waveSerial = 0;
   private nextWaveAt = 2.8;
@@ -701,6 +737,13 @@ export class SkyDancerArcadeRuntime {
       this.worldBreakGateHits = 0;
       this.worldBreakGateMisses = 0;
       this.worldBreakGateStreak = 0;
+      this.worldBreakKnifeSeconds = 0;
+      this.worldBreakKnifeTick = 0;
+      this.worldBreakKnifeComplete = false;
+      this.worldBreakKnifeResolved = false;
+      this.worldBreakTargetHits = 0;
+      this.worldBreakTargetMisses = 0;
+      this.worldBreakResolvedTargetIndices.clear();
     }
     this.worldBreakGates = this.stage.id === "dawn-city"
       ? SKY_DANCER_ARCADE_V40_DAWN_CITY_GATES.map((gate) => {
@@ -768,6 +811,7 @@ export class SkyDancerArcadeRuntime {
     this.stageStats.armorBreaksAtStart = this.armorBreaks;
     this.stageStats.formationBreaksAtStart = this.formationBreaks;
     this.stageBestChain = 0;
+    if (this.stage.id === "cloud-fleet") this.spawnV40CloudFleetTargets(rewindTime);
     if (this.stageEntryTimer <= 0 && this.stageTime >= this.stage.durationSeconds * skyDancerArcadeBossStartProgress(finalStage)) this.spawnBoss();
   }
 
@@ -882,6 +926,7 @@ export class SkyDancerArcadeRuntime {
     this.updateV12CombatSignals(delta, turboActive);
     this.updatePlayer(delta, turboActive);
     this.updateWorldBreakGates();
+    this.updateWorldBreakKnifeRun(delta);
     this.updateBranch();
     this.updateV11Timeline();
     this.updateDirector();
@@ -941,6 +986,56 @@ export class SkyDancerArcadeRuntime {
         this.message = `WORLD BREAK · GATE ${gate.index + 1} MISSED`;
         this.messageTimer = .82;
       }
+    }
+  }
+
+  private updateWorldBreakKnifeRun(delta: number): void {
+    if (this.stage.id !== "red-canyon" || this.worldBreakKnifeResolved) return;
+    const totalDistance = Math.max(1, this.stage.durationSeconds * this.stage.courseSpeed);
+    const courseProgress = clamp(this.distance / totalDistance, 0, 1);
+    if (courseProgress < SKY_DANCER_ARCADE_V40_RED_CANYON_KNIFE_START) return;
+    if (courseProgress <= SKY_DANCER_ARCADE_V40_RED_CANYON_KNIFE_END) {
+      if (this.playerY <= SKY_DANCER_ARCADE_V40_RED_CANYON_KNIFE_CEILING_Y) {
+        this.worldBreakKnifeSeconds += delta;
+        const nextTick = Math.floor(this.worldBreakKnifeSeconds / .75);
+        while (this.worldBreakKnifeTick < nextTick) {
+          this.worldBreakKnifeTick += 1;
+          this.addScore(320 + this.worldBreakKnifeTick * 70, true);
+          this.turbo = Math.min(100, this.turbo + 2.5);
+          this.worldBreakKnifeSerial += 1;
+        }
+      }
+      return;
+    }
+    this.worldBreakKnifeResolved = true;
+    this.worldBreakKnifeComplete = this.worldBreakKnifeSeconds >= SKY_DANCER_ARCADE_V40_RED_CANYON_KNIFE_TARGET_SECONDS;
+    this.worldBreakKnifeSerial += 1;
+    if (this.worldBreakKnifeComplete) {
+      const awarded = this.addScore(3400, true);
+      this.turbo = Math.min(100, this.turbo + 18);
+      this.message = `WORLD BREAK · KNIFE RUN COMPLETE · +${awarded}`;
+      this.messageTimer = 1.35;
+    } else {
+      this.message = `WORLD BREAK · KNIFE RUN LOST · ${this.worldBreakKnifeSeconds.toFixed(1)}s`;
+      this.messageTimer = 1.05;
+    }
+  }
+
+  private resolveV40FleetTarget(enemy: ArcadeEnemy, destroyed: boolean): void {
+    if (!enemy.worldBreakTarget || enemy.worldBreakResolved || enemy.worldBreakTargetIndex === undefined) return;
+    enemy.worldBreakResolved = true;
+    this.worldBreakResolvedTargetIndices.add(enemy.worldBreakTargetIndex);
+    this.worldBreakTargetSerial += 1;
+    if (destroyed) {
+      this.worldBreakTargetHits += 1;
+      const awarded = this.addScore(enemy.worldBreakScoreBonus ?? 1400, true);
+      this.turbo = Math.min(100, this.turbo + 8);
+      this.message = `DECK STRIKE · ${enemy.worldBreakLabel ?? "SUBSYSTEM"} DOWN · +${awarded}`;
+      this.messageTimer = 1.2;
+    } else {
+      this.worldBreakTargetMisses += 1;
+      this.message = `DECK STRIKE · ${enemy.worldBreakLabel ?? "SUBSYSTEM"} ESCAPED`;
+      this.messageTimer = .9;
     }
   }
 
@@ -1244,6 +1339,37 @@ export class SkyDancerArcadeRuntime {
     }
   }
 
+  private spawnV40CloudFleetTargets(rewindTime: number): void {
+    for (const target of SKY_DANCER_ARCADE_V40_CLOUD_FLEET_TARGETS) {
+      if (this.worldBreakResolvedTargetIndices.has(target.index)) continue;
+      const anchorDistance = skyDancerArcadeV40FleetTargetAnchorDistance(target, this.stage.durationSeconds, this.stage.courseSpeed);
+      if (rewindTime > 0 && anchorDistance <= this.distance + 3) {
+        this.worldBreakResolvedTargetIndices.add(target.index);
+        this.worldBreakTargetMisses += 1;
+        continue;
+      }
+      this.spawnEnemy(target.kind, target.x, target.y, anchorDistance - this.distance, "parallel", target.x < 0 ? -1 : 1);
+      const enemy = this.enemies.at(-1);
+      if (!enemy) continue;
+      const hpScale = this.options.difficulty === "hard" ? 1.14 : 1;
+      enemy.hp = Math.round(target.hp * hpScale);
+      enemy.maxHp = enemy.hp;
+      enemy.armor = 0;
+      enemy.maxArmor = 0;
+      enemy.scoreValue = Math.round(target.score * .42);
+      enemy.speed = 0;
+      enemy.fireCooldown = 999;
+      enemy.amplitude = 0;
+      enemy.worldBreakTarget = true;
+      enemy.worldBreakTargetIndex = target.index;
+      enemy.worldBreakLabel = target.label;
+      enemy.worldBreakAnchorDistance = anchorDistance;
+      enemy.worldBreakScoreBonus = target.score;
+      enemy.worldBreakResolved = false;
+      enemy.counterplayCooldown = 999;
+    }
+  }
+
   private spawnEnemy(
     kind: SkyDancerArcadeEnemyKind,
     x: number,
@@ -1453,7 +1579,7 @@ export class SkyDancerArcadeRuntime {
       const counterplayScale = enemy.counterplay === "evasive-roll" ? (enemy.boss ? .82 : .72) : 1;
       const threshold = arcadeLoadoutLockThreshold(this.options.loadout, enemy.boss, turboLink) * counterplayScale;
       if (reticleDistance > threshold) continue;
-      const score = reticleDistance * 20 + enemy.depth * 0.05 - skyDancerArcadeTargetPriority(enemy.role);
+      const score = reticleDistance * 20 + enemy.depth * 0.05 - skyDancerArcadeTargetPriority(enemy.role) - (enemy.worldBreakTarget ? 14 : 0);
       if (score < best) {
         best = score;
         candidate = enemy;
@@ -1507,8 +1633,8 @@ export class SkyDancerArcadeRuntime {
       const dx = enemy.x - this.playerX;
       const dy = enemy.y - this.playerY;
       const cone = Math.hypot(dx, dy);
-      if (cone > (enemy.boss ? 1.45 : 0.72)) continue;
-      const score = cone * 28 + enemy.depth * 0.04 - skyDancerArcadeTargetPriority(enemy.role) * .45;
+      if (cone > (enemy.boss ? 1.45 : enemy.worldBreakTarget ? 1.08 : 0.72)) continue;
+      const score = cone * 28 + enemy.depth * 0.04 - skyDancerArcadeTargetPriority(enemy.role) * .45 - (enemy.worldBreakTarget ? 16 : 0);
       if (score < best) {
         best = score;
         target = enemy;
@@ -1712,6 +1838,26 @@ export class SkyDancerArcadeRuntime {
           || (depthDirection > 0 && enemy.depth > 126)
           || enemy.retreatTimer > 2.6
         ) enemy.alive = false;
+        continue;
+      }
+      if (enemy.worldBreakTarget && enemy.worldBreakAnchorDistance !== undefined) {
+        enemy.depth = enemy.worldBreakAnchorDistance - this.distance;
+        enemy.x = enemy.baseX;
+        enemy.y = enemy.baseY;
+        enemy.locked = enemy.locked && enemy.depth > 2;
+        enemy.counterplay = "none";
+        enemy.counterplayTimer = 0;
+        enemy.counterplayIntensity = 0;
+        enemy.fireCooldown = 999;
+        enemy.flightVX = 0;
+        enemy.flightVY = 0;
+        enemy.flightBank = 0;
+        enemy.flightPitch = 0;
+        if (enemy.depth < -4.5) {
+          this.resolveV40FleetTarget(enemy, false);
+          enemy.alive = false;
+          enemy.locked = false;
+        }
         continue;
       }
       enemy.stagger = Math.max(0, enemy.stagger - delta * (enemy.boss ? .82 : 1.35));
@@ -2247,6 +2393,7 @@ export class SkyDancerArcadeRuntime {
     else if (reaction === "ripple-shock") this.rewardLoadoutReaction("RIPPLE BREAK", enemy.boss ? 840 : 420, enemy.boss ? 6 : 3);
     else if (reaction === "fusion-link") this.rewardLoadoutReaction("FUSION LINK FINISH", enemy.boss ? 960 : 520, enemy.boss ? 8 : 5);
     this.rewardEnemyCounterplayBreak(enemy, counterplay, missile, destroyed, armorBreak);
+    if (enemy.worldBreakTarget) this.resolveV40FleetTarget(enemy, true);
     if (!enemy.boss) return;
     this.bossKills += 1;
     this.bossDefeated = true;
@@ -2582,6 +2729,29 @@ export class SkyDancerArcadeRuntime {
         id: gate.id, index: gate.index, x: gate.x, y: gate.y, depth: gate.depth,
         radiusX: gate.radiusX, radiusY: gate.radiusY, resolved: gate.resolved, success: gate.success,
       })),
+      worldBreakKnifeActive: this.stage.id === "red-canyon"
+        && !this.worldBreakKnifeResolved
+        && this.distance / Math.max(1, this.stage.durationSeconds * this.stage.courseSpeed) >= SKY_DANCER_ARCADE_V40_RED_CANYON_KNIFE_START
+        && this.distance / Math.max(1, this.stage.durationSeconds * this.stage.courseSpeed) <= SKY_DANCER_ARCADE_V40_RED_CANYON_KNIFE_END,
+      worldBreakKnifeAltitudeOk: this.playerY <= SKY_DANCER_ARCADE_V40_RED_CANYON_KNIFE_CEILING_Y,
+      worldBreakKnifeSeconds: this.worldBreakKnifeSeconds,
+      worldBreakKnifeTargetSeconds: SKY_DANCER_ARCADE_V40_RED_CANYON_KNIFE_TARGET_SECONDS,
+      worldBreakKnifeCeilingY: SKY_DANCER_ARCADE_V40_RED_CANYON_KNIFE_CEILING_Y,
+      worldBreakKnifeComplete: this.worldBreakKnifeComplete,
+      worldBreakKnifeSerial: this.worldBreakKnifeSerial,
+      worldBreakTargetHits: this.worldBreakTargetHits,
+      worldBreakTargetMisses: this.worldBreakTargetMisses,
+      worldBreakTargetSerial: this.worldBreakTargetSerial,
+      worldBreakTargetTotal: this.stage.id === "cloud-fleet" ? SKY_DANCER_ARCADE_V40_CLOUD_FLEET_TARGETS.length : 0,
+      worldBreakTargetCurrentLabel: this.enemies
+        .filter((enemy) => enemy.alive && enemy.worldBreakTarget)
+        .sort((a, b) => (a.worldBreakAnchorDistance ?? Infinity) - (b.worldBreakAnchorDistance ?? Infinity))[0]?.worldBreakLabel ?? null,
+      worldBreakTargetCurrentHp: this.enemies
+        .filter((enemy) => enemy.alive && enemy.worldBreakTarget)
+        .sort((a, b) => (a.worldBreakAnchorDistance ?? Infinity) - (b.worldBreakAnchorDistance ?? Infinity))[0]?.hp ?? 0,
+      worldBreakTargetCurrentMaxHp: this.enemies
+        .filter((enemy) => enemy.alive && enemy.worldBreakTarget)
+        .sort((a, b) => (a.worldBreakAnchorDistance ?? Infinity) - (b.worldBreakAnchorDistance ?? Infinity))[0]?.maxHp ?? 1,
       enemies: this.enemies.filter((enemy) => enemy.alive).map((enemy) => ({
         id: enemy.id,
         kind: enemy.kind,
@@ -2602,6 +2772,9 @@ export class SkyDancerArcadeRuntime {
         stagger: enemy.stagger,
         counterplay: enemy.counterplay,
         counterplayIntensity: enemy.counterplayIntensity,
+        worldBreakTarget: enemy.worldBreakTarget,
+        worldBreakTargetIndex: enemy.worldBreakTargetIndex,
+        worldBreakLabel: enemy.worldBreakLabel,
       })),
       projectiles: this.projectiles.filter((projectile) => projectile.life > 0).map((projectile) => ({
         id: projectile.id,
@@ -2646,6 +2819,29 @@ export class SkyDancerArcadeRuntime {
     this.playerY = clamp(playerY, -PLAYER_Y_LIMIT, PLAYER_Y_LIMIT);
     this.distance = gate.anchorDistance - 2.2;
     this.updateWorldBreakGates();
+  }
+
+  /** Deterministic V40 phase 2 hooks for world-objective regression tests. */
+  triggerV40KnifeRunForTests(seconds: number, playerY: number): void {
+    if (this.stage.id !== "red-canyon") return;
+    const totalDistance = this.stage.durationSeconds * this.stage.courseSpeed;
+    this.distance = totalDistance * ((SKY_DANCER_ARCADE_V40_RED_CANYON_KNIFE_START + SKY_DANCER_ARCADE_V40_RED_CANYON_KNIFE_END) * .5);
+    this.playerY = clamp(playerY, -PLAYER_Y_LIMIT, PLAYER_Y_LIMIT);
+    this.updateWorldBreakKnifeRun(Math.max(0, seconds));
+    this.distance = totalDistance * (SKY_DANCER_ARCADE_V40_RED_CANYON_KNIFE_END + .01);
+    this.updateWorldBreakKnifeRun(0);
+  }
+
+  destroyV40FleetTargetForTests(index: number): void {
+    const enemy = this.enemies.find((candidate) => candidate.alive && candidate.worldBreakTargetIndex === index);
+    if (enemy) this.damageEnemy(enemy, enemy.maxHp * 4, false);
+  }
+
+  missV40FleetTargetForTests(index: number): void {
+    const enemy = this.enemies.find((candidate) => candidate.alive && candidate.worldBreakTargetIndex === index);
+    if (!enemy || enemy.worldBreakAnchorDistance === undefined) return;
+    this.distance = enemy.worldBreakAnchorDistance + 5;
+    this.updateEnemies(1 / 60, false);
   }
 
   /** Deterministic V12 hook for adaptive encounter regression tests. */
