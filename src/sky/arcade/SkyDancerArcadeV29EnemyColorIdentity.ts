@@ -29,7 +29,7 @@ export function skyDancerArcadeV29EnemyColorIdentity(
     case "drone":
       return { body: 0x2fa568, secondary: 0x7ce8a8, glow: 0x4fe68e, role: "drone" };
     case "striker":
-      return { body: 0xe06a22, secondary: 0xffb34f, glow: 0xff7a32, role: "striker" };
+      return { body: 0xf05a18, secondary: 0xffa24a, glow: 0xff6a2a, role: "striker" };
     case "gunship":
       return { body: 0x7352b8, secondary: 0xb397ff, glow: 0x9a79ff, role: "gunship" };
     case "raider":
