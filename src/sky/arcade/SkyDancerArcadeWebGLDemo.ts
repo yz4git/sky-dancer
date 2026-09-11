@@ -13,6 +13,10 @@ import { SkyDancerArcadeV11SetpieceDirector } from "./SkyDancerArcadeV11Setpiece
 import { skyDancerArcadeV25VisualAttitude } from "./SkyDancerArcadeV25CoordinatedFlight";
 import { skyDancerArcadeV27CuePointSize, skyDancerArcadeV27EnemyPresenceScale } from "./SkyDancerArcadeV27CombatReadability";
 import {
+  skyDancerArcadeV271CueBudget,
+  skyDancerArcadeV271ThreatCueScore,
+} from "./SkyDancerArcadeV271ScreenPolish";
+import {
   createSkyDancerArcadeEnemy,
   createSkyDancerArcadeHazard,
   createSkyDancerArcadeLockRing,
@@ -323,6 +327,41 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
 
   private syncEnemies(snapshot: SkyDancerArcadeSnapshot, delta: number): void {
     const active = new Set<number>();
+    const compactLandscapeV271 = this.renderWidth > this.renderHeight && this.renderHeight <= 560;
+    const cueBudgetV271 = skyDancerArcadeV271CueBudget(compactLandscapeV271);
+    const cueScoreV271 = (enemy: SkyDancerArcadeSnapshot["enemies"][number]): number =>
+      skyDancerArcadeV271ThreatCueScore(
+        enemy.depth,
+        Math.hypot(enemy.x - snapshot.playerX, enemy.y - snapshot.playerY),
+        enemy.locked,
+        enemy.boss,
+      );
+    const primaryLockIdsV271 = new Set(
+      snapshot.enemies
+        .filter((enemy) => enemy.locked)
+        .sort((a, b) => cueScoreV271(b) - cueScoreV271(a))
+        .slice(0, cueBudgetV271.primaryLocks)
+        .map((enemy) => enemy.id),
+    );
+    const aimCueIdsV271 = new Set(
+      snapshot.enemies
+        .filter((enemy) => {
+          if (enemy.locked || enemy.depth <= 7 || enemy.depth >= 68) return false;
+          const aimDistance = Math.hypot(enemy.x - snapshot.playerX, enemy.y - snapshot.playerY);
+          const aimThreshold = enemy.boss ? 1.62 : enemy.kind === "bomber" ? .96 : .82;
+          return aimDistance < aimThreshold;
+        })
+        .sort((a, b) => cueScoreV271(b) - cueScoreV271(a))
+        .slice(0, cueBudgetV271.aimCues)
+        .map((enemy) => enemy.id),
+    );
+    const counterplayCueIdsV271 = new Set(
+      snapshot.enemies
+        .filter((enemy) => enemy.counterplay !== "none" && !enemy.locked && enemy.depth > 7 && enemy.depth < 56)
+        .sort((a, b) => cueScoreV271(b) - cueScoreV271(a))
+        .slice(0, cueBudgetV271.counterplayCues)
+        .map((enemy) => enemy.id),
+    );
     for (const enemy of snapshot.enemies) {
       active.add(enemy.id);
       let group = this.enemyGroups.get(enemy.id);
@@ -394,9 +433,7 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
         group.remove(existingRing);
         this.disposeObject(existingRing);
       }
-      const aimDistance = Math.hypot(enemy.x - snapshot.playerX, enemy.y - snapshot.playerY);
-      const aimThreshold = enemy.boss ? 1.62 : enemy.kind === "bomber" ? .96 : .82;
-      const showAimCue = !enemy.locked && enemy.depth > 7 && enemy.depth < 68 && aimDistance < aimThreshold;
+      const showAimCue = aimCueIdsV271.has(enemy.id);
       let aimRing = group.getObjectByName("arcade-aim-ring");
       if (showAimCue && !aimRing) {
         aimRing = createSkyDancerArcadeLockRing(0x78eeff);
@@ -412,8 +449,9 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
         this.disposeObject(aimRing);
         aimRing = undefined;
       }
+      const showCounterplayCueV271 = counterplayCueIdsV271.has(enemy.id);
       let counterplayRing = group.getObjectByName("arcade-counterplay-ring");
-      if (enemy.counterplay !== "none" && !counterplayRing) {
+      if (showCounterplayCueV271 && !counterplayRing) {
         const counterColor = enemy.counterplay === "armor-brace" ? 0xffd56a : enemy.counterplay === "evasive-roll" ? 0x6feeff : 0xe68cff;
         counterplayRing = createSkyDancerArcadeLockRing(counterColor);
         counterplayRing.name = "arcade-counterplay-ring";
@@ -424,7 +462,7 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
           material.opacity = .42;
         });
         group.add(counterplayRing);
-      } else if (enemy.counterplay === "none" && counterplayRing) {
+      } else if (!showCounterplayCueV271 && counterplayRing) {
         group.remove(counterplayRing);
         this.disposeObject(counterplayRing);
         counterplayRing = undefined;
@@ -439,7 +477,14 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
       }
       if (lockRing) {
         lockRing.scale.setScalar(1);
-        setArcadeCuePointSizeV27(lockRing, skyDancerArcadeV27CuePointSize(enemy.kind, enemy.boss, enemy.depth, "lock"));
+        const fullLockSizeV271 = skyDancerArcadeV27CuePointSize(enemy.kind, enemy.boss, enemy.depth, "lock");
+        const primaryLockV271 = enemy.boss || primaryLockIdsV271.has(enemy.id);
+        setArcadeCuePointSizeV27(
+          lockRing,
+          primaryLockV271
+            ? fullLockSizeV271
+            : Math.max(18, Math.round(fullLockSizeV271 * cueBudgetV271.secondaryLockScale)),
+        );
       }
       if (aimRing) {
         aimRing.scale.setScalar(1);
