@@ -654,6 +654,13 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
             weakPoint.material.emissiveIntensity = enemy.weakpointOpen ? 2.8 : .75;
           }
         }
+        const finalBossRig = group.getObjectByName("arcade-v405-final-boss-form");
+        if (finalBossRig) {
+          const pulse = 1 + Math.sin(snapshot.runTimeSeconds * (2.8 + enemy.bossPhase * .7)) * (.025 + enemy.bossPhase * .008);
+          finalBossRig.scale.setScalar(pulse);
+          finalBossRig.rotation.z += delta * (.08 + enemy.bossPhase * .045);
+          finalBossRig.rotation.y += delta * .025;
+        }
       }
     }
     for (const [id, group] of this.enemyGroups) {
@@ -1293,6 +1300,14 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
       this.cameraShake = Math.min(.9, this.cameraShake + .28);
       this.audio.tone(74, .32, .05, "sawtooth");
       this.audio.tone(296, .2, .018, "triangle");
+    }
+    if (snapshot.finalBossSerial !== this.previousSnapshot.finalBossSerial && snapshot.finalBossReactive) {
+      this.presentation.emitRushAccent();
+      this.cameraImpactKick = Math.max(this.cameraImpactKick, .66);
+      this.cameraShake = Math.min(1, this.cameraShake + .34);
+      const formTone = snapshot.finalBossForm === "HELLSTAR" ? 92 : snapshot.finalBossForm === "PRISM_CROWN" ? 392 : snapshot.finalBossForm === "MIRROR_AEGIS" ? 244 : 326;
+      this.audio.tone(formTone, .34, .052, "sawtooth");
+      this.audio.tone(formTone * 1.5, .22, .022, "triangle");
     }
     if (snapshot.stageEventSerial !== this.previousSnapshot.stageEventSerial) {
       this.presentation.emitRushAccent();

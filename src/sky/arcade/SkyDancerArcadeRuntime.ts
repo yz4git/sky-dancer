@@ -77,6 +77,15 @@ import {
   type SkyDancerArcadeV404RivalOutcome,
 } from "./SkyDancerArcadeV404RivalAce";
 import {
+  skyDancerArcadeV405FinalBossContract,
+  skyDancerArcadeV405FinalBossPhase,
+  type SkyDancerArcadeV405FinalBossContract,
+  type SkyDancerArcadeV405FinalBossForm,
+  type SkyDancerArcadeV405ResolvedRivalOutcome,
+  type SkyDancerArcadeV405RivalMemory,
+  type SkyDancerArcadeV405RouteMemory,
+} from "./SkyDancerArcadeV405RouteReactiveFinalBoss";
+import {
   SKY_DANCER_ARCADE_V40_DAWN_CITY_GATES,
   SKY_DANCER_ARCADE_V40_CLOUD_FLEET_TARGETS,
   SKY_DANCER_ARCADE_V40_DESERT_BREACH_RADIUS_X,
@@ -185,6 +194,9 @@ export interface SkyDancerArcadeEnemySnapshot {
   rivalAce?: boolean;
   rivalAceAppearance?: number;
   rivalAceResolved?: boolean;
+  finalBossForm?: SkyDancerArcadeV405FinalBossForm;
+  finalBossAccent?: number;
+  finalBossReactive?: boolean;
 }
 
 export interface SkyDancerArcadeProjectileSnapshot {
@@ -356,6 +368,16 @@ export interface SkyDancerArcadeSnapshot {
   rivalAceEscapes: number;
   rivalAceOutcome: SkyDancerArcadeV404RivalOutcome;
   rivalAceSerial: number;
+  finalBossReactive: boolean;
+  finalBossForm: SkyDancerArcadeV405FinalBossForm | null;
+  finalBossFormLabel: string;
+  finalBossRouteMemory: SkyDancerArcadeV405RouteMemory;
+  finalBossRivalMemory: SkyDancerArcadeV405RivalMemory;
+  finalBossAttackLabel: string;
+  finalBossEndingLine: string;
+  finalBossSerial: number;
+  finalBossRouteHistory: readonly SkyDancerArcadeV40RouteDoctrine[];
+  finalBossRivalHistory: readonly SkyDancerArcadeV405ResolvedRivalOutcome[];
   worldBreakObjective: string;
   worldBreakSignature: string;
   worldBreakLive: boolean;
@@ -833,6 +855,10 @@ export class SkyDancerArcadeRuntime {
   private rivalAcePlayerWins = 0;
   private rivalAceEscapes = 0;
   private rivalAceSerial = 0;
+  private readonly worldBreakRouteHistory: SkyDancerArcadeV40RouteDoctrine[] = [];
+  private readonly rivalAceOutcomeHistory: SkyDancerArcadeV405ResolvedRivalOutcome[] = [];
+  private finalBossContract: SkyDancerArcadeV405FinalBossContract | null = null;
+  private finalBossSerial = 0;
   private readonly rivalAceSeenAppearances = new Set<number>();
   private readonly rivalAceResolvedAppearances = new Set<number>();
   private nextEntityId = 1;
@@ -1628,6 +1654,7 @@ export class SkyDancerArcadeRuntime {
     enemy.fireCooldown = 999;
     this.rivalAceActiveId = null;
     this.rivalAceOutcome = outcome;
+    this.rivalAceOutcomeHistory.push(outcome);
     if (encounter) this.rivalAceResolvedAppearances.add(encounter.appearance);
     if (outcome === "ESCAPED") {
       this.rivalAceEscapes += 1;
@@ -2131,6 +2158,13 @@ export class SkyDancerArcadeRuntime {
     });
   }
 
+  private bossMechanicLabel(phase: SkyDancerArcadeBossPhase): string {
+    if (this.stage.id === SKY_DANCER_ARCADE_FINAL_STAGE && this.finalBossContract) {
+      return skyDancerArcadeV405FinalBossPhase(this.finalBossContract, phase).label;
+    }
+    return skyDancerArcadeV11BossMechanicLabel(this.stage.id, phase);
+  }
+
   private spawnBoss(): void {
     if (this.bossSpawned) return;
     this.bossSpawned = true;
@@ -2165,8 +2199,13 @@ export class SkyDancerArcadeRuntime {
       hazard.speed = Math.max(hazard.speed, 68);
     }
     const final = this.stage.id === SKY_DANCER_ARCADE_FINAL_STAGE;
+    const reactiveContract = final
+      ? skyDancerArcadeV405FinalBossContract(this.worldBreakRouteHistory, this.rivalAceOutcomeHistory)
+      : null;
+    this.finalBossContract = reactiveContract;
+    if (reactiveContract) this.finalBossSerial += 1;
     // Climax targets must survive a full attack run instead of evaporating under one gun burst.
-    const baseHp = final ? 1280 : 440 + this.stage.act * 110;
+    const baseHp = final ? 1280 * (reactiveContract?.hpScale ?? 1) : 440 + this.stage.act * 110;
     const hp = Math.round(baseHp * (this.options.difficulty === "hard" ? 1.25 : 1));
     const maxArmor = Math.round(hp * skyDancerArcadeArmorRatio("boss", true));
     this.enemies.push({
@@ -2208,10 +2247,13 @@ export class SkyDancerArcadeRuntime {
       counterplayTimer: 0,
       counterplayCooldown: Math.max(.9 + (this.nextEntityId % 3) * .31, this.combatDirectorCounterplayDelay),
       counterplayRewarded: false,
+      finalBossForm: reactiveContract?.form,
+      finalBossAccent: reactiveContract?.accent,
+      finalBossReactive: Boolean(reactiveContract),
     });
     const bossProfile = skyDancerArcadeV11BossProfile(this.stage.id);
     this.bossMechanicSerial += 1;
-    this.message = `WARNING · ${this.stage.bossName} · ${bossProfile.mechanicLabels[0]}`;
+    this.message = `WARNING · ${this.stage.bossName} · ${this.bossMechanicLabel(1)}`;
     this.messageTimer = 3.2;
     this.stageSerial += 1;
   }
@@ -2243,6 +2285,22 @@ export class SkyDancerArcadeRuntime {
     const bursts = profile.phaseHazardBursts[index];
     if (hazard) for (let burst = 0; burst < bursts; burst += 1) this.spawnHazardPattern(hazard);
     this.spawnBossPhaseEscorts(phase);
+
+    if (this.stage.id === SKY_DANCER_ARCADE_FINAL_STAGE && this.finalBossContract) {
+      const reactive = skyDancerArcadeV405FinalBossPhase(this.finalBossContract, phase);
+      if (reactive.hazard) {
+        for (let burst = 0; burst < reactive.hazardBursts; burst += 1) this.spawnHazardPattern(reactive.hazard);
+      }
+      if (reactive.escortKind && reactive.escortCount > 0) {
+        const aliveNonBoss = this.enemies.filter((enemy) => enemy.alive && !enemy.boss).length;
+        const allowed = Math.max(0, Math.min(reactive.escortCount, 4 - aliveNonBoss));
+        for (let escort = 0; escort < allowed; escort += 1) {
+          const sign = escort % 2 === 0 ? -1 : 1;
+          this.spawnEnemy(reactive.escortKind, sign * 1.62, sign * .42, 72 + escort * 6, "cross-pass", sign);
+        }
+      }
+      this.finalBossSerial += 1;
+    }
     this.bossMechanicSerial += 1;
   }
 
@@ -2583,7 +2641,7 @@ export class SkyDancerArcadeRuntime {
           this.bossPhaseSerial += 1;
           this.pendingBossPhaseMechanic = nextPhase;
           this.bossPhaseTransitionTimer = .72;
-          const mechanic = skyDancerArcadeV11BossMechanicLabel(this.stage.id, nextPhase);
+          const mechanic = this.bossMechanicLabel(nextPhase);
           enemy.weakpointOpen = false;
           enemy.counterplay = "none";
           enemy.counterplayTimer = 0;
@@ -2601,7 +2659,7 @@ export class SkyDancerArcadeRuntime {
             const armedPhase = this.pendingBossPhaseMechanic;
             this.pendingBossPhaseMechanic = null;
             this.triggerBossPhaseMechanic(armedPhase);
-            this.message = `PHASE ${armedPhase} ACTIVE · ${skyDancerArcadeV11BossMechanicLabel(this.stage.id, armedPhase)}`;
+            this.message = `PHASE ${armedPhase} ACTIVE · ${this.bossMechanicLabel(armedPhase)}`;
             this.messageTimer = 1.15;
           }
         }
@@ -2829,8 +2887,11 @@ export class SkyDancerArcadeRuntime {
     const activeThreats = this.projectiles.filter((projectile) => projectile.owner === "enemy" && projectile.life > 0).length;
     const bossProfile = enemy.boss ? skyDancerArcadeV11BossProfile(this.stage.id) : null;
     const bossIndex = enemy.boss ? enemy.bossPhase - 1 : 0;
+    const reactiveBossPhase = enemy.boss && this.stage.id === SKY_DANCER_ARCADE_FINAL_STAGE && this.finalBossContract
+      ? skyDancerArcadeV405FinalBossPhase(this.finalBossContract, enemy.bossPhase)
+      : null;
     const desiredSpread = enemy.boss && bossProfile
-      ? Math.min(5, (hard ? 1 : 0) + enemy.bossPhase + bossProfile.spreadBonus[bossIndex])
+      ? Math.min(5, (hard ? 1 : 0) + enemy.bossPhase + bossProfile.spreadBonus[bossIndex] + (reactiveBossPhase?.spreadBonus ?? 0))
       : skyDancerArcadeEnemyWeaponV20(enemy.kind).spread;
     const spreadCount = Math.max(0, Math.min(desiredSpread, threatBudget - activeThreats));
     if (spreadCount <= 0) {
@@ -2840,9 +2901,11 @@ export class SkyDancerArcadeRuntime {
     for (let index = 0; index < spreadCount; index += 1) {
       const centered = index - (spreadCount - 1) * 0.5;
       const guidance = enemy.boss && bossProfile
-        ? (1.02 + enemy.bossPhase * .2) * bossProfile.guidanceScale[bossIndex]
+        ? (1.02 + enemy.bossPhase * .2) * bossProfile.guidanceScale[bossIndex] * (reactiveBossPhase?.guidanceScale ?? 1)
         : skyDancerArcadeEnemyWeaponV20(enemy.kind).guidance;
-      const bossSpeedScale = enemy.boss && bossProfile ? bossProfile.projectileSpeedScale[bossIndex] : 1;
+      const bossSpeedScale = enemy.boss && bossProfile
+        ? bossProfile.projectileSpeedScale[bossIndex] * (reactiveBossPhase?.projectileSpeedScale ?? 1)
+        : 1;
       const bossSpreadX = enemy.boss && bossProfile ? bossProfile.spreadX[bossIndex] : .2;
       const bossSpreadY = enemy.boss && bossProfile ? bossProfile.spreadY[bossIndex] : .11;
       this.projectiles.push({
@@ -2861,7 +2924,9 @@ export class SkyDancerArcadeRuntime {
         nearMissChecked: false,
       });
     }
-    const bossCadence = enemy.boss && bossProfile ? bossProfile.fireCadenceScale[bossIndex] : 1;
+    const bossCadence = enemy.boss && bossProfile
+      ? bossProfile.fireCadenceScale[bossIndex] * (reactiveBossPhase?.cadenceScale ?? 1)
+      : 1;
     const base = enemy.boss ? (1.68 - enemy.bossPhase * .18) * bossCadence : skyDancerArcadeEnemyWeaponV20(enemy.kind).cadence;
     enemy.fireCooldown = base * (hard ? 0.8 : 1) * (0.84 + this.random() * 0.38);
   }
@@ -3118,7 +3183,12 @@ export class SkyDancerArcadeRuntime {
     this.bossDefeated = true;
     this.pendingBossPhaseMechanic = null;
     this.bossPhaseTransitionTimer = 0;
-    this.message = this.stageTime >= this.stage.durationSeconds ? "CLIMAX TARGET DOWN" : "TARGET DOWN · WRECK CLEARING";
+    if (this.stage.id === SKY_DANCER_ARCADE_FINAL_STAGE && this.finalBossContract) {
+      this.finalBossSerial += 1;
+      this.message = `SOVEREIGN DOWN · ${this.finalBossContract.endingLine}`;
+    } else {
+      this.message = this.stageTime >= this.stage.durationSeconds ? "CLIMAX TARGET DOWN" : "TARGET DOWN · WRECK CLEARING";
+    }
     this.messageTimer = 2.4;
     if (this.stageTime >= this.stage.durationSeconds) this.completeStage();
   }
@@ -3308,6 +3378,7 @@ export class SkyDancerArcadeRuntime {
     }
     const selectedIndex = this.branchSelection ? this.stage.next.indexOf(this.branchSelection) : -1;
     const nextDoctrine = skyDancerArcadeV40RouteDoctrine(selectedIndex, this.stage.next.length);
+    if (nextDoctrine !== "LOCKED") this.worldBreakRouteHistory.push(nextDoctrine);
     this.stage = skyDancerArcadeStageById(nextId);
     this.worldBreakRouteDoctrine = nextDoctrine;
     const routeEffect = skyDancerArcadeV40RouteEffect(nextDoctrine);
@@ -3479,7 +3550,7 @@ export class SkyDancerArcadeRuntime {
       bossPhase: boss?.bossPhase ?? (this.bossDefeated ? 3 : 1),
       bossWeakpointOpen: boss?.weakpointOpen ?? false,
       bossPhaseSerial: this.bossPhaseSerial,
-      bossMechanicLabel: skyDancerArcadeV11BossMechanicLabel(this.stage.id, boss?.bossPhase ?? (this.bossDefeated ? 3 : 1)),
+      bossMechanicLabel: this.bossMechanicLabel(boss?.bossPhase ?? (this.bossDefeated ? 3 : 1)),
       bossMechanicIntensity: skyDancerArcadeV11BossProfile(this.stage.id).intensity[(boss?.bossPhase ?? (this.bossDefeated ? 3 : 1)) - 1],
       bossMechanicSerial: this.bossMechanicSerial,
       stageEventSerial: this.stageEventSerial,
@@ -3507,6 +3578,18 @@ export class SkyDancerArcadeRuntime {
       rivalAceEscapes: this.rivalAceEscapes,
       rivalAceOutcome: this.rivalAceOutcome,
       rivalAceSerial: this.rivalAceSerial,
+      finalBossReactive: this.stage.id === SKY_DANCER_ARCADE_FINAL_STAGE && Boolean(this.finalBossContract),
+      finalBossForm: this.finalBossContract?.form ?? null,
+      finalBossFormLabel: this.finalBossContract?.formLabel ?? "PRISM SOVEREIGN",
+      finalBossRouteMemory: this.finalBossContract?.routeMemory ?? "MIXED",
+      finalBossRivalMemory: this.finalBossContract?.rivalMemory ?? "CONTESTED",
+      finalBossAttackLabel: this.finalBossContract
+        ? skyDancerArcadeV405FinalBossPhase(this.finalBossContract, boss?.bossPhase ?? (this.bossDefeated ? 3 : 1)).label
+        : "",
+      finalBossEndingLine: this.finalBossContract?.endingLine ?? "",
+      finalBossSerial: this.finalBossSerial,
+      finalBossRouteHistory: [...this.worldBreakRouteHistory],
+      finalBossRivalHistory: [...this.rivalAceOutcomeHistory],
       worldBreakObjective: skyDancerArcadeV40WorldProfile(this.stage.id).objective,
       worldBreakSignature: skyDancerArcadeV40WorldProfile(this.stage.id).signature,
       worldBreakLive: skyDancerArcadeV40WorldProfile(this.stage.id).live,
@@ -3661,6 +3744,9 @@ export class SkyDancerArcadeRuntime {
         rivalAce: enemy.rivalAce,
         rivalAceAppearance: enemy.rivalAceAppearance,
         rivalAceResolved: enemy.rivalAceResolved,
+        finalBossForm: enemy.finalBossForm,
+        finalBossAccent: enemy.finalBossAccent,
+        finalBossReactive: enemy.finalBossReactive,
       })),
       projectiles: this.projectiles.filter((projectile) => projectile.life > 0).map((projectile) => ({
         id: projectile.id,
@@ -3936,6 +4022,22 @@ export class SkyDancerArcadeRuntime {
     this.stageTime = this.stage.durationSeconds * clamp(progress, 0, 1);
     this.distance = this.stageTime * this.stage.courseSpeed;
     this.updateStageEvolution();
+  }
+
+  configureV405FinalBossMemoryForTests(
+    doctrines: readonly SkyDancerArcadeV40RouteDoctrine[],
+    outcomes: readonly SkyDancerArcadeV405ResolvedRivalOutcome[],
+  ): void {
+    this.worldBreakRouteHistory.length = 0;
+    this.worldBreakRouteHistory.push(...doctrines.filter((doctrine) => doctrine !== "LOCKED"));
+    this.rivalAceOutcomeHistory.length = 0;
+    this.rivalAceOutcomeHistory.push(...outcomes);
+    this.finalBossContract = null;
+  }
+
+  spawnV405FinalBossForTests(): void {
+    if (this.stage.id !== SKY_DANCER_ARCADE_FINAL_STAGE) throw new Error("V40.5 final boss test hook requires Prism Citadel");
+    this.spawnBoss();
   }
 
   triggerBossPhaseForTests(phase: SkyDancerArcadeBossPhase): void {

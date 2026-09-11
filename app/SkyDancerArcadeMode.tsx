@@ -725,6 +725,11 @@ export default function SkyDancerArcadeMode({ request, onReturnTitle }: SkyDance
               <strong>{snapshot.bossName}<em>{snapshot.bossMechanicLabel}</em></strong><span>{bossPercent}%</span>
             </div>
             <i><b style={{ width: `${bossPercent}%` }} /></i>
+            {snapshot.finalBossReactive && (
+              <em className={styles.finalBossMemory}>
+                FORM {snapshot.finalBossFormLabel} · ROUTE MEMORY {snapshot.finalBossRouteMemory} · RIVAL MEMORY {snapshot.finalBossRivalMemory.replaceAll("_", " ")}
+              </em>
+            )}
           </div>
         )}
 
@@ -848,6 +853,9 @@ export default function SkyDancerArcadeMode({ request, onReturnTitle }: SkyDance
               <small>{snapshot.status === "game-over" ? "MISSION FAILED" : snapshot.status === "practice-clear" ? "STAGE PRACTICE COMPLETE" : "ONE SKY · ARCADE RUN COMPLETE"}</small>
               <h2>{snapshot.status === "game-over" ? "GAME OVER" : snapshot.rank}</h2>
               <strong>{snapshot.status === "run-clear" ? "PRISM SOVEREIGN DESTROYED" : snapshot.stage.name}</strong>
+              {snapshot.status === "run-clear" && snapshot.finalBossReactive && (
+                <p className={styles.finalBossEnding}>{snapshot.finalBossEndingLine}</p>
+              )}
               <div className={styles.finalStats}>
                 <span><small>SCORE</small><b>{snapshot.score}</b></span>
                 <span><small>KILLS</small><b>{snapshot.enemiesDefeated}</b></span>

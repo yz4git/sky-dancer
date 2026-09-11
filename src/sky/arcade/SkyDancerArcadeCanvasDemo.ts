@@ -101,9 +101,23 @@ export class SkyDancerArcadeCanvasDemo implements SkyDancerArcadeDemoHandle {
       const size = projected.scale * (enemy.boss ? 28 : enemy.kind === "gunship" ? 18 : enemy.kind === "bomber" ? 16 : enemy.kind === "drone" ? 9.5 : 11) * readabilityScale;
       context.save();
       context.translate(projected.x, projected.y);
-      context.fillStyle = `#${palette.enemy.toString(16).padStart(6, "0")}`;
+      context.fillStyle = enemy.boss && enemy.finalBossAccent !== undefined
+        ? `#${enemy.finalBossAccent.toString(16).padStart(6, "0")}`
+        : `#${palette.enemy.toString(16).padStart(6, "0")}`;
       this.traceEnemySilhouetteV20(context, enemy.kind, size);
       context.fill();
+      if (enemy.boss && enemy.finalBossForm) {
+        context.strokeStyle = `#${(enemy.finalBossAccent ?? palette.accent).toString(16).padStart(6, "0")}`;
+        context.globalAlpha = .82;
+        context.lineWidth = Math.max(2, size * .1);
+        const rings = enemy.finalBossForm === "SEVEN_SKY" ? 3 : enemy.finalBossForm === "MIRROR_AEGIS" ? 2 : 1;
+        for (let ring = 0; ring < rings; ring += 1) {
+          context.beginPath();
+          context.arc(0, 0, size * (1.55 + ring * .36), 0, Math.PI * 2);
+          context.stroke();
+        }
+        context.globalAlpha = 1;
+      }
       if (enemy.worldBreakTarget) {
         context.strokeStyle = "#ffdf69";
         context.globalAlpha = .84;

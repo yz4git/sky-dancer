@@ -101,15 +101,76 @@ function createStandardEnemy(stage: SkyDancerArcadeStageDefinition, enemy: SkyDa
   return fighter;
 }
 
-function createBoss(stage: SkyDancerArcadeStageDefinition): THREE.Group {
-  return createReferenceCarrier(stage);
+function decorateV405FinalBoss(group: THREE.Group, enemy: SkyDancerArcadeEnemySnapshot): void {
+  if (!enemy.finalBossForm) return;
+  const accent = enemy.finalBossAccent ?? 0xb993ff;
+  const glow = new THREE.MeshStandardMaterial({
+    color: accent,
+    emissive: accent,
+    emissiveIntensity: 2.15,
+    roughness: .24,
+    metalness: .62,
+  });
+  const dark = new THREE.MeshStandardMaterial({ color: 0x151328, roughness: .4, metalness: .72 });
+  const rig = new THREE.Group();
+  rig.name = "arcade-v405-final-boss-form";
+
+  const add = (geometry: THREE.BufferGeometry, material: THREE.Material, x: number, y: number, z: number) => {
+    const mesh = new THREE.Mesh(geometry, material);
+    mesh.position.set(x, y, z);
+    rig.add(mesh);
+    return mesh;
+  };
+
+  if (enemy.finalBossForm === "MIRROR_AEGIS") {
+    for (const side of [-1, 1]) {
+      const ring = add(new THREE.TorusGeometry(2.05, .13, 6, 20), glow, side * 7.2, 1.45, .2);
+      ring.rotation.y = side * .18;
+      const shield = add(new THREE.BoxGeometry(.3, 3.8, 4.8), dark, side * 6.9, .2, 1.1);
+      shield.rotation.z = side * .12;
+    }
+  } else if (enemy.finalBossForm === "PRISM_CROWN") {
+    for (let index = 0; index < 5; index += 1) {
+      const x = (index - 2) * 2.15;
+      const shard = add(new THREE.OctahedronGeometry(.72 + Math.abs(index - 2) * .08, 0), glow, x, 3.25 + (2 - Math.abs(index - 2)) * .45, -.6);
+      shard.rotation.z = index * .35;
+    }
+  } else if (enemy.finalBossForm === "HELLSTAR") {
+    for (const side of [-1, 1]) {
+      for (let index = 0; index < 3; index += 1) {
+        const spike = add(new THREE.ConeGeometry(.34, 2.6 + index * .45, 6), glow, side * (4.9 + index * 1.45), 2.25 - index * .38, .4 + index * .8);
+        spike.rotation.z = side * (Math.PI * .42);
+      }
+    }
+    add(new THREE.TorusGeometry(3.15, .16, 6, 24), glow, 0, 1.2, 2.2);
+  } else {
+    for (let index = 0; index < 3; index += 1) {
+      const ring = add(new THREE.TorusGeometry(2.25 + index * .72, .1, 6, 24), glow, 0, 1.35, .3 + index * .45);
+      ring.rotation.x = index * .38;
+      ring.rotation.y = index * .52;
+    }
+    for (let index = 0; index < 7; index += 1) {
+      const angle = index / 7 * Math.PI * 2;
+      add(new THREE.TetrahedronGeometry(.48, 0), glow, Math.cos(angle) * 5.2, 1.2 + Math.sin(angle) * 2.1, 1.1);
+    }
+  }
+
+  rig.userData.arcadeV405Form = enemy.finalBossForm;
+  rig.userData.arcadeV405Accent = accent;
+  group.add(rig);
+}
+
+function createBoss(stage: SkyDancerArcadeStageDefinition, enemy: SkyDancerArcadeEnemySnapshot): THREE.Group {
+  const group = createReferenceCarrier(stage);
+  if (stage.id === "prism-citadel") decorateV405FinalBoss(group, enemy);
+  return group;
 }
 
 export function createSkyDancerArcadeEnemy(
   stage: SkyDancerArcadeStageDefinition,
   enemy: SkyDancerArcadeEnemySnapshot,
 ): THREE.Group {
-  const group = enemy.boss || enemy.kind === "boss" ? createBoss(stage) : createStandardEnemy(stage, enemy);
+  const group = enemy.boss || enemy.kind === "boss" ? createBoss(stage, enemy) : createStandardEnemy(stage, enemy);
   group.name = `arcade-enemy-${enemy.id}`;
   if (enemy.locked) group.add(createSkyDancerArcadeLockRing(0xff3970));
   return group;

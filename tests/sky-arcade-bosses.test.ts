@@ -48,13 +48,13 @@ test("Arcade boss phase transitions trigger stage-specific mechanics, hazards an
     const profile = skyDancerArcadeV11BossProfile(stage.id);
     runtime.triggerBossPhaseForTests(1);
     const phase1 = runtime.getSnapshot();
-    assert.equal(phase1.bossMechanicLabel, profile.mechanicLabels[0]);
+    assert.equal(phase1.bossMechanicLabel, stage.id === "prism-citadel" ? "SEVEN SKY ARMOR" : profile.mechanicLabels[0]);
     const initialSerial = phase1.bossMechanicSerial;
 
     runtime.triggerBossPhaseForTests(2);
     const phase2 = runtime.getSnapshot();
     assert.equal(phase2.bossPhase, 2);
-    assert.equal(phase2.bossMechanicLabel, profile.mechanicLabels[1]);
+    assert.equal(phase2.bossMechanicLabel, stage.id === "prism-citadel" ? "ROUTE ECHO ARRAY" : profile.mechanicLabels[1]);
     assert.ok(phase2.bossMechanicSerial > initialSerial);
     if (profile.phaseHazards[1]) assert.ok(phase2.hazards.some(h => h.kind === profile.phaseHazards[1]), `${stage.id} phase2 hazard`);
     assert.ok(phase2.enemies.filter(e => !e.boss).length >= profile.escortCounts[1], `${stage.id} phase2 escorts`);
@@ -62,8 +62,9 @@ test("Arcade boss phase transitions trigger stage-specific mechanics, hazards an
     runtime.triggerBossPhaseForTests(3);
     const phase3 = runtime.getSnapshot();
     assert.equal(phase3.bossPhase, 3);
-    assert.equal(phase3.bossMechanicLabel, profile.mechanicLabels[2]);
+    assert.equal(phase3.bossMechanicLabel, stage.id === "prism-citadel" ? "SPECTRUM OVERDRIVE · FINAL MEMORY" : profile.mechanicLabels[2]);
     assert.ok(phase3.bossMechanicIntensity >= phase2.bossMechanicIntensity);
-    if (profile.phaseHazards[2]) assert.ok(phase3.hazards.some(h => h.kind === profile.phaseHazards[2]), `${stage.id} phase3 hazard`);
+    if (stage.id === "prism-citadel") assert.ok(phase3.hazards.some(h => h.kind === "debris"), `${stage.id} V40.5 phase3 route-memory hazard`);
+    else if (profile.phaseHazards[2]) assert.ok(phase3.hazards.some(h => h.kind === profile.phaseHazards[2]), `${stage.id} phase3 hazard`);
   }
 });
