@@ -42,6 +42,11 @@ import {
   skyDancerArcadeV403ResolvedRecoveryFromMessage,
   type SkyDancerArcadeV403RecoveryCue,
 } from "../src/sky/arcade/SkyDancerArcadeV403WorldBreakRecovery";
+import {
+  skyDancerArcadeV407HandoffCue,
+  skyDancerArcadeV407HudFocus,
+  skyDancerArcadeV407RendererBadgeVisible,
+} from "../src/sky/arcade/SkyDancerArcadeV407FullRunPolish";
 import styles from "./SkyDancerArcadeMode.module.css";
 import productStyles from "./SkyDancerArcadeProduct.module.css";
 
@@ -553,10 +558,31 @@ export default function SkyDancerArcadeMode({ request, onReturnTitle }: SkyDance
   const counterplayHudLabel = activeCounterplay === "armor-brace" ? "ARMOR BRACE · STAGGER IT" : activeCounterplay === "evasive-roll" ? "EVASIVE ROLL · TRACK IT" : activeCounterplay === "turbo-jammer" ? "TURBO JAMMER · BREAK IT" : "";
   const rivalAceHpPercent = snapshot.rivalAceActive ? Math.round(snapshot.rivalAceHp / Math.max(1, snapshot.rivalAceMaxHp) * 100) : 0;
   const rivalAceAdvantagePercent = snapshot.rivalAceActive ? Math.round(snapshot.rivalAceAdvantage / Math.max(.001, snapshot.rivalAceAdvantageTarget) * 100) : 0;
+  const v407Focus = skyDancerArcadeV407HudFocus({
+    status: snapshot.status,
+    bossActive: snapshot.bossActive,
+    rivalAceActive: snapshot.rivalAceActive,
+    bossApproachActive: bossApproach.active,
+    missileDanger: missileCueDanger === "1",
+  });
+  const nextStageId = snapshot.mode === "arcade-run" && snapshot.stage.next.length > 0
+    ? snapshot.branchSelection ?? snapshot.stage.next[0] ?? null
+    : null;
+  const nextStage = nextStageId ? skyDancerArcadeStageById(nextStageId) : null;
+  const nextStageIndex = nextStageId ? snapshot.stage.next.indexOf(nextStageId) : -1;
+  const nextDoctrine = nextStage ? skyDancerArcadeV40RouteDoctrine(nextStageIndex, snapshot.stage.next.length) : null;
+  const nextDoctrineEffect = nextDoctrine ? skyDancerArcadeV40RouteEffect(nextDoctrine) : null;
+  const v407Handoff = skyDancerArcadeV407HandoffCue(
+    snapshot.resultTimer,
+    nextStage?.name ?? null,
+    nextDoctrine,
+    nextDoctrineEffect?.detail ?? null,
+  );
+  const rendererBadgeVisible = skyDancerArcadeV407RendererBadgeVisible(rendererName, snapshot.stageNumber, snapshot.stageTimeSeconds, snapshot.status);
 
   return (
     <main className={`${styles.shell} ${productStyles.productShell}`} onContextMenu={(event) => event.preventDefault()}>
-      <section className={styles.stage} aria-label="Sky Dancer Arcade Run">
+      <section className={styles.stage} data-v407-focus={v407Focus} aria-label="Sky Dancer Arcade Run">
         <div ref={mountRef} className={styles.viewport} />
         <div className={productStyles.aimGuide} aria-hidden="true"><i /><b /></div>
 
@@ -590,12 +616,14 @@ export default function SkyDancerArcadeMode({ request, onReturnTitle }: SkyDance
           </div>
         </header>
 
-        <div className={productStyles.timelineBeat} data-kind={snapshot.timelineBeatKind} data-director={snapshot.combatDirectorMode} aria-label="Current course beat">
+        <div className={`${productStyles.timelineBeat} ${styles.timelineV407}`} data-kind={snapshot.timelineBeatKind} data-director={snapshot.combatDirectorMode} aria-label="Current course beat">
           <small>COURSE BEAT · {String(snapshot.timelineBeatId).toUpperCase().replaceAll("-", " ")}</small>
           <strong>{snapshot.timelineBeatLabel}</strong>
           <span>{snapshot.timelineSetpiece}</span>
-          <em className={productStyles.v12DirectorLine}>COMBAT DIRECTOR · {snapshot.combatDirectorLabel} · {snapshot.combatDirectorIntent}</em>
-          <em className={productStyles.v121GrammarLine}>ENCOUNTER · {snapshot.encounterGrammarLabel} · {snapshot.encounterGrammarPhaseLabel} {snapshot.encounterGrammarPhaseIndex}/{snapshot.encounterGrammarPhaseCount} · {snapshot.encounterContinuityLabel}</em>
+          <span className={styles.timelineDiagnostics} aria-hidden="true">
+            <em className={productStyles.v12DirectorLine}>COMBAT DIRECTOR · {snapshot.combatDirectorLabel} · {snapshot.combatDirectorIntent}</em>
+            <em className={productStyles.v121GrammarLine}>ENCOUNTER · {snapshot.encounterGrammarLabel} · {snapshot.encounterGrammarPhaseLabel} {snapshot.encounterGrammarPhaseIndex}/{snapshot.encounterGrammarPhaseCount} · {snapshot.encounterContinuityLabel}</em>
+          </span>
           {(snapshot.worldBreakLive || snapshot.worldBreakRouteDoctrine !== "LOCKED") && (
             <em className={styles.worldBreakLine} data-live={snapshot.worldBreakLive}>
               WORLD BREAK · {snapshot.worldBreakObjective}
@@ -810,7 +838,7 @@ export default function SkyDancerArcadeMode({ request, onReturnTitle }: SkyDance
           </>
         )}
 
-        <span className={productStyles.rendererBadge}>{rendererName === "WEBGL" ? `3D FLIGHT · V12.2 · ${snapshot.paintScheme.toUpperCase()} · ${snapshot.loadout.toUpperCase()}` : `COMPATIBILITY · CANVAS · V12.2 · ${snapshot.loadout.toUpperCase()}`}</span>
+        {rendererBadgeVisible && <span className={productStyles.rendererBadge}>{rendererName === "WEBGL" ? `3D FLIGHT · ${snapshot.paintScheme.toUpperCase()} · ${snapshot.loadout.toUpperCase()}` : `COMPATIBILITY · CANVAS · ${snapshot.loadout.toUpperCase()}`}</span>}
         {runtimeMessage && <div className={styles.runtimeMessage}>{runtimeMessage}</div>}
 
         {snapshot.status === "stage-clear" && (
@@ -830,7 +858,14 @@ export default function SkyDancerArcadeMode({ request, onReturnTitle }: SkyDance
                 {snapshot.lastStageMedals.map(medal => <span key={medal.id} data-earned={medal.earned}><b>{medal.earned ? "◆" : "◇"} {medal.label}</b><small>{medal.description}</small></span>)}
               </div>
               <div><span>SECTION SCORE</span><b>{snapshot.lastStageScore}</b></div>
-              <p>NEXT SORTIE IN {snapshot.resultTimer.toFixed(1)}s</p>
+              {snapshot.mode === "arcade-run" ? (
+                <div className={styles.stageHandoff} data-phase={v407Handoff.phase}>
+                  <small>{v407Handoff.eyebrow}</small>
+                  <strong>{v407Handoff.title}</strong>
+                  <span>{v407Handoff.detail}</span>
+                  <i aria-hidden="true"><b style={{ width: `${Math.round(v407Handoff.progress * 100)}%` }} /></i>
+                </div>
+              ) : <p>PRACTICE DEBRIEF IN {snapshot.resultTimer.toFixed(1)}s</p>}
             </div>
           </div>
         )}
