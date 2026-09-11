@@ -18,6 +18,7 @@ import {
 } from "./SkyDancerArcadeV271ScreenPolish";
 import { skyDancerArcadeV28ReadableAttitude } from "./SkyDancerArcadeV28DogfightReadability";
 import { skyDancerArcadeV401WorldBreakBriefing } from "./SkyDancerArcadeV401WorldBreakPolish";
+import { skyDancerArcadeV402CelebrationFromMessage } from "./SkyDancerArcadeV402WorldBreakCelebration";
 import {
   createSkyDancerArcadeEnemy,
   createSkyDancerArcadeHazard,
@@ -167,6 +168,12 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
   private branchGateExitSelection: string | null = null;
   private cameraShake = 0;
   private cameraImpactKick = 0;
+  // V40.2: presentation-only success accent. No runtime time-scale, collision, score or input changes.
+  private worldBreakCelebrationTimer = 0;
+  private worldBreakCelebrationDuration = 1;
+  private worldBreakCelebrationStrength = 0;
+  private worldBreakCelebrationPullback = 0;
+  private worldBreakCelebrationFovKick = 0;
   // V10.3.8: sightline and roll persist across stage handoffs so the camera has one coherent damped frame.
   private readonly cameraLookTarget = new THREE.Vector3(0, .8, -34);
   private cameraRoll = 0;
@@ -334,6 +341,7 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
     this.syncWorldBreakPrismReprise(snapshot);
     this.syncBranchGates(snapshot, delta);
     this.syncEffects(snapshot);
+    this.syncWorldBreakCelebration(snapshot, delta);
     this.syncAudio(snapshot);
     this.updateCamera(snapshot, delta);
     this.camera.updateMatrixWorld();
@@ -1310,6 +1318,29 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
     generator.dispose(); texture.dispose();
   }
 
+  private syncWorldBreakCelebration(snapshot: SkyDancerArcadeSnapshot, delta: number): void {
+    this.worldBreakCelebrationTimer = Math.max(0, this.worldBreakCelebrationTimer - delta);
+    const celebration = skyDancerArcadeV402CelebrationFromMessage(snapshot.stage.id, snapshot.message);
+    if (celebration && snapshot.message !== this.previousSnapshot.message) {
+      this.worldBreakCelebrationTimer = celebration.durationSeconds;
+      this.worldBreakCelebrationDuration = celebration.durationSeconds;
+      this.worldBreakCelebrationStrength = celebration.strength;
+      this.worldBreakCelebrationPullback = celebration.cameraPullback;
+      this.worldBreakCelebrationFovKick = celebration.cameraFovKick;
+      this.cameraShake = Math.min(.86, this.cameraShake + celebration.cameraShake);
+      this.presentation.emitRushAccent();
+      this.audio.tone(celebration.audioLowHz, .18 + celebration.strength * .035, .014 + celebration.strength * .006, celebration.tone === "assault" ? "sawtooth" : "triangle");
+      this.audio.tone(celebration.audioHighHz, .11 + celebration.strength * .025, .01 + celebration.strength * .004, celebration.tone === "final" ? "square" : "triangle");
+    }
+    const worldBreakCelebrationEnvelope = this.worldBreakCelebrationTimer > 0
+      ? Math.sin((1 - this.worldBreakCelebrationTimer / Math.max(.001, this.worldBreakCelebrationDuration)) * Math.PI)
+      : 0;
+    if (worldBreakCelebrationEnvelope > 0) {
+      this.presentationFx.bloomBoost = Math.max(this.presentationFx.bloomBoost, worldBreakCelebrationEnvelope * .13 * this.worldBreakCelebrationStrength);
+      this.presentationFx.exposureBoost = Math.max(this.presentationFx.exposureBoost, worldBreakCelebrationEnvelope * .045 * this.worldBreakCelebrationStrength);
+    }
+  }
+
   private syncAudio(snapshot: SkyDancerArcadeSnapshot): void {
     this.audio.update(snapshot);
     if (snapshot.shotSerial !== this.previousSnapshot.shotSerial) this.audio.tone(170, 0.035, 0.012, "sawtooth");
@@ -1395,11 +1426,14 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
     const worldBreakAnticipation = worldBreakBriefing.active
       ? Math.sin(worldBreakBriefing.progress * Math.PI * .5)
       : 0;
+    const worldBreakCelebrationEnvelope = this.worldBreakCelebrationTimer > 0
+      ? Math.sin((1 - this.worldBreakCelebrationTimer / Math.max(.001, this.worldBreakCelebrationDuration)) * Math.PI)
+      : 0;
     this.camera.position.x += (targetX - this.camera.position.x) * xAlpha;
     this.camera.position.y += (targetY - this.camera.position.y) * yAlpha;
     // V40.1 opens the frame slightly before a signature challenge; gameplay/world transforms remain untouched.
-    this.camera.position.z += (pose.z + this.presentationFx.pullback + snapshot.timelineCameraPullback + this.cameraImpactKick + worldBreakAnticipation * .72 - this.camera.position.z) * zAlpha;
-    this.camera.fov += (pose.fov + this.presentationFx.fovKick + snapshot.timelineCameraFov + worldBreakAnticipation * 1.5 - this.camera.fov) * fovAlpha;
+    this.camera.position.z += (pose.z + this.presentationFx.pullback + snapshot.timelineCameraPullback + this.cameraImpactKick + worldBreakAnticipation * .72 + worldBreakCelebrationEnvelope * this.worldBreakCelebrationPullback - this.camera.position.z) * zAlpha;
+    this.camera.fov += (pose.fov + this.presentationFx.fovKick + snapshot.timelineCameraFov + worldBreakAnticipation * 1.5 + worldBreakCelebrationEnvelope * this.worldBreakCelebrationFovKick - this.camera.fov) * fovAlpha;
     this.camera.updateProjectionMatrix();
 
     const desiredLookX = pose.lookX;

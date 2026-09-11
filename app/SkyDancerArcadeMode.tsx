@@ -35,6 +35,7 @@ import {
   skyDancerArcadeV401CuePriority,
   skyDancerArcadeV401WorldBreakBriefing,
 } from "../src/sky/arcade/SkyDancerArcadeV401WorldBreakPolish";
+import { skyDancerArcadeV402CelebrationFromMessage } from "../src/sky/arcade/SkyDancerArcadeV402WorldBreakCelebration";
 import styles from "./SkyDancerArcadeMode.module.css";
 import productStyles from "./SkyDancerArcadeProduct.module.css";
 
@@ -445,6 +446,7 @@ export default function SkyDancerArcadeMode({ request, onReturnTitle }: SkyDance
   );
   const v35CuePriority = skyDancerArcadeV35CuePriority(messageCue.value, bossApproach.active, missileCueDanger === "1");
   const cuePriority = skyDancerArcadeV401CuePriority(v35CuePriority, worldBreakBriefing.active);
+  const worldBreakCelebration = skyDancerArcadeV402CelebrationFromMessage(snapshot.stage.id, messageCue.value);
   const controlsVisible = snapshot.status === "running";
   const finalOverlay = snapshot.status === "run-clear" || snapshot.status === "practice-clear" || snapshot.status === "game-over";
   const persistedArcadeProgress = loadSkyDancerArcadeProgress();
@@ -543,7 +545,24 @@ export default function SkyDancerArcadeMode({ request, onReturnTitle }: SkyDance
           </div>
         )}
 
-        {messageCue.value && !messageIsBossWarning && (
+        {worldBreakCelebration && (
+          <div
+            key={`${snapshot.stage.id}-${messageCue.value}`}
+            className={styles.worldBreakCelebration}
+            data-tone={worldBreakCelebration.tone}
+            data-tier={worldBreakCelebration.tier}
+            data-suppressed={cuePriority === "critical"}
+            aria-live="polite"
+            aria-label="World Break success"
+          >
+            <small>WORLD BREAK · SUCCESS</small>
+            <strong>{worldBreakCelebration.headline}</strong>
+            <span>{worldBreakCelebration.detail}</span>
+            <i aria-hidden="true" />
+          </div>
+        )}
+
+        {messageCue.value && !messageIsBossWarning && !worldBreakCelebration && (
           <div key={messageCue.value} className={`${styles.message} ${productStyles.flightMessage}`} data-exiting={messageCue.exiting} data-priority={cuePriority}>{messageCue.value}</div>
         )}
         {chainCue.value !== null && (
