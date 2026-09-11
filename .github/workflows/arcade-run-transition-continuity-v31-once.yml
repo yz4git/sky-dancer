@@ -1,0 +1,43 @@
+name: Arcade Run V31 transition continuity
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/arcade-run-transition-continuity-v31-once.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.13.0
+          cache: npm
+      - name: Apply V31 transition continuity patch
+        run: python3 scripts/arcade-run-transition-continuity-v31.py
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Verify Arcade Run
+        run: |
+          npm run check:arcade
+          node --import tsx --test tests/sky-arcade-v30-boss-ingress.test.ts tests/sky-arcade-v31-transition-continuity.test.ts
+          npm run test:fast
+          npm run lint
+          npm run build:pages
+      - name: Commit verified V31 polish
+        run: |
+          git config user.name "yz4git"
+          git config user.email "65384484+yz4git@users.noreply.github.com"
+          git add src/sky/arcade/SkyDancerArcadeRuntime.ts tests/sky-arcade-v31-transition-continuity.test.ts
+          git commit -m "Arcade Run V31: smooth stage transition continuity"
+          git push origin HEAD:main
