@@ -22,6 +22,11 @@ import {
 } from "../src/sky/arcade/SkyDancerArcadeProgress";
 import { SkyDancerArcadeRuntime, type SkyDancerArcadeSnapshot } from "../src/sky/arcade/SkyDancerArcadeRuntime";
 import {
+  skyDancerArcadeV35BossApproach,
+  skyDancerArcadeV35CuePriority,
+  skyDancerArcadeV35SectionIntroVisible,
+} from "../src/sky/arcade/SkyDancerArcadeV35HudContinuity";
+import {
   SkyDancerArcadeWebGLDemo,
   type SkyDancerArcadeDemoHandle,
 } from "../src/sky/arcade/SkyDancerArcadeWebGLDemo";
@@ -403,6 +408,13 @@ export default function SkyDancerArcadeMode({ request, onReturnTitle }: SkyDance
   const bossEnemy = snapshot.enemies.find((enemy) => enemy.boss) ?? null;
   const bossArmorPercent = bossEnemy && bossEnemy.maxArmor > 0 ? Math.round(bossEnemy.armor / bossEnemy.maxArmor * 100) : 0;
   const bossHudVisible = snapshot.bossActive || Boolean(bossEnemy && bossEnemy.hp <= 0);
+  const sectionIntroVisible = skyDancerArcadeV35SectionIntroVisible(snapshot.status, snapshot.stageTimeSeconds);
+  const bossApproach = skyDancerArcadeV35BossApproach(
+    snapshot.stage.id,
+    snapshot.stageTimeSeconds,
+    snapshot.stageDurationSeconds,
+    snapshot.bossActive,
+  );
   const routeOverlayVisible = snapshot.branchActive || Boolean(
     snapshot.branchSelection
     && snapshot.stageProgress >= .26
@@ -419,6 +431,8 @@ export default function SkyDancerArcadeMode({ request, onReturnTitle }: SkyDance
     260,
   );
   const [missileCueCount = "0", missileCueDanger = "0", missileCueBoss = "0"] = (missileCue.value ?? "0|0|0").split("|");
+  const messageIsBossWarning = Boolean(messageCue.value?.startsWith("WARNING ·") && snapshot.bossActive);
+  const cuePriority = skyDancerArcadeV35CuePriority(messageCue.value, bossApproach.active, missileCueDanger === "1");
   const controlsVisible = snapshot.status === "running";
   const finalOverlay = snapshot.status === "run-clear" || snapshot.status === "practice-clear" || snapshot.status === "game-over";
   const persistedArcadeProgress = loadSkyDancerArcadeProgress();
@@ -446,6 +460,15 @@ export default function SkyDancerArcadeMode({ request, onReturnTitle }: SkyDance
       <section className={styles.stage} aria-label="Sky Dancer Arcade Run">
         <div ref={mountRef} className={styles.viewport} />
         <div className={productStyles.aimGuide} aria-hidden="true"><i /><b /></div>
+
+        {sectionIntroVisible && (
+          <div className={styles.sectionIntro} aria-live="polite">
+            <small>{snapshot.mode === "stage-practice" ? "SECTION PRACTICE · ENGAGE" : `SECTION ${snapshot.stageNumber}/7 · ENGAGE`}</small>
+            <strong>{snapshot.stage.name}</strong>
+            <span>{snapshot.stage.subtitle}</span>
+            <i aria-hidden="true"><b /></i>
+          </div>
+        )}
 
         <header className={styles.topHud}>
           <div className={styles.stageCard}>
@@ -476,8 +499,12 @@ export default function SkyDancerArcadeMode({ request, onReturnTitle }: SkyDance
           <em className={productStyles.v121GrammarLine}>ENCOUNTER · {snapshot.encounterGrammarLabel} · {snapshot.encounterGrammarPhaseLabel} {snapshot.encounterGrammarPhaseIndex}/{snapshot.encounterGrammarPhaseCount} · {snapshot.encounterContinuityLabel}</em>
         </div>
 
-        {messageCue.value && <div key={messageCue.value} className={`${styles.message} ${productStyles.flightMessage}`} data-exiting={messageCue.exiting}>{messageCue.value}</div>}
-        {chainCue.value !== null && <div className={`${styles.chain} ${productStyles.chainReadout}`} data-exiting={chainCue.exiting}>CHAIN <strong>×{chainCue.value}</strong></div>}
+        {messageCue.value && !messageIsBossWarning && (
+          <div key={messageCue.value} className={`${styles.message} ${productStyles.flightMessage}`} data-exiting={messageCue.exiting} data-priority={cuePriority}>{messageCue.value}</div>
+        )}
+        {chainCue.value !== null && (
+          <div className={`${styles.chain} ${productStyles.chainReadout}`} data-exiting={chainCue.exiting} data-deemphasized={cuePriority !== "normal"}>CHAIN <strong>×{chainCue.value}</strong></div>
+        )}
         {missileCue.value && (
           <div
             className={`${styles.missileWarning} ${missileCueBoss === "1" ? styles.missileWarningBoss : ""} ${missileCueDanger === "1" ? styles.missileDanger : ""}`}
@@ -485,6 +512,15 @@ export default function SkyDancerArcadeMode({ request, onReturnTitle }: SkyDance
             aria-live="polite"
           >
             <span>MISSILE</span><strong>×{missileCueCount}</strong><small>{missileCueDanger === "1" ? "BREAK NOW" : "INCOMING"}</small>
+          </div>
+        )}
+
+        {bossApproach.active && (
+          <div className={styles.bossApproach} data-urgent={bossApproach.remainingSeconds < .85} aria-live="assertive" aria-label="Climax target approaching">
+            <small>WARNING · CLIMAX SIGNATURE</small>
+            <strong>{snapshot.stage.bossName}</strong>
+            <span>CONTACT {bossApproach.remainingSeconds.toFixed(1)}s</span>
+            <i aria-hidden="true"><b style={{ width: `${Math.round(bossApproach.progress * 100)}%` }} /></i>
           </div>
         )}
 
