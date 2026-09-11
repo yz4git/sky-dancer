@@ -1,0 +1,51 @@
+name: Arcade Run V40.4 Rival Ace
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/arcade-run-v404-rival-ace-once.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.13.0
+          cache: npm
+      - name: Apply V40.4 Rival Ace
+        run: |
+          python3 scripts/arcade-run-v404-rival-ace.py
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('src/sky/arcade/SkyDancerArcadeRuntime.ts')
+          s = p.read_text()
+          s = s.replace('const appearance = enemy.rivalAceAppearance ?? this.rivalAceAppearance || 1;', 'const appearance = (enemy.rivalAceAppearance ?? this.rivalAceAppearance) || 1;')
+          p.write_text(s)
+          PY
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Verify V40.4 Rival Ace
+        run: |
+          npm run check:arcade
+          node --import tsx --test tests/sky-arcade-v404-rival-ace.test.ts tests/sky-arcade-v403-world-break-recovery.test.ts tests/sky-arcade-v402-world-break-celebration.test.ts tests/sky-arcade-v401-world-break-polish.test.ts tests/sky-arcade-v40-world-break-phase6.test.ts
+          npm run test:fast
+          npm run lint
+          npm run build:pages
+      - name: Commit verified V40.4 Rival Ace
+        run: |
+          git config user.name "yz4git"
+          git config user.email "65384484+yz4git@users.noreply.github.com"
+          git add src/sky/arcade/SkyDancerArcadeV404RivalAce.ts src/sky/arcade/SkyDancerArcadeRuntime.ts src/sky/arcade/SkyDancerArcadeWebGLDemo.ts app/SkyDancerArcadeMode.tsx app/SkyDancerArcadeMode.module.css tests/sky-arcade-v404-rival-ace.test.ts
+          git commit -m "Arcade Run V40.4: add persistent Rival Ace"
+          git push origin HEAD:main
