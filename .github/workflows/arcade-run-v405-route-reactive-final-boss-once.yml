@@ -45,3 +45,5 @@ jobs:
           git add src/sky/arcade/SkyDancerArcadeV405RouteReactiveFinalBoss.ts src/sky/arcade/SkyDancerArcadeRuntime.ts src/sky/arcade/SkyDancerArcadeModels.ts src/sky/arcade/SkyDancerArcadeWebGLDemo.ts src/sky/arcade/SkyDancerArcadeCanvasDemo.ts app/SkyDancerArcadeMode.tsx app/SkyDancerArcadeMode.module.css tests/sky-arcade-v405-route-reactive-final-boss.test.ts tests/sky-arcade-bosses.test.ts
           git commit -m "Arcade Run V40.5: make final boss route-reactive"
           git push origin HEAD:main
+
+# retry: route-memory hazard regression aligned
