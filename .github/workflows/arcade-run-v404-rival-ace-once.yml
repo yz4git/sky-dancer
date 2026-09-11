@@ -26,26 +26,7 @@ jobs:
       - name: Apply V40.4 Rival Ace
         run: |
           python3 scripts/arcade-run-v404-rival-ace.py
-          python3 - <<'PY'
-          from pathlib import Path
-          p = Path('src/sky/arcade/SkyDancerArcadeRuntime.ts')
-          s = p.read_text()
-          s = s.replace('const appearance = enemy.rivalAceAppearance ?? this.rivalAceAppearance || 1;', 'const appearance = (enemy.rivalAceAppearance ?? this.rivalAceAppearance) || 1;')
-          old = '''        worldBreakTarget: enemy.worldBreakTarget,
-        worldBreakTargetIndex: enemy.worldBreakTargetIndex,
-        worldBreakLabel: enemy.worldBreakLabel,
-'''
-          new = '''        worldBreakTarget: enemy.worldBreakTarget,
-        worldBreakTargetIndex: enemy.worldBreakTargetIndex,
-        worldBreakLabel: enemy.worldBreakLabel,
-        rivalAce: enemy.rivalAce,
-        rivalAceAppearance: enemy.rivalAceAppearance,
-        rivalAceResolved: enemy.rivalAceResolved,
-'''
-          if old not in s:
-              raise SystemExit('V40.4 snapshot metadata anchor not found')
-          p.write_text(s.replace(old, new, 1))
-          PY
+          python3 scripts/arcade-run-v404-rival-ace-fix.py
       - name: Install dependencies
         run: npm ci --no-audit --no-fund
       - name: Verify V40.4 Rival Ace
