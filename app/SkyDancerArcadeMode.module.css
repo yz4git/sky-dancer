@@ -38,3 +38,7 @@
 
 /* Arcade Run V40 WORLD BREAK phase 2: low-altitude and flagship-objective emphasis. */
 .worldBreakLine{max-width:min(540px,76vw)}.worldBreakLine[data-live="true"]{filter:drop-shadow(0 0 5px rgba(88,230,255,.22))}
+
+
+/* Arcade Run V40 WORLD BREAK phase 3: storm-grid and fortress-breach telemetry. */
+.worldBreakLine{max-width:min(660px,82vw)}

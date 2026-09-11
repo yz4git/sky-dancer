@@ -40,12 +40,22 @@ export interface SkyDancerArcadeV40FleetTargetDefinition {
   score: number;
 }
 
+export interface SkyDancerArcadeV40StormLaneDefinition {
+  index: number;
+  progress: number;
+  safeX: number;
+  amplitude: number;
+  phase: number;
+  width: number;
+  score: number;
+}
+
 const PROFILES: Record<SkyDancerArcadeStageId, SkyDancerArcadeV40WorldProfile> = {
   "dawn-city": { stageId: "dawn-city", objective: "THREAD SKYLINE GATES", signature: "TOWER SLALOM", live: true },
   "red-canyon": { stageId: "red-canyon", objective: "HOLD LOW ALTITUDE", signature: "KNIFE RUN", live: true },
   "cloud-fleet": { stageId: "cloud-fleet", objective: "DISMANTLE THE FLAGSHIP", signature: "DECK STRIKE", live: true },
-  "storm-carrier": { stageId: "storm-carrier", objective: "READ THE SAFE LANE", signature: "LIGHTNING GRID", live: false },
-  "desert-fortress": { stageId: "desert-fortress", objective: "BREACH THE WALL", signature: "FORTRESS GATE", live: false },
+  "storm-carrier": { stageId: "storm-carrier", objective: "READ THE SAFE LANE", signature: "LIGHTNING GRID", live: true },
+  "desert-fortress": { stageId: "desert-fortress", objective: "BREACH THE WALL", signature: "FORTRESS GATE", live: true },
   "ice-cavern": { stageId: "ice-cavern", objective: "ESCAPE THE COLLAPSE", signature: "CRYSTAL TUNNEL", live: false },
   "floating-ruins": { stageId: "floating-ruins", objective: "CHOOSE THE PORTAL", signature: "SKY LABYRINTH", live: false },
   "night-metro": { stageId: "night-metro", objective: "CATCH THE PHANTOM", signature: "NEON PURSUIT", live: false },
@@ -110,6 +120,26 @@ export const SKY_DANCER_ARCADE_V40_CLOUD_FLEET_TARGETS: readonly SkyDancerArcade
   { index: 2, progress: .335, x: .02, y: .28, kind: "bomber", label: "BRIDGE CORE", hp: 118, score: 3600 },
 ];
 
+export const SKY_DANCER_ARCADE_V40_STORM_LANES: readonly SkyDancerArcadeV40StormLaneDefinition[] = [
+  { index: 0, progress: .145, safeX: -1.12, amplitude: .26, phase: .2, width: .72, score: 1050 },
+  { index: 1, progress: .195, safeX: .92, amplitude: .38, phase: 1.45, width: .68, score: 1250 },
+  { index: 2, progress: .245, safeX: -.22, amplitude: .48, phase: 2.7, width: .65, score: 1450 },
+  { index: 3, progress: .295, safeX: 1.08, amplitude: .34, phase: 4.05, width: .62, score: 1700 },
+  { index: 4, progress: .345, safeX: -.72, amplitude: .44, phase: 5.2, width: .6, score: 2100 },
+];
+
+export const SKY_DANCER_ARCADE_V40_DESERT_FORTRESS_TURRETS: readonly SkyDancerArcadeV40FleetTargetDefinition[] = [
+  { index: 0, progress: .145, x: -1.42, y: .12, kind: "missile-boat", label: "WEST WALL GUN", hp: 66, score: 1850 },
+  { index: 1, progress: .215, x: 1.36, y: -.08, kind: "gunship", label: "EAST WALL GUN", hp: 82, score: 2350 },
+  { index: 2, progress: .285, x: .02, y: .3, kind: "bomber", label: "GATE GENERATOR", hp: 104, score: 3200 },
+];
+export const SKY_DANCER_ARCADE_V40_DESERT_BREACH_PROGRESS = .365;
+export const SKY_DANCER_ARCADE_V40_DESERT_BREACH_X = 0;
+export const SKY_DANCER_ARCADE_V40_DESERT_BREACH_Y = -.02;
+export const SKY_DANCER_ARCADE_V40_DESERT_BREACH_RADIUS_X = .72;
+export const SKY_DANCER_ARCADE_V40_DESERT_BREACH_RADIUS_Y = .78;
+export const SKY_DANCER_ARCADE_V40_DESERT_BREACH_SCORE = 5200;
+
 export function skyDancerArcadeV40WorldProfile(stageId: SkyDancerArcadeStageId): SkyDancerArcadeV40WorldProfile {
   return PROFILES[stageId];
 }
@@ -139,4 +169,20 @@ export function skyDancerArcadeV40FleetTargetAnchorDistance(
   courseSpeed: number,
 ): number {
   return Math.max(0, stageDurationSeconds) * Math.max(0, courseSpeed) * target.progress;
+}
+
+export function skyDancerArcadeV40StormLaneAnchorDistance(
+  lane: SkyDancerArcadeV40StormLaneDefinition,
+  stageDurationSeconds: number,
+  courseSpeed: number,
+): number {
+  return Math.max(0, stageDurationSeconds) * Math.max(0, courseSpeed) * lane.progress;
+}
+
+export function skyDancerArcadeV40StormLaneX(lane: SkyDancerArcadeV40StormLaneDefinition, stageTimeSeconds: number): number {
+  return lane.safeX + Math.sin(Math.max(0, stageTimeSeconds) * 2.35 + lane.phase) * lane.amplitude;
+}
+
+export function skyDancerArcadeV40FortressBreachAnchorDistance(stageDurationSeconds: number, courseSpeed: number): number {
+  return Math.max(0, stageDurationSeconds) * Math.max(0, courseSpeed) * SKY_DANCER_ARCADE_V40_DESERT_BREACH_PROGRESS;
 }

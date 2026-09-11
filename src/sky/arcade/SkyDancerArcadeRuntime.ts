@@ -68,12 +68,22 @@ import { skyDancerArcadeV271CombatCorridorCrowded } from "./SkyDancerArcadeV271S
 import {
   SKY_DANCER_ARCADE_V40_DAWN_CITY_GATES,
   SKY_DANCER_ARCADE_V40_CLOUD_FLEET_TARGETS,
+  SKY_DANCER_ARCADE_V40_DESERT_BREACH_RADIUS_X,
+  SKY_DANCER_ARCADE_V40_DESERT_BREACH_RADIUS_Y,
+  SKY_DANCER_ARCADE_V40_DESERT_BREACH_SCORE,
+  SKY_DANCER_ARCADE_V40_DESERT_BREACH_X,
+  SKY_DANCER_ARCADE_V40_DESERT_BREACH_Y,
+  SKY_DANCER_ARCADE_V40_DESERT_FORTRESS_TURRETS,
   SKY_DANCER_ARCADE_V40_RED_CANYON_KNIFE_CEILING_Y,
   SKY_DANCER_ARCADE_V40_RED_CANYON_KNIFE_END,
   SKY_DANCER_ARCADE_V40_RED_CANYON_KNIFE_START,
   SKY_DANCER_ARCADE_V40_RED_CANYON_KNIFE_TARGET_SECONDS,
+  SKY_DANCER_ARCADE_V40_STORM_LANES,
   skyDancerArcadeV40DawnCityGateAnchorDistance,
   skyDancerArcadeV40FleetTargetAnchorDistance,
+  skyDancerArcadeV40FortressBreachAnchorDistance,
+  skyDancerArcadeV40StormLaneAnchorDistance,
+  skyDancerArcadeV40StormLaneX,
   skyDancerArcadeV40RouteDoctrine,
   skyDancerArcadeV40RouteEffect,
   skyDancerArcadeV40WorldProfile,
@@ -298,6 +308,25 @@ export interface SkyDancerArcadeSnapshot {
   worldBreakTargetCurrentLabel: string | null;
   worldBreakTargetCurrentHp: number;
   worldBreakTargetCurrentMaxHp: number;
+  worldBreakStormActive: boolean;
+  worldBreakStormSafeX: number;
+  worldBreakStormWidth: number;
+  worldBreakStormDepth: number;
+  worldBreakStormIndex: number;
+  worldBreakStormHits: number;
+  worldBreakStormMisses: number;
+  worldBreakStormSerial: number;
+  worldBreakStormTotal: number;
+  worldBreakFortressBreachActive: boolean;
+  worldBreakFortressBreachOpen: boolean;
+  worldBreakFortressBreachResolved: boolean;
+  worldBreakFortressBreachSuccess: boolean;
+  worldBreakFortressBreachDepth: number;
+  worldBreakFortressBreachX: number;
+  worldBreakFortressBreachY: number;
+  worldBreakFortressBreachRadiusX: number;
+  worldBreakFortressBreachRadiusY: number;
+  worldBreakFortressSerial: number;
   enemies: SkyDancerArcadeEnemySnapshot[];
   projectiles: SkyDancerArcadeProjectileSnapshot[];
   impacts: SkyDancerArcadeImpactSnapshot[];
@@ -619,6 +648,14 @@ export class SkyDancerArcadeRuntime {
   private worldBreakTargetMisses = 0;
   private worldBreakTargetSerial = 0;
   private readonly worldBreakResolvedTargetIndices = new Set<number>();
+  private worldBreakStormHits = 0;
+  private worldBreakStormMisses = 0;
+  private worldBreakStormSerial = 0;
+  private readonly worldBreakResolvedStormLaneIndices = new Set<number>();
+  private worldBreakFortressBreachOpen = false;
+  private worldBreakFortressBreachResolved = false;
+  private worldBreakFortressBreachSuccess = false;
+  private worldBreakFortressSerial = 0;
   private nextEntityId = 1;
   private waveSerial = 0;
   private nextWaveAt = 2.8;
@@ -744,6 +781,12 @@ export class SkyDancerArcadeRuntime {
       this.worldBreakTargetHits = 0;
       this.worldBreakTargetMisses = 0;
       this.worldBreakResolvedTargetIndices.clear();
+      this.worldBreakStormHits = 0;
+      this.worldBreakStormMisses = 0;
+      this.worldBreakResolvedStormLaneIndices.clear();
+      this.worldBreakFortressBreachOpen = false;
+      this.worldBreakFortressBreachResolved = false;
+      this.worldBreakFortressBreachSuccess = false;
     }
     this.worldBreakGates = this.stage.id === "dawn-city"
       ? SKY_DANCER_ARCADE_V40_DAWN_CITY_GATES.map((gate) => {
@@ -812,6 +855,7 @@ export class SkyDancerArcadeRuntime {
     this.stageStats.formationBreaksAtStart = this.formationBreaks;
     this.stageBestChain = 0;
     if (this.stage.id === "cloud-fleet") this.spawnV40CloudFleetTargets(rewindTime);
+    if (this.stage.id === "desert-fortress") this.spawnV40DesertFortressTargets(rewindTime);
     if (this.stageEntryTimer <= 0 && this.stageTime >= this.stage.durationSeconds * skyDancerArcadeBossStartProgress(finalStage)) this.spawnBoss();
   }
 
@@ -927,6 +971,8 @@ export class SkyDancerArcadeRuntime {
     this.updatePlayer(delta, turboActive);
     this.updateWorldBreakGates();
     this.updateWorldBreakKnifeRun(delta);
+    this.updateWorldBreakStormGrid();
+    this.updateWorldBreakFortressBreach();
     this.updateBranch();
     this.updateV11Timeline();
     this.updateDirector();
@@ -1021,20 +1067,82 @@ export class SkyDancerArcadeRuntime {
     }
   }
 
+  private updateWorldBreakStormGrid(): void {
+    if (this.stage.id !== "storm-carrier") return;
+    for (const lane of SKY_DANCER_ARCADE_V40_STORM_LANES) {
+      if (this.worldBreakResolvedStormLaneIndices.has(lane.index)) continue;
+      const anchorDistance = skyDancerArcadeV40StormLaneAnchorDistance(lane, this.stage.durationSeconds, this.stage.courseSpeed);
+      const depth = anchorDistance - this.distance;
+      if (depth > 2.4) continue;
+      const safeX = skyDancerArcadeV40StormLaneX(lane, this.stageTime);
+      const clean = Math.abs(this.playerX - safeX) <= lane.width;
+      this.worldBreakResolvedStormLaneIndices.add(lane.index);
+      this.worldBreakStormSerial += 1;
+      if (clean) {
+        this.worldBreakStormHits += 1;
+        const awarded = this.addScore(lane.score + this.worldBreakStormHits * 180, true);
+        this.turbo = Math.min(100, this.turbo + 7);
+        this.message = `LIGHTNING GRID · SAFE LANE ${lane.index + 1} · +${awarded}`;
+        this.messageTimer = 1.05;
+      } else {
+        this.worldBreakStormMisses += 1;
+        this.takeDamage(this.options.difficulty === "hard" ? 16 : 12);
+        this.message = `LIGHTNING GRID · STRIKE ${lane.index + 1} · MOVE TO LANE`;
+        this.messageTimer = 1.05;
+      }
+    }
+  }
+
+  private updateWorldBreakFortressBreach(): void {
+    if (this.stage.id !== "desert-fortress" || this.worldBreakFortressBreachResolved) return;
+    const anchorDistance = skyDancerArcadeV40FortressBreachAnchorDistance(this.stage.durationSeconds, this.stage.courseSpeed);
+    const depth = anchorDistance - this.distance;
+    if (depth > 2.4) return;
+    const dx = (this.playerX - SKY_DANCER_ARCADE_V40_DESERT_BREACH_X) / SKY_DANCER_ARCADE_V40_DESERT_BREACH_RADIUS_X;
+    const dy = (this.playerY - SKY_DANCER_ARCADE_V40_DESERT_BREACH_Y) / SKY_DANCER_ARCADE_V40_DESERT_BREACH_RADIUS_Y;
+    const inside = Math.hypot(dx, dy) <= 1;
+    this.worldBreakFortressBreachResolved = true;
+    this.worldBreakFortressBreachSuccess = this.worldBreakFortressBreachOpen && inside;
+    this.worldBreakFortressSerial += 1;
+    if (this.worldBreakFortressBreachSuccess) {
+      const awarded = this.addScore(SKY_DANCER_ARCADE_V40_DESERT_BREACH_SCORE, true);
+      this.turbo = Math.min(100, this.turbo + 22);
+      this.message = `WORLD BREAK · FORTRESS BREACHED · +${awarded}`;
+      this.messageTimer = 1.55;
+      return;
+    }
+    this.takeDamage(this.worldBreakFortressBreachOpen ? 15 : 24);
+    this.message = this.worldBreakFortressBreachOpen
+      ? "FORTRESS GATE · BREACH MISSED"
+      : "FORTRESS GATE · BREACH DENIED · BATTERIES ACTIVE";
+    this.messageTimer = 1.35;
+  }
+
   private resolveV40FleetTarget(enemy: ArcadeEnemy, destroyed: boolean): void {
     if (!enemy.worldBreakTarget || enemy.worldBreakResolved || enemy.worldBreakTargetIndex === undefined) return;
     enemy.worldBreakResolved = true;
     this.worldBreakResolvedTargetIndices.add(enemy.worldBreakTargetIndex);
     this.worldBreakTargetSerial += 1;
+    const fortress = this.stage.id === "desert-fortress";
+    const prefix = fortress ? "FORTRESS BATTERY" : "DECK STRIKE";
     if (destroyed) {
       this.worldBreakTargetHits += 1;
       const awarded = this.addScore(enemy.worldBreakScoreBonus ?? 1400, true);
-      this.turbo = Math.min(100, this.turbo + 8);
-      this.message = `DECK STRIKE · ${enemy.worldBreakLabel ?? "SUBSYSTEM"} DOWN · +${awarded}`;
-      this.messageTimer = 1.2;
+      this.turbo = Math.min(100, this.turbo + (fortress ? 10 : 8));
+      const fortressComplete = fortress && this.worldBreakTargetHits >= SKY_DANCER_ARCADE_V40_DESERT_FORTRESS_TURRETS.length;
+      if (fortressComplete && !this.worldBreakFortressBreachOpen) {
+        this.worldBreakFortressBreachOpen = true;
+        this.worldBreakFortressSerial += 1;
+        this.turbo = Math.min(100, this.turbo + 10);
+        this.message = `FORTRESS BATTERIES DOWN · BREACH OPEN · +${awarded}`;
+        this.messageTimer = 1.5;
+      } else {
+        this.message = `${prefix} · ${enemy.worldBreakLabel ?? "SUBSYSTEM"} DOWN · +${awarded}`;
+        this.messageTimer = 1.2;
+      }
     } else {
       this.worldBreakTargetMisses += 1;
-      this.message = `DECK STRIKE · ${enemy.worldBreakLabel ?? "SUBSYSTEM"} ESCAPED`;
+      this.message = `${prefix} · ${enemy.worldBreakLabel ?? "SUBSYSTEM"} ESCAPED`;
       this.messageTimer = .9;
     }
   }
@@ -1336,6 +1444,36 @@ export class SkyDancerArcadeRuntime {
       case "pincer": return [index < count / 2 ? -2.08 + index * 0.24 : 2.08 - (count - index - 1) * 0.24, centered * 0.72];
       case "wall": return [centered * 2.18, Math.sin(index * 1.7) * 0.62];
       default: return [centered * 1.88, Math.sin(index * 0.9) * 0.48];
+    }
+  }
+
+  private spawnV40DesertFortressTargets(rewindTime: number): void {
+    for (const target of SKY_DANCER_ARCADE_V40_DESERT_FORTRESS_TURRETS) {
+      if (this.worldBreakResolvedTargetIndices.has(target.index)) continue;
+      const anchorDistance = skyDancerArcadeV40FleetTargetAnchorDistance(target, this.stage.durationSeconds, this.stage.courseSpeed);
+      if (rewindTime > 0 && anchorDistance <= this.distance + 3) {
+        this.worldBreakResolvedTargetIndices.add(target.index);
+        this.worldBreakTargetMisses += 1;
+        continue;
+      }
+      this.spawnEnemy(target.kind, target.x, target.y, anchorDistance - this.distance, "parallel", target.x < 0 ? -1 : 1);
+      const enemy = this.enemies.at(-1);
+      if (!enemy) continue;
+      enemy.hp = target.hp * (this.options.difficulty === "hard" ? 1.15 : 1);
+      enemy.maxHp = enemy.hp;
+      enemy.armor = 0;
+      enemy.maxArmor = 0;
+      enemy.scoreValue = Math.round(target.score * .42);
+      enemy.speed = 0;
+      enemy.fireCooldown = 999;
+      enemy.amplitude = 0;
+      enemy.worldBreakTarget = true;
+      enemy.worldBreakTargetIndex = target.index;
+      enemy.worldBreakLabel = target.label;
+      enemy.worldBreakAnchorDistance = anchorDistance;
+      enemy.worldBreakScoreBonus = target.score;
+      enemy.worldBreakResolved = false;
+      enemy.counterplayCooldown = 999;
     }
   }
 
@@ -2615,6 +2753,16 @@ export class SkyDancerArcadeRuntime {
     const lockedCount = this.enemies.filter((enemy) => enemy.alive && enemy.locked).length;
     const activeCounterplays = this.enemies.filter((enemy) => enemy.alive && enemy.counterplay !== "none");
     const stageScore = this.score - this.stageStats.scoreAtStart;
+    const stormLane = this.stage.id === "storm-carrier"
+      ? SKY_DANCER_ARCADE_V40_STORM_LANES.find((lane) => !this.worldBreakResolvedStormLaneIndices.has(lane.index)) ?? null
+      : null;
+    const stormLaneDepth = stormLane
+      ? skyDancerArcadeV40StormLaneAnchorDistance(stormLane, this.stage.durationSeconds, this.stage.courseSpeed) - this.distance
+      : -999;
+    const stormLaneSafeX = stormLane ? skyDancerArcadeV40StormLaneX(stormLane, this.stageTime) : 0;
+    const fortressBreachDepth = this.stage.id === "desert-fortress"
+      ? skyDancerArcadeV40FortressBreachAnchorDistance(this.stage.durationSeconds, this.stage.courseSpeed) - this.distance
+      : -999;
     const activeStageCount = Math.max(1, this.stagesCleared + (this.status === "running" ? 1 : 0));
     const rank = skyDancerArcadeRankForScore(this.score, activeStageCount, this.damageTaken, this.continuesUsed);
     return {
@@ -2742,7 +2890,11 @@ export class SkyDancerArcadeRuntime {
       worldBreakTargetHits: this.worldBreakTargetHits,
       worldBreakTargetMisses: this.worldBreakTargetMisses,
       worldBreakTargetSerial: this.worldBreakTargetSerial,
-      worldBreakTargetTotal: this.stage.id === "cloud-fleet" ? SKY_DANCER_ARCADE_V40_CLOUD_FLEET_TARGETS.length : 0,
+      worldBreakTargetTotal: this.stage.id === "cloud-fleet"
+        ? SKY_DANCER_ARCADE_V40_CLOUD_FLEET_TARGETS.length
+        : this.stage.id === "desert-fortress"
+          ? SKY_DANCER_ARCADE_V40_DESERT_FORTRESS_TURRETS.length
+          : 0,
       worldBreakTargetCurrentLabel: this.enemies
         .filter((enemy) => enemy.alive && enemy.worldBreakTarget)
         .sort((a, b) => (a.worldBreakAnchorDistance ?? Infinity) - (b.worldBreakAnchorDistance ?? Infinity))[0]?.worldBreakLabel ?? null,
@@ -2752,6 +2904,25 @@ export class SkyDancerArcadeRuntime {
       worldBreakTargetCurrentMaxHp: this.enemies
         .filter((enemy) => enemy.alive && enemy.worldBreakTarget)
         .sort((a, b) => (a.worldBreakAnchorDistance ?? Infinity) - (b.worldBreakAnchorDistance ?? Infinity))[0]?.maxHp ?? 1,
+      worldBreakStormActive: Boolean(stormLane && stormLaneDepth > -8 && stormLaneDepth < 132),
+      worldBreakStormSafeX: stormLaneSafeX,
+      worldBreakStormWidth: stormLane?.width ?? 0,
+      worldBreakStormDepth: stormLaneDepth,
+      worldBreakStormIndex: stormLane?.index ?? -1,
+      worldBreakStormHits: this.worldBreakStormHits,
+      worldBreakStormMisses: this.worldBreakStormMisses,
+      worldBreakStormSerial: this.worldBreakStormSerial,
+      worldBreakStormTotal: this.stage.id === "storm-carrier" ? SKY_DANCER_ARCADE_V40_STORM_LANES.length : 0,
+      worldBreakFortressBreachActive: this.stage.id === "desert-fortress" && fortressBreachDepth > -14 && fortressBreachDepth < 145,
+      worldBreakFortressBreachOpen: this.worldBreakFortressBreachOpen,
+      worldBreakFortressBreachResolved: this.worldBreakFortressBreachResolved,
+      worldBreakFortressBreachSuccess: this.worldBreakFortressBreachSuccess,
+      worldBreakFortressBreachDepth: fortressBreachDepth,
+      worldBreakFortressBreachX: SKY_DANCER_ARCADE_V40_DESERT_BREACH_X,
+      worldBreakFortressBreachY: SKY_DANCER_ARCADE_V40_DESERT_BREACH_Y,
+      worldBreakFortressBreachRadiusX: SKY_DANCER_ARCADE_V40_DESERT_BREACH_RADIUS_X,
+      worldBreakFortressBreachRadiusY: SKY_DANCER_ARCADE_V40_DESERT_BREACH_RADIUS_Y,
+      worldBreakFortressSerial: this.worldBreakFortressSerial,
       enemies: this.enemies.filter((enemy) => enemy.alive).map((enemy) => ({
         id: enemy.id,
         kind: enemy.kind,
@@ -2842,6 +3013,41 @@ export class SkyDancerArcadeRuntime {
     if (!enemy || enemy.worldBreakAnchorDistance === undefined) return;
     this.distance = enemy.worldBreakAnchorDistance + 5;
     this.updateEnemies(1 / 60, false);
+  }
+
+  triggerV40StormLaneForTests(index: number, clean: boolean): void {
+    const lane = SKY_DANCER_ARCADE_V40_STORM_LANES.find((candidate) => candidate.index === index);
+    if (!lane) return;
+    const anchorDistance = skyDancerArcadeV40StormLaneAnchorDistance(lane, this.stage.durationSeconds, this.stage.courseSpeed);
+    this.distance = anchorDistance - 2.2;
+    this.stageTime = this.distance / Math.max(1, this.stage.courseSpeed);
+    const safeX = skyDancerArcadeV40StormLaneX(lane, this.stageTime);
+    this.playerX = clean
+      ? clamp(safeX, -PLAYER_X_LIMIT, PLAYER_X_LIMIT)
+      : clamp(safeX + lane.width + 1.05, -PLAYER_X_LIMIT, PLAYER_X_LIMIT);
+    this.updateWorldBreakStormGrid();
+  }
+
+  destroyV40FortressTargetForTests(index: number): void {
+    const enemy = this.enemies.find((candidate) => candidate.alive && candidate.worldBreakTargetIndex === index);
+    if (enemy) this.damageEnemy(enemy, enemy.maxHp * 4, false);
+  }
+
+  missV40FortressTargetForTests(index: number): void {
+    const enemy = this.enemies.find((candidate) => candidate.alive && candidate.worldBreakTargetIndex === index);
+    if (!enemy || enemy.worldBreakAnchorDistance === undefined) return;
+    this.distance = enemy.worldBreakAnchorDistance + 5;
+    this.stageTime = this.distance / Math.max(1, this.stage.courseSpeed);
+    this.updateEnemies(1 / 60, false);
+  }
+
+  triggerV40FortressBreachForTests(clean: boolean): void {
+    const anchorDistance = skyDancerArcadeV40FortressBreachAnchorDistance(this.stage.durationSeconds, this.stage.courseSpeed);
+    this.distance = anchorDistance - 2.2;
+    this.stageTime = this.distance / Math.max(1, this.stage.courseSpeed);
+    this.playerX = clean ? SKY_DANCER_ARCADE_V40_DESERT_BREACH_X : PLAYER_X_LIMIT;
+    this.playerY = clean ? SKY_DANCER_ARCADE_V40_DESERT_BREACH_Y : PLAYER_Y_LIMIT;
+    this.updateWorldBreakFortressBreach();
   }
 
   /** Deterministic V12 hook for adaptive encounter regression tests. */

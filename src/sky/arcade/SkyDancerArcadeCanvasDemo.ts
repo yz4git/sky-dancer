@@ -72,6 +72,8 @@ export class SkyDancerArcadeCanvasDemo implements SkyDancerArcadeDemoHandle {
     this.drawCourse(context, snapshot, cssWidth, cssHeight);
     this.drawWorldBreakGates(context, snapshot, cssWidth, cssHeight);
     this.drawWorldBreakKnifeRun(context, snapshot, cssWidth, cssHeight);
+    this.drawWorldBreakStormLane(context, snapshot, cssWidth, cssHeight);
+    this.drawWorldBreakFortressBreach(context, snapshot, cssWidth, cssHeight);
     this.drawBranch(context, snapshot, cssWidth, cssHeight);
     for (const hazard of [...snapshot.hazards].sort((a, b) => b.depth - a.depth)) {
       const projected = this.project(hazard.x, hazard.y, hazard.depth, cssWidth, cssHeight);
@@ -254,6 +256,48 @@ export class SkyDancerArcadeCanvasDemo implements SkyDancerArcadeDemoHandle {
     context.font = "700 10px system-ui, sans-serif";
     context.textAlign = "center";
     context.fillText(`KNIFE ALTITUDE · ${snapshot.worldBreakKnifeSeconds.toFixed(1)} / ${snapshot.worldBreakKnifeTargetSeconds.toFixed(1)}s`, width * .5, marker.y - 8);
+    context.restore();
+  }
+
+  private drawWorldBreakStormLane(context: CanvasRenderingContext2D, snapshot: SkyDancerArcadeSnapshot, width: number, height: number): void {
+    if (!snapshot.worldBreakStormActive || snapshot.worldBreakStormIndex < 0) return;
+    const center = this.project(snapshot.worldBreakStormSafeX, 0, snapshot.worldBreakStormDepth, width, height);
+    const half = Math.max(18, center.scale * snapshot.worldBreakStormWidth * 38);
+    context.save();
+    context.strokeStyle = "rgba(141,243,255,.88)";
+    context.lineWidth = Math.max(2, center.scale * 2.5);
+    context.setLineDash([8, 6]);
+    for (const x of [center.x - half, center.x + half]) {
+      context.beginPath();
+      context.moveTo(x, center.y - Math.max(42, center.scale * 48));
+      context.lineTo(x, center.y + Math.max(42, center.scale * 48));
+      context.stroke();
+    }
+    context.setLineDash([]);
+    context.fillStyle = "#ffe46b";
+    context.font = "800 10px system-ui, sans-serif";
+    context.textAlign = "center";
+    context.fillText(`LIGHTNING SAFE LANE ${snapshot.worldBreakStormIndex + 1}/${snapshot.worldBreakStormTotal}`, center.x, center.y - Math.max(48, center.scale * 55));
+    context.restore();
+  }
+
+  private drawWorldBreakFortressBreach(context: CanvasRenderingContext2D, snapshot: SkyDancerArcadeSnapshot, width: number, height: number): void {
+    if (!snapshot.worldBreakFortressBreachActive) return;
+    const center = this.project(snapshot.worldBreakFortressBreachX, snapshot.worldBreakFortressBreachY, snapshot.worldBreakFortressBreachDepth, width, height);
+    const gapX = Math.max(24, center.scale * snapshot.worldBreakFortressBreachRadiusX * 42);
+    const gapY = Math.max(20, center.scale * snapshot.worldBreakFortressBreachRadiusY * 34);
+    context.save();
+    context.strokeStyle = snapshot.worldBreakFortressBreachOpen ? "#75ffab" : "#ffe08a";
+    context.lineWidth = Math.max(2.5, center.scale * 3.2);
+    context.strokeRect(center.x - gapX, center.y - gapY, gapX * 2, gapY * 2);
+    if (!snapshot.worldBreakFortressBreachOpen) {
+      context.fillStyle = "rgba(77,52,33,.72)";
+      context.fillRect(center.x - gapX + 2, center.y - gapY + 2, gapX * 2 - 4, gapY * 2 - 4);
+    }
+    context.fillStyle = snapshot.worldBreakFortressBreachOpen ? "#75ffab" : "#ffe08a";
+    context.font = "800 10px system-ui, sans-serif";
+    context.textAlign = "center";
+    context.fillText(snapshot.worldBreakFortressBreachOpen ? "BREACH OPEN" : "DESTROY WALL BATTERIES", center.x, center.y - gapY - 8);
     context.restore();
   }
 

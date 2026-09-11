@@ -133,6 +133,8 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
   private readonly branchRoot = new THREE.Group();
   private readonly worldBreakRoot = new THREE.Group();
   private readonly worldBreakKnifeRoot = new THREE.Group();
+  private readonly worldBreakStormRoot = new THREE.Group();
+  private readonly worldBreakFortressRoot = new THREE.Group();
   private readonly enemyGroups = new Map<number, THREE.Group>();
   private readonly projectileMeshes = new Map<number, THREE.Mesh>();
   private readonly hazardGroups = new Map<number, THREE.Group>();
@@ -209,7 +211,9 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
     this.branchRoot.name = "arcade-route-gates";
     this.worldBreakRoot.name = "arcade-world-break-gates";
     this.worldBreakKnifeRoot.name = "arcade-world-break-knife-run";
-    this.worldBreakRoot.add(this.worldBreakKnifeRoot);
+    this.worldBreakStormRoot.name = "arcade-world-break-lightning-grid";
+    this.worldBreakFortressRoot.name = "arcade-world-break-fortress-gate";
+    this.worldBreakRoot.add(this.worldBreakKnifeRoot, this.worldBreakStormRoot, this.worldBreakFortressRoot);
     this.scene.add(this.entityRoot, this.projectileRoot, this.hazardRoot, this.branchRoot, this.worldBreakRoot, this.player);
     this.environment = new SkyDancerArcadeEnvironment(this.scene);
     this.environment.setStage(this.previousSnapshot.stage);
@@ -305,6 +309,8 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
     this.syncHazards(snapshot, delta);
     this.syncWorldBreakGates(snapshot, delta);
     this.syncWorldBreakKnifeRun(snapshot);
+    this.syncWorldBreakStormLane(snapshot);
+    this.syncWorldBreakFortressBreach(snapshot);
     this.syncBranchGates(snapshot, delta);
     this.syncEffects(snapshot);
     this.syncAudio(snapshot);
@@ -755,6 +761,101 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
     });
   }
 
+  private syncWorldBreakStormLane(snapshot: SkyDancerArcadeSnapshot): void {
+    const active = snapshot.stage.id === "storm-carrier"
+      && snapshot.worldBreakStormActive
+      && snapshot.worldBreakStormIndex >= 0;
+    this.worldBreakStormRoot.visible = active;
+    if (!active) return;
+    if (this.worldBreakStormRoot.children.length === 0) {
+      for (const side of [-1, 1]) {
+        const barrier = new THREE.Group();
+        barrier.name = side < 0 ? "arcade-world-break-storm-left" : "arcade-world-break-storm-right";
+        const material = new THREE.MeshBasicMaterial({
+          color: 0x8df3ff, transparent: true, opacity: .68, depthWrite: false,
+          blending: THREE.AdditiveBlending, toneMapped: false,
+        });
+        for (let rod = 0; rod < 7; rod += 1) {
+          const spark = new THREE.Mesh(new THREE.BoxGeometry(.16, 1.55, .22), material.clone());
+          spark.position.y = (rod - 3) * 1.72;
+          spark.rotation.z = (rod % 2 === 0 ? 1 : -1) * .08;
+          barrier.add(spark);
+        }
+        const rail = new THREE.Mesh(new THREE.BoxGeometry(.24, 11.8, .32), material.clone());
+        rail.material.opacity = .28;
+        barrier.add(rail);
+        this.worldBreakStormRoot.add(barrier);
+      }
+      const floorGuide = new THREE.Mesh(
+        new THREE.BoxGeometry(1, .08, 1.25),
+        new THREE.MeshBasicMaterial({ color: 0xffe46b, transparent: true, opacity: .55, depthWrite: false, toneMapped: false }),
+      );
+      floorGuide.name = "arcade-world-break-storm-guide";
+      floorGuide.position.y = -5.7;
+      this.worldBreakStormRoot.add(floorGuide);
+    }
+    const course = arcadeCourseRelativeVisualPose(snapshot.stage, snapshot.distance, snapshot.worldBreakStormDepth);
+    this.worldBreakStormRoot.position.set(snapshot.worldBreakStormSafeX * 8.4 + course.x, 1.2 + course.y, course.z);
+    this.worldBreakStormRoot.rotation.set(course.pitch, course.yaw, course.bank);
+    const corridorHalfWidth = Math.max(3.8, snapshot.worldBreakStormWidth * 8.4);
+    const left = this.worldBreakStormRoot.getObjectByName("arcade-world-break-storm-left");
+    const right = this.worldBreakStormRoot.getObjectByName("arcade-world-break-storm-right");
+    if (left) left.position.x = -corridorHalfWidth;
+    if (right) right.position.x = corridorHalfWidth;
+    const guide = this.worldBreakStormRoot.getObjectByName("arcade-world-break-storm-guide");
+    if (guide) guide.scale.x = corridorHalfWidth * 1.7;
+    const pulse = .54 + Math.sin(snapshot.runTimeSeconds * 18 + snapshot.worldBreakStormIndex) * .18;
+    this.worldBreakStormRoot.traverse((object) => {
+      if (!(object instanceof THREE.Mesh) || !(object.material instanceof THREE.MeshBasicMaterial)) return;
+      if (object.name === "arcade-world-break-storm-guide") object.material.opacity = .42 + pulse * .16;
+      else object.material.opacity = Math.max(.2, Math.min(.88, pulse));
+    });
+  }
+
+  private syncWorldBreakFortressBreach(snapshot: SkyDancerArcadeSnapshot): void {
+    const active = snapshot.stage.id === "desert-fortress" && snapshot.worldBreakFortressBreachActive;
+    this.worldBreakFortressRoot.visible = active;
+    if (!active) return;
+    if (this.worldBreakFortressRoot.children.length === 0) {
+      const stone = new THREE.MeshStandardMaterial({ color: 0x8d6940, roughness: .8, metalness: .08 });
+      const glow = new THREE.MeshBasicMaterial({ color: 0xffe08a, transparent: true, opacity: .78, depthWrite: false, toneMapped: false });
+      const shutterMaterial = new THREE.MeshBasicMaterial({ color: 0x4d3421, transparent: true, opacity: .88, depthWrite: true });
+      const left = new THREE.Mesh(new THREE.BoxGeometry(12, 19, 3.2), stone.clone());
+      const right = new THREE.Mesh(new THREE.BoxGeometry(12, 19, 3.2), stone.clone());
+      const top = new THREE.Mesh(new THREE.BoxGeometry(13, 6, 3.2), stone.clone());
+      left.position.set(-11.5, 0, 0); right.position.set(11.5, 0, 0); top.position.set(0, 7.7, 0);
+      this.worldBreakFortressRoot.add(left, right, top);
+      for (const [x, y, sx, sy] of [[-6.2, 0, .22, 10], [6.2, 0, .22, 10], [0, 5.1, 12.6, .22], [0, -5.1, 12.6, .22]] as const) {
+        const edge = new THREE.Mesh(new THREE.BoxGeometry(sx, sy, .4), glow.clone());
+        edge.position.set(x, y, -1.9);
+        edge.name = "arcade-world-break-fortress-edge";
+        this.worldBreakFortressRoot.add(edge);
+      }
+      const shutter = new THREE.Mesh(new THREE.BoxGeometry(11.8, 9.6, 2.2), shutterMaterial);
+      shutter.name = "arcade-world-break-fortress-shutter";
+      this.worldBreakFortressRoot.add(shutter);
+    }
+    const course = arcadeCourseRelativeVisualPose(snapshot.stage, snapshot.distance, snapshot.worldBreakFortressBreachDepth);
+    this.worldBreakFortressRoot.position.set(
+      snapshot.worldBreakFortressBreachX * 8.4 + course.x,
+      1.2 + snapshot.worldBreakFortressBreachY * 4.9 + course.y,
+      course.z,
+    );
+    this.worldBreakFortressRoot.rotation.set(course.pitch, course.yaw, course.bank);
+    const shutter = this.worldBreakFortressRoot.getObjectByName("arcade-world-break-fortress-shutter");
+    if (shutter instanceof THREE.Mesh && shutter.material instanceof THREE.MeshBasicMaterial) {
+      shutter.visible = !snapshot.worldBreakFortressBreachOpen;
+      shutter.material.opacity = snapshot.worldBreakFortressBreachResolved ? .25 : .88;
+    }
+    const edgeColor = snapshot.worldBreakFortressBreachOpen ? 0x75ffab : 0xffcf72;
+    const edgeOpacity = snapshot.worldBreakFortressBreachResolved ? .34 : .72 + Math.sin(snapshot.runTimeSeconds * 12) * .12;
+    for (const edge of this.worldBreakFortressRoot.getObjectsByProperty("name", "arcade-world-break-fortress-edge")) {
+      if (!(edge instanceof THREE.Mesh) || !(edge.material instanceof THREE.MeshBasicMaterial)) continue;
+      edge.material.color.setHex(edgeColor);
+      edge.material.opacity = edgeOpacity;
+    }
+  }
+
   private buildBranchGates(snapshot: SkyDancerArcadeSnapshot): void {
     for (const child of this.branchRoot.children) this.disposeObject(child);
     this.branchRoot.clear();
@@ -909,6 +1010,18 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
         this.presentation.emitBurst(position, impact.boss ? .62 : heavyCraft ? .52 : .42);
         this.cameraShake = Math.min(.38, this.cameraShake + .055);
       }
+    }
+    if (snapshot.worldBreakStormSerial !== this.previousSnapshot.worldBreakStormSerial) {
+      this.presentation.emitRushAccent();
+      this.cameraImpactKick = Math.max(this.cameraImpactKick, .22);
+      this.cameraShake = Math.min(.62, this.cameraShake + .18);
+      this.audio.tone(snapshot.worldBreakStormMisses > this.previousSnapshot.worldBreakStormMisses ? 72 : 420, .16, .022, "square");
+    }
+    if (snapshot.worldBreakFortressSerial !== this.previousSnapshot.worldBreakFortressSerial) {
+      this.presentation.emitRushAccent();
+      this.cameraImpactKick = Math.max(this.cameraImpactKick, .34);
+      this.cameraShake = Math.min(.72, this.cameraShake + .22);
+      this.audio.tone(snapshot.worldBreakFortressBreachOpen ? 260 : 92, .22, .028, "sawtooth");
     }
     if (snapshot.bossPhaseSerial !== this.previousSnapshot.bossPhaseSerial) {
       this.presentation.emitRushAccent();
@@ -1098,10 +1211,17 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
     }
     for (const group of this.hazardGroups.values()) this.disposeObject(group);
     for (const group of this.worldBreakGateGroups.values()) this.disposeObject(group);
+    for (const child of this.worldBreakKnifeRoot.children) this.disposeObject(child);
+    for (const child of this.worldBreakStormRoot.children) this.disposeObject(child);
+    for (const child of this.worldBreakFortressRoot.children) this.disposeObject(child);
     this.entityRoot.clear();
     this.projectileRoot.clear();
     this.hazardRoot.clear();
+    this.worldBreakKnifeRoot.clear();
+    this.worldBreakStormRoot.clear();
+    this.worldBreakFortressRoot.clear();
     this.worldBreakRoot.clear();
+    this.worldBreakRoot.add(this.worldBreakKnifeRoot, this.worldBreakStormRoot, this.worldBreakFortressRoot);
     this.enemyGroups.clear();
     this.projectileMeshes.clear();
     this.hazardGroups.clear();
