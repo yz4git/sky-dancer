@@ -779,6 +779,9 @@ export class SkyDancerArcadeRuntime {
     }
     if (this.status === "paused" || this.status === "continue" || this.status === "game-over" || this.status === "run-clear" || this.status === "practice-clear") return;
     if (this.status === "stage-clear") {
+      // V31: keep the last course frame alive during the result card. Actors retire harmlessly
+      // and the scenery continues drifting, so the next stage feels like a flight handoff rather than a frozen cut.
+      this.updateStageClearPresentation(delta);
       this.resultTimer = Math.max(0, this.resultTimer - delta);
       if (this.resultTimer <= 0) this.advanceAfterStageClear();
       return;
@@ -2123,12 +2126,93 @@ export class SkyDancerArcadeRuntime {
   private breakClimaxTargetAtCourseEnd(): void {
     const boss = this.enemies.find((enemy) => enemy.alive && enemy.boss);
     if (boss) {
-      boss.alive = false;
+      // V31: an undefeated climax target disengages into the distance instead of being deleted on the time-limit frame.
       boss.locked = false;
+      boss.retreating = true;
+      boss.retreatTimer = 0;
+      boss.retreatSign = boss.x < -0.05 ? -1 : boss.x > 0.05 ? 1 : boss.id % 2 === 0 ? -1 : 1;
+      boss.retreatDepthDirection = 1;
+      boss.counterplay = "none";
+      boss.counterplayTimer = 0;
+      boss.counterplayIntensity = 0;
+      boss.fireCooldown = 999;
     }
     this.bossDefeated = true;
-    this.message = "COURSE BREAK · ROUTE CONTINUES";
-    this.messageTimer = 0.8;
+    this.message = "COURSE BREAK · TARGET DISENGAGING";
+    this.messageTimer = 1.35;
+  }
+
+  private retireStagePresentationActors(): void {
+    for (const enemy of this.enemies) {
+      if (!enemy.alive) continue;
+      enemy.locked = false;
+      enemy.retreating = true;
+      enemy.retreatTimer ??= 0;
+      enemy.retreatSign ??= enemy.x < -0.05 ? -1 : enemy.x > 0.05 ? 1 : enemy.id % 2 === 0 ? -1 : 1;
+      // Stage handoff always opens the forward corridor. Standard craft may finish a close fly-by;
+      // bosses and distant actors recede into the route ahead.
+      enemy.retreatDepthDirection ??= enemy.boss || enemy.depth > 30 ? 1 : -1;
+      enemy.counterplay = "none";
+      enemy.counterplayTimer = 0;
+      enemy.counterplayIntensity = 0;
+      enemy.fireCooldown = 999;
+    }
+    for (const projectile of this.projectiles) {
+      if (projectile.life <= 0) continue;
+      if (projectile.owner === "enemy") {
+        projectile.retiring = true;
+        projectile.damage = 0;
+        projectile.guidance = 0;
+      }
+      projectile.life = Math.min(projectile.life, 1.15);
+    }
+    for (const hazard of this.hazards) {
+      hazard.retiring = true;
+      hazard.courseAnchorDistance = null;
+      hazard.speed = Math.max(hazard.speed, 68);
+    }
+  }
+
+  private updateStageClearPresentation(delta: number): void {
+    // Presentation-only motion: no weapons, collision, scoring, HP or encounter director is advanced here.
+    this.distance += this.stage.courseSpeed * .52 * delta;
+    this.messageTimer = Math.max(0, this.messageTimer - delta);
+    if (this.messageTimer <= 0) this.message = null;
+
+    for (const enemy of this.enemies) {
+      if (!enemy.alive || !enemy.retreating) continue;
+      enemy.retreatTimer = (enemy.retreatTimer ?? 0) + delta;
+      const timer = enemy.retreatTimer;
+      const sign = enemy.retreatSign ?? (enemy.x < 0 ? -1 : 1);
+      const depthDirection = enemy.retreatDepthDirection ?? 1;
+      const lateralTarget = sign * (enemy.boss ? 1.35 : 2.48);
+      const verticalTarget = (enemy.id % 3 === 0 ? -1 : 1) * (enemy.boss ? .72 : 1.42);
+      const lateralResponse = 1 - Math.exp(-delta * (enemy.boss ? 1.55 : 3.05));
+      const verticalResponse = 1 - Math.exp(-delta * (enemy.boss ? 1.25 : 2.45));
+      enemy.x += (lateralTarget - enemy.x) * lateralResponse;
+      enemy.y += (verticalTarget - enemy.y) * verticalResponse;
+      const exitSpeed = enemy.boss
+        ? 34 + Math.min(28, timer * 18)
+        : Math.max(30, enemy.speed * (depthDirection < 0 ? 2.75 : 2.2)) * (1 + Math.min(.48, timer * .34));
+      enemy.depth += depthDirection * exitSpeed * delta;
+      if ((depthDirection < 0 && enemy.depth < -12.5) || (depthDirection > 0 && enemy.depth > 132) || timer > 2.2) {
+        enemy.alive = false;
+      }
+    }
+
+    for (const projectile of this.projectiles) {
+      if (projectile.life <= 0) continue;
+      projectile.life = Math.max(0, projectile.life - delta);
+      projectile.x += projectile.vx * delta;
+      projectile.y += projectile.vy * delta;
+      projectile.depth += (projectile.owner === "enemy" ? -1 : 1) * projectile.speed * delta;
+    }
+    for (const hazard of this.hazards) {
+      hazard.courseAnchorDistance = null;
+      hazard.depth -= Math.max(68, hazard.speed * 3.2) * delta;
+      if (hazard.depth < -5.8) hazard.depth = -10;
+    }
+    this.cleanupEntities();
   }
 
   private completeStage(): void {
@@ -2165,6 +2249,7 @@ export class SkyDancerArcadeRuntime {
     this.lastStageMedals = medals;
     this.lastStageScoreBreakdown = breakdown;
     this.runMedalsEarned += medals.filter(medal => medal.earned).length;
+    this.retireStagePresentationActors();
     this.status = "stage-clear";
     this.resultTimer = this.options.mode === "stage-practice" ? PRACTICE_RESULT_SECONDS : ARCADE_SECTION_RESULT_SECONDS;
     this.resultSerial += 1;
@@ -2206,7 +2291,8 @@ export class SkyDancerArcadeRuntime {
   }
 
   getSnapshot(): SkyDancerArcadeSnapshot {
-    const boss = this.enemies.find((enemy) => enemy.alive && enemy.boss) ?? null;
+    // A retreating boss remains in the 3D snapshot for the exit shot but no longer owns combat HUD state.
+    const boss = this.enemies.find((enemy) => enemy.alive && enemy.boss && !enemy.retreating) ?? null;
     const lockedCount = this.enemies.filter((enemy) => enemy.alive && enemy.locked).length;
     const activeCounterplays = this.enemies.filter((enemy) => enemy.alive && enemy.counterplay !== "none");
     const stageScore = this.score - this.stageStats.scoreAtStart;
