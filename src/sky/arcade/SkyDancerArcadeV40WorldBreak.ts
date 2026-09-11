@@ -1,4 +1,4 @@
-import type { SkyDancerArcadeStageId } from "./SkyDancerArcadeData";
+import type { SkyDancerArcadeEnemyKind, SkyDancerArcadeStageId } from "./SkyDancerArcadeData";
 
 export type SkyDancerArcadeV40RouteDoctrine = "LOCKED" | "SAFE" | "SCORE" | "DANGER";
 
@@ -29,10 +29,21 @@ export interface SkyDancerArcadeV40GateDefinition {
   score: number;
 }
 
+export interface SkyDancerArcadeV40FleetTargetDefinition {
+  index: number;
+  progress: number;
+  x: number;
+  y: number;
+  kind: SkyDancerArcadeEnemyKind;
+  label: string;
+  hp: number;
+  score: number;
+}
+
 const PROFILES: Record<SkyDancerArcadeStageId, SkyDancerArcadeV40WorldProfile> = {
   "dawn-city": { stageId: "dawn-city", objective: "THREAD SKYLINE GATES", signature: "TOWER SLALOM", live: true },
-  "red-canyon": { stageId: "red-canyon", objective: "HOLD LOW ALTITUDE", signature: "KNIFE RUN", live: false },
-  "cloud-fleet": { stageId: "cloud-fleet", objective: "DISMANTLE THE FLAGSHIP", signature: "DECK STRIKE", live: false },
+  "red-canyon": { stageId: "red-canyon", objective: "HOLD LOW ALTITUDE", signature: "KNIFE RUN", live: true },
+  "cloud-fleet": { stageId: "cloud-fleet", objective: "DISMANTLE THE FLAGSHIP", signature: "DECK STRIKE", live: true },
   "storm-carrier": { stageId: "storm-carrier", objective: "READ THE SAFE LANE", signature: "LIGHTNING GRID", live: false },
   "desert-fortress": { stageId: "desert-fortress", objective: "BREACH THE WALL", signature: "FORTRESS GATE", live: false },
   "ice-cavern": { stageId: "ice-cavern", objective: "ESCAPE THE COLLAPSE", signature: "CRYSTAL TUNNEL", live: false },
@@ -88,6 +99,17 @@ export const SKY_DANCER_ARCADE_V40_DAWN_CITY_GATES: readonly SkyDancerArcadeV40G
   { index: 2, progress: .255, x: -.18, y: .34, radiusX: .68, radiusY: .68, score: 1400 },
 ];
 
+export const SKY_DANCER_ARCADE_V40_RED_CANYON_KNIFE_START = .12;
+export const SKY_DANCER_ARCADE_V40_RED_CANYON_KNIFE_END = .31;
+export const SKY_DANCER_ARCADE_V40_RED_CANYON_KNIFE_CEILING_Y = -.46;
+export const SKY_DANCER_ARCADE_V40_RED_CANYON_KNIFE_TARGET_SECONDS = 3.45;
+
+export const SKY_DANCER_ARCADE_V40_CLOUD_FLEET_TARGETS: readonly SkyDancerArcadeV40FleetTargetDefinition[] = [
+  { index: 0, progress: .17, x: -1.28, y: .18, kind: "missile-boat", label: "PORT BATTERY", hp: 62, score: 1800 },
+  { index: 1, progress: .245, x: 1.18, y: -.12, kind: "gunship", label: "ENGINE ARRAY", hp: 88, score: 2400 },
+  { index: 2, progress: .335, x: .02, y: .28, kind: "bomber", label: "BRIDGE CORE", hp: 118, score: 3600 },
+];
+
 export function skyDancerArcadeV40WorldProfile(stageId: SkyDancerArcadeStageId): SkyDancerArcadeV40WorldProfile {
   return PROFILES[stageId];
 }
@@ -109,4 +131,12 @@ export function skyDancerArcadeV40DawnCityGateAnchorDistance(
   courseSpeed: number,
 ): number {
   return Math.max(0, stageDurationSeconds) * Math.max(0, courseSpeed) * gate.progress;
+}
+
+export function skyDancerArcadeV40FleetTargetAnchorDistance(
+  target: SkyDancerArcadeV40FleetTargetDefinition,
+  stageDurationSeconds: number,
+  courseSpeed: number,
+): number {
+  return Math.max(0, stageDurationSeconds) * Math.max(0, courseSpeed) * target.progress;
 }
