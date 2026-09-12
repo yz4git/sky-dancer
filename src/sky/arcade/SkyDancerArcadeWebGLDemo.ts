@@ -43,6 +43,7 @@ import {
 } from "./SkyDancerArcadeV4011ScreenStress";
 import { skyDancerArcadeV4012RunRhythm } from "./SkyDancerArcadeV4012RunRhythm";
 import { skyDancerArcadeV4015StageReadability } from "./SkyDancerArcadeV4015StageReadability";
+import { skyDancerArcadeV4017ForegroundClearance } from "./SkyDancerArcadeV4017ForegroundClearance";
 import {
   createSkyDancerArcadeEnemy,
   createSkyDancerArcadeHazard,
@@ -560,7 +561,20 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
         reaction.pitch *= damping; reaction.roll *= damping; reaction.flash = Math.max(0, reaction.flash - delta * 5.6);
         if (Math.abs(reaction.x) + Math.abs(reaction.y) + Math.abs(reaction.z) + Math.abs(reaction.roll) + reaction.flash < .018) this.enemyHitReactions.delete(enemy.id);
       }
-      const targetX = enemy.x * 8.4 + course.x + (reaction?.x ?? 0);
+      const v4017Clearance = skyDancerArcadeV4017ForegroundClearance({
+        compactLandscape: compactLandscapeV271,
+        focusPressure: v4015Readability.focusPressure,
+        protectedTarget: Boolean(enemy.boss || enemy.rivalAce || enemy.worldBreakTarget || primaryLockIdsV271.has(enemy.id)),
+        entityId: enemy.id,
+        entityX: enemy.x,
+        entityY: enemy.y,
+        entityDepth: enemy.depth,
+        focusX: v4010PriorityTarget?.x ?? snapshot.playerX,
+        focusY: v4010PriorityTarget?.y ?? snapshot.playerY,
+        focusDepth: v4010PriorityTarget?.depth ?? 18,
+        hasFocusTarget: Boolean(v4010PriorityTarget),
+      });
+      const targetX = enemy.x * 8.4 + course.x + (reaction?.x ?? 0) + v4017Clearance.offsetX * 8.4;
       const targetY = 1.2 + enemy.y * 4.9 + course.y + (reaction?.y ?? 0);
       const targetZ = course.z + (reaction?.z ?? 0);
       group.position.x += (targetX - group.position.x) * Math.min(1, delta * 13);
@@ -753,7 +767,7 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
           focusDepth: v4010PriorityTarget?.depth ?? 18,
           hasFocusTarget: Boolean(v4010PriorityTarget),
         });
-        group.scale.setScalar(baseScale * maneuverPresence * closePresenceV27 * impactPulse * v4010Occlusion.scale);
+        group.scale.setScalar(baseScale * maneuverPresence * closePresenceV27 * impactPulse * v4010Occlusion.scale * v4017Clearance.scale);
         if (enemy.counterplay === "armor-brace") { group.scale.x *= 1.045; group.scale.y *= .96; }
         if (enemy.counterplay === "evasive-roll") group.rotation.z += Math.sin(snapshot.runTimeSeconds * 12 + enemy.id) * .065 * enemy.counterplayIntensity;
       }
