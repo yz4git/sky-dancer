@@ -42,6 +42,7 @@ import {
   skyDancerArcadeV4011ScreenStress,
 } from "./SkyDancerArcadeV4011ScreenStress";
 import { skyDancerArcadeV4012RunRhythm } from "./SkyDancerArcadeV4012RunRhythm";
+import { skyDancerArcadeV4015StageReadability } from "./SkyDancerArcadeV4015StageReadability";
 import {
   createSkyDancerArcadeEnemy,
   createSkyDancerArcadeHazard,
@@ -470,14 +471,21 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
     });
     v409Clarity = v4011Stress.clarity;
     const v4011OcclusionProfile = v4011Stress.occlusion;
-    this.v4010FxClarity = v4011Stress.pressure > 0 ? v4011Stress.fxClarity : v4010Profile.fxClarity;
+    const v4015BaseFxClarity = v4011Stress.pressure > 0 ? v4011Stress.fxClarity : v4010Profile.fxClarity;
     const v4012Rhythm = skyDancerArcadeV4012RunRhythm({
       status: snapshot.status, stageId: snapshot.stage.id, stageNumber: snapshot.stageNumber,
       stageProgress: snapshot.stageProgress, stageTimeSeconds: snapshot.stageTimeSeconds,
       stageDurationSeconds: snapshot.stageDurationSeconds, worldBreakLive: snapshot.worldBreakLive,
       rivalAceActive: snapshot.rivalAceActive, bossActive: snapshot.bossActive,
     });
-    this.v4011SpeedStreakAlpha = v4011Stress.speedStreakAlpha * v4012Rhythm.speedLineGain;
+    const v4015Readability = skyDancerArcadeV4015StageReadability({
+      compactLandscape: compactLandscapeV271, stageId: snapshot.stage.id, rhythmPhase: v4012Rhythm.phase,
+      screenStress: v4011Stress.pressure, bossActive: snapshot.bossActive, turboActive: snapshot.turboActive,
+      baseFxClarity: v4015BaseFxClarity,
+      baseSpeedLineAlpha: v4011Stress.speedStreakAlpha * v4012Rhythm.speedLineGain,
+    });
+    this.v4010FxClarity = v4015Readability.fxClarity;
+    this.v4011SpeedStreakAlpha = v4015Readability.speedLineAlpha;
     const v4010PriorityTarget = v409Focus.mode === "boss"
       ? snapshot.enemies.find((enemy) => enemy.boss) ?? null
       : v409Focus.mode === "rival"
