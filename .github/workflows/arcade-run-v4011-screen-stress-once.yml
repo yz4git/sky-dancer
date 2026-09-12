@@ -45,3 +45,5 @@ jobs:
           git add src/sky/arcade/SkyDancerArcadeV4011ScreenStress.ts src/sky/arcade/SkyDancerArcadeWebGLDemo.ts src/sky/arcade/SkyDancerArcadeCanvasDemo.ts src/sky/arcade/SkyDancerArcadeProductPresentation.ts tests/sky-arcade-v4011-screen-stress.test.ts
           git commit -m "Arcade Run V40.11: harden worst-case phone clarity"
           git push origin HEAD:main
+
+# retry: preserve V40.9/V40.10 source-contract assertions while layering V40.11
