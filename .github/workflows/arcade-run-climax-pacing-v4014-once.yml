@@ -1,4 +1,5 @@
 name: Arcade Run V40.14 climax pacing
+# Retry after preserving first-ingress behavior while allowing deterministic phase tests.
 
 on:
   push:
