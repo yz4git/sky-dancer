@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import type { SkyDancerArcadeStageDefinition } from "./SkyDancerArcadeData";
+import type { SkyDancerArcadeV4018EnvironmentFramingProfile } from "./SkyDancerArcadeV4018EnvironmentFraming";
 import { bakeArcadeAirframe } from "./SkyDancerArcadeReferenceAirframes";
 import { arcadeCoursePose, arcadeCourseRelativeVisualPose } from "./SkyDancerArcadeCoursePath";
 import {
@@ -115,6 +116,9 @@ export class SkyDancerArcadeReferenceWorld {
   private stage:SkyDancerArcadeStageDefinition|null=null;
   private water:THREE.ShaderMaterial|null=null;
   private readonly matrixObject=new THREE.Object3D();
+  private v4018ChunkSpreadX=1;
+  private v4018BackdropSpreadX=1;
+  private v4018BackdropShiftX=0;
 
   constructor(private readonly scene:THREE.Scene) {
     this.root.name="arcade-course-environment";scene.add(this.root);
@@ -128,6 +132,7 @@ export class SkyDancerArcadeReferenceWorld {
 
   setStage(stage:SkyDancerArcadeStageDefinition):void {
     if(this.stage?.id===stage.id)return;
+    this.v4018ChunkSpreadX=1;this.v4018BackdropSpreadX=1;this.v4018BackdropShiftX=0;
     disposeTree(this.root);this.water?.dispose();this.chunks.length=0;this.routeCues.length=0;this.iceRibbon=null;this.volcanoRibbon=null;this.cityRiver=null;this.cityBanks=null;this.terrainRibbon=null;this.backdrop=null;
     this.stage=stage;
     const palette=referenceAtmosphere(stage);
@@ -159,8 +164,21 @@ export class SkyDancerArcadeReferenceWorld {
     this.update(0,0,0);
   }
 
-  update(distance:number,playerX:number,playerY:number):void {
+  update(
+    distance:number,
+    playerX:number,
+    playerY:number,
+    framingV4018?:SkyDancerArcadeV4018EnvironmentFramingProfile,
+    deltaV4018=1/60,
+  ):void {
     if(!this.stage)return;
+    const framingBlendV4018=1-Math.exp(-Math.max(0,deltaV4018)*5.8);
+    const targetChunkSpreadV4018=framingV4018?.chunkSpreadX ?? 1;
+    const targetBackdropSpreadV4018=framingV4018?.backdropSpreadX ?? 1;
+    const targetBackdropShiftV4018=framingV4018?.backdropShiftX ?? 0;
+    this.v4018ChunkSpreadX+=(targetChunkSpreadV4018-this.v4018ChunkSpreadX)*framingBlendV4018;
+    this.v4018BackdropSpreadX+=(targetBackdropSpreadV4018-this.v4018BackdropSpreadX)*framingBlendV4018;
+    this.v4018BackdropShiftX+=(targetBackdropShiftV4018-this.v4018BackdropShiftX)*framingBlendV4018;
     const sceneryAttitude=arcadeSharedSceneryAttitudeV1041(this.stage,distance);
     for(const chunk of this.chunks) {
       const local=((chunk.index*CHUNK_LENGTH-distance)%WORLD_SPAN+WORLD_SPAN)%WORLD_SPAN;
@@ -169,6 +187,8 @@ export class SkyDancerArcadeReferenceWorld {
       const depth=local-140;
       const course=arcadeCourseRelativeVisualPose(this.stage,distance,depth);
       chunk.group.position.set(course.x-playerX*.35,course.y-playerY*.16,course.z);
+      chunk.group.scale.x=this.v4018ChunkSpreadX;
+      chunk.group.userData.arcadeV4018DecorativeFraming=true;
       // V10.4.1: rigid decorative scenery shares ONE attitude for the whole visible world.
       // Before this, each 112m chunk used its own tangent and visibly swivelled like a separate card.
       // Centres still follow the route; only genuine route geometry (terrain/ribbons/cues) bends by depth.
@@ -179,7 +199,9 @@ export class SkyDancerArcadeReferenceWorld {
     }
     if(this.backdrop){
       const here=arcadeCoursePose(this.stage,distance);
-      this.backdrop.position.set(-here.x*.16,-here.y*.10,0);
+      this.backdrop.position.set(-here.x*.16+this.v4018BackdropShiftX,-here.y*.10,0);
+      this.backdrop.scale.x=this.v4018BackdropSpreadX;
+      this.backdrop.userData.arcadeV4018DecorativeFraming=true;
       this.backdrop.rotation.set(sceneryAttitude.pitch,sceneryAttitude.yaw,sceneryAttitude.roll);
       this.backdrop.userData.arcadeUnifiedHorizonFrameV104=true;
       this.backdrop.userData.arcadeSharedSceneryAttitudeV1041=true;

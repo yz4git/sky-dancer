@@ -44,6 +44,7 @@ import {
 import { skyDancerArcadeV4012RunRhythm } from "./SkyDancerArcadeV4012RunRhythm";
 import { skyDancerArcadeV4015StageReadability } from "./SkyDancerArcadeV4015StageReadability";
 import { skyDancerArcadeV4017ForegroundClearance } from "./SkyDancerArcadeV4017ForegroundClearance";
+import { skyDancerArcadeV4018EnvironmentFraming } from "./SkyDancerArcadeV4018EnvironmentFraming";
 import {
   createSkyDancerArcadeEnemy,
   createSkyDancerArcadeHazard,
@@ -379,6 +380,12 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
       stageDurationSeconds: snapshot.stageDurationSeconds, worldBreakLive: snapshot.worldBreakLive,
       rivalAceActive: snapshot.rivalAceActive, bossActive: snapshot.bossActive,
     });
+    const v4018Framing = skyDancerArcadeV4018EnvironmentFraming({
+      compactLandscape: this.renderWidth > this.renderHeight && this.renderHeight <= 560,
+      stageBiome: snapshot.stage.biome,
+      stageOrder: snapshot.stage.order,
+      rhythmPhase: v4012Rhythm.phase,
+    });
     this.presentationFx.bloomBoost = Math.max(this.presentationFx.bloomBoost, v408Focus.bloomBoost * v4012Rhythm.ambientFxGain);
     this.presentationFx.boss = Math.max(this.presentationFx.boss, v408Focus.bossBoost * v4012Rhythm.cameraGain);
     this.presentationFx.transition = Math.max(this.presentationFx.transition, v408Focus.transitionBoost * v4012Rhythm.ambientFxGain);
@@ -395,7 +402,7 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
       this.clearEntityVisuals();
       this.buildBranchGates(snapshot);
     }
-    this.environment.update(snapshot.distance, snapshot.playerX, snapshot.playerY);
+    this.environment.update(snapshot.distance, snapshot.playerX, snapshot.playerY, v4018Framing, delta);
     this.v11Setpieces.update(snapshot);
     this.syncPlayer(snapshot, delta);
     this.syncEnemies(snapshot, delta);
