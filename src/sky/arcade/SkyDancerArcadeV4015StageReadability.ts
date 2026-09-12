@@ -54,6 +54,7 @@ const clamp01 = (value: number) => clamp(value, 0, 1);
  * V40.15 keeps each stage's authored identity while creating a cleaner hero corridor when the
  * player must read a signature target, rival or boss on a phone-sized landscape viewport.
  * It is presentation-only: simulation, spawns, hit rules, difficulty and timing are untouched.
+ * This module is also the normal-push verification surface for the V40.15 WebGL/Pages audit.
  */
 export function skyDancerArcadeV4015StageReadability(input: SkyDancerArcadeV4015Input): SkyDancerArcadeV4015Profile {
   const stageNoise = STAGE_NOISE[input.stageId];
