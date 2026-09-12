@@ -5,6 +5,7 @@ import { skyDancerArcadeV406FinalBossCue, skyDancerArcadeV406FormMotion, skyDanc
 import { skyDancerArcadeV408SceneFocus } from "./SkyDancerArcadeV408CinematicFocus";
 import { skyDancerArcadeV409PhoneClarity } from "./SkyDancerArcadeV409PhoneClarity";
 import { skyDancerArcadeV4010DynamicOcclusion, skyDancerArcadeV4010EntityOcclusion } from "./SkyDancerArcadeV4010DynamicOcclusion";
+import { skyDancerArcadeV4011ForegroundCraftCount, skyDancerArcadeV4011ScreenStress } from "./SkyDancerArcadeV4011ScreenStress";
 
 type SnapshotHandler = (snapshot: SkyDancerArcadeSnapshot) => void;
 
@@ -83,6 +84,15 @@ export class SkyDancerArcadeCanvasDemo implements SkyDancerArcadeDemoHandle {
       sceneMode: v409Focus.mode,
       incomingThreats: v409IncomingThreats,
     });
+    const v4011ForegroundCraft = skyDancerArcadeV4011ForegroundCraftCount(snapshot.enemies, snapshot.playerX, snapshot.playerY);
+    const v4011Stress = skyDancerArcadeV4011ScreenStress({
+      compactLandscape: cssWidth > cssHeight && cssHeight <= 560, sceneMode: v409Focus.mode,
+      incomingThreats: v409IncomingThreats, foregroundCraft: v4011ForegroundCraft,
+      impactCount: snapshot.impacts.length, destroyedImpacts: snapshot.impacts.filter((impact) => impact.destroyed).length,
+      worldBreakLive: snapshot.worldBreakLive, baseOcclusion: v4010Profile, baseClarity: v409Clarity,
+    });
+    const v4011CanvasLockLimit = Math.min(v409Clarity.canvasLockLimit, v4011Stress.clarity.canvasLockLimit);
+    const v4011OcclusionProfile = v4011Stress.occlusion;
     const v4010PriorityTarget = v409Focus.mode === "boss"
       ? snapshot.enemies.find((enemy) => enemy.boss) ?? null
       : v409Focus.mode === "rival"
@@ -97,7 +107,7 @@ export class SkyDancerArcadeCanvasDemo implements SkyDancerArcadeDemoHandle {
         const priorityB = b.boss ? 3 : b.rivalAce ? 2 : b.worldBreakTarget ? 1 : 0;
         return priorityB - priorityA || a.depth - b.depth;
       })
-      .slice(0, v409Clarity.canvasLockLimit)
+      .slice(0, v4011CanvasLockLimit)
       .map((enemy) => enemy.id));
     const gradient = context.createLinearGradient(0, 0, 0, cssHeight);
     gradient.addColorStop(0, `#${palette.sky.toString(16).padStart(6, "0")}`);
@@ -135,7 +145,7 @@ export class SkyDancerArcadeCanvasDemo implements SkyDancerArcadeDemoHandle {
       const projected = this.project(enemy.x, enemy.y, enemy.depth, cssWidth, cssHeight);
       const readabilityScale = skyDancerArcadeEnemyVisualScaleV17(enemy.kind);
       const v4010Occlusion = skyDancerArcadeV4010EntityOcclusion({
-        profile: v4010Profile,
+        profile: v4011OcclusionProfile,
         protectedTarget: Boolean(enemy.boss || enemy.rivalAce || enemy.worldBreakTarget || v409PrimaryLockIds.has(enemy.id)),
         entityX: enemy.x, entityY: enemy.y, entityDepth: enemy.depth,
         centerX: snapshot.playerX, centerY: snapshot.playerY,

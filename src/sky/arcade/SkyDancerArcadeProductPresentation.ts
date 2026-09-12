@@ -612,6 +612,7 @@ export class SkyDancerArcadeProductPresentation {
     camera: THREE.Camera,
     fx: SkyDancerArcadePresentationFrame | undefined = undefined,
     clarity: SkyDancerArcadeV4010FxClarity = SKY_DANCER_ARCADE_V4010_DEFAULT_FX_CLARITY,
+    speedStreakAlpha = 1,
   ): void {
     this.smoke.setClarityAlpha(clarity.smokeAlpha);
     this.sparks.setClarityAlpha(clarity.sparkAlpha);
@@ -620,7 +621,7 @@ export class SkyDancerArcadeProductPresentation {
     this.debris.setClarityScale(clarity.debrisScale);
     this.rushAccent = Math.max(0, this.rushAccent - delta * 4.2);
     this.bossArrival = Math.max(0, this.bossArrival - delta * 1.55);
-    this.updateSpeedStreaks(snapshot, delta, fx);
+    this.updateSpeedStreaks(snapshot, delta, fx, speedStreakAlpha);
     this.right.setFromMatrixColumn(camera.matrixWorld, 0);
     this.updateProjectileTrails(snapshot, delta);
     this.updatePendingBursts(delta);
@@ -631,7 +632,7 @@ export class SkyDancerArcadeProductPresentation {
     this.smoke.update(delta, camera); this.sparks.update(delta, camera);
   }
 
-  private updateSpeedStreaks(snapshot: SkyDancerArcadeSnapshot, delta: number, fx?: SkyDancerArcadePresentationFrame): void {
+  private updateSpeedStreaks(snapshot: SkyDancerArcadeSnapshot, delta: number, fx?: SkyDancerArcadePresentationFrame, stressAlpha = 1): void {
     const impactBoost = Math.min(1, this.climaxEnergy);
     const rush = Math.min(1.35, (fx?.rush ?? 0) + this.rushAccent * .58 + this.bossArrival * .18);
     const speed = (snapshot.turboActive ? 205 : 78) + impactBoost * 82 + rush * 68;
@@ -646,7 +647,7 @@ export class SkyDancerArcadeProductPresentation {
       this.speedPositions.set([x, y, z, x, y, z - length], j);
     }
     this.speedGeometry.getAttribute("position").needsUpdate = true;
-    const targetOpacity = Math.min(.76, (snapshot.turboActive ? .52 : .075) + impactBoost * .24 + rush * .16 + this.bossArrival * .09);
+    const targetOpacity = Math.min(.76, ((snapshot.turboActive ? .52 : .075) + impactBoost * .24 + rush * .16 + this.bossArrival * .09) * THREE.MathUtils.clamp(stressAlpha, .58, 1));
     this.speedMaterial.opacity += (targetOpacity - this.speedMaterial.opacity) * Math.min(1, delta * 8);
   }
 

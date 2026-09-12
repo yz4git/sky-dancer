@@ -38,6 +38,10 @@ import {
   skyDancerArcadeV4010EntityOcclusion,
 } from "./SkyDancerArcadeV4010DynamicOcclusion";
 import {
+  skyDancerArcadeV4011ForegroundCraftCount,
+  skyDancerArcadeV4011ScreenStress,
+} from "./SkyDancerArcadeV4011ScreenStress";
+import {
   createSkyDancerArcadeEnemy,
   createSkyDancerArcadeHazard,
   createSkyDancerArcadeLockRing,
@@ -231,6 +235,7 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
   private readonly presentationDirector = new SkyDancerArcadePresentationDirector();
   private presentationFx: SkyDancerArcadePresentationFrame = { rush: 0, turboKick: 0, nearMiss: 0, impact: 0, damage: 0, kill: 0, boss: 0, transition: 0, fovKick: 0, cameraShake: 0, pullback: 0, bloomBoost: 0, exposureBoost: 0 };
   private v4010FxClarity = SKY_DANCER_ARCADE_V4010_DEFAULT_FX_CLARITY;
+  private v4011SpeedStreakAlpha = 1;
 
   constructor(
     mount: HTMLElement,
@@ -405,7 +410,7 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
     this.syncAudio(snapshot);
     this.updateCamera(snapshot, delta);
     this.camera.updateMatrixWorld();
-    this.presentation.update(snapshot, delta, this.camera, this.presentationFx, this.v4010FxClarity);
+    this.presentation.update(snapshot, delta, this.camera, this.presentationFx, this.v4010FxClarity, this.v4011SpeedStreakAlpha);
   }
 
   private syncPlayer(snapshot: SkyDancerArcadeSnapshot, delta: number): void {
@@ -443,13 +448,23 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
     const v409IncomingThreats = snapshot.projectiles.filter((projectile) =>
       projectile.owner === "enemy" && projectile.depth > 2.2 && projectile.depth < 30
     ).length;
-    const v409Clarity = skyDancerArcadeV409PhoneClarity({
+    let v409Clarity = skyDancerArcadeV409PhoneClarity({
       compactLandscape: compactLandscapeV271, sceneMode: v409Focus.mode, incomingThreats: v409IncomingThreats,
     });
     const v4010Profile = skyDancerArcadeV4010DynamicOcclusion({
       compactLandscape: compactLandscapeV271, sceneMode: v409Focus.mode, incomingThreats: v409IncomingThreats,
     });
-    this.v4010FxClarity = v4010Profile.fxClarity;
+    const v4011ForegroundCraft = skyDancerArcadeV4011ForegroundCraftCount(snapshot.enemies, snapshot.playerX, snapshot.playerY);
+    const v4011Stress = skyDancerArcadeV4011ScreenStress({
+      compactLandscape: compactLandscapeV271, sceneMode: v409Focus.mode, incomingThreats: v409IncomingThreats,
+      foregroundCraft: v4011ForegroundCraft, impactCount: snapshot.impacts.length,
+      destroyedImpacts: snapshot.impacts.filter((impact) => impact.destroyed).length,
+      worldBreakLive: snapshot.worldBreakLive, baseOcclusion: v4010Profile, baseClarity: v409Clarity,
+    });
+    v409Clarity = v4011Stress.clarity;
+    const v4011OcclusionProfile = v4011Stress.occlusion;
+    this.v4010FxClarity = v4011Stress.pressure > 0 ? v4011Stress.fxClarity : v4010Profile.fxClarity;
+    this.v4011SpeedStreakAlpha = v4011Stress.speedStreakAlpha;
     const v4010PriorityTarget = v409Focus.mode === "boss"
       ? snapshot.enemies.find((enemy) => enemy.boss) ?? null
       : v409Focus.mode === "rival"
@@ -708,7 +723,7 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
         const maneuverPresence = enemy.maneuver === "parallel" || enemy.maneuver === "close-bank" ? 1.02 : 1;
         const impactPulse = 1 + (reaction?.flash ?? 0) * .045;
         const v4010Occlusion = skyDancerArcadeV4010EntityOcclusion({
-          profile: v4010Profile,
+          profile: v4011OcclusionProfile,
           protectedTarget: Boolean(enemy.rivalAce || enemy.worldBreakTarget || primaryLockIdsV271.has(enemy.id)),
           entityX: enemy.x, entityY: enemy.y, entityDepth: enemy.depth,
           centerX: snapshot.playerX, centerY: snapshot.playerY,
