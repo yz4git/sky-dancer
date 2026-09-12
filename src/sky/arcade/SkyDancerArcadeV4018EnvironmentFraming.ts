@@ -1,6 +1,7 @@
 import type { SkyDancerArcadeStageDefinition } from "./SkyDancerArcadeData";
 import type { SkyDancerArcadeV4012RhythmPhase } from "./SkyDancerArcadeV4012RunRhythm";
 
+// Normal-push verification surface for the V40.18 WebGL/Pages audit.
 export interface SkyDancerArcadeV4018EnvironmentFramingInput {
   compactLandscape: boolean;
   stageBiome: SkyDancerArcadeStageDefinition["biome"];
