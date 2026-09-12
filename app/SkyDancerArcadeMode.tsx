@@ -6,6 +6,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type CSSProperties,
   type MutableRefObject,
   type PointerEvent as ReactPointerEvent,
 } from "react";
@@ -48,6 +49,7 @@ import {
   skyDancerArcadeV407RendererBadgeVisible,
 } from "../src/sky/arcade/SkyDancerArcadeV407FullRunPolish";
 import { skyDancerArcadeV408SceneFocus } from "../src/sky/arcade/SkyDancerArcadeV408CinematicFocus";
+import { skyDancerArcadeV4012RunRhythm } from "../src/sky/arcade/SkyDancerArcadeV4012RunRhythm";
 import styles from "./SkyDancerArcadeMode.module.css";
 import productStyles from "./SkyDancerArcadeProduct.module.css";
 
@@ -532,7 +534,19 @@ export default function SkyDancerArcadeMode({ request, onReturnTitle }: SkyDance
     snapshot.stageDurationSeconds,
     snapshot.status === "running" && !snapshot.bossActive,
   );
-  const v35CuePriority = skyDancerArcadeV35CuePriority(messageCue.value, bossApproach.active, missileCueDanger === "1");
+  const v4012Rhythm = skyDancerArcadeV4012RunRhythm({
+    status: snapshot.status,
+    stageId: snapshot.stage.id,
+    stageNumber: snapshot.stageNumber,
+    stageProgress: snapshot.stageProgress,
+    stageTimeSeconds: snapshot.stageTimeSeconds,
+    stageDurationSeconds: snapshot.stageDurationSeconds,
+    worldBreakLive: snapshot.worldBreakLive,
+    rivalAceActive: snapshot.rivalAceActive,
+    bossActive: snapshot.bossActive,
+  });
+  const bossApproachPresentationActive = bossApproach.active && v4012Rhythm.bossApproachVisible;
+  const v35CuePriority = skyDancerArcadeV35CuePriority(messageCue.value, bossApproachPresentationActive, missileCueDanger === "1");
   const cuePriority = skyDancerArcadeV401CuePriority(v35CuePriority, worldBreakBriefing.active);
   const worldBreakDrama = useWorldBreakDrama(snapshot.stage.id, messageCue.value);
   const { recovery: worldBreakRecovery, comeback: worldBreakComeback, celebration: worldBreakCelebration } = worldBreakDrama;
@@ -563,7 +577,7 @@ export default function SkyDancerArcadeMode({ request, onReturnTitle }: SkyDance
     status: snapshot.status,
     bossActive: snapshot.bossActive,
     rivalAceActive: snapshot.rivalAceActive,
-    bossApproachActive: bossApproach.active,
+    bossApproachActive: bossApproachPresentationActive,
     missileDanger: missileCueDanger === "1",
   });
   const nextStageId = snapshot.mode === "arcade-run" && snapshot.stage.next.length > 0
@@ -591,7 +605,14 @@ export default function SkyDancerArcadeMode({ request, onReturnTitle }: SkyDance
 
   return (
     <main className={`${styles.shell} ${productStyles.productShell}`} onContextMenu={(event) => event.preventDefault()}>
-      <section className={styles.stage} data-v407-focus={v407Focus} data-v408-scene={v408Focus.mode} aria-label="Sky Dancer Arcade Run">
+      <section
+        className={styles.stage}
+        data-v407-focus={v407Focus}
+        data-v408-scene={v408Focus.mode}
+        data-v4012-rhythm={v4012Rhythm.phase}
+        style={{ "--v4012-secondary-alpha": v4012Rhythm.secondaryHudAlpha } as CSSProperties}
+        aria-label="Sky Dancer Arcade Run"
+      >
         <div ref={mountRef} className={styles.viewport} />
         <div className={styles.cinematicFocusV408} data-scene={v408Focus.mode} aria-hidden="true" />
         <div className={productStyles.aimGuide} aria-hidden="true"><i /><b /></div>
@@ -747,7 +768,7 @@ export default function SkyDancerArcadeMode({ request, onReturnTitle }: SkyDance
           </div>
         )}
 
-        {bossApproach.active && (
+        {bossApproachPresentationActive && (
           <div className={styles.bossApproach} data-urgent={bossApproach.remainingSeconds < .85} aria-live="assertive" aria-label="Climax target approaching">
             <small>WARNING · CLIMAX SIGNATURE</small>
             <strong>{snapshot.stage.bossName}</strong>

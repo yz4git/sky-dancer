@@ -41,6 +41,7 @@ import {
   skyDancerArcadeV4011ForegroundCraftCount,
   skyDancerArcadeV4011ScreenStress,
 } from "./SkyDancerArcadeV4011ScreenStress";
+import { skyDancerArcadeV4012RunRhythm } from "./SkyDancerArcadeV4012RunRhythm";
 import {
   createSkyDancerArcadeEnemy,
   createSkyDancerArcadeHazard,
@@ -370,9 +371,15 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
       status: snapshot.status, stageProgress: snapshot.stageProgress, worldBreakLive: snapshot.worldBreakLive,
       rivalAceActive: snapshot.rivalAceActive, bossActive: snapshot.bossActive, finalBossReactive: snapshot.finalBossReactive,
     });
-    this.presentationFx.bloomBoost = Math.max(this.presentationFx.bloomBoost, v408Focus.bloomBoost);
-    this.presentationFx.boss = Math.max(this.presentationFx.boss, v408Focus.bossBoost);
-    this.presentationFx.transition = Math.max(this.presentationFx.transition, v408Focus.transitionBoost);
+    const v4012Rhythm = skyDancerArcadeV4012RunRhythm({
+      status: snapshot.status, stageId: snapshot.stage.id, stageNumber: snapshot.stageNumber,
+      stageProgress: snapshot.stageProgress, stageTimeSeconds: snapshot.stageTimeSeconds,
+      stageDurationSeconds: snapshot.stageDurationSeconds, worldBreakLive: snapshot.worldBreakLive,
+      rivalAceActive: snapshot.rivalAceActive, bossActive: snapshot.bossActive,
+    });
+    this.presentationFx.bloomBoost = Math.max(this.presentationFx.bloomBoost, v408Focus.bloomBoost * v4012Rhythm.ambientFxGain);
+    this.presentationFx.boss = Math.max(this.presentationFx.boss, v408Focus.bossBoost * v4012Rhythm.cameraGain);
+    this.presentationFx.transition = Math.max(this.presentationFx.transition, v408Focus.transitionBoost * v4012Rhythm.ambientFxGain);
     if (snapshot.stage.id !== this.currentStageId) {
       this.currentStageId = snapshot.stage.id;
       this.environment.setStage(snapshot.stage);
@@ -464,7 +471,13 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
     v409Clarity = v4011Stress.clarity;
     const v4011OcclusionProfile = v4011Stress.occlusion;
     this.v4010FxClarity = v4011Stress.pressure > 0 ? v4011Stress.fxClarity : v4010Profile.fxClarity;
-    this.v4011SpeedStreakAlpha = v4011Stress.speedStreakAlpha;
+    const v4012Rhythm = skyDancerArcadeV4012RunRhythm({
+      status: snapshot.status, stageId: snapshot.stage.id, stageNumber: snapshot.stageNumber,
+      stageProgress: snapshot.stageProgress, stageTimeSeconds: snapshot.stageTimeSeconds,
+      stageDurationSeconds: snapshot.stageDurationSeconds, worldBreakLive: snapshot.worldBreakLive,
+      rivalAceActive: snapshot.rivalAceActive, bossActive: snapshot.bossActive,
+    });
+    this.v4011SpeedStreakAlpha = v4011Stress.speedStreakAlpha * v4012Rhythm.speedLineGain;
     const v4010PriorityTarget = v409Focus.mode === "boss"
       ? snapshot.enemies.find((enemy) => enemy.boss) ?? null
       : v409Focus.mode === "rival"
@@ -1680,6 +1693,12 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
       status: snapshot.status, stageProgress: snapshot.stageProgress, worldBreakLive: snapshot.worldBreakLive,
       rivalAceActive: snapshot.rivalAceActive, bossActive: snapshot.bossActive, finalBossReactive: snapshot.finalBossReactive,
     });
+    const v4012Rhythm = skyDancerArcadeV4012RunRhythm({
+      status: snapshot.status, stageId: snapshot.stage.id, stageNumber: snapshot.stageNumber,
+      stageProgress: snapshot.stageProgress, stageTimeSeconds: snapshot.stageTimeSeconds,
+      stageDurationSeconds: snapshot.stageDurationSeconds, worldBreakLive: snapshot.worldBreakLive,
+      rivalAceActive: snapshot.rivalAceActive, bossActive: snapshot.bossActive,
+    });
     const v408Target = snapshot.bossActive
       ? snapshot.enemies.find((enemy) => enemy.boss) ?? null
       : snapshot.rivalAceActive ? snapshot.enemies.find((enemy) => enemy.rivalAce) ?? null : null;
@@ -1687,8 +1706,8 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
     this.camera.position.x += (targetX - this.camera.position.x) * xAlpha;
     this.camera.position.y += (targetY - this.camera.position.y) * yAlpha;
     // V40.1 opens the frame slightly before a signature challenge; gameplay/world transforms remain untouched.
-    this.camera.position.z += (pose.z + this.presentationFx.pullback + snapshot.timelineCameraPullback + this.cameraImpactKick + worldBreakAnticipation * .72 + worldBreakCelebrationEnvelope * this.worldBreakCelebrationPullback + worldBreakRecoveryEnvelope * this.worldBreakRecoveryPullback + finalBossEnvelope * (this.finalBossPresentationCue?.cameraPullback ?? 0) + v408Focus.cameraPullback - this.camera.position.z) * zAlpha;
-    this.camera.fov += (pose.fov + this.presentationFx.fovKick + snapshot.timelineCameraFov + worldBreakAnticipation * 1.5 + worldBreakCelebrationEnvelope * this.worldBreakCelebrationFovKick + worldBreakRecoveryEnvelope * this.worldBreakRecoveryFovKick + finalBossEnvelope * (this.finalBossPresentationCue?.cameraFovKick ?? 0) + v408Focus.cameraFovKick - this.camera.fov) * fovAlpha;
+    this.camera.position.z += (pose.z + this.presentationFx.pullback + snapshot.timelineCameraPullback + this.cameraImpactKick + worldBreakAnticipation * .72 * v4012Rhythm.cameraGain + worldBreakCelebrationEnvelope * this.worldBreakCelebrationPullback * v4012Rhythm.cameraGain + worldBreakRecoveryEnvelope * this.worldBreakRecoveryPullback * v4012Rhythm.cameraGain + finalBossEnvelope * (this.finalBossPresentationCue?.cameraPullback ?? 0) + v408Focus.cameraPullback * v4012Rhythm.cameraGain - this.camera.position.z) * zAlpha;
+    this.camera.fov += (pose.fov + this.presentationFx.fovKick + snapshot.timelineCameraFov + worldBreakAnticipation * 1.5 * v4012Rhythm.cameraGain + worldBreakCelebrationEnvelope * this.worldBreakCelebrationFovKick * v4012Rhythm.cameraGain + worldBreakRecoveryEnvelope * this.worldBreakRecoveryFovKick * v4012Rhythm.cameraGain + finalBossEnvelope * (this.finalBossPresentationCue?.cameraFovKick ?? 0) + v408Focus.cameraFovKick * v4012Rhythm.cameraGain - this.camera.fov) * fovAlpha;
     this.camera.updateProjectionMatrix();
 
     const desiredLookX = pose.lookX + v408Look.x;

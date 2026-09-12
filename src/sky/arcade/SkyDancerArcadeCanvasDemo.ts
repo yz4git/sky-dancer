@@ -6,6 +6,7 @@ import { skyDancerArcadeV408SceneFocus } from "./SkyDancerArcadeV408CinematicFoc
 import { skyDancerArcadeV409PhoneClarity } from "./SkyDancerArcadeV409PhoneClarity";
 import { skyDancerArcadeV4010DynamicOcclusion, skyDancerArcadeV4010EntityOcclusion } from "./SkyDancerArcadeV4010DynamicOcclusion";
 import { skyDancerArcadeV4011ForegroundCraftCount, skyDancerArcadeV4011ScreenStress } from "./SkyDancerArcadeV4011ScreenStress";
+import { skyDancerArcadeV4012RunRhythm } from "./SkyDancerArcadeV4012RunRhythm";
 
 type SnapshotHandler = (snapshot: SkyDancerArcadeSnapshot) => void;
 
@@ -217,6 +218,12 @@ export class SkyDancerArcadeCanvasDemo implements SkyDancerArcadeDemoHandle {
       status: snapshot.status, stageProgress: snapshot.stageProgress, worldBreakLive: snapshot.worldBreakLive,
       rivalAceActive: snapshot.rivalAceActive, bossActive: snapshot.bossActive, finalBossReactive: snapshot.finalBossReactive,
     });
+    const rhythm = skyDancerArcadeV4012RunRhythm({
+      status: snapshot.status, stageId: snapshot.stage.id, stageNumber: snapshot.stageNumber,
+      stageProgress: snapshot.stageProgress, stageTimeSeconds: snapshot.stageTimeSeconds,
+      stageDurationSeconds: snapshot.stageDurationSeconds, worldBreakLive: snapshot.worldBreakLive,
+      rivalAceActive: snapshot.rivalAceActive, bossActive: snapshot.bossActive,
+    });
     const target = focus.mode === "boss"
       ? snapshot.enemies.find((enemy) => enemy.boss) ?? null
       : focus.mode === "rival" ? snapshot.enemies.find((enemy) => enemy.rivalAce) ?? null : null;
@@ -229,7 +236,7 @@ export class SkyDancerArcadeCanvasDemo implements SkyDancerArcadeDemoHandle {
       : `#${snapshot.stage.palette.accent.toString(16).padStart(6, "0")}`;
     context.save();
     context.strokeStyle = accent;
-    context.globalAlpha = .18 + focus.strength * .2;
+    context.globalAlpha = (.18 + focus.strength * .2) * rhythm.secondaryHudAlpha;
     context.lineWidth = focus.mode === "boss" ? 1.6 : 1.35;
     const x0 = projected.x - radius;
     const x1 = projected.x + radius;
