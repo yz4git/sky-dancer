@@ -1,0 +1,49 @@
+name: Arcade Run V40.15 stage readability
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/arcade-run-stage-readability-v4015-once.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.13.0
+          cache: npm
+      - name: Apply V40.15 stage readability patch
+        run: python3 scripts/arcade-run-stage-readability-v4015.py
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Verify relevant presentation paths
+        run: |
+          npm run check:arcade
+          node --import tsx --test \
+            tests/sky-arcade-v4015-stage-readability.test.ts \
+            tests/sky-arcade-v4011-screen-stress.test.ts \
+            tests/sky-arcade-v4012-run-rhythm.test.ts \
+            tests/sky-arcade-v4014-climax-pacing.test.ts \
+            tests/sky-arcade-v409-phone-clarity.test.ts
+      - name: Commit verified V40.15 polish
+        run: |
+          git config user.name "yz4git"
+          git config user.email "65384484+yz4git@users.noreply.github.com"
+          git add src/sky/arcade/SkyDancerArcadeWebGLDemo.ts src/sky/arcade/SkyDancerArcadeV4015StageReadability.ts tests/sky-arcade-v4015-stage-readability.test.ts
+          if git diff --cached --quiet; then
+            echo "No V40.15 changes to commit"
+            exit 0
+          fi
+          git commit -m "Arcade Run V40.15: clear hero corridor at peaks"
+          git push origin HEAD:main
