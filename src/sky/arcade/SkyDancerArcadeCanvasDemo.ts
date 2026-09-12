@@ -4,6 +4,7 @@ import { skyDancerArcadeEnemyVisualScaleV17 } from "./SkyDancerArcadeModels";
 import { skyDancerArcadeV406FinalBossCue, skyDancerArcadeV406FormMotion, skyDancerArcadeV406FormLabel } from "./SkyDancerArcadeV406FinalBossPresentation";
 import { skyDancerArcadeV408SceneFocus } from "./SkyDancerArcadeV408CinematicFocus";
 import { skyDancerArcadeV409PhoneClarity } from "./SkyDancerArcadeV409PhoneClarity";
+import { skyDancerArcadeV4010DynamicOcclusion, skyDancerArcadeV4010EntityOcclusion } from "./SkyDancerArcadeV4010DynamicOcclusion";
 
 type SnapshotHandler = (snapshot: SkyDancerArcadeSnapshot) => void;
 
@@ -71,11 +72,24 @@ export class SkyDancerArcadeCanvasDemo implements SkyDancerArcadeDemoHandle {
       status: snapshot.status, stageProgress: snapshot.stageProgress, worldBreakLive: snapshot.worldBreakLive,
       rivalAceActive: snapshot.rivalAceActive, bossActive: snapshot.bossActive, finalBossReactive: snapshot.finalBossReactive,
     });
+    const v409IncomingThreats = snapshot.projectiles.filter((projectile) => projectile.owner === "enemy" && projectile.depth > 2.2 && projectile.depth < 30).length;
     const v409Clarity = skyDancerArcadeV409PhoneClarity({
       compactLandscape: cssWidth > cssHeight && cssHeight <= 560,
       sceneMode: v409Focus.mode,
-      incomingThreats: snapshot.projectiles.filter((projectile) => projectile.owner === "enemy" && projectile.depth > 2.2 && projectile.depth < 30).length,
+      incomingThreats: v409IncomingThreats,
     });
+    const v4010Profile = skyDancerArcadeV4010DynamicOcclusion({
+      compactLandscape: cssWidth > cssHeight && cssHeight <= 560,
+      sceneMode: v409Focus.mode,
+      incomingThreats: v409IncomingThreats,
+    });
+    const v4010PriorityTarget = v409Focus.mode === "boss"
+      ? snapshot.enemies.find((enemy) => enemy.boss) ?? null
+      : v409Focus.mode === "rival"
+        ? snapshot.enemies.find((enemy) => enemy.rivalAce) ?? null
+        : v409Focus.mode === "signature"
+          ? snapshot.enemies.find((enemy) => enemy.worldBreakTarget) ?? null
+          : null;
     const v409PrimaryLockIds = new Set(snapshot.enemies
       .filter((enemy) => enemy.locked)
       .sort((a, b) => {
@@ -120,9 +134,20 @@ export class SkyDancerArcadeCanvasDemo implements SkyDancerArcadeDemoHandle {
     for (const enemy of [...snapshot.enemies].sort((a, b) => b.depth - a.depth)) {
       const projected = this.project(enemy.x, enemy.y, enemy.depth, cssWidth, cssHeight);
       const readabilityScale = skyDancerArcadeEnemyVisualScaleV17(enemy.kind);
-      const size = projected.scale * (enemy.boss ? 28 : enemy.kind === "gunship" ? 18 : enemy.kind === "bomber" ? 16 : enemy.kind === "drone" ? 9.5 : 11) * readabilityScale;
+      const v4010Occlusion = skyDancerArcadeV4010EntityOcclusion({
+        profile: v4010Profile,
+        protectedTarget: Boolean(enemy.boss || enemy.rivalAce || enemy.worldBreakTarget || v409PrimaryLockIds.has(enemy.id)),
+        entityX: enemy.x, entityY: enemy.y, entityDepth: enemy.depth,
+        centerX: snapshot.playerX, centerY: snapshot.playerY,
+        focusX: v4010PriorityTarget?.x ?? snapshot.playerX,
+        focusY: v4010PriorityTarget?.y ?? snapshot.playerY,
+        focusDepth: v4010PriorityTarget?.depth ?? 18,
+        hasFocusTarget: Boolean(v4010PriorityTarget),
+      });
+      const size = projected.scale * (enemy.boss ? 28 : enemy.kind === "gunship" ? 18 : enemy.kind === "bomber" ? 16 : enemy.kind === "drone" ? 9.5 : 11) * readabilityScale * v4010Occlusion.scale;
       context.save();
       context.translate(projected.x, projected.y);
+      context.globalAlpha = v4010Occlusion.alpha;
       context.fillStyle = enemy.boss && enemy.finalBossAccent !== undefined
         ? `#${enemy.finalBossAccent.toString(16).padStart(6, "0")}`
         : `#${palette.enemy.toString(16).padStart(6, "0")}`;

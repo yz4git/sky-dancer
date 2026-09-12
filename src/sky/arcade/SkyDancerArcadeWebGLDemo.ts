@@ -33,6 +33,11 @@ import {
 import { skyDancerArcadeV408SceneFocus, skyDancerArcadeV408TargetLookBias } from "./SkyDancerArcadeV408CinematicFocus";
 import { skyDancerArcadeV409PhoneClarity } from "./SkyDancerArcadeV409PhoneClarity";
 import {
+  SKY_DANCER_ARCADE_V4010_DEFAULT_FX_CLARITY,
+  skyDancerArcadeV4010DynamicOcclusion,
+  skyDancerArcadeV4010EntityOcclusion,
+} from "./SkyDancerArcadeV4010DynamicOcclusion";
+import {
   createSkyDancerArcadeEnemy,
   createSkyDancerArcadeHazard,
   createSkyDancerArcadeLockRing,
@@ -225,6 +230,7 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
   private readonly enemyVelocityHistory = new Map<number, { vx: number; vy: number }>();
   private readonly presentationDirector = new SkyDancerArcadePresentationDirector();
   private presentationFx: SkyDancerArcadePresentationFrame = { rush: 0, turboKick: 0, nearMiss: 0, impact: 0, damage: 0, kill: 0, boss: 0, transition: 0, fovKick: 0, cameraShake: 0, pullback: 0, bloomBoost: 0, exposureBoost: 0 };
+  private v4010FxClarity = SKY_DANCER_ARCADE_V4010_DEFAULT_FX_CLARITY;
 
   constructor(
     mount: HTMLElement,
@@ -399,7 +405,7 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
     this.syncAudio(snapshot);
     this.updateCamera(snapshot, delta);
     this.camera.updateMatrixWorld();
-    this.presentation.update(snapshot, delta, this.camera, this.presentationFx);
+    this.presentation.update(snapshot, delta, this.camera, this.presentationFx, this.v4010FxClarity);
   }
 
   private syncPlayer(snapshot: SkyDancerArcadeSnapshot, delta: number): void {
@@ -440,6 +446,17 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
     const v409Clarity = skyDancerArcadeV409PhoneClarity({
       compactLandscape: compactLandscapeV271, sceneMode: v409Focus.mode, incomingThreats: v409IncomingThreats,
     });
+    const v4010Profile = skyDancerArcadeV4010DynamicOcclusion({
+      compactLandscape: compactLandscapeV271, sceneMode: v409Focus.mode, incomingThreats: v409IncomingThreats,
+    });
+    this.v4010FxClarity = v4010Profile.fxClarity;
+    const v4010PriorityTarget = v409Focus.mode === "boss"
+      ? snapshot.enemies.find((enemy) => enemy.boss) ?? null
+      : v409Focus.mode === "rival"
+        ? snapshot.enemies.find((enemy) => enemy.rivalAce) ?? null
+        : v409Focus.mode === "signature"
+          ? snapshot.enemies.find((enemy) => enemy.worldBreakTarget) ?? null
+          : null;
     const cueScoreV271 = (enemy: SkyDancerArcadeSnapshot["enemies"][number]): number =>
       skyDancerArcadeV271ThreatCueScore(
         enemy.depth,
@@ -690,7 +707,17 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
         const closePresenceV27 = skyDancerArcadeV27EnemyPresenceScale(enemy.depth);
         const maneuverPresence = enemy.maneuver === "parallel" || enemy.maneuver === "close-bank" ? 1.02 : 1;
         const impactPulse = 1 + (reaction?.flash ?? 0) * .045;
-        group.scale.setScalar(baseScale * maneuverPresence * closePresenceV27 * impactPulse);
+        const v4010Occlusion = skyDancerArcadeV4010EntityOcclusion({
+          profile: v4010Profile,
+          protectedTarget: Boolean(enemy.rivalAce || enemy.worldBreakTarget || primaryLockIdsV271.has(enemy.id)),
+          entityX: enemy.x, entityY: enemy.y, entityDepth: enemy.depth,
+          centerX: snapshot.playerX, centerY: snapshot.playerY,
+          focusX: v4010PriorityTarget?.x ?? snapshot.playerX,
+          focusY: v4010PriorityTarget?.y ?? snapshot.playerY,
+          focusDepth: v4010PriorityTarget?.depth ?? 18,
+          hasFocusTarget: Boolean(v4010PriorityTarget),
+        });
+        group.scale.setScalar(baseScale * maneuverPresence * closePresenceV27 * impactPulse * v4010Occlusion.scale);
         if (enemy.counterplay === "armor-brace") { group.scale.x *= 1.045; group.scale.y *= .96; }
         if (enemy.counterplay === "evasive-roll") group.rotation.z += Math.sin(snapshot.runTimeSeconds * 12 + enemy.id) * .065 * enemy.counterplayIntensity;
       }

@@ -2,6 +2,7 @@ import * as THREE from "three";
 import type { SkyDancerArcadeSnapshot } from "./SkyDancerArcadeRuntime";
 import { arcadeCourseRelativePose } from "./SkyDancerArcadeCoursePath";
 import type { SkyDancerArcadePresentationFrame } from "./SkyDancerArcadePresentationDirector";
+import { SKY_DANCER_ARCADE_V4010_DEFAULT_FX_CLARITY, type SkyDancerArcadeV4010FxClarity } from "./SkyDancerArcadeV4010DynamicOcclusion";
 
 export const ARCADE_EFFECT_BUDGET = { trails: 48, trailSamples: 18, sparks: 240, smoke: 84, missileSmoke: 160, detonationPulses: 24, debris: 96 } as const;
 const SPEED_STREAK_COUNT = 52;
@@ -62,6 +63,7 @@ class BurstPool {
   private readonly dummy = new THREE.Object3D();
   private cursor = 0;
   private serial = 0;
+  private clarityAlpha = 1;
 
   constructor(count: number, private readonly smoke: boolean) {
     const geometry = new THREE.PlaneGeometry(1, 1);
@@ -88,6 +90,8 @@ class BurstPool {
     this.dummy.scale.setScalar(0); this.dummy.updateMatrix();
     for (let i = 0; i < count; i++) this.mesh.setMatrixAt(i, this.dummy.matrix);
   }
+
+  setClarityAlpha(value: number): void { this.clarityAlpha = THREE.MathUtils.clamp(value, .45, 1); }
 
   emit(position: THREE.Vector3, scale: number): void {
     const count = this.smoke ? 6 : 36;
@@ -122,7 +126,7 @@ class BurstPool {
         this.dummy.rotateZ(p.rotation);
         const size = p.size * (this.smoke ? .75 + t * 2.7 : 1 - t * .5);
         this.dummy.scale.set(size * (this.smoke ? 1.2 : .38), size, 1);
-        this.alpha.setX(i, (1 - t) * (this.smoke ? .46 : 1));
+        this.alpha.setX(i, (1 - t) * (this.smoke ? .46 : 1) * this.clarityAlpha);
       }
       this.dummy.updateMatrix(); this.mesh.setMatrixAt(i, this.dummy.matrix);
     }
@@ -140,6 +144,7 @@ class MissileSmokePool {
   private readonly dummy = new THREE.Object3D();
   private cursor = 0;
   private serial = 0;
+  private clarityAlpha = 1;
 
   constructor(count: number) {
     const geometry = new THREE.PlaneGeometry(1, 1);
@@ -165,6 +170,8 @@ class MissileSmokePool {
     this.dummy.scale.setScalar(0); this.dummy.updateMatrix();
     for (let i = 0; i < count; i++) this.mesh.setMatrixAt(i, this.dummy.matrix);
   }
+
+  setClarityAlpha(value: number): void { this.clarityAlpha = THREE.MathUtils.clamp(value, .5, 1); }
 
   emit(position: THREE.Vector3, scale = 1): void {
     // Two overlapping puffs make the exhaust read as dense white missile smoke even on a phone-sized viewport.
@@ -199,7 +206,7 @@ class MissileSmokePool {
         this.dummy.rotateZ(p.rotation + t * .45);
         const size = p.size * (.92 + t * 2.2);
         this.dummy.scale.set(size * (1.12 + t * .32), size, 1);
-        this.alpha.setX(i, Math.pow(1 - t, .82));
+        this.alpha.setX(i, Math.pow(1 - t, .82) * this.clarityAlpha);
       }
       this.dummy.updateMatrix(); this.mesh.setMatrixAt(i, this.dummy.matrix);
     }
@@ -222,6 +229,7 @@ class DetonationPulsePool {
   private readonly flashHeat: THREE.InstancedBufferAttribute;
   private readonly dummy = new THREE.Object3D();
   private cursor = 0;
+  private clarityAlpha = 1;
 
   constructor(count: number) {
     const ringGeometry = new THREE.RingGeometry(.58, .78, 36);
@@ -271,6 +279,8 @@ class DetonationPulsePool {
     }
   }
 
+  setClarityAlpha(value: number): void { this.clarityAlpha = THREE.MathUtils.clamp(value, .55, 1); }
+
   emit(position: THREE.Vector3, size: number, delay = 0, duration = .34, heat = .72): void {
     const index = this.cursor++ % this.pulses.length;
     const pulse = this.pulses[index];
@@ -298,11 +308,11 @@ class DetonationPulsePool {
       this.dummy.quaternion.copy(camera.quaternion);
       const ringSize = pulse.size * (.42 + t * 2.05);
       this.dummy.scale.setScalar(ringSize); this.dummy.updateMatrix(); this.ring.setMatrixAt(i, this.dummy.matrix);
-      this.ringAlpha.setX(i, Math.pow(1 - t, .78) * .82);
+      this.ringAlpha.setX(i, Math.pow(1 - t, .78) * .82 * this.clarityAlpha);
       this.ringHeat.setX(i, pulse.heat);
       const flashSize = pulse.size * (1.05 + t * .78);
       this.dummy.scale.set(flashSize * 1.18, flashSize, 1); this.dummy.updateMatrix(); this.flash.setMatrixAt(i, this.dummy.matrix);
-      this.flashAlpha.setX(i, Math.pow(1 - t, 2.25) * .88);
+      this.flashAlpha.setX(i, Math.pow(1 - t, 2.25) * .88 * this.clarityAlpha);
       this.flashHeat.setX(i, Math.min(1, pulse.heat + .12));
     }
     this.ring.instanceMatrix.needsUpdate = true; this.flash.instanceMatrix.needsUpdate = true;
@@ -334,6 +344,7 @@ class DebrisPool {
   private readonly color = new THREE.Color();
   private cursor = 0;
   private serial = 0;
+  private clarityScale = 1;
 
   constructor(count: number) {
     const geometry = new THREE.TetrahedronGeometry(1, 0);
@@ -350,6 +361,8 @@ class DebrisPool {
     this.dummy.scale.setScalar(0); this.dummy.updateMatrix();
     for (let i = 0; i < count; i++) this.mesh.setMatrixAt(i, this.dummy.matrix);
   }
+
+  setClarityScale(value: number): void { this.clarityScale = THREE.MathUtils.clamp(value, .72, 1); }
 
   emit(position: THREE.Vector3, scale: number, requestedCount: number, forwardKick = .7): void {
     const count = Math.min(requestedCount, this.particles.length);
@@ -390,7 +403,7 @@ class DebrisPool {
         p.rotation.z += p.spin.z * delta;
         this.dummy.position.copy(p.position);
         this.dummy.rotation.copy(p.rotation);
-        const lifeScale = p.size * (.92 - t * .36);
+        const lifeScale = p.size * (.92 - t * .36) * this.clarityScale;
         this.dummy.scale.set(lifeScale * 1.8, lifeScale * .58, lifeScale * .82);
       }
       this.dummy.updateMatrix();
@@ -593,7 +606,18 @@ export class SkyDancerArcadeProductPresentation {
     this.climaxPulse = 1;
   }
 
-  update(snapshot: SkyDancerArcadeSnapshot, delta: number, camera: THREE.Camera, fx?: SkyDancerArcadePresentationFrame): void {
+  update(
+    snapshot: SkyDancerArcadeSnapshot,
+    delta: number,
+    camera: THREE.Camera,
+    fx: SkyDancerArcadePresentationFrame | undefined = undefined,
+    clarity: SkyDancerArcadeV4010FxClarity = SKY_DANCER_ARCADE_V4010_DEFAULT_FX_CLARITY,
+  ): void {
+    this.smoke.setClarityAlpha(clarity.smokeAlpha);
+    this.sparks.setClarityAlpha(clarity.sparkAlpha);
+    this.missileSmoke.setClarityAlpha(clarity.missileSmokeAlpha);
+    this.detonation.setClarityAlpha(clarity.detonationAlpha);
+    this.debris.setClarityScale(clarity.debrisScale);
     this.rushAccent = Math.max(0, this.rushAccent - delta * 4.2);
     this.bossArrival = Math.max(0, this.bossArrival - delta * 1.55);
     this.updateSpeedStreaks(snapshot, delta, fx);
