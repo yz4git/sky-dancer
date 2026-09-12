@@ -15,6 +15,7 @@ boost/race interactions with movement, enemy targets, and shooting.
 
 ## Verification
 
-Run `npm test`, `npm run lint`, and `npm run validate:artifact` at meaningful
-checkpoints. Keep the WebGL renderer and Canvas 2D fallback on the same pure
-simulation rules.
+Run checks relevant to the changed area at meaningful checkpoints. Run `npm test`,
+`npm run lint`, and `npm run validate:artifact` together before deployment or
+after cross-cutting changes. Keep the WebGL renderer and Canvas 2D fallback on
+the same pure simulation rules.
