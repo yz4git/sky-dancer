@@ -1,4 +1,5 @@
 name: Sky Dancer WebGL Smoke
+# V40.14 refresh marker: re-run browser smoke against the latest climax pacing runtime.
 
 on:
   workflow_dispatch:
