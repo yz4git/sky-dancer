@@ -172,6 +172,94 @@ export default function SkyDancerHudV35() {
       [data-v4012-rhythm="boss"] .${legacyStyles.meterCard} {
         animation: skyDancerV4013HudSettle .72s cubic-bezier(.2,.75,.2,1) both;
       }
+
+      /* V40.16: keep the phone hero corridor visually open at authored combat peaks.
+         Only information panels yield. Boss HP, missile warning and touch controls remain fully legible. */
+      .${legacyStyles.topHud},
+      .${legacyStyles.runCard},
+      .${legacyStyles.enemyCard},
+      .${legacyStyles.objective},
+      .${legacyStyles.meterCard},
+      .${huntStyles.hud},
+      .${huntStyles.card},
+      .${huntStyles.orderCard},
+      .${huntStyles.heatCard} {
+        transition: opacity .18s ease, background-color .18s ease, border-color .18s ease, backdrop-filter .18s ease !important;
+      }
+      [data-v4012-rhythm="signature"] .${legacyStyles.runCard},
+      [data-v4012-rhythm="signature"] .${legacyStyles.enemyCard},
+      [data-v4012-rhythm="signature"] .${huntStyles.card},
+      [data-v4012-rhythm="signature"] .${huntStyles.heatCard} {
+        opacity: .88 !important;
+      }
+      [data-v4012-rhythm="signature"] .${legacyStyles.objective},
+      [data-v4012-rhythm="signature"] .${huntStyles.orderCard} {
+        opacity: .86 !important;
+      }
+      [data-v4012-rhythm="rival"] .${legacyStyles.runCard},
+      [data-v4012-rhythm="rival"] .${legacyStyles.enemyCard},
+      [data-v4012-rhythm="rival"] .${huntStyles.card},
+      [data-v4012-rhythm="rival"] .${huntStyles.heatCard} {
+        opacity: .78 !important;
+        backdrop-filter: blur(1px) !important;
+        -webkit-backdrop-filter: blur(1px) !important;
+      }
+      [data-v4012-rhythm="rival"] .${legacyStyles.objective},
+      [data-v4012-rhythm="rival"] .${huntStyles.orderCard} {
+        opacity: .76 !important;
+      }
+      [data-v4012-rhythm="boss-rise"] .${legacyStyles.topHud} {
+        grid-template-columns: minmax(92px,.58fr) minmax(246px,1.44fr) minmax(92px,.58fr) !important;
+        gap: clamp(6px,.85vw,10px) !important;
+      }
+      [data-v4012-rhythm="boss-rise"] .${legacyStyles.runCard},
+      [data-v4012-rhythm="boss-rise"] .${legacyStyles.enemyCard},
+      [data-v4012-rhythm="boss-rise"] .${huntStyles.card},
+      [data-v4012-rhythm="boss-rise"] .${huntStyles.heatCard} {
+        opacity: .62 !important;
+        background: linear-gradient(180deg, rgba(7,31,50,.12), rgba(5,26,43,.03)) !important;
+        border-color: rgba(183,239,255,.08) !important;
+        backdrop-filter: none !important;
+        -webkit-backdrop-filter: none !important;
+      }
+      [data-v4012-rhythm="boss-rise"] .${legacyStyles.objective},
+      [data-v4012-rhythm="boss-rise"] .${huntStyles.orderCard} {
+        opacity: .58 !important;
+      }
+      [data-v4012-rhythm="boss-rise"] .${legacyStyles.meterCard} {
+        opacity: .76 !important;
+      }
+      [data-v4012-rhythm="boss"] .${legacyStyles.topHud} {
+        grid-template-columns: minmax(98px,.62fr) minmax(260px,1.54fr) minmax(98px,.62fr) !important;
+        gap: clamp(6px,.95vw,12px) !important;
+      }
+      [data-v4012-rhythm="boss"] .${legacyStyles.runCard},
+      [data-v4012-rhythm="boss"] .${legacyStyles.enemyCard},
+      [data-v4012-rhythm="boss"] .${huntStyles.card},
+      [data-v4012-rhythm="boss"] .${huntStyles.heatCard} {
+        opacity: .76 !important;
+        background: linear-gradient(180deg, rgba(7,31,50,.15), rgba(5,26,43,.045)) !important;
+        border-color: rgba(183,239,255,.10) !important;
+        backdrop-filter: blur(1px) !important;
+        -webkit-backdrop-filter: blur(1px) !important;
+      }
+      [data-v4012-rhythm="boss"] .${legacyStyles.objective},
+      [data-v4012-rhythm="boss"] .${huntStyles.orderCard} {
+        opacity: .72 !important;
+      }
+      [data-v4012-rhythm="boss"] .${legacyStyles.meterCard} {
+        opacity: .84 !important;
+      }
+      [data-v4012-rhythm="boss-rise"] [aria-label="Missile warning"],
+      [data-v4012-rhythm="boss"] [aria-label="Missile warning"],
+      [data-v4012-rhythm="rival"] [aria-label="Missile warning"] {
+        opacity: .94 !important;
+      }
+      [data-v4012-rhythm="boss-rise"] .skyDancerBossV34,
+      [data-v4012-rhythm="boss"] .skyDancerBossV34 {
+        opacity: 1 !important;
+      }
+
       @keyframes skyDancerV4013BossFocus {
         0% {
           box-shadow: inset 0 0 62px rgba(3,18,32,.08);
@@ -217,6 +305,17 @@ export default function SkyDancerHudV35() {
         [data-v4012-rhythm="boss"] .${legacyStyles.meterCard} {
           animation: none !important;
         }
+        .${legacyStyles.topHud},
+        .${legacyStyles.runCard},
+        .${legacyStyles.enemyCard},
+        .${legacyStyles.objective},
+        .${legacyStyles.meterCard},
+        .${huntStyles.hud},
+        .${huntStyles.card},
+        .${huntStyles.orderCard},
+        .${huntStyles.heatCard} {
+          transition: none !important;
+        }
       }
       @media(max-height:420px) {
         .${legacyStyles.actions} { bottom: max(44px, calc(env(safe-area-inset-bottom) + 36px)) !important; }
@@ -227,6 +326,11 @@ export default function SkyDancerHudV35() {
         }
         .${shotStyles.shotButton} { width: 51px !important; height: 51px !important; }
         [aria-label="Missile warning"] { bottom: max(68px, calc(env(safe-area-inset-bottom) + 58px)) !important; }
+        [data-v4012-rhythm="boss-rise"] .${legacyStyles.topHud},
+        [data-v4012-rhythm="boss"] .${legacyStyles.topHud} {
+          grid-template-columns: minmax(82px,.54fr) minmax(220px,1.4fr) minmax(82px,.54fr) !important;
+          gap: 6px !important;
+        }
       }
     `}</style>
     <div className="skyDancerV35ReferenceFrame" aria-hidden="true" />
