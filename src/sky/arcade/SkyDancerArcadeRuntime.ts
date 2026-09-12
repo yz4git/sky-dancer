@@ -600,6 +600,9 @@ const GUN_COOLDOWN = 0.105;
 const LOCK_INTERVAL = 0.13;
 const ARCADE_SECTION_RESULT_SECONDS = 1.35;
 const PRACTICE_RESULT_SECONDS = 2.8;
+// V40.14: the climax gets one readable breath on entry and exit.
+const BOSS_INGRESS_HOLD_SECONDS = 1.2;
+const BOSS_OUTRO_HOLD_SECONDS = 0.9;
 const PLAYER_MOVE_SPEED_X = 3.7;
 const PLAYER_MOVE_SPEED_Y = 3.18;
 const PLAYER_TURBO_SPEED_X = 5.05;
@@ -876,6 +879,10 @@ export class SkyDancerArcadeRuntime {
   // V32: phase mechanics arm after a readable telegraph instead of appearing on the HP-threshold frame.
   private bossPhaseTransitionTimer = 0;
   private pendingBossPhaseMechanic: SkyDancerArcadeBossPhase | null = null;
+  // V40.14: boss presentation owns a short entry/exit window without stopping player flight.
+  private bossIngressTimer = 0;
+  private bossOpeningStrikePending = false;
+  private bossOutroTimer = 0;
   // V32: fresh routes and continues get a short establishing/rejoin beat before combat pressure resumes.
   private stageEntryTimer = 0;
   private stageEventSerial = 0;
@@ -970,6 +977,9 @@ export class SkyDancerArcadeRuntime {
     this.stageEntryTimer = rewindTime > 0 ? 1.2 : .82;
     this.bossPhaseTransitionTimer = 0;
     this.pendingBossPhaseMechanic = null;
+    this.bossIngressTimer = 0;
+    this.bossOpeningStrikePending = false;
+    this.bossOutroTimer = 0;
     this.enemies = [];
     this.projectiles = [];
     this.impactEvents = [];
@@ -1196,6 +1206,8 @@ export class SkyDancerArcadeRuntime {
     this.distance += this.stage.courseSpeed * (turboActive ? 1.44 : 1) * delta;
     this.messageTimer = Math.max(0, this.messageTimer - delta);
     this.stageEntryTimer = Math.max(0, this.stageEntryTimer - delta);
+    this.bossIngressTimer = Math.max(0, this.bossIngressTimer - delta);
+    this.bossOutroTimer = Math.max(0, this.bossOutroTimer - delta);
     this.damageCooldown = Math.max(0, this.damageCooldown - delta);
     this.loadoutReactionTimer = Math.max(0, this.loadoutReactionTimer - delta);
     if (this.loadoutReactionTimer <= 0) this.loadoutReactionLabel = null;
@@ -1220,8 +1232,11 @@ export class SkyDancerArcadeRuntime {
     this.updateBranch();
     this.updateV11Timeline();
     this.updateDirector();
-    this.updateLocking(delta);
-    this.updateWeapons(delta);
+    // Once the climax is resolved, preserve steering but stop spawning fresh player ordnance into the result shot.
+    if (this.bossOutroTimer <= 0) {
+      this.updateLocking(delta);
+      this.updateWeapons(delta);
+    }
     this.updateEnemies(delta, turboActive);
     this.updateProjectiles(delta);
     this.updateHazards(delta, turboActive);
@@ -1235,7 +1250,8 @@ export class SkyDancerArcadeRuntime {
     }
     if (this.stageTime >= this.stage.durationSeconds) {
       if (!this.bossDefeated) this.breakClimaxTargetAtCourseEnd();
-      this.completeStage();
+      // V40.14: let the departing boss / wreck read before the SECTION CLEAR card takes over.
+      if (this.bossOutroTimer <= 0) this.completeStage();
     }
   }
 
@@ -2199,6 +2215,9 @@ export class SkyDancerArcadeRuntime {
       hazard.speed = Math.max(hazard.speed, 68);
     }
     const final = this.stage.id === SKY_DANCER_ARCADE_FINAL_STAGE;
+    this.bossIngressTimer = final ? BOSS_INGRESS_HOLD_SECONDS + .18 : BOSS_INGRESS_HOLD_SECONDS;
+    this.bossOpeningStrikePending = true;
+    this.bossOutroTimer = 0;
     const reactiveContract = final
       ? skyDancerArcadeV405FinalBossContract(this.worldBreakRouteHistory, this.rivalAceOutcomeHistory)
       : null;
@@ -2231,7 +2250,7 @@ export class SkyDancerArcadeRuntime {
       baseX: 0,
       baseY: 0.1,
       amplitude: 1.42,
-      fireCooldown: 1.4,
+      fireCooldown: this.bossIngressTimer + .42,
       scoreValue: final ? 24000 : 12000,
       alive: true,
       maneuverClock: 0,
@@ -2411,7 +2430,7 @@ export class SkyDancerArcadeRuntime {
   }
 
   private launchLockedMissiles(): void {
-    if (this.status !== "running") return;
+    if (this.status !== "running" || this.bossOutroTimer > 0) return;
     let targets = this.enemies.filter((enemy) => enemy.alive && enemy.locked).slice(0, SKY_DANCER_ARCADE_MAX_LOCKS);
     if (targets.length === 0) {
       const fallback = this.chooseGunTarget();
@@ -2489,7 +2508,7 @@ export class SkyDancerArcadeRuntime {
   }
 
   private updateEnemyCounterplay(enemy: ArcadeEnemy, delta: number, turboActive: boolean): void {
-    if (enemy.boss && this.bossPhaseTransitionTimer > 0) {
+    if (enemy.boss && (this.bossPhaseTransitionTimer > 0 || this.bossIngressTimer > 0)) {
       enemy.counterplay = "none";
       enemy.counterplayTimer = 0;
       enemy.counterplayIntensity = 0;
@@ -2635,8 +2654,25 @@ export class SkyDancerArcadeRuntime {
       enemy.stagger = Math.max(0, enemy.stagger - delta * (enemy.boss ? .82 : 1.35));
       this.updateEnemyCounterplay(enemy, delta, turboActive);
       if (enemy.boss) {
+        if (this.bossIngressTimer > 0) {
+          // The boss can be tracked and approached, but does not attack or expose a weakpoint during the reveal.
+          enemy.weakpointOpen = false;
+          enemy.counterplay = "none";
+          enemy.counterplayTimer = 0;
+          enemy.counterplayIntensity = 0;
+          enemy.fireCooldown = Math.max(enemy.fireCooldown, this.bossIngressTimer + .38);
+        } else if (this.bossOpeningStrikePending) {
+          // Release the first attack only after the V40.13 focus animation has opened back out.
+          this.bossOpeningStrikePending = false;
+          enemy.fireCooldown = clamp(enemy.fireCooldown, .28, .42);
+          this.stageEventSerial += 1;
+          this.stageEventLabel = "CLIMAX ENGAGED";
+          this.stageEventTimer = 1.15;
+          this.message = `ENGAGE · ${this.bossMechanicLabel(1)} · OPENING VOLLEY`;
+          this.messageTimer = 1.4;
+        }
         const nextPhase = skyDancerArcadeBossPhase(enemy.hp, enemy.maxHp);
-        if (nextPhase !== enemy.bossPhase) {
+        if (this.bossIngressTimer <= 0 && nextPhase !== enemy.bossPhase) {
           enemy.bossPhase = nextPhase;
           this.bossPhaseSerial += 1;
           this.pendingBossPhaseMechanic = nextPhase;
@@ -2663,7 +2699,8 @@ export class SkyDancerArcadeRuntime {
             this.messageTimer = 1.15;
           }
         }
-        enemy.weakpointOpen = this.pendingBossPhaseMechanic === null
+        enemy.weakpointOpen = this.bossIngressTimer <= 0
+          && this.pendingBossPhaseMechanic === null
           && skyDancerArcadeV11BossWeakpointOpen(this.stage.id, enemy.bossPhase, enemy.age);
         const motion = skyDancerArcadeV11BossMotion(
           this.stage.id, enemy.bossPhase, enemy.age, this.playerX, this.playerY, enemy.amplitude, enemy.stagger,
@@ -3183,6 +3220,14 @@ export class SkyDancerArcadeRuntime {
     this.bossDefeated = true;
     this.pendingBossPhaseMechanic = null;
     this.bossPhaseTransitionTimer = 0;
+    this.bossIngressTimer = 0;
+    this.bossOpeningStrikePending = false;
+    this.bossOutroTimer = Math.max(this.bossOutroTimer, BOSS_OUTRO_HOLD_SECONDS);
+    // Make the entire remaining frame harmless while the destroyed silhouette clears the camera.
+    this.retireStagePresentationActors();
+    this.stageEventSerial += 1;
+    this.stageEventLabel = "CLIMAX BREAK";
+    this.stageEventTimer = 1.35;
     if (this.stage.id === SKY_DANCER_ARCADE_FINAL_STAGE && this.finalBossContract) {
       this.finalBossSerial += 1;
       this.message = `SOVEREIGN DOWN · ${this.finalBossContract.endingLine}`;
@@ -3190,7 +3235,6 @@ export class SkyDancerArcadeRuntime {
       this.message = this.stageTime >= this.stage.durationSeconds ? "CLIMAX TARGET DOWN" : "TARGET DOWN · WRECK CLEARING";
     }
     this.messageTimer = 2.4;
-    if (this.stageTime >= this.stage.durationSeconds) this.completeStage();
   }
 
   private addScore(base: number, risk: boolean): number {
@@ -3242,6 +3286,13 @@ export class SkyDancerArcadeRuntime {
       boss.fireCooldown = 999;
     }
     this.bossDefeated = true;
+    this.bossIngressTimer = 0;
+    this.bossOpeningStrikePending = false;
+    this.bossOutroTimer = Math.max(this.bossOutroTimer, BOSS_OUTRO_HOLD_SECONDS);
+    this.retireStagePresentationActors();
+    this.stageEventSerial += 1;
+    this.stageEventLabel = "CLIMAX DISENGAGE";
+    this.stageEventTimer = 1.15;
     this.message = "COURSE BREAK · TARGET DISENGAGING";
     this.messageTimer = 1.35;
   }
@@ -4042,6 +4093,10 @@ export class SkyDancerArcadeRuntime {
 
   triggerBossPhaseForTests(phase: SkyDancerArcadeBossPhase): void {
     const ratio = phase === 1 ? .9 : phase === 2 ? .6 : .25;
+    // Deterministic phase tests intentionally bypass the presentation-only V40.14 ingress hold.
+    if (!this.bossSpawned) this.spawnBoss();
+    this.bossIngressTimer = 0;
+    this.bossOpeningStrikePending = false;
     this.setBossHpRatioForTests(ratio);
     if (this.pendingBossPhaseMechanic === null) return;
     this.bossPhaseTransitionTimer = 0;
@@ -4050,9 +4105,15 @@ export class SkyDancerArcadeRuntime {
   }
 
   setBossHpRatioForTests(ratio: number): void {
+    const bossAlreadyPresent = this.bossSpawned;
     if (!this.bossSpawned) this.spawnBoss();
     const boss = this.enemies.find((enemy) => enemy.alive && enemy.boss);
     if (!boss) return;
+    // First call can exercise the real ingress. Subsequent deterministic HP changes target phase logic directly.
+    if (bossAlreadyPresent) {
+      this.bossIngressTimer = 0;
+      this.bossOpeningStrikePending = false;
+    }
     boss.hp = boss.maxHp * clamp(ratio, .01, 1);
     this.updateEnemies(1 / 60, false);
   }
