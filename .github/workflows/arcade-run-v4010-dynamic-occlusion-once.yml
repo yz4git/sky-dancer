@@ -1,0 +1,43 @@
+name: Arcade Run V40.10 Dynamic Occlusion
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/arcade-run-v4010-dynamic-occlusion-once.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.13.0
+          cache: npm
+      - name: Apply V40.10 dynamic occlusion
+        run: python3 scripts/arcade-run-v4010-dynamic-occlusion.py
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Verify V40.10 dynamic occlusion
+        run: |
+          npm run check:arcade
+          node --import tsx --test tests/sky-arcade-v4010-dynamic-occlusion.test.ts tests/sky-arcade-v409-phone-clarity.test.ts tests/sky-arcade-v408-cinematic-focus.test.ts tests/sky-arcade-v406-final-boss-presentation.test.ts
+          npm run test:fast
+          npm run lint
+          npm run build:pages
+      - name: Commit verified V40.10 dynamic occlusion
+        run: |
+          git config user.name "yz4git"
+          git config user.email "65384484+yz4git@users.noreply.github.com"
+          git add src/sky/arcade/SkyDancerArcadeV4010DynamicOcclusion.ts src/sky/arcade/SkyDancerArcadeWebGLDemo.ts src/sky/arcade/SkyDancerArcadeCanvasDemo.ts src/sky/arcade/SkyDancerArcadeProductPresentation.ts tests/sky-arcade-v4010-dynamic-occlusion.test.ts
+          git commit -m "Arcade Run V40.10: prioritize phone sightlines"
+          git push origin HEAD:main
