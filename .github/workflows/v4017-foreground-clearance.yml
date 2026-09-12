@@ -13,171 +13,23 @@ jobs:
   implement:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - name: Checkout
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: actions/setup-node@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
         with:
           node-version: 22.13.0
           cache: npm
       - name: Install dependencies
         run: npm ci --no-audit --no-fund
       - name: Apply V40.17 foreground clearance
-        shell: bash
-        run: |
-          python3 - <<'PY'
-          from pathlib import Path
-
-          module = Path('src/sky/arcade/SkyDancerArcadeV4017ForegroundClearance.ts')
-          module.write_text('''export interface SkyDancerArcadeV4017Input {
-            compactLandscape: boolean;
-            focusPressure: number;
-            protectedTarget: boolean;
-            entityId: number;
-            entityX: number;
-            entityY: number;
-            entityDepth: number;
-            focusX: number;
-            focusY: number;
-            focusDepth: number;
-            hasFocusTarget: boolean;
-          }
-
-          export interface SkyDancerArcadeV4017Clearance {
-            pressure: number;
-            offsetX: number;
-            scale: number;
-          }
-
-          const clamp01 = (value: number) => Math.max(0, Math.min(1, value));
-          const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
-
-          /**
-           * V40.17 is a render-space clearance pass for phone landscape play.
-           * Incidental foreground aircraft that cross the current hero sightline peel a few visual
-           * units sideways instead of covering the boss / Rival / signature target. The runtime
-           * coordinates, lock solution, collision geometry and enemy AI remain untouched.
-           */
-          export function skyDancerArcadeV4017ForegroundClearance(input: SkyDancerArcadeV4017Input): SkyDancerArcadeV4017Clearance {
-            if (!input.compactLandscape || input.protectedTarget || !input.hasFocusTarget || input.focusPressure <= .04) {
-              return { pressure: 0, offsetX: 0, scale: 1 };
-            }
-
-            const dx = input.entityX - input.focusX;
-            const dy = input.entityY - input.focusY;
-            const focusLane = 1 - clamp01(Math.hypot(dx / 1.5, dy / 1.05));
-            const inFrontOfFocus = clamp01((input.focusDepth - input.entityDepth + 4) / 18);
-            const phoneForeground = clamp01((30 - input.entityDepth) / 26);
-            const depthPressure = Math.max(inFrontOfFocus, phoneForeground * .65);
-            const pressure = clamp01(input.focusPressure * focusLane * depthPressure * 2.05);
-            if (pressure <= .02) return { pressure: 0, offsetX: 0, scale: 1 };
-
-            // Keep the peel deterministic so an aircraft never jitters from side to side at x ~= focusX.
-            const side = Math.abs(dx) > .06 ? Math.sign(dx) : (input.entityId % 2 === 0 ? 1 : -1);
-            return {
-              pressure,
-              offsetX: side * pressure * .52,
-              scale: clamp(1 - pressure * .08, .9, 1),
-            };
-          }
-          ''', encoding='utf-8')
-
-          test = Path('tests/sky-arcade-v4017-foreground-clearance.test.ts')
-          test.write_text('''import test from "node:test";
-          import assert from "node:assert/strict";
-          import { readFileSync } from "node:fs";
-          import { skyDancerArcadeV4017ForegroundClearance } from "../src/sky/arcade/SkyDancerArcadeV4017ForegroundClearance";
-
-          const base = {
-            compactLandscape: true,
-            focusPressure: .9,
-            protectedTarget: false,
-            entityId: 12,
-            entityX: 0,
-            entityY: 0,
-            entityDepth: 8,
-            focusX: 0,
-            focusY: 0,
-            focusDepth: 20,
-            hasFocusTarget: true,
-          } as const;
-
-          test("V40.17 leaves desktop and protected hero targets on their authored render pose", () => {
-            assert.deepEqual(skyDancerArcadeV4017ForegroundClearance({ ...base, compactLandscape: false }), { pressure: 0, offsetX: 0, scale: 1 });
-            assert.deepEqual(skyDancerArcadeV4017ForegroundClearance({ ...base, protectedTarget: true }), { pressure: 0, offsetX: 0, scale: 1 });
-          });
-
-          test("V40.17 peels a close incidental aircraft away from the protected sightline", () => {
-            const result = skyDancerArcadeV4017ForegroundClearance(base);
-            assert.ok(result.pressure > .6);
-            assert.ok(Math.abs(result.offsetX) > .3);
-            assert.ok(result.scale < 1 && result.scale >= .9);
-          });
-
-          test("V40.17 pushes opposite-side aircraft away from the focus instead of across it", () => {
-            const left = skyDancerArcadeV4017ForegroundClearance({ ...base, entityId: 11, entityX: -.12 });
-            const right = skyDancerArcadeV4017ForegroundClearance({ ...base, entityId: 12, entityX: .12 });
-            assert.ok(left.offsetX < 0);
-            assert.ok(right.offsetX > 0);
-          });
-
-          test("V40.17 leaves side-lane and far aircraft effectively alone", () => {
-            const side = skyDancerArcadeV4017ForegroundClearance({ ...base, entityX: 2.4 });
-            const far = skyDancerArcadeV4017ForegroundClearance({ ...base, entityDepth: 44 });
-            assert.equal(side.offsetX, 0);
-            assert.equal(far.offsetX, 0);
-          });
-
-          test("V40.17 WebGL wiring is render-only and compounds the existing V40.10 clearance", () => {
-            const webgl = readFileSync(new URL("../src/sky/arcade/SkyDancerArcadeWebGLDemo.ts", import.meta.url), "utf8");
-            const runtime = readFileSync(new URL("../src/sky/arcade/SkyDancerArcadeRuntime.ts", import.meta.url), "utf8");
-            assert.match(webgl, /skyDancerArcadeV4017ForegroundClearance/);
-            assert.match(webgl, /v4017Clearance\.offsetX \* 8\.4/);
-            assert.match(webgl, /v4010Occlusion\.scale \* v4017Clearance\.scale/);
-            assert.doesNotMatch(runtime, /V4017ForegroundClearance|v4017Clearance/);
-          });
-          ''', encoding='utf-8')
-
-          webgl_path = Path('src/sky/arcade/SkyDancerArcadeWebGLDemo.ts')
-          webgl = webgl_path.read_text(encoding='utf-8')
-          old_import = 'import { skyDancerArcadeV4015StageReadability } from "./SkyDancerArcadeV4015StageReadability";\n'
-          new_import = old_import + 'import { skyDancerArcadeV4017ForegroundClearance } from "./SkyDancerArcadeV4017ForegroundClearance";\n'
-          assert old_import in webgl, 'V40.15 import anchor missing'
-          webgl = webgl.replace(old_import, new_import, 1)
-
-          old_target = '''      const targetX = enemy.x * 8.4 + course.x + (reaction?.x ?? 0);\n      const targetY = 1.2 + enemy.y * 4.9 + course.y + (reaction?.y ?? 0);\n      const targetZ = course.z + (reaction?.z ?? 0);'''
-          new_target = '''      const v4017Clearance = skyDancerArcadeV4017ForegroundClearance({
-        compactLandscape: compactLandscapeV271,
-        focusPressure: v4015Readability.focusPressure,
-        protectedTarget: Boolean(enemy.boss || enemy.rivalAce || enemy.worldBreakTarget || primaryLockIdsV271.has(enemy.id)),
-        entityId: enemy.id,
-        entityX: enemy.x,
-        entityY: enemy.y,
-        entityDepth: enemy.depth,
-        focusX: v4010PriorityTarget?.x ?? snapshot.playerX,
-        focusY: v4010PriorityTarget?.y ?? snapshot.playerY,
-        focusDepth: v4010PriorityTarget?.depth ?? 18,
-        hasFocusTarget: Boolean(v4010PriorityTarget),
-      });
-      const targetX = enemy.x * 8.4 + course.x + (reaction?.x ?? 0) + v4017Clearance.offsetX * 8.4;
-      const targetY = 1.2 + enemy.y * 4.9 + course.y + (reaction?.y ?? 0);
-      const targetZ = course.z + (reaction?.z ?? 0);'''
-          assert old_target in webgl, 'enemy render target anchor missing'
-          webgl = webgl.replace(old_target, new_target, 1)
-
-          old_scale = 'group.scale.setScalar(baseScale * maneuverPresence * closePresenceV27 * impactPulse * v4010Occlusion.scale);'
-          new_scale = 'group.scale.setScalar(baseScale * maneuverPresence * closePresenceV27 * impactPulse * v4010Occlusion.scale * v4017Clearance.scale);'
-          assert old_scale in webgl, 'V40.10 enemy scale anchor missing'
-          webgl = webgl.replace(old_scale, new_scale, 1)
-          webgl_path.write_text(webgl, encoding='utf-8')
-          PY
+        run: python3 scripts/apply-v4017-foreground-clearance.py
       - name: Verify targeted Arcade Run paths
         run: |
           npm run check:arcade
-          node --import tsx --test \
-            tests/sky-arcade-v4010-dynamic-occlusion.test.ts \
-            tests/sky-arcade-v4015-stage-readability.test.ts \
-            tests/sky-arcade-v4017-foreground-clearance.test.ts
+          node --import tsx --test tests/sky-arcade-v4010-dynamic-occlusion.test.ts tests/sky-arcade-v4015-stage-readability.test.ts tests/sky-arcade-v4017-foreground-clearance.test.ts
       - name: Commit verified V40.17
         run: |
           git config user.name "yz4git"
