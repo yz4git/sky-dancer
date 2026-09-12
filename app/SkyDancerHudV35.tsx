@@ -155,6 +155,69 @@ export default function SkyDancerHudV35() {
       }
       .skyDancerV35ReferenceFrame::before { left: max(18px, env(safe-area-inset-left)); }
       .skyDancerV35ReferenceFrame::after { right: max(18px, env(safe-area-inset-right)); }
+
+      /* V40.13: boss handoff focus. The V40.12 rhythm attribute changes only when the
+         boss takes ownership, so this short animation fires once instead of looping. */
+      [data-v4012-rhythm="boss"] .skyDancerV35ReferenceFrame {
+        animation: skyDancerV4013BossFocus .92s cubic-bezier(.18,.82,.22,1) both;
+      }
+      [data-v4012-rhythm="boss"] .skyDancerV35ReferenceFrame::before {
+        animation: skyDancerV4013BossRailLeft .92s cubic-bezier(.18,.82,.22,1) both;
+      }
+      [data-v4012-rhythm="boss"] .skyDancerV35ReferenceFrame::after {
+        animation: skyDancerV4013BossRailRight .92s cubic-bezier(.18,.82,.22,1) both;
+      }
+      [data-v4012-rhythm="boss"] .${legacyStyles.runCard},
+      [data-v4012-rhythm="boss"] .${legacyStyles.enemyCard},
+      [data-v4012-rhythm="boss"] .${legacyStyles.meterCard} {
+        animation: skyDancerV4013HudSettle .72s cubic-bezier(.2,.75,.2,1) both;
+      }
+      @keyframes skyDancerV4013BossFocus {
+        0% {
+          box-shadow: inset 0 0 62px rgba(3,18,32,.08);
+          background: rgba(4,17,29,0);
+        }
+        18% {
+          box-shadow: inset 0 0 120px rgba(2,12,22,.34);
+          background: rgba(4,17,29,.055);
+        }
+        45% {
+          box-shadow: inset 0 0 82px rgba(4,25,40,.18);
+          background: rgba(4,17,29,.018);
+        }
+        100% {
+          box-shadow: inset 0 0 62px rgba(3,18,32,.08);
+          background: rgba(4,17,29,0);
+        }
+      }
+      @keyframes skyDancerV4013BossRailLeft {
+        0% { left: max(18px, env(safe-area-inset-left)); opacity: .28; transform: scaleY(1); }
+        20% { left: 42%; opacity: .84; transform: scaleY(.74); }
+        42% { left: 25%; opacity: .58; transform: scaleY(.92); }
+        100% { left: max(18px, env(safe-area-inset-left)); opacity: .28; transform: scaleY(1); }
+      }
+      @keyframes skyDancerV4013BossRailRight {
+        0% { right: max(18px, env(safe-area-inset-right)); opacity: .28; transform: scaleY(1); }
+        20% { right: 42%; opacity: .84; transform: scaleY(.74); }
+        42% { right: 25%; opacity: .58; transform: scaleY(.92); }
+        100% { right: max(18px, env(safe-area-inset-right)); opacity: .28; transform: scaleY(1); }
+      }
+      @keyframes skyDancerV4013HudSettle {
+        0% { opacity: 1; transform: translateY(0); }
+        20% { opacity: .62; transform: translateY(-2px); }
+        52% { opacity: .86; transform: translateY(0); }
+        100% { opacity: 1; transform: translateY(0); }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        [data-v4012-rhythm="boss"] .skyDancerV35ReferenceFrame,
+        [data-v4012-rhythm="boss"] .skyDancerV35ReferenceFrame::before,
+        [data-v4012-rhythm="boss"] .skyDancerV35ReferenceFrame::after,
+        [data-v4012-rhythm="boss"] .${legacyStyles.runCard},
+        [data-v4012-rhythm="boss"] .${legacyStyles.enemyCard},
+        [data-v4012-rhythm="boss"] .${legacyStyles.meterCard} {
+          animation: none !important;
+        }
+      }
       @media(max-height:420px) {
         .${legacyStyles.actions} { bottom: max(44px, calc(env(safe-area-inset-bottom) + 36px)) !important; }
         .${legacyStyles.boostButton} { width: 58px !important; height: 58px !important; }
