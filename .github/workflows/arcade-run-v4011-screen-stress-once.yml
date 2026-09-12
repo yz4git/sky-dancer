@@ -1,0 +1,45 @@
+name: Arcade Run V40.11 Screen Stress
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/arcade-run-v4011-screen-stress-once.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.13.0
+          cache: npm
+      - name: Apply V40.11 screen stress pass
+        run: python3 scripts/arcade-run-v4011-screen-stress.py
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Relevant V40.11 checks
+        run: |
+          npm run check:arcade
+          node --import tsx --test tests/sky-arcade-v4011-screen-stress.test.ts tests/sky-arcade-v4010-dynamic-occlusion.test.ts tests/sky-arcade-v409-phone-clarity.test.ts tests/sky-arcade-v408-cinematic-focus.test.ts
+      - name: Final verification before deployment
+        run: |
+          npm test
+          npm run lint
+          npm run validate:artifact
+      - name: Commit verified V40.11 screen stress pass
+        run: |
+          git config user.name "yz4git"
+          git config user.email "65384484+yz4git@users.noreply.github.com"
+          git add src/sky/arcade/SkyDancerArcadeV4011ScreenStress.ts src/sky/arcade/SkyDancerArcadeWebGLDemo.ts src/sky/arcade/SkyDancerArcadeCanvasDemo.ts src/sky/arcade/SkyDancerArcadeProductPresentation.ts tests/sky-arcade-v4011-screen-stress.test.ts
+          git commit -m "Arcade Run V40.11: harden worst-case phone clarity"
+          git push origin HEAD:main
