@@ -10,6 +10,16 @@ new = '''  triggerBossPhaseForTests(phase: SkyDancerArcadeBossPhase): void {\n  
 count = source.count(old)
 if count != 1:
     raise SystemExit(f"boss phase test hook: expected exactly one match, found {count}")
+source = source.replace(old, new, 1)
 
-runtime_path.write_text(source.replace(old, new, 1))
-print("Adjusted V40.14 deterministic boss phase test hook")
+old = '''  setBossHpRatioForTests(ratio: number): void {\n    if (!this.bossSpawned) this.spawnBoss();\n    const boss = this.enemies.find((enemy) => enemy.alive && enemy.boss);\n    if (!boss) return;\n    boss.hp = boss.maxHp * clamp(ratio, .01, 1);\n    this.updateEnemies(1 / 60, false);\n  }'''
+
+new = '''  setBossHpRatioForTests(ratio: number): void {\n    const bossAlreadyPresent = this.bossSpawned;\n    if (!this.bossSpawned) this.spawnBoss();\n    const boss = this.enemies.find((enemy) => enemy.alive && enemy.boss);\n    if (!boss) return;\n    // First call can exercise the real ingress. Subsequent deterministic HP changes target phase logic directly.\n    if (bossAlreadyPresent) {\n      this.bossIngressTimer = 0;\n      this.bossOpeningStrikePending = false;\n    }\n    boss.hp = boss.maxHp * clamp(ratio, .01, 1);\n    this.updateEnemies(1 / 60, false);\n  }'''
+
+count = source.count(old)
+if count != 1:
+    raise SystemExit(f"boss HP test hook: expected exactly one match, found {count}")
+source = source.replace(old, new, 1)
+
+runtime_path.write_text(source)
+print("Adjusted V40.14 deterministic boss phase test hooks")
