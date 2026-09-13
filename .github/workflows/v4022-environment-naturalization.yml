@@ -1,4 +1,4 @@
-name: Sky Dancer V40.22 Environment Naturalization
+name: Sky Dancer V40.25 Signature Naturalization
 
 on:
   push:
@@ -27,18 +27,17 @@ jobs:
           cache: npm
       - name: Install dependencies
         run: npm ci --no-audit --no-fund
-      - name: Apply V40.22 naturalization patch
-        run: |
-          python3 scripts/arcade-run-environment-naturalization-v4022.py
-          python3 scripts/fix-v4022-three-types.py
+      - name: Apply V40.25 signature naturalization
+        run: python3 scripts/arcade-run-v4025-signature-naturalization.py
       - name: Run related Arcade verification
         run: |
           npm run check:arcade
           node --import tsx --test \
+            tests/sky-arcade-v13-flagship.test.ts \
             tests/sky-arcade-v16-setpiece-pass.test.ts \
-            tests/sky-arcade-reference-biomes.test.ts \
-            tests/sky-arcade-v4021-lightning-effect.test.ts \
-            tests/sky-arcade-v4022-environment-naturalization.test.ts
+            tests/sky-arcade-v4022-environment-naturalization.test.ts \
+            tests/sky-arcade-v4023-natural-rock-masses.test.ts \
+            tests/sky-arcade-v4025-signature-setpiece-naturalization.test.ts
       - name: Install isolated browser controller
         run: |
           rm -rf .audit-runtime
@@ -50,33 +49,28 @@ jobs:
         run: npm run build:pages
       - name: Start production preview
         run: |
-          python3 -m http.server 4173 --bind 127.0.0.1 --directory out > /tmp/sky-dancer-v4022-naturalization-http.log 2>&1 &
+          python3 -m http.server 4173 --bind 127.0.0.1 --directory out > /tmp/sky-dancer-v4025-http.log 2>&1 &
           for i in {1..30}; do
             if curl -fsS http://127.0.0.1:4173/ >/dev/null; then exit 0; fi
             sleep 1
           done
-          cat /tmp/sky-dancer-v4022-naturalization-http.log
+          cat /tmp/sky-dancer-v4025-http.log
           exit 1
       - name: Capture all eleven stages after naturalization
-        run: |
-          sed -i 's/short: "NIGHT"/short: "METRO"/; s/short: "PRISM"/short: "CITADEL"/' scripts/webgl-all-stage-visual-audit.mjs
-          node scripts/webgl-all-stage-visual-audit.mjs
-      - name: Upload post-fix visual audit
+        run: node scripts/webgl-all-stage-visual-audit.mjs
+      - name: Upload V40.25 visual audit
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: sky-dancer-v4022-postfix-${{ github.sha }}
+          name: sky-dancer-v4025-signature-naturalization-${{ github.sha }}
           path: artifacts/all-stage-visual
           if-no-files-found: error
           retention-days: 7
-      - name: Commit V40.22 implementation
+      - name: Commit V40.25 implementation
         run: |
           git config user.name "yz4git"
           git config user.email "65384484+yz4git@users.noreply.github.com"
-          git add src/sky/arcade/SkyDancerArcadeReferenceWorld.ts \
-                  src/sky/arcade/SkyDancerArcadeV16Setpieces.ts \
-                  src/sky/arcade/SkyDancerArcadeV4021LightningEffect.ts \
-                  src/sky/arcade/SkyDancerArcadeV4022EnvironmentalFx.ts \
-                  tests/sky-arcade-v4022-environment-naturalization.test.ts
-          git commit -m "Arcade Run V40.22: naturalize environment effects"
+          git add src/sky/arcade/SkyDancerArcadeV11Setpieces.ts \
+                  tests/sky-arcade-v4025-signature-setpiece-naturalization.test.ts
+          git commit -m "Arcade Run V40.25: naturalize signature canyon walls"
           git push origin HEAD:main
