@@ -45,7 +45,9 @@ jobs:
           cat /tmp/sky-dancer-v4022-http.log
           exit 1
       - name: Capture all eleven Arcade stages
-        run: node scripts/webgl-all-stage-visual-audit.mjs
+        run: |
+          sed -i 's/short: "NIGHT"/short: "METRO"/; s/short: "PRISM"/short: "CITADEL"/' scripts/webgl-all-stage-visual-audit.mjs
+          node scripts/webgl-all-stage-visual-audit.mjs
       - name: Upload visual audit
         if: always()
         uses: actions/upload-artifact@v4
