@@ -52,7 +52,7 @@ function addRockMass(
   rz: number,
   ry = 0,
 ): THREE.Mesh {
-  const rock = addMesh(group, new THREE.IcosahedronGeometry(5.4, 0), material, x, y, z);
+  const rock = addMesh(group, new THREE.IcosahedronGeometry(5.4, 1), material, x, y, z);
   rock.scale.set(sx, sy, sz);
   rock.rotation.z = rz;
   rock.rotation.y = ry;
@@ -73,6 +73,7 @@ function buildCanyonSetpiece(stage: SkyDancerArcadeStageDefinition, index: numbe
   group.userData.arcadeV16Setpiece = "canyon-broken-arch";
   group.userData.arcadeV16HeroSide = skyDancerArcadeV16HeroSide(index);
   group.userData.arcadeV4023NaturalRockMasses = true;
+  group.userData.arcadeV4024CoherentRockClearance = true;
 
   const heroSide = skyDancerArcadeV16HeroSide(index);
   const rock = solid(stage.palette.ground);
@@ -80,46 +81,44 @@ function buildCanyonSetpiece(stage: SkyDancerArcadeStageDefinition, index: numbe
   const warm = solid(stage.palette.secondary);
   const edge = glow(stage.palette.accent);
 
-  // V40.23: the former five-sided 54m knife prism turned into one huge flat board on phone.
-  // Keep the tall hero silhouette, but build it from overlapping faceted rock masses with broken edges.
-  const bladeX = heroSide * 49;
-  addRockMass(group, litRock, bladeX, -17, -9, 1.45, 1.7, 1.05, heroSide * -.22, heroSide * .12);
-  addRockMass(group, litRock, bladeX - heroSide * 2.8, -1, -11, 1.18, 1.75, .92, heroSide * -.31, heroSide * .19);
-  addRockMass(group, warm, bladeX - heroSide * 6.3, 13.5, -9, .88, 1.2, .78, heroSide * -.39, heroSide * .24);
+  // V40.24: keep the hero silhouette comfortably outside the phone combat corridor. Detail=1
+  // breaks up large flat facets without making the object visually noisy at distance.
+  const bladeX = heroSide * 59;
+  addRockMass(group, litRock, bladeX, -17, -9, 1.32, 1.55, .98, heroSide * -.22, heroSide * .12);
+  addRockMass(group, litRock, bladeX - heroSide * 2.8, -1, -11, 1.08, 1.58, .88, heroSide * -.31, heroSide * .19);
+  addRockMass(group, warm, bladeX - heroSide * 6.3, 12.5, -9, .8, 1.06, .72, heroSide * -.39, heroSide * .24);
 
-  // The support is also split so its nearest face cannot fill the screen as one regular polygon.
-  addRockMass(group, rock, heroSide * 58, -17, 18, 1.55, 1.45, 1.25, heroSide * .1, heroSide * .08);
-  addRockMass(group, rock, heroSide * 56.5, -3, 20, 1.22, 1.15, 1.05, heroSide * .16, -heroSide * .07);
+  addRockMass(group, rock, heroSide * 68, -18, 18, 1.38, 1.28, 1.12, heroSide * .1, heroSide * .08);
+  addRockMass(group, rock, heroSide * 66.5, -5, 20, 1.08, 1.02, .95, heroSide * .16, -heroSide * .07);
 
-  // Broken arch: short, separated rock masses instead of a single spanning slab.
-  const archA = addMesh(group, new THREE.DodecahedronGeometry(7.2, 0), warm, heroSide * 37, 10.5, -2);
-  archA.scale.set(1.38, .64, .86);
+  // Broken arch remains recognisable but no fragment reaches into the center lane.
+  const archA = addMesh(group, new THREE.DodecahedronGeometry(6.5, 1), warm, heroSide * 47, 9.5, -2);
+  archA.scale.set(1.26, .58, .8);
   archA.rotation.z = heroSide * -.24;
   archA.rotation.y = heroSide * .12;
-  const archB = addMesh(group, new THREE.DodecahedronGeometry(5.8, 0), rock, heroSide * 30.5, 16.2, 4.5);
-  archB.scale.set(1.18, .72, .9);
+  const archB = addMesh(group, new THREE.DodecahedronGeometry(5.2, 1), rock, heroSide * 40.5, 14.8, 4.5);
+  archB.scale.set(1.08, .66, .84);
   archB.rotation.z = heroSide * -.34;
   archB.rotation.y = heroSide * .2;
-  const archChip = addMesh(group, new THREE.OctahedronGeometry(4.2, 0), warm, heroSide * 25.5, 18.8, 8);
-  archChip.scale.set(1.05, .75, .82);
+  const archChip = addMesh(group, new THREE.OctahedronGeometry(3.7, 1), warm, heroSide * 35, 17.2, 8);
+  archChip.scale.set(.98, .68, .76);
   archChip.rotation.z = heroSide * -.46;
 
   for (let mineral = 0; mineral < 3; mineral += 1) {
     const node = addMesh(
       group,
-      new THREE.OctahedronGeometry(.9 + mineral * .16, 0),
+      new THREE.OctahedronGeometry(.8 + mineral * .14, 0),
       edge,
-      heroSide * (40.5 - mineral * 4.8),
-      6.5 + mineral * 4.8,
+      heroSide * (49.5 - mineral * 4.4),
+      6 + mineral * 4.2,
       -1 + mineral * 2.7,
     );
-    node.scale.set(.7, 1.35, .7);
+    node.scale.set(.66, 1.24, .66);
     node.rotation.z = heroSide * (.45 + mineral * .12);
   }
 
-  // Opposing shard is kept lower and closer to the terrain so it reads as rock, not a floating prop.
-  const shard = addMesh(group, new THREE.OctahedronGeometry(5, 0), warm, -heroSide * 43, 4.5, 16);
-  shard.scale.set(.82, 1.75, .78);
+  const shard = addMesh(group, new THREE.OctahedronGeometry(4.4, 1), warm, -heroSide * 54, 2.5, 16);
+  shard.scale.set(.75, 1.48, .72);
   shard.rotation.z = -heroSide * .25;
 
   bakeArcadeAirframe(group);
@@ -132,6 +131,7 @@ function buildVolcanoSetpiece(stage: SkyDancerArcadeStageDefinition, index: numb
   group.userData.arcadeV16Setpiece = "volcano-caldera-spire";
   group.userData.arcadeV16HeroSide = skyDancerArcadeV16HeroSide(index);
   group.userData.arcadeV4023NaturalRockMasses = true;
+  group.userData.arcadeV4024CoherentRockClearance = true;
 
   const heroSide = skyDancerArcadeV16HeroSide(index);
   const basalt = solid(stage.palette.ground);
@@ -139,51 +139,49 @@ function buildVolcanoSetpiece(stage: SkyDancerArcadeStageDefinition, index: numb
   const hotRock = solid(stage.palette.secondary);
   const lava = glow(stage.palette.accent);
 
-  // V40.23: replace the tall six-sided cylinder/cone pair that became a red vertical wall at close range.
-  const wallX = heroSide * 51;
-  addRockMass(group, basalt, wallX, -18, -12, 1.75, 1.65, 1.35, heroSide * -.12, heroSide * .08);
-  addRockMass(group, basalt, wallX - heroSide * 2.5, -2, -14, 1.48, 1.55, 1.18, heroSide * -.2, heroSide * .13);
-  addRockMass(group, crust, wallX - heroSide * 5.2, 13, -15, 1.08, 1.15, .95, heroSide * -.28, heroSide * .17);
+  const wallX = heroSide * 63;
+  addRockMass(group, basalt, wallX, -18, -12, 1.52, 1.46, 1.2, heroSide * -.12, heroSide * .08);
+  addRockMass(group, basalt, wallX - heroSide * 2.8, -3, -14, 1.3, 1.36, 1.06, heroSide * -.2, heroSide * .13);
+  addRockMass(group, crust, wallX - heroSide * 5.6, 10.5, -15, .96, 1.02, .86, heroSide * -.28, heroSide * .17);
 
-  const shelf = addMesh(group, new THREE.DodecahedronGeometry(7.4, 0), crust, heroSide * 38, -13, 12);
-  shelf.scale.set(1.72, .62, 1.18);
+  const shelf = addMesh(group, new THREE.DodecahedronGeometry(6.6, 1), crust, heroSide * 50, -13, 12);
+  shelf.scale.set(1.5, .56, 1.05);
   shelf.rotation.z = heroSide * -.12;
   shelf.rotation.y = heroSide * .1;
-  const splitCrown = addMesh(group, new THREE.DodecahedronGeometry(6.2, 0), hotRock, heroSide * 33, 11.8, -3);
-  splitCrown.scale.set(1.38, .62, .92);
+  const splitCrown = addMesh(group, new THREE.DodecahedronGeometry(5.6, 1), hotRock, heroSide * 45, 9.8, -3);
+  splitCrown.scale.set(1.22, .56, .84);
   splitCrown.rotation.z = heroSide * -.22;
   splitCrown.rotation.y = heroSide * .15;
   for (let seam = 0; seam < 3; seam += 1) {
     const magmaNode = addMesh(
       group,
-      new THREE.OctahedronGeometry(1.05 + seam * .18, 0),
+      new THREE.OctahedronGeometry(.92 + seam * .15, 0),
       lava,
-      heroSide * (36 - seam * 3.5),
-      7.5 + seam * 3,
+      heroSide * (48 - seam * 3.2),
+      6.8 + seam * 2.7,
       -1 + seam * 1.7,
     );
-    magmaNode.scale.set(.62, 1.45, .62);
+    magmaNode.scale.set(.58, 1.28, .58);
   }
 
-  // Opposing vent shell is a grounded broken basalt cluster; only the plume is energy.
-  const ventX = -heroSide * 46;
-  addRockMass(group, hotRock, ventX, -18.5, 10, 1.12, 1.0, 1.08, -heroSide * .08, heroSide * .11);
-  addRockMass(group, basalt, ventX + heroSide * 2.8, -10.5, 10.8, .9, .9, .88, -heroSide * .15, -heroSide * .09);
+  const ventX = -heroSide * 58;
+  addRockMass(group, hotRock, ventX, -18.5, 10, 1.0, .9, .98, -heroSide * .08, heroSide * .11);
+  addRockMass(group, basalt, ventX + heroSide * 2.8, -11.5, 10.8, .8, .8, .8, -heroSide * .15, -heroSide * .09);
 
   bakeArcadeAirframe(group);
 
-  const lavaFall = createSkyDancerArcadeVolcanicPlumeFx(stage.palette.accent, index * 43 + 5, 26);
+  const lavaFall = createSkyDancerArcadeVolcanicPlumeFx(stage.palette.accent, index * 43 + 5, 23);
   lavaFall.name = "arcade-v4022-volcano-lava-fall";
-  lavaFall.position.set(heroSide * 39.5, -14, -5);
+  lavaFall.position.set(heroSide * 51, -15, -5);
   lavaFall.rotation.z = heroSide * -.07;
-  lavaFall.scale.set(.72, 1, .72);
+  lavaFall.scale.set(.64, .92, .64);
   group.add(lavaFall);
 
-  const ventCore = createSkyDancerArcadeVolcanicPlumeFx(stage.palette.accent, index * 43 + 17, 22);
+  const ventCore = createSkyDancerArcadeVolcanicPlumeFx(stage.palette.accent, index * 43 + 17, 19);
   ventCore.name = "arcade-v4022-volcano-pressure-vent";
-  ventCore.position.set(ventX, -17.5, 9);
+  ventCore.position.set(ventX, -18, 9);
   ventCore.rotation.z = -heroSide * .07;
-  ventCore.scale.set(.78, 1, .78);
+  ventCore.scale.set(.7, .9, .7);
   group.add(ventCore);
   return group;
 }
@@ -196,12 +194,17 @@ function pushLegacySetpieceGeometryOutward(chunk: THREE.Object3D, amount: number
     if (touched.has(geometry.uuid)) return;
     const position = geometry.getAttribute("position") as THREE.BufferAttribute | undefined;
     if (!position) return;
+
+    // V40.24: these canyon/volcano meshes have already been baked into shared chunk-space geometry.
+    // The old abs(x) >= 18 test moved only the outer vertices of a single rock and literally stretched
+    // that rock into a huge flat wall. Translate every side vertex by the same signed offset instead.
     for (let vertex = 0; vertex < position.count; vertex += 1) {
       const x = position.getX(vertex);
-      if (Math.abs(x) < 18) continue;
+      if (Math.abs(x) < .5) continue;
       position.setX(vertex, x + Math.sign(x) * amount);
     }
     position.needsUpdate = true;
+    geometry.computeVertexNormals();
     geometry.computeBoundingBox();
     geometry.computeBoundingSphere();
     touched.add(geometry.uuid);
@@ -209,7 +212,7 @@ function pushLegacySetpieceGeometryOutward(chunk: THREE.Object3D, amount: number
 }
 
 /**
- * V16 Setpiece Pass + V40.23 natural-rock cleanup.
+ * V16 Setpiece Pass + V40.23/V40.24 natural-rock cleanup.
  * Reframes Red Canyon and Volcano Core around authored hero beats while preserving
  * the existing spline, collision runtime, enemies and continuous terrain/ribbon systems.
  */
@@ -223,11 +226,12 @@ export function applySkyDancerArcadeV16Setpieces(
 
   const chunks = environment.children.filter((object) => object.name.startsWith("arcade-course-chunk-"));
   chunks.forEach((chunk, index) => {
-    // V40.23: give generic side scenery extra phone clearance so hero rock clusters never combine
-    // with legacy columns into one apparently solid wall. Collision/hazards remain untouched.
-    pushLegacySetpieceGeometryOutward(chunk, stage.biome === "canyon" ? 16 : 14);
+    // Presentation-only clearance. Because the baked geometry is translated coherently, original
+    // rock proportions are preserved instead of generating long artificial facets.
+    pushLegacySetpieceGeometryOutward(chunk, stage.biome === "canyon" ? 18 : 20);
     chunk.userData.arcadeV16LegacySceneryPushedOut = true;
     chunk.userData.arcadeV4023LegacySceneryClearance = true;
+    chunk.userData.arcadeV4024CoherentLegacyTranslation = true;
     if (!skyDancerArcadeV16IsHeroChunk(index)) return;
 
     const setpiece = stage.biome === "canyon"
