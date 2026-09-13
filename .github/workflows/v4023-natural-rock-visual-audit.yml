@@ -1,4 +1,4 @@
-name: Sky Dancer V40.23 Natural Rock Visual Audit
+name: Sky Dancer V40.24 Natural Rock Visual Audit
 
 on:
   push:
@@ -27,7 +27,7 @@ jobs:
           cache: npm
       - name: Install dependencies
         run: npm ci --no-audit --no-fund
-      - name: Run V40.23 related tests
+      - name: Run V40.24 related tests
         run: |
           npm run check:arcade
           node --import tsx --test \
@@ -45,20 +45,20 @@ jobs:
         run: npm run build:pages
       - name: Start production preview
         run: |
-          python3 -m http.server 4173 --bind 127.0.0.1 --directory out > /tmp/sky-dancer-v4023-http.log 2>&1 &
+          python3 -m http.server 4173 --bind 127.0.0.1 --directory out > /tmp/sky-dancer-v4024-http.log 2>&1 &
           for i in {1..30}; do
             if curl -fsS http://127.0.0.1:4173/ >/dev/null; then exit 0; fi
             sleep 1
           done
-          cat /tmp/sky-dancer-v4023-http.log
+          cat /tmp/sky-dancer-v4024-http.log
           exit 1
       - name: Capture all eleven stages
         run: node scripts/webgl-all-stage-visual-audit.mjs
-      - name: Upload V40.23 visual audit
+      - name: Upload V40.24 visual audit
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: sky-dancer-v4023-natural-rock-visual-${{ github.sha }}
+          name: sky-dancer-v4024-natural-rock-visual-${{ github.sha }}
           path: artifacts/all-stage-visual
           if-no-files-found: error
           retention-days: 7
