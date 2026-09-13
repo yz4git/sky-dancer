@@ -5,6 +5,8 @@ on:
     branches: [main]
     paths:
       - ".github/workflows/v4023-natural-rock-visual-audit.yml"
+      - "src/sky/arcade/SkyDancerArcadeV4026LegacyRockFinish.ts"
+      - "tests/sky-arcade-v4026-legacy-rock-finish.test.ts"
   workflow_dispatch:
 
 permissions:
@@ -27,7 +29,7 @@ jobs:
           cache: npm
       - name: Install dependencies
         run: npm ci --no-audit --no-fund
-      - name: Run V40.26 related tests after baked mesh fix
+      - name: Run V40.26 related tests on corrected ownership seam
         run: |
           npm run check:arcade
           node --import tsx --test \
