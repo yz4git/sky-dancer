@@ -5,6 +5,7 @@ import type { SkyDancerArcadeEnemySnapshot, SkyDancerArcadeHazardSnapshot } from
 import type { SkyDancerArcadeEnemyKind, SkyDancerArcadeStageDefinition } from "./SkyDancerArcadeData";
 import { skyDancerArcadeV4020WeakpointContrast } from "./SkyDancerArcadeV4020WeakpointContrast";
 import { createSkyDancerArcadeLightningEffect } from "./SkyDancerArcadeV4021LightningEffect";
+import { applySkyDancerArcadeV4027BossEdgeSeparation } from "./SkyDancerArcadeV4027BossEdgeSeparation";
 import {
   createSkyDancerArcadeHazard as createSkyDancerArcadeHazardLegacy,
   createSkyDancerArcadeLockRing,
@@ -228,6 +229,8 @@ function applyV4020WeakpointPresentation(group: THREE.Group, stage: SkyDancerArc
 function createBoss(stage: SkyDancerArcadeStageDefinition, enemy: SkyDancerArcadeEnemySnapshot): THREE.Group {
   const group = createReferenceCarrier(stage);
   applyV4020WeakpointPresentation(group, stage);
+  applySkyDancerArcadeV4027BossEdgeSeparation(group, stage);
+  // V40.27 intentionally runs before final-form decoration so V40.5/V40.6 silhouettes remain authored as-is.
   if (stage.id === "prism-citadel") decorateV405FinalBoss(group, enemy);
   return group;
 }
