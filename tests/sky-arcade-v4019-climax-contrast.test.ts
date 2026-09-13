@@ -20,14 +20,14 @@ function readability(stageId: "storm-carrier" | "volcano-core" | "prism-citadel"
   });
 }
 
-test("V40.19 protects the single boss attack cue under projectile pressure", () => {
-  const bossCalm = skyDancerArcadeV409PhoneClarity({ compactLandscape: true, sceneMode: "boss", incomingThreats: 0 });
-  const bossBusy = skyDancerArcadeV409PhoneClarity({ compactLandscape: true, sceneMode: "boss", incomingThreats: 5 });
-  const rival = skyDancerArcadeV409PhoneClarity({ compactLandscape: true, sceneMode: "rival", incomingThreats: 0 });
-  assert.equal(bossCalm.counterplayCues, 1);
-  assert.equal(bossBusy.counterplayCues, 1);
-  assert.ok(bossCalm.cueOpacity > rival.cueOpacity);
-  assert.ok(bossBusy.cueOpacity > 1);
+test("V40.19 preserves the proven V40.9 cue hierarchy while clearing competing spectacle", () => {
+  const flight = skyDancerArcadeV409PhoneClarity({ compactLandscape: true, sceneMode: "flight", incomingThreats: 0 });
+  const signature = skyDancerArcadeV409PhoneClarity({ compactLandscape: true, sceneMode: "signature", incomingThreats: 0 });
+  const boss = skyDancerArcadeV409PhoneClarity({ compactLandscape: true, sceneMode: "boss", incomingThreats: 0 });
+  assert.ok(flight.primaryLocks > signature.primaryLocks);
+  assert.ok(signature.primaryLocks > boss.primaryLocks);
+  assert.ok(boss.cueOpacity < signature.cueOpacity);
+  assert.equal(boss.counterplayCues, 1);
 });
 
 test("V40.19 reserves extra contrast for storm, volcano and prism boss beats", () => {
