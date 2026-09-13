@@ -27,7 +27,7 @@ jobs:
           cache: npm
       - name: Install dependencies
         run: npm ci --no-audit --no-fund
-      - name: Run V40.26 related tests
+      - name: Run V40.26 related tests after scope fix
         run: |
           npm run check:arcade
           node --import tsx --test \
