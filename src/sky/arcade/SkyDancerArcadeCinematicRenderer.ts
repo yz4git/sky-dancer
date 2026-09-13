@@ -1,9 +1,10 @@
 import * as THREE from "three";
 import type { SkyDancerArcadePresentationFrame } from "./SkyDancerArcadePresentationDirector";
+import { syncSkyDancerArcadeV4028BossWreckFx } from "./SkyDancerArcadeV4028BossWreckFx";
 
 const ZERO_FX: SkyDancerArcadePresentationFrame = {
   rush: 0, turboKick: 0, nearMiss: 0, impact: 0, damage: 0, kill: 0, boss: 0, transition: 0,
-  fovKick: 0, cameraShake: 0, pullback: 0, bloomBoost: 0, exposureBoost: 0,
+  fovKick: 0, cameraShake: 0, pullback: 0, bloomBoost: 0, exposureBoost: 0, bossWreck: 0,
 };
 
 export const SKY_DANCER_ARCADE_SUPPRESSED_SCREEN_FLASH_OBJECTS_V21 = [
@@ -169,6 +170,10 @@ export class SkyDancerArcadeCinematicRenderer {
     this.material.uniforms.bossStrength.value = postFx.bossStrength;
     this.material.uniforms.transitionStrength.value = postFx.transitionStrength;
     this.material.uniforms.exposureBoost.value = postFx.exposureBoost;
+
+    // V40.28 stays local to the retained 3D boss wreck and deliberately does not alter global post exposure/bloom.
+    const v4028Time = typeof performance !== "undefined" ? performance.now() / 1000 : 0;
+    syncSkyDancerArcadeV4028BossWreckFx(scene, fx.bossWreck ?? 0, v4028Time);
 
     // Legacy presentation still owns two camera-facing additive meshes that intentionally filled
     // the viewport. They stay suppressed; V22 addresses the separate backing-store flicker path.

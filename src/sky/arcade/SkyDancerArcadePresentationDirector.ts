@@ -33,6 +33,8 @@ export interface SkyDancerArcadePresentationFrame {
   pullback: number;
   bloomBoost: number;
   exposureBoost: number;
+  // V40.28: local 3D wreck FX envelope. Optional keeps older render callers source-compatible.
+  bossWreck?: number;
 }
 
 const clamp01 = (value: number) => Math.max(0, Math.min(1, value));
@@ -62,6 +64,8 @@ export class SkyDancerArcadePresentationDirector {
   private directorShift = 0;
   private encounterBeat = 0;
   private flow = 0;
+  // V40.28: persists only across the already-authored boss wreck hold; it never touches simulation time.
+  private bossWreck = 0;
 
   reset(): void {
     this.turboKick = 0;
@@ -79,6 +83,7 @@ export class SkyDancerArcadePresentationDirector {
     this.directorShift = 0;
     this.encounterBeat = 0;
     this.flow = 0;
+    this.bossWreck = 0;
   }
 
   update(
@@ -93,6 +98,8 @@ export class SkyDancerArcadePresentationDirector {
     if (current.damageSerial !== previous.damageSerial) this.damage = 1;
     if (current.enemiesDefeated > previous.enemiesDefeated) this.kill = 1;
     if (current.bossActive && !previous.bossActive) this.boss = 1;
+    // V40.28 distinguishes a real boss kill from V40.14 course-end disengage by requiring the kill ledger to advance.
+    if (previous.bossActive && !current.bossActive && current.enemiesDefeated > previous.enemiesDefeated) this.bossWreck = 1;
     if (current.stageSerial !== previous.stageSerial) this.transition = 1;
     if (current.resultSerial !== previous.resultSerial) this.transition = Math.max(this.transition, .72);
     if ((current.bossPhaseSerial ?? 0) !== (previous.bossPhaseSerial ?? 0)) this.bossPhase = 1;
@@ -132,6 +139,7 @@ export class SkyDancerArcadePresentationDirector {
     const directorShift = this.directorShift;
     const encounterBeat = this.encounterBeat;
     const flow = clamp01(this.flow);
+    const bossWreck = clamp01(this.bossWreck);
     const rush = clamp01(this.rush + turboKick * .24 + nearMiss * .12 + kill * .08 + stageBeat * .08 + formationBreak * .07 + flow * .24 + directorShift * .08);
 
     const rawShake = nearMiss * .12
@@ -161,6 +169,7 @@ export class SkyDancerArcadePresentationDirector {
       pullback: Math.min(3.2, turboKick * .7 + boss * .5 + transition * .35 + bossPhase * .82 + stageBeat * .42 + directorShift * .34 + flow * .52),
       bloomBoost: Math.min(.34, rush * .075 + impact * .018 + kill * .028 + boss * .075 + transition * .055 + bossPhase * .09 + stageBeat * .065 + armorBreak * .12 + formationBreak * .06 + directorShift * .06 + encounterBeat * .035 + flow * .07),
       exposureBoost: Math.min(.14, turboKick * .025 + transition * .03 + bossPhase * .035 + stageBeat * .025 + armorBreak * .028 + directorShift * .02 + flow * .02),
+      bossWreck,
     };
 
     this.turboKick = decay(this.turboKick, dt, 3.8);
@@ -176,6 +185,7 @@ export class SkyDancerArcadePresentationDirector {
     this.formationBreak = decay(this.formationBreak, dt, 3.5);
     this.directorShift = decay(this.directorShift, dt, 2.8);
     this.encounterBeat = decay(this.encounterBeat, dt, 4.1);
+    this.bossWreck = decay(this.bossWreck, dt, .62);
     return frame;
   }
 }
