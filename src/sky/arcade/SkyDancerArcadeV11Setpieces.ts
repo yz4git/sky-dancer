@@ -250,11 +250,34 @@ export class SkyDancerArcadeV11SetpieceDirector {
       const section = new THREE.Group();
       section.name = `arcade-v13-canyon-knife-${index}`;
       section.userData.arcadeV13SetpieceIdentity = "knife-floor";
-      const squeeze = index % 3 === 1 ? 2 : 0;
-      box(section, [14, 30, 28], rock, [-24 + squeeze, -4, 0]);
-      box(section, [14, 26, 28], rock, [24 - squeeze, -6, 0]);
-      box(section, [.22, 16, 28.4], light, [-16.8 + squeeze, -1, 0]);
-      box(section, [.22, 16, 28.4], light, [16.8 - squeeze, -1, 0]);
+      section.userData.arcadeV4025NaturalSignature = "canyon-rock-corridor";
+      const squeeze = index % 3 === 1 ? 1.5 : 0;
+      // V40.25: the old 30m BoxGeometry walls filled the phone view as black/yellow boards.
+      // Build a broken canyon edge from multiple faceted masses instead; the World Break runtime
+      // still owns challenge timing/gates, so this remains a presentation-only replacement.
+      for (const side of [-1, 1]) {
+        const sideSign = side as -1 | 1;
+        const baseX = sideSign * (34 - squeeze);
+        for (let rockIndex = 0; rockIndex < 3; rockIndex += 1) {
+          const mass = new THREE.Mesh(
+            new THREE.IcosahedronGeometry(5.2 - rockIndex * .55, 1),
+            rockIndex === 1 ? dark : rock,
+          );
+          mass.position.set(
+            baseX + sideSign * (rockIndex * 4.9 + (index % 2) * 1.2),
+            -9 + rockIndex * 6.2 + ((index + rockIndex) % 2) * 2.4,
+            (rockIndex - 1) * 7 + (index % 2 ? 2 : -2),
+          );
+          mass.scale.set(1.25 + rockIndex * .08, 1.55 - rockIndex * .12, 1.15 + (rockIndex % 2) * .14);
+          mass.rotation.set(.08 * rockIndex, sideSign * (.12 + rockIndex * .09), sideSign * (.08 + rockIndex * .07));
+          section.add(mass);
+        }
+        const vein = new THREE.Mesh(new THREE.OctahedronGeometry(1.15, 0), light);
+        vein.position.set(sideSign * (28.5 - squeeze), 3 + (index % 2) * 2.2, -2);
+        vein.scale.set(.58, 2.1, .58);
+        vein.rotation.z = sideSign * .46;
+        section.add(vein);
+      }
       this.addAnchor(section, .145 + index * .019, ["knife-floor"]);
     }
     for (let index = 0; index < 6; index += 1) {
@@ -499,10 +522,31 @@ export class SkyDancerArcadeV11SetpieceDirector {
       const section = new THREE.Group();
       section.name = `arcade-v13-magma-rift-${index}`;
       section.userData.arcadeV13SetpieceIdentity = "lava-trench";
-      box(section, [13, 24, 28], basalt, [-24, -4, 0]);
-      box(section, [13, 24, 28], basalt, [24, -4, 0]);
-      box(section, [.4, 12, 28.5], lava, [-17.3, -6, 0]);
-      box(section, [.4, 12, 28.5], lava, [17.3, -6, 0]);
+      section.userData.arcadeV4025NaturalSignature = "basalt-rift-corridor";
+      // V40.25: replace the old paired 24m box walls with irregular basalt shoulders.
+      for (const side of [-1, 1]) {
+        const sideSign = side as -1 | 1;
+        const baseX = sideSign * (35 + (index % 2) * 2);
+        for (let rockIndex = 0; rockIndex < 3; rockIndex += 1) {
+          const mass = new THREE.Mesh(
+            new THREE.DodecahedronGeometry(5.1 - rockIndex * .5, 1),
+            rockIndex === 1 ? crust : basalt,
+          );
+          mass.position.set(
+            baseX + sideSign * rockIndex * 5.1,
+            -10 + rockIndex * 5.6 + ((index + rockIndex) % 2) * 1.8,
+            (rockIndex - 1) * 6.2,
+          );
+          mass.scale.set(1.32 + rockIndex * .06, 1.42 - rockIndex * .1, 1.18 + (rockIndex % 2) * .12);
+          mass.rotation.set(.06 * rockIndex, sideSign * (.1 + rockIndex * .1), sideSign * (.06 + rockIndex * .08));
+          section.add(mass);
+        }
+        const fissure = new THREE.Mesh(new THREE.OctahedronGeometry(1.1, 0), lava);
+        fissure.position.set(sideSign * (29 + (index % 2)), -1 + (index % 3), -1.5);
+        fissure.scale.set(.52, 2.5, .52);
+        fissure.rotation.z = sideSign * .38;
+        section.add(fissure);
+      }
       this.addAnchor(section, .145 + index * .019, ["magma-rift"]);
     }
     for (let index = 0; index < 6; index += 1) {
