@@ -35,7 +35,7 @@ function branchPoints(main: readonly THREE.Vector3[], hazardId: number, branchIn
   ];
 }
 
-function makeLine(points: readonly THREE.Vector3[], material: THREE.LineBasicMaterial, name: string): THREE.Line {
+function makeLine(points: THREE.Vector3[], material: THREE.LineBasicMaterial, name: string): THREE.Line {
   const geometry = new THREE.BufferGeometry().setFromPoints(points);
   const line = new THREE.Line(geometry, material);
   line.name = name;

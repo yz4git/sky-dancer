@@ -1,6 +1,10 @@
 import * as THREE from "three";
 import type { SkyDancerArcadeStageDefinition } from "./SkyDancerArcadeData";
 import type { SkyDancerArcadeV4018EnvironmentFramingProfile } from "./SkyDancerArcadeV4018EnvironmentFraming";
+import {
+  createSkyDancerArcadeEnvironmentalLightningFx,
+  createSkyDancerArcadeVolcanicPlumeFx,
+} from "./SkyDancerArcadeV4022EnvironmentalFx";
 import { bakeArcadeAirframe } from "./SkyDancerArcadeReferenceAirframes";
 import { arcadeCoursePose, arcadeCourseRelativeVisualPose } from "./SkyDancerArcadeCoursePath";
 import {
@@ -786,10 +790,13 @@ export class SkyDancerArcadeReferenceWorld {
           const rock=mesh(group,new THREE.CylinderGeometry(4+r(j+3)*5,8+r(j+5)*7,h,7,3),j%2?primary:secondary,side*(28+j%2*28),-25+h/2,-42+j*27);
           rock.rotation.y=r(j+19)*2;
         }
-        // V8.3: the continuous lava corridor is route-following, not one straight plane per rigid chunk.
-        for(let i=0;i<5;i++){
-          const vent=mesh(group,new THREE.ConeGeometry(.4,11+r(i)*9,6),new THREE.MeshBasicMaterial({color:0xffa743,transparent:true,opacity:.6,depthWrite:false}),r(i+8)*50-25,-15,r(i+4)*100-50);
-          vent.rotation.z=.15;
+        // V40.22: heat/magma is emission, not a row of solid cone objects.
+        for(let i=0;i<3;i++){
+          const plumeHeight=11+r(i)*9;
+          const vent=createSkyDancerArcadeVolcanicPlumeFx(stage.palette.accent,index*101+i*17+3,plumeHeight);
+          vent.position.set(r(i+8)*50-25,-20,r(i+4)*100-50);
+          vent.scale.set(.82,1,.82);
+          group.add(vent);
         }
         break;
       }
@@ -842,12 +849,10 @@ export class SkyDancerArcadeReferenceWorld {
             for(const engineSide of [-1,1])mesh(group,new THREE.BoxGeometry(3.2,2.2,6.5),glow,shipX+engineSide*5.2,shipY-2,shipZ+25);
           }
         }
-        const lightning=new THREE.Group();
-        for(let j=0;j<5;j++){
-          const boltX=stormSide*(31+(j%2)*8);
-          const bolt=mesh(lightning,new THREE.CylinderGeometry(.12,.23,9+j*.8,5),glow,boltX,29-j*8,-42+j*18);
-          bolt.rotation.z=stormSide*(j%2?-.31:.27);
-        }
+        // V40.22: one branching additive discharge replaces the old chain of solid cylinders.
+        const lightning=createSkyDancerArcadeEnvironmentalLightningFx(stage,index*23+7,40);
+        lightning.position.set(stormSide*35,10,-6);
+        lightning.rotation.z=stormSide*.08;
         group.add(lightning);
         break;
       }
@@ -1030,7 +1035,12 @@ export class SkyDancerArcadeReferenceWorld {
         const fin=mesh(group,new THREE.CylinderGeometry(1.8+r(j+7)*2.7,4.6+r(j+17)*3.3,h,5,2),j%2?secondary:primary,rockX,-26+h/2,z);
         fin.rotation.z=side*(.06+r(j+27)*.16);
         fin.rotation.y=r(j+37)*Math.PI;
-        if(stage.biome==="volcano" && j%2===0) mesh(group,new THREE.ConeGeometry(.28,8+r(j+57)*10,5),glow,rockX-side*2,-13,z+2);
+        if(stage.biome==="volcano" && j%2===0){
+          const plume=createSkyDancerArcadeVolcanicPlumeFx(stage.palette.accent,index*131+j*19+11,8+r(j+57)*10);
+          plume.position.set(rockX-side*2,-19,z+2);
+          plume.scale.set(.68,1,.68);
+          group.add(plume);
+        }
       } else if(stage.biome==="desert"){
         // V9.3: close passes are fortress buttresses and crenelated wall fragments, not stone fins.
         const fortressX=side*(37+r(j+71)*11+(j%2)*4);

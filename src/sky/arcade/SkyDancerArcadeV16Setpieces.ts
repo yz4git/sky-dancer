@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import type { SkyDancerArcadeStageDefinition } from "./SkyDancerArcadeData";
 import { bakeArcadeAirframe } from "./SkyDancerArcadeReferenceAirframes";
+import { createSkyDancerArcadeVolcanicPlumeFx } from "./SkyDancerArcadeV4022EnvironmentalFx";
 
 const HERO_CHUNK_INDICES = new Set([0, 2, 4, 6]);
 
@@ -70,20 +71,33 @@ function buildCanyonSetpiece(stage: SkyDancerArcadeStageDefinition, index: numbe
   const buttress = addMesh(group, new THREE.CylinderGeometry(7, 12, 30, 6, 2), rock, heroSide * 57, -12, 19);
   buttress.rotation.z = heroSide * .13;
 
-  // Broken arch fragments define a dramatic "almost overhead" silhouette but stop around |x|=18.
-  const spanA = addMesh(group, new THREE.BoxGeometry(34, 5.2, 9), warm, heroSide * 36, 11.5, -2);
-  spanA.rotation.z = heroSide * -.22;
-  spanA.rotation.y = heroSide * .09;
-  const spanB = addMesh(group, new THREE.BoxGeometry(23, 3.8, 7), rock, heroSide * 29.5, 18, 5);
-  spanB.rotation.z = heroSide * -.31;
-  spanB.rotation.y = heroSide * .18;
+  // V40.22 visual audit: the old rectangular spans read as giant floating boards at phone distance.
+  // Build the same broken-arch silhouette from separate faceted rock masses instead.
+  const archA = addMesh(group, new THREE.DodecahedronGeometry(7.2, 0), warm, heroSide * 37, 12, -2);
+  archA.scale.set(1.55, .62, .82);
+  archA.rotation.z = heroSide * -.24;
+  archA.rotation.y = heroSide * .12;
+  const archB = addMesh(group, new THREE.DodecahedronGeometry(5.8, 0), rock, heroSide * 29.5, 18.2, 4.5);
+  archB.scale.set(1.35, .7, .86);
+  archB.rotation.z = heroSide * -.34;
+  archB.rotation.y = heroSide * .2;
+  const archChip = addMesh(group, new THREE.OctahedronGeometry(4.2, 0), warm, heroSide * 23.5, 21, 8);
+  archChip.scale.set(1.15, .72, .8);
+  archChip.rotation.z = heroSide * -.46;
 
-  // High-contrast mineral cuts make the authored arch readable through the warm canyon palette.
-  const spanEdge = addMesh(group, new THREE.BoxGeometry(29, .62, 2), edge, heroSide * 34.5, 9.2, -1.5);
-  spanEdge.rotation.z = heroSide * -.22;
-  spanEdge.rotation.y = heroSide * .09;
-  const vein = addMesh(group, new THREE.BoxGeometry(.72, 38, 1.8), edge, heroSide * 43, 3, -6);
-  vein.rotation.z = heroSide * -.34;
+  // Small mineral nodes keep the warm accent without drawing a rigid neon ruler across the rock.
+  for (let mineral = 0; mineral < 3; mineral += 1) {
+    const node = addMesh(
+      group,
+      new THREE.OctahedronGeometry(.9 + mineral * .16, 0),
+      edge,
+      heroSide * (40.5 - mineral * 4.8),
+      7.5 + mineral * 5.2,
+      -1 + mineral * 2.7,
+    );
+    node.scale.set(.7, 1.35, .7);
+    node.rotation.z = heroSide * (.45 + mineral * .12);
+  }
 
   const shard = addMesh(group, new THREE.OctahedronGeometry(5, 0), warm, -heroSide * 43, 9, 16);
   shard.scale.set(.72, 2.5, .72);
@@ -113,34 +127,47 @@ function buildVolcanoSetpiece(stage: SkyDancerArcadeStageDefinition, index: numb
   const crown = addMesh(group, new THREE.ConeGeometry(9.5, 18, 6), crust, wallX - heroSide * 4, 21, -16);
   crown.rotation.z = heroSide * .15;
 
-  // Terraces aim toward the continuous magma ribbon without ever becoming a floor replacement.
-  const shelf = addMesh(group, new THREE.BoxGeometry(31, 4.5, 18), crust, heroSide * 37, -12, 12);
-  shelf.rotation.z = heroSide * -.1;
-  shelf.rotation.y = heroSide * .07;
-  const shelfEdge = addMesh(group, new THREE.BoxGeometry(25, .62, 14), lava, heroSide * 34.5, -9.5, 11);
-  shelfEdge.rotation.z = heroSide * -.1;
-  shelfEdge.rotation.y = heroSide * .07;
+  // V40.22 visual audit: faceted caldera shelves replace broad rectangular slabs.
+  const shelf = addMesh(group, new THREE.DodecahedronGeometry(7.4, 0), crust, heroSide * 37, -12, 12);
+  shelf.scale.set(2.05, .58, 1.15);
+  shelf.rotation.z = heroSide * -.12;
+  shelf.rotation.y = heroSide * .1;
+  const splitCrown = addMesh(group, new THREE.DodecahedronGeometry(6.2, 0), hotRock, heroSide * 32, 14.5, -3);
+  splitCrown.scale.set(1.65, .55, .88);
+  splitCrown.rotation.z = heroSide * -.22;
+  splitCrown.rotation.y = heroSide * .15;
+  for (let seam = 0; seam < 3; seam += 1) {
+    const magmaNode = addMesh(
+      group,
+      new THREE.OctahedronGeometry(1.05 + seam * .18, 0),
+      lava,
+      heroSide * (35 - seam * 3.5),
+      9.5 + seam * 3.2,
+      -1 + seam * 1.7,
+    );
+    magmaNode.scale.set(.62, 1.45, .62);
+  }
 
-  // A vertical lava fall is the signature read at phone scale and visually connects wall to river.
-  const lavaFall = addMesh(group, new THREE.BoxGeometry(2.3, 30, 2.1), lava, heroSide * 39.5, 2.5, -5);
-  lavaFall.rotation.z = heroSide * -.09;
-  const splitCrown = addMesh(group, new THREE.BoxGeometry(24, 3.6, 7), hotRock, heroSide * 32, 14.5, -3);
-  splitCrown.rotation.z = heroSide * -.2;
-  splitCrown.rotation.y = heroSide * .12;
-  const crownSeam = addMesh(group, new THREE.BoxGeometry(19, .55, 2), lava, heroSide * 30.5, 12.7, -2.5);
-  crownSeam.rotation.z = heroSide * -.2;
-  crownSeam.rotation.y = heroSide * .12;
-
-  // An opposing pressure vent keeps the composition asymmetric and sells an active crater.
+  // An opposing physical vent shell remains rock; its emission is now additive FX.
   const ventX = -heroSide * 45;
-  const ventCore = addMesh(group, new THREE.ConeGeometry(1.25, 26, 7), lava, ventX, -7, 9);
-  ventCore.rotation.z = -heroSide * .09;
   const ventShell = addMesh(group, new THREE.ConeGeometry(4.9, 22, 6), hotRock, ventX, -16, 10);
   ventShell.rotation.z = -heroSide * .09;
-  const ember = addMesh(group, new THREE.OctahedronGeometry(3.9, 0), lava, ventX + heroSide * 3, 10, 7);
-  ember.scale.set(.62, 1.9, .62);
 
   bakeArcadeAirframe(group);
+
+  const lavaFall = createSkyDancerArcadeVolcanicPlumeFx(stage.palette.accent, index * 43 + 5, 30);
+  lavaFall.name = "arcade-v4022-volcano-lava-fall";
+  lavaFall.position.set(heroSide * 39.5, -12, -5);
+  lavaFall.rotation.z = heroSide * -.09;
+  lavaFall.scale.set(.82, 1, .82);
+  group.add(lavaFall);
+
+  const ventCore = createSkyDancerArcadeVolcanicPlumeFx(stage.palette.accent, index * 43 + 17, 26);
+  ventCore.name = "arcade-v4022-volcano-pressure-vent";
+  ventCore.position.set(ventX, -18, 9);
+  ventCore.rotation.z = -heroSide * .09;
+  ventCore.scale.set(.9, 1, .9);
+  group.add(ventCore);
   return group;
 }
 
