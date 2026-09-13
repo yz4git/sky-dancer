@@ -5,6 +5,7 @@ import { applySkyDancerArcadeV15VisualTuning } from "./SkyDancerArcadeV15VisualT
 import { applySkyDancerArcadeV16Setpieces } from "./SkyDancerArcadeV16Setpieces";
 import { applySkyDancerArcadeV23ScreenReview } from "./SkyDancerArcadeV23ScreenReview";
 import { applySkyDancerArcadeV271ScreenPolish } from "./SkyDancerArcadeV271ScreenPolish";
+import { applySkyDancerArcadeV4026LegacyRockFinish } from "./SkyDancerArcadeV4026LegacyRockFinish";
 
 const REFERENCE_CARRIER_NAME = "arcade-horizon-fleet-carrier";
 
@@ -29,6 +30,7 @@ export class SkyDancerArcadeEnvironment extends SkyDancerArcadeReferenceWorld {
     super.setStage(stage);
     applySkyDancerArcadeV15VisualTuning(this.liveScene, stage);
     applySkyDancerArcadeV16Setpieces(this.liveScene, stage);
+    applySkyDancerArcadeV4026LegacyRockFinish(this.liveScene, stage);
     applySkyDancerArcadeV23ScreenReview(this.liveScene, stage);
     applySkyDancerArcadeV271ScreenPolish(this.liveScene, stage);
     const carrier = this.liveScene.getObjectByName(REFERENCE_CARRIER_NAME);
