@@ -13,10 +13,10 @@ const stages = [
   { id: "desert-fortress", short: "DESERT", name: "DESERT FORTRESS" },
   { id: "ice-cavern", short: "ICE", name: "ICE CAVERN" },
   { id: "floating-ruins", short: "RUINS", name: "FLOATING RUINS" },
-  { id: "night-metro", short: "NIGHT", name: "NIGHT METRO" },
+  { id: "night-metro", short: "METRO", name: "NIGHT METRO" },
   { id: "volcano-core", short: "VOLCANO", name: "VOLCANO CORE" },
   { id: "orbital-ascent", short: "ORBIT", name: "ORBITAL ASCENT" },
-  { id: "prism-citadel", short: "PRISM", name: "PRISM CITADEL" },
+  { id: "prism-citadel", short: "CITADEL", name: "PRISM CITADEL" },
 ];
 const stageIds = stages.map((stage) => stage.id);
 await mkdir(outputDir, { recursive: true });
