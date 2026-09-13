@@ -30,9 +30,6 @@ function finishLegacyMesh(mesh: THREE.Mesh, profile: RockFinishProfile, phase: n
       + Math.sin(z * .27 - y * .11 + phase * 1.7) * .38
     ) * profile.roughness;
 
-    // V40.26: presentation-only cleanup of the already-baked decorative rock mesh.
-    // Every side vertex moves outward rather than widening toward the flight corridor, while
-    // small deterministic offsets break the long planar faces left by old low-sided cylinders.
     position.setXYZ(
       vertex,
       x + side * (profile.outward + ridge * .55),
@@ -50,13 +47,24 @@ function finishLegacyMesh(mesh: THREE.Mesh, profile: RockFinishProfile, phase: n
   return true;
 }
 
+function legacyBakedMeshes(chunk: THREE.Object3D): THREE.Mesh[] {
+  const meshes: THREE.Mesh[] = [];
+  for (const container of chunk.children) {
+    // ReferenceWorld moves its unnamed static primitives into one unnamed structures group and
+    // bakes that group's children. V16 hero setpieces are separately named direct-child groups,
+    // so this is a stable ownership seam that cannot reach the authored hero rocks.
+    if (!(container instanceof THREE.Group) || container.name !== "") continue;
+    for (const object of container.children) {
+      if (object instanceof THREE.Mesh && object.name === "arcade-baked-airframe") meshes.push(object);
+    }
+  }
+  return meshes;
+}
+
 /**
  * V40.26 — Legacy Rock Finish.
- *
- * Reference-world canyon/volcano rocks are visual scenery that was historically authored as
- * low-sided cylinders and baked by material. At phone foreground distance a single face could
- * read as a giant rectangular wall. This pass only reshapes those direct baked chunk meshes.
- * It deliberately skips V16 hero setpiece descendants, hazards, route geometry and runtime data.
+ * Presentation-only cleanup for the original ReferenceWorld canyon/volcano static scenery.
+ * Route geometry, hazards, collision/runtime state and V16 hero setpieces remain untouched.
  */
 export function applySkyDancerArcadeV4026LegacyRockFinish(
   scene: THREE.Scene,
@@ -70,12 +78,8 @@ export function applySkyDancerArcadeV4026LegacyRockFinish(
   const chunks = environment.children.filter((object) => object.name.startsWith("arcade-course-chunk-"));
   chunks.forEach((chunk, chunkIndex) => {
     let finished = 0;
-    for (const child of chunk.children) {
-      // Ownership, not material subclass, is the stable seam here. ReferenceWorld bakes its
-      // static decorative materials into direct children with this name; V16 hero groups are
-      // nested children and therefore remain untouched.
-      if (!(child instanceof THREE.Mesh) || child.name !== "arcade-baked-airframe") continue;
-      if (finishLegacyMesh(child, profile, chunkIndex * .73 + stage.order * .41)) finished += 1;
+    for (const mesh of legacyBakedMeshes(chunk)) {
+      if (finishLegacyMesh(mesh, profile, chunkIndex * .73 + stage.order * .41)) finished += 1;
     }
     chunk.userData.arcadeV4026LegacyRockFinish = finished > 0;
     chunk.userData.arcadeV4026FinishedMeshCount = finished;
