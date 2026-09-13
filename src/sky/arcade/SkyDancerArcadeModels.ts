@@ -3,6 +3,7 @@ import { createReferenceCarrier } from "./SkyDancerArcadeReferenceAirframes";
 import { createSkyDancerArcadeEnemyAirframeV18 } from "./SkyDancerArcadeEnemyAirframes";
 import type { SkyDancerArcadeEnemySnapshot } from "./SkyDancerArcadeRuntime";
 import type { SkyDancerArcadeEnemyKind, SkyDancerArcadeStageDefinition } from "./SkyDancerArcadeData";
+import { skyDancerArcadeV4020WeakpointContrast } from "./SkyDancerArcadeV4020WeakpointContrast";
 import {
   createSkyDancerArcadeHazard,
   createSkyDancerArcadeLockRing,
@@ -160,8 +161,64 @@ function decorateV405FinalBoss(group: THREE.Group, enemy: SkyDancerArcadeEnemySn
   group.add(rig);
 }
 
+function applyV4020WeakpointPresentation(group: THREE.Group, stage: SkyDancerArcadeStageDefinition): void {
+  for (const weakPoint of group.getObjectsByProperty("name", "arcade-boss-weakpoint")) {
+    if (!(weakPoint instanceof THREE.Mesh)) continue;
+
+    // V40.20 breaks the old shared carrier-signal material link. The existing WebGL OPEN timing still owns
+    // weakPoint.scale; the presentation layer only reads that pose and never writes combat state.
+    const coreMaterial = new THREE.MeshBasicMaterial({
+      color: 0x24161a,
+      transparent: true,
+      opacity: .66,
+      depthWrite: false,
+      toneMapped: false,
+    });
+    weakPoint.material = coreMaterial;
+    weakPoint.userData.arcadeV4020MaterialIsolated = true;
+    weakPoint.userData.arcadeV4020PresentationOnly = true;
+
+    const outlineMaterial = new THREE.MeshBasicMaterial({
+      color: 0xffffff,
+      transparent: true,
+      opacity: .12,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+      side: THREE.BackSide,
+      toneMapped: false,
+    });
+    const outline = new THREE.Mesh(new THREE.IcosahedronGeometry(1.04, 1), outlineMaterial);
+    outline.name = "arcade-v4020-weakpoint-outline";
+    outline.renderOrder = 6;
+    weakPoint.add(outline);
+
+    weakPoint.onBeforeRender = (renderer) => {
+      const compactLandscape = renderer.domElement.clientWidth > renderer.domElement.clientHeight
+        && renderer.domElement.clientHeight <= 560;
+      // The proven V40.14 boss solver already separates CLOSED (<~1.1) from OPEN (>=~1.16) core scale.
+      // Reading that render pose avoids a second gameplay owner or timing path.
+      const weakpointOpen = weakPoint.scale.x > 1.12;
+      const profile = skyDancerArcadeV4020WeakpointContrast({
+        stageId: stage.id,
+        compactLandscape,
+        weakpointOpen,
+        bossPhase: 1,
+        hpRatio: 1,
+      });
+      coreMaterial.color.setHex(profile.coreColor);
+      coreMaterial.opacity = profile.coreOpacity;
+      outlineMaterial.color.setHex(profile.outlineColor);
+      outlineMaterial.opacity = profile.outlineOpacity;
+      outline.scale.setScalar(profile.outlineScale);
+    };
+  }
+  group.userData.arcadeV4020WeakpointContrast = true;
+  group.userData.arcadeV4020LogicalCollisionUnchanged = true;
+}
+
 function createBoss(stage: SkyDancerArcadeStageDefinition, enemy: SkyDancerArcadeEnemySnapshot): THREE.Group {
   const group = createReferenceCarrier(stage);
+  applyV4020WeakpointPresentation(group, stage);
   if (stage.id === "prism-citadel") decorateV405FinalBoss(group, enemy);
   return group;
 }
