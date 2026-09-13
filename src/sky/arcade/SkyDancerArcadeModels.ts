@@ -1,11 +1,12 @@
 import * as THREE from "three";
 import { createReferenceCarrier } from "./SkyDancerArcadeReferenceAirframes";
 import { createSkyDancerArcadeEnemyAirframeV18 } from "./SkyDancerArcadeEnemyAirframes";
-import type { SkyDancerArcadeEnemySnapshot } from "./SkyDancerArcadeRuntime";
+import type { SkyDancerArcadeEnemySnapshot, SkyDancerArcadeHazardSnapshot } from "./SkyDancerArcadeRuntime";
 import type { SkyDancerArcadeEnemyKind, SkyDancerArcadeStageDefinition } from "./SkyDancerArcadeData";
 import { skyDancerArcadeV4020WeakpointContrast } from "./SkyDancerArcadeV4020WeakpointContrast";
+import { createSkyDancerArcadeLightningEffect } from "./SkyDancerArcadeV4021LightningEffect";
 import {
-  createSkyDancerArcadeHazard,
+  createSkyDancerArcadeHazard as createSkyDancerArcadeHazardLegacy,
   createSkyDancerArcadeLockRing,
   createSkyDancerArcadePlayer,
   extendArcadeGroundConnectorsV1052,
@@ -13,12 +14,20 @@ import {
 } from "./SkyDancerArcadeModelsLegacy";
 
 export {
-  createSkyDancerArcadeHazard,
   createSkyDancerArcadeLockRing,
   createSkyDancerArcadePlayer,
   extendArcadeGroundConnectorsV1052,
   skyDancerArcadeEnemyVisualScaleV17,
 };
+
+export function createSkyDancerArcadeHazard(
+  stage: SkyDancerArcadeStageDefinition,
+  hazard: SkyDancerArcadeHazardSnapshot,
+): THREE.Group {
+  return hazard.kind === "lightning"
+    ? createSkyDancerArcadeLightningEffect(stage, hazard)
+    : createSkyDancerArcadeHazardLegacy(stage, hazard);
+}
 
 function polishEnemySilhouetteV18(group: THREE.Group): void {
   const beacons = group.getObjectByName("arcade-enemy-v18-round-beacons");
