@@ -71,10 +71,10 @@ export function applySkyDancerArcadeV4026LegacyRockFinish(
   chunks.forEach((chunk, chunkIndex) => {
     let finished = 0;
     for (const child of chunk.children) {
-      // Direct children are the original ReferenceWorld baked scenery. V16 hero rock groups are
-      // nested children and stay on their authored V40.23 geometry.
+      // Ownership, not material subclass, is the stable seam here. ReferenceWorld bakes its
+      // static decorative materials into direct children with this name; V16 hero groups are
+      // nested children and therefore remain untouched.
       if (!(child instanceof THREE.Mesh) || child.name !== "arcade-baked-airframe") continue;
-      if (!(child.material instanceof THREE.MeshStandardMaterial)) continue;
       if (finishLegacyMesh(child, profile, chunkIndex * .73 + stage.order * .41)) finished += 1;
     }
     chunk.userData.arcadeV4026LegacyRockFinish = finished > 0;
