@@ -18,6 +18,7 @@ export interface SkyDancerArcadeV409PhoneClarity {
 /**
  * V40.9 is presentation-only. Logical locks, missiles, hazards, collisions and enemy counts stay untouched;
  * this only chooses how many helper markers are allowed to compete for an iPhone landscape frame.
+ * V40.19 keeps the single boss attack cue strong even when projectile pressure is high.
  */
 export function skyDancerArcadeV409PhoneClarity(
   input: SkyDancerArcadeV409PhoneClarityInput,
@@ -29,7 +30,7 @@ export function skyDancerArcadeV409PhoneClarity(
   let clarity: SkyDancerArcadeV409PhoneClarity;
   switch (input.sceneMode) {
     case "boss":
-      clarity = { primaryLocks: 2, aimCues: 1, counterplayCues: 1, secondaryLockScale: .44, cueOpacity: .82, canvasLockLimit: 2 };
+      clarity = { primaryLocks: 2, aimCues: 1, counterplayCues: 1, secondaryLockScale: .44, cueOpacity: 1.12, canvasLockLimit: 2 };
       break;
     case "rival":
       clarity = { primaryLocks: 3, aimCues: 1, counterplayCues: 1, secondaryLockScale: .46, cueOpacity: .86, canvasLockLimit: 3 };
@@ -48,13 +49,14 @@ export function skyDancerArcadeV409PhoneClarity(
 
   const incoming = Math.max(0, Math.floor(input.incomingThreats));
   if (incoming < 2) return clarity;
+  const bossCueProtection = input.sceneMode === "boss";
   return {
     ...clarity,
     primaryLocks: Math.max(2, clarity.primaryLocks - (incoming >= 4 ? 1 : 0)),
     aimCues: incoming >= 3 ? 0 : Math.min(1, clarity.aimCues),
     counterplayCues: Math.min(1, clarity.counterplayCues),
     secondaryLockScale: clarity.secondaryLockScale * .9,
-    cueOpacity: clarity.cueOpacity * .88,
+    cueOpacity: clarity.cueOpacity * (bossCueProtection ? (incoming >= 4 ? .96 : 1) : .88),
     canvasLockLimit: Math.max(2, clarity.canvasLockLimit - (incoming >= 4 ? 1 : 0)),
   };
 }

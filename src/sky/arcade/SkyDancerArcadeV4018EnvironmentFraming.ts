@@ -1,7 +1,7 @@
 import type { SkyDancerArcadeStageDefinition } from "./SkyDancerArcadeData";
 import type { SkyDancerArcadeV4012RhythmPhase } from "./SkyDancerArcadeV4012RunRhythm";
 
-// Normal-push verification surface for the V40.18 WebGL/Pages audit.
+// Normal-push verification surface for the V40.18/V40.19 WebGL/Pages audit.
 export interface SkyDancerArcadeV4018EnvironmentFramingInput {
   compactLandscape: boolean;
   stageBiome: SkyDancerArcadeStageDefinition["biome"];
@@ -28,12 +28,12 @@ const clamp01 = (value: number) => Math.max(0, Math.min(1, value));
 function biomeWeight(biome: SkyDancerArcadeStageDefinition["biome"]): number {
   switch (biome) {
     case "storm": return 1;
-    case "citadel": return .92;
+    case "citadel": return .98;
     case "cloud": return .9;
+    case "volcano": return .9;
     case "ruins": return .78;
     case "ice": return .74;
-    case "volcano": return .68;
-    case "night": return .65;
+    case "night": return .72;
     case "desert": return .6;
     case "canyon": return .55;
     case "orbit": return .5;
@@ -54,6 +54,7 @@ function phaseWeight(phase: SkyDancerArcadeV4012RhythmPhase): number {
 
 /**
  * V40.18 opens the phone hero corridor before and during climax beats by reframing decorative world layers.
+ * V40.19 gives Volcano Core and Prism Citadel the same deliberate boss-side breathing room as the fleet stages.
  * Collision-bearing route geometry and hazards are deliberately outside this profile.
  */
 export function skyDancerArcadeV4018EnvironmentFraming(
@@ -65,6 +66,7 @@ export function skyDancerArcadeV4018EnvironmentFraming(
 
   const strongSideScenery = input.stageBiome === "cloud"
     || input.stageBiome === "storm"
+    || input.stageBiome === "volcano"
     || input.stageBiome === "ruins"
     || input.stageBiome === "citadel";
   const chunkGain = strongSideScenery ? .18 : .12;

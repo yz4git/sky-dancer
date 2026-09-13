@@ -46,6 +46,14 @@ const PHASE_FOCUS: Record<SkyDancerArcadeV4012RhythmPhase, number> = {
   finale: 0,
 };
 
+const CLIMAX_CONTRAST: Partial<Record<SkyDancerArcadeStageId, number>> = {
+  "storm-carrier": .18,
+  "volcano-core": .17,
+  "prism-citadel": .16,
+  "night-metro": .1,
+  "ice-cavern": .08,
+};
+
 const KEY_PHASES = new Set<SkyDancerArcadeV4012RhythmPhase>(["signature", "rival", "boss-rise", "boss"]);
 const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
 const clamp01 = (value: number) => clamp(value, 0, 1);
@@ -53,8 +61,8 @@ const clamp01 = (value: number) => clamp(value, 0, 1);
 /**
  * V40.15 keeps each stage's authored identity while creating a cleaner hero corridor when the
  * player must read a signature target, rival or boss on a phone-sized landscape viewport.
+ * V40.19 adds a climax-only contrast reserve to the most visually hostile boss stages.
  * It is presentation-only: simulation, spawns, hit rules, difficulty and timing are untouched.
- * This module is also the normal-push verification surface for the V40.15 WebGL/Pages audit.
  */
 export function skyDancerArcadeV4015StageReadability(input: SkyDancerArcadeV4015Input): SkyDancerArcadeV4015Profile {
   const stageNoise = STAGE_NOISE[input.stageId];
@@ -73,7 +81,9 @@ export function skyDancerArcadeV4015StageReadability(input: SkyDancerArcadeV4015
   const phaseContribution = PHASE_FOCUS[input.rhythmPhase];
   const stressContribution = clamp01(input.screenStress) * .28;
   const bossContribution = input.bossActive ? .08 : 0;
-  const focusPressure = clamp01(stageContribution + phaseContribution + stressContribution + bossContribution);
+  const bossClimax = input.bossActive && (input.rhythmPhase === "boss-rise" || input.rhythmPhase === "boss");
+  const climaxContrast = bossClimax ? (CLIMAX_CONTRAST[input.stageId] ?? .05) : 0;
+  const focusPressure = clamp01(stageContribution + phaseContribution + stressContribution + bossContribution + climaxContrast);
 
   // Smoke, missile exhaust and loose debris yield first. Hot sparks and detonation cores stay bold
   // so hits still feel powerful while the target silhouette remains readable.
