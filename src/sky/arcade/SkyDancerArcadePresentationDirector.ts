@@ -1,5 +1,6 @@
 import type { SkyDancerArcadeEnemyKind } from "./SkyDancerArcadeData";
 import { syncSkyDancerArcadeV4030DamageRegistry } from "./SkyDancerArcadeV4030EnemyDamageState";
+import { syncSkyDancerArcadeV4031DirectionalDamage } from "./SkyDancerArcadeV4031DirectionalDamage";
 
 export interface SkyDancerArcadePresentationSignals {
   turboActive: boolean;
@@ -21,6 +22,8 @@ export interface SkyDancerArcadePresentationSignals {
   combatDirectorMode?: string;
   encounterGrammarSerial?: number;
   // V40.30: optional render telemetry. Existing signal-only callers remain source-compatible.
+  playerX?: number;
+  playerY?: number;
   enemies?: readonly {
     id: number;
     kind: SkyDancerArcadeEnemyKind | "boss";
@@ -31,9 +34,13 @@ export interface SkyDancerArcadePresentationSignals {
     worldBreakTarget?: boolean;
   }[];
   impacts?: readonly {
+    serial?: number;
     enemyId: number;
     kind: SkyDancerArcadeEnemyKind | "boss";
+    x?: number;
+    y?: number;
     boss: boolean;
+    missile?: boolean;
     destroyed: boolean;
   }[];
 }
@@ -114,6 +121,15 @@ export class SkyDancerArcadePresentationDirector {
     // V40.30 mirrors authoritative hull HP into a render-only registry. No simulation field is mutated.
     if (current.enemies) {
       syncSkyDancerArcadeV4030DamageRegistry(current.enemies, current.impacts ?? [], current.stageSerial, dt);
+    }
+    // V40.31 consumes the same real impact snapshots and only remembers where presentation marks should sit.
+    if (current.impacts) {
+      syncSkyDancerArcadeV4031DirectionalDamage(
+        current.impacts,
+        current.stageSerial,
+        current.playerX ?? 0,
+        current.playerY ?? 0,
+      );
     }
     if (current.turboActive && !previous.turboActive) this.turboKick = 1;
     if (current.nearMisses > previous.nearMisses) this.nearMiss = 1;

@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import type { SkyDancerArcadeEnemyKind } from "./SkyDancerArcadeData";
+import { applySkyDancerArcadeV4031DirectionalDamage } from "./SkyDancerArcadeV4031DirectionalDamage";
 
 export type SkyDancerArcadeV4030DamageBand = "clean" | "scarred" | "damaged" | "critical";
 
@@ -268,9 +269,11 @@ export function attachSkyDancerArcadeV4030EnemyDamage(
   if (driver) {
     driver.onBeforeRender = () => {
       applyDamageRig(rig, skyDancerArcadeV4030DamageForEnemy(enemyId), enemyId);
+      applySkyDancerArcadeV4031DirectionalDamage(rig, enemyId, kind);
     };
   }
   applyDamageRig(rig, skyDancerArcadeV4030DamageForEnemy(enemyId), enemyId);
+  applySkyDancerArcadeV4031DirectionalDamage(rig, enemyId, kind);
   group.userData.arcadeV4030ProgressiveDamage = true;
   group.userData.arcadeV4030LogicalCollisionUnchanged = true;
   return rig;
