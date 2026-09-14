@@ -25,8 +25,8 @@ test("V40.31 keeps the last three real impact zones and deduplicates snapshot se
     { serial: 12, enemyId: 7, kind: "fighter" as const, x: 0, y: .8, boss: false, missile: false, destroyed: false },
     { serial: 13, enemyId: 7, kind: "fighter" as const, x: 0, y: 0, boss: false, missile: true, destroyed: true },
   ];
-  syncSkyDancerArcadeV4031DirectionalDamage(impacts, 4, -1, 0);
-  syncSkyDancerArcadeV4031DirectionalDamage(impacts, 4, -1, 0);
+  syncSkyDancerArcadeV4031DirectionalDamage(impacts, 4, 0, 0);
+  syncSkyDancerArcadeV4031DirectionalDamage(impacts, 4, 0, 0);
   const state = skyDancerArcadeV4031DirectionalForEnemy(7);
   assert.equal(state.hitCount, 3);
   assert.deepEqual(state.zones, ["left-wing", "fuselage", "tail"]);
