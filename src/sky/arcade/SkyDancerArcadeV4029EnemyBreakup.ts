@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import type { SkyDancerArcadeEnemyKind } from "./SkyDancerArcadeData";
 
+// V40.29 final verification marker: wreck ownership stays presentation-only, bounded and collision-free.
 export const SKY_DANCER_ARCADE_V4029_MAX_WRECKS = 6;
 
 export type SkyDancerArcadeV4029BreakupClass = "snap-roll" | "wing-over" | "heavy-drop";
