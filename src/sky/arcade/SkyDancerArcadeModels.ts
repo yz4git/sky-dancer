@@ -6,6 +6,7 @@ import type { SkyDancerArcadeEnemyKind, SkyDancerArcadeStageDefinition } from ".
 import { skyDancerArcadeV4020WeakpointContrast } from "./SkyDancerArcadeV4020WeakpointContrast";
 import { createSkyDancerArcadeLightningEffect } from "./SkyDancerArcadeV4021LightningEffect";
 import { applySkyDancerArcadeV4027BossEdgeSeparation } from "./SkyDancerArcadeV4027BossEdgeSeparation";
+import { attachSkyDancerArcadeV4030EnemyDamage } from "./SkyDancerArcadeV4030EnemyDamageState";
 import {
   createSkyDancerArcadeHazard as createSkyDancerArcadeHazardLegacy,
   createSkyDancerArcadeLockRing,
@@ -104,6 +105,8 @@ function createStandardEnemy(stage: SkyDancerArcadeStageDefinition, enemy: SkyDa
   fighter.scale.multiplyScalar(visualScale);
   polishEnemySilhouetteV18(fighter);
   applyReadableEnemyAttitudeV19(fighter, enemy);
+  // V40.30: every normal airframe carries a dormant render-only damage layer. Hero targets stay clean via the registry filter.
+  attachSkyDancerArcadeV4030EnemyDamage(fighter, enemy.id, enemy.kind);
   fighter.userData.arcadeEnemyReadabilityV17 = true;
   fighter.userData.arcadeEnemyVisualScaleV17 = visualScale;
   fighter.userData.arcadeEnemyLogicalCollisionUnchangedV17 = true;

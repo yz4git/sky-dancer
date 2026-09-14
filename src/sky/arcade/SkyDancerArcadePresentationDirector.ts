@@ -1,3 +1,6 @@
+import type { SkyDancerArcadeEnemyKind } from "./SkyDancerArcadeData";
+import { syncSkyDancerArcadeV4030DamageRegistry } from "./SkyDancerArcadeV4030EnemyDamageState";
+
 export interface SkyDancerArcadePresentationSignals {
   turboActive: boolean;
   nearMisses: number;
@@ -17,6 +20,22 @@ export interface SkyDancerArcadePresentationSignals {
   combatDirectorSerial?: number;
   combatDirectorMode?: string;
   encounterGrammarSerial?: number;
+  // V40.30: optional render telemetry. Existing signal-only callers remain source-compatible.
+  enemies?: readonly {
+    id: number;
+    kind: SkyDancerArcadeEnemyKind | "boss";
+    hp: number;
+    maxHp: number;
+    boss: boolean;
+    rivalAce?: boolean;
+    worldBreakTarget?: boolean;
+  }[];
+  impacts?: readonly {
+    enemyId: number;
+    kind: SkyDancerArcadeEnemyKind | "boss";
+    boss: boolean;
+    destroyed: boolean;
+  }[];
 }
 
 export interface SkyDancerArcadePresentationFrame {
@@ -92,6 +111,10 @@ export class SkyDancerArcadePresentationDirector {
     delta: number,
   ): SkyDancerArcadePresentationFrame {
     const dt = Math.max(0, Math.min(.1, delta));
+    // V40.30 mirrors authoritative hull HP into a render-only registry. No simulation field is mutated.
+    if (current.enemies) {
+      syncSkyDancerArcadeV4030DamageRegistry(current.enemies, current.impacts ?? [], current.stageSerial, dt);
+    }
     if (current.turboActive && !previous.turboActive) this.turboKick = 1;
     if (current.nearMisses > previous.nearMisses) this.nearMiss = 1;
     if (current.hitSerial !== previous.hitSerial) this.impact = Math.max(this.impact, .72);
