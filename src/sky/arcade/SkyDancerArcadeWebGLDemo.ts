@@ -45,6 +45,7 @@ import { skyDancerArcadeV4012RunRhythm } from "./SkyDancerArcadeV4012RunRhythm";
 import { skyDancerArcadeV4015StageReadability } from "./SkyDancerArcadeV4015StageReadability";
 import { skyDancerArcadeV4017ForegroundClearance } from "./SkyDancerArcadeV4017ForegroundClearance";
 import { skyDancerArcadeV4018EnvironmentFraming } from "./SkyDancerArcadeV4018EnvironmentFraming";
+import { SkyDancerArcadeV4029EnemyBreakupDirector, type SkyDancerArcadeV4029BreakupRequest } from "./SkyDancerArcadeV4029EnemyBreakup";
 import {
   createSkyDancerArcadeEnemy,
   createSkyDancerArcadeHazard,
@@ -185,6 +186,9 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
   private readonly worldBreakOrbitRoot = new THREE.Group();
   private readonly worldBreakPrismRoot = new THREE.Group();
   private readonly enemyGroups = new Map<number, THREE.Group>();
+  // V40.29: real destroyed impacts hand the already-rendered aircraft to a bounded presentation-only wreck pool.
+  private readonly v4029Breakups = new SkyDancerArcadeV4029EnemyBreakupDirector();
+  private readonly v4029PendingBreakups = new Map<number, SkyDancerArcadeV4029BreakupRequest>();
   private readonly projectileMeshes = new Map<number, THREE.Mesh>();
   private readonly hazardGroups = new Map<number, THREE.Group>();
   private readonly worldBreakGateGroups = new Map<number, THREE.Group>();
@@ -292,7 +296,7 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
     this.worldBreakRoot.add(this.worldBreakKnifeRoot, this.worldBreakStormRoot, this.worldBreakFortressRoot, this.worldBreakIceRoot, this.worldBreakPortalRoot);
     this.worldBreakRoot.add(this.worldBreakPursuitRoot, this.worldBreakMagmaRoot);
     this.worldBreakRoot.add(this.worldBreakOrbitRoot, this.worldBreakPrismRoot);
-    this.scene.add(this.entityRoot, this.projectileRoot, this.hazardRoot, this.branchRoot, this.worldBreakRoot, this.player);
+    this.scene.add(this.entityRoot, this.v4029Breakups.root, this.projectileRoot, this.hazardRoot, this.branchRoot, this.worldBreakRoot, this.player);
     this.environment = new SkyDancerArcadeEnvironment(this.scene);
     this.environment.setStage(this.previousSnapshot.stage);
     this.v11Setpieces = new SkyDancerArcadeV11SetpieceDirector(this.scene);
@@ -405,7 +409,9 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
     this.environment.update(snapshot.distance, snapshot.playerX, snapshot.playerY, v4018Framing, delta);
     this.v11Setpieces.update(snapshot);
     this.syncPlayer(snapshot, delta);
+    this.captureV4029DestroyedEnemies(snapshot);
     this.syncEnemies(snapshot, delta);
+    for (const retired of this.v4029Breakups.update(delta)) this.disposeObject(retired);
     this.syncProjectiles(snapshot);
     this.syncHazards(snapshot, delta);
     this.syncWorldBreakGates(snapshot, delta);
@@ -450,6 +456,19 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
     for (const object of this.engineTrails) {
       object.scale.set(1, snapshot.turboActive ? 2.1 : 1, 1);
       object.position.z = 2.05 + .31 * (snapshot.turboActive ? 9.5 : 5.2);
+    }
+  }
+
+  private captureV4029DestroyedEnemies(snapshot: SkyDancerArcadeSnapshot): void {
+    for (const impact of snapshot.impacts) {
+      if (!impact.destroyed || impact.boss || impact.kind === "boss") continue;
+      // The old visual must still exist. Despawns, stage handoffs and unseen instant kills stay on the proven explosion-only path.
+      if (!this.enemyGroups.has(impact.enemyId)) continue;
+      this.v4029PendingBreakups.set(impact.enemyId, {
+        enemyId: impact.enemyId,
+        kind: impact.kind,
+        missile: impact.missile,
+      });
     }
   }
 
@@ -806,6 +825,14 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
       this.enemyGroups.delete(id);
       this.enemyHitReactions.delete(id);
       this.enemyVelocityHistory.delete(id);
+      const breakup = this.v4029PendingBreakups.get(id);
+      this.v4029PendingBreakups.delete(id);
+      const rivalIdentity = group.getObjectByName("arcade-rival-ace-identity");
+      if (breakup && !rivalIdentity) {
+        // Re-parent the exact rendered aircraft after the logical actor is gone: no duplicate hitbox or target survives.
+        for (const retired of this.v4029Breakups.adopt(group, breakup)) this.disposeObject(retired);
+        continue;
+      }
       this.entityRoot.remove(group);
       this.disposeObject(group);
     }
@@ -1777,6 +1804,8 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
   }
 
   private clearEntityVisuals(): void {
+    for (const wreck of this.v4029Breakups.clear()) this.disposeObject(wreck);
+    this.v4029PendingBreakups.clear();
     for (const group of this.enemyGroups.values()) this.disposeObject(group);
     for (const mesh of this.projectileMeshes.values()) {
       mesh.geometry.dispose();
