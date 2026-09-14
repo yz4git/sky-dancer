@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import type { SkyDancerArcadeEnemyKind } from "./SkyDancerArcadeData";
+import { applySkyDancerArcadeV4032LocalizedReaction } from "./SkyDancerArcadeV4032LocalizedReaction";
 
 export type SkyDancerArcadeV4031DamageZone = "left-wing" | "right-wing" | "fuselage" | "tail";
 
@@ -177,4 +178,5 @@ export function applySkyDancerArcadeV4031DirectionalDamage(
   rig.userData.arcadeV4031HitCount = state.hitCount;
   rig.userData.arcadeV4031GameplayUnchanged = true;
   rig.userData.arcadeV4031CollisionUnchanged = true;
+  applySkyDancerArcadeV4032LocalizedReaction(rig, enemyId, kind, state);
 }
