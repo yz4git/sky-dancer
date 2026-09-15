@@ -853,7 +853,7 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
         const geometry = projectile.owner === "player-missile"
           ? new THREE.ConeGeometry(0.28, 1.58, 8)
           : enemyMissile
-            ? new THREE.ConeGeometry(0.36, 1.62, 8)
+            ? new THREE.ConeGeometry(0.44, 1.9, 10)
             : new THREE.CylinderGeometry(0.04, 0.072, 1.55, 5);
         geometry.rotateX(Math.PI / 2);
         mesh = new THREE.Mesh(
@@ -861,13 +861,62 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
           new THREE.MeshBasicMaterial({
             color,
             transparent: true,
-            opacity: enemyMissile ? 1 : 0.94,
-            blending: enemyMissile ? THREE.NormalBlending : THREE.AdditiveBlending,
+            opacity: enemyMissile ? .98 : 0.94,
+            blending: THREE.AdditiveBlending,
             depthWrite: false,
             toneMapped: false,
           }),
         );
-        if (projectile.owner === "enemy") mesh.renderOrder = 8;
+        if (enemyMissile) {
+          mesh.renderOrder = 8;
+          // V40.35: keep collision untouched while giving hostile fire a bright core, halo and readable motion streak.
+          const glow = new THREE.Mesh(
+            new THREE.SphereGeometry(.72, 10, 8),
+            new THREE.MeshBasicMaterial({
+              color: 0xff3f24,
+              transparent: true,
+              opacity: .3,
+              blending: THREE.AdditiveBlending,
+              depthWrite: false,
+              depthTest: false,
+              toneMapped: false,
+            }),
+          );
+          glow.name = "arcade-enemy-projectile-glow-v4035";
+          glow.renderOrder = 10;
+          const core = new THREE.Mesh(
+            new THREE.SphereGeometry(.19, 9, 7),
+            new THREE.MeshBasicMaterial({
+              color: 0xfff2d8,
+              transparent: true,
+              opacity: .98,
+              blending: THREE.AdditiveBlending,
+              depthWrite: false,
+              depthTest: false,
+              toneMapped: false,
+            }),
+          );
+          core.name = "arcade-enemy-projectile-core-v4035";
+          core.renderOrder = 11;
+          const trailGeometry = new THREE.CylinderGeometry(.07, .2, 3.1, 6);
+          trailGeometry.rotateX(Math.PI / 2);
+          const trail = new THREE.Mesh(
+            trailGeometry,
+            new THREE.MeshBasicMaterial({
+              color: 0xff6b32,
+              transparent: true,
+              opacity: .56,
+              blending: THREE.AdditiveBlending,
+              depthWrite: false,
+              depthTest: false,
+              toneMapped: false,
+            }),
+          );
+          trail.name = "arcade-enemy-projectile-trail-v4035";
+          trail.position.z = 1.55;
+          trail.renderOrder = 9;
+          mesh.add(glow, core, trail);
+        }
         mesh.userData.arcadeLoadoutV117 = snapshot.loadout;
         this.projectileMeshes.set(projectile.id, mesh);
         this.projectileRoot.add(mesh);
@@ -881,16 +930,31 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
       mesh.rotation.y = course.yaw;
       mesh.rotation.x = course.pitch;
       if (projectile.owner === "enemy" && mesh.material instanceof THREE.MeshBasicMaterial) {
-        mesh.material.color.setHex(warning ? 0xff315e : 0xff8a2b);
-        mesh.material.opacity = warning ? .48 : 1;
+        mesh.material.color.setHex(warning ? 0xff315e : 0xff5a36);
+        mesh.material.opacity = warning ? .5 : .98;
         mesh.material.wireframe = warning;
+        const glow = mesh.getObjectByName("arcade-enemy-projectile-glow-v4035");
+        const core = mesh.getObjectByName("arcade-enemy-projectile-core-v4035");
+        const trail = mesh.getObjectByName("arcade-enemy-projectile-trail-v4035");
+        const dangerPulse = projectile.depth < 14
+          ? 1.18 + Math.sin(performance.now() * .03 + projectile.id) * .14
+          : 1;
+        if (glow) {
+          glow.visible = !warning;
+          glow.scale.setScalar(dangerPulse);
+        }
+        if (core) core.visible = !warning;
+        if (trail) {
+          trail.visible = !warning;
+          trail.scale.z = projectile.depth < 14 ? 1.18 : 1;
+        }
       }
       const pulse = projectile.owner === "player-missile"
         ? (snapshot.loadout === "missile-focus" ? 1.55 : 1.35) + Math.sin(performance.now() * 0.025 + projectile.id) * 0.15
         : projectile.owner === "enemy"
           ? warning
             ? 2.1 + Math.sin(performance.now() * .032 + projectile.id) * .42
-            : 1.1 + Math.sin(performance.now() * 0.018 + projectile.id) * 0.08
+            : 1.55 + Math.sin(performance.now() * 0.018 + projectile.id) * 0.12
           : snapshot.loadout === "gun-focus" ? 1.16 : 1;
       mesh.scale.setScalar(pulse);
     }

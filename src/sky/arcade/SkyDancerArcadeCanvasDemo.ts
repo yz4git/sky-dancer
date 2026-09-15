@@ -231,7 +231,59 @@ export class SkyDancerArcadeCanvasDemo implements SkyDancerArcadeDemoHandle {
         context.lineTo(projected.x, projected.y + projected.scale * 20);
         context.stroke();
       }
-      context.fillStyle = projectile.owner === "enemy" ? "#ff4968" : projectile.owner === "player-missile" ? "#fff0c8" : "#fff1a8";
+      if (projectile.owner === "enemy") {
+        // V40.35: hostile shots keep a phone-readable minimum footprint without changing their hit radius.
+        const radius = Math.max(5, projected.scale * 4.2);
+        const danger = projectile.depth < 14;
+        const dangerPulse = danger ? 1 + Math.sin(snapshot.runTimeSeconds * 22 + projectile.id) * .12 : 1;
+        const playerPoint = this.project(snapshot.playerX, snapshot.playerY, 1.65, cssWidth, cssHeight);
+        const dx = projected.x - playerPoint.x;
+        const dy = projected.y - playerPoint.y;
+        const length = Math.hypot(dx, dy) || 1;
+        const ux = dx / length;
+        const uy = dy / length;
+        const trailLength = Math.max(14, radius * (danger ? 4.6 : 3.7));
+        context.save();
+        context.lineCap = "round";
+        context.shadowColor = "rgba(255,61,36,.95)";
+        context.shadowBlur = danger ? 18 : 13;
+        context.strokeStyle = "rgba(255,76,42,.52)";
+        context.lineWidth = Math.max(4.5, radius * 1.05);
+        context.beginPath();
+        context.moveTo(projected.x + ux * radius * .4, projected.y + uy * radius * .4);
+        context.lineTo(projected.x + ux * trailLength, projected.y + uy * trailLength);
+        context.stroke();
+        context.strokeStyle = "rgba(255,224,183,.92)";
+        context.lineWidth = Math.max(1.8, radius * .3);
+        context.beginPath();
+        context.moveTo(projected.x + ux * radius * .25, projected.y + uy * radius * .25);
+        context.lineTo(projected.x + ux * trailLength * .72, projected.y + uy * trailLength * .72);
+        context.stroke();
+        context.fillStyle = "rgba(255,64,34,.24)";
+        context.beginPath();
+        context.arc(projected.x, projected.y, radius * 2.15 * dangerPulse, 0, Math.PI * 2);
+        context.fill();
+        context.fillStyle = "#ff5a36";
+        context.beginPath();
+        context.arc(projected.x, projected.y, radius * dangerPulse, 0, Math.PI * 2);
+        context.fill();
+        context.shadowBlur = 8;
+        context.fillStyle = "#fff2d8";
+        context.beginPath();
+        context.arc(projected.x, projected.y, Math.max(2.2, radius * .42), 0, Math.PI * 2);
+        context.fill();
+        if (danger) {
+          context.shadowBlur = 0;
+          context.strokeStyle = "rgba(255,240,215,.72)";
+          context.lineWidth = 1.8;
+          context.beginPath();
+          context.arc(projected.x, projected.y, radius * 1.55 * dangerPulse, 0, Math.PI * 2);
+          context.stroke();
+        }
+        context.restore();
+        continue;
+      }
+      context.fillStyle = projectile.owner === "player-missile" ? "#fff0c8" : "#fff1a8";
       context.beginPath();
       context.arc(projected.x, projected.y, Math.max(1.5, projected.scale * (projectile.owner === "player-missile" ? 4.8 : 2.4)), 0, Math.PI * 2);
       context.fill();
