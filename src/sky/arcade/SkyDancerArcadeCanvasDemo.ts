@@ -196,14 +196,21 @@ export class SkyDancerArcadeCanvasDemo implements SkyDancerArcadeDemoHandle {
       const warning = projectile.owner === "enemy" && (projectile.warningSeconds ?? 0) > 0;
       const warningX = projectile.warningTargetX ?? snapshot.playerX;
       const warningY = projectile.warningTargetY ?? snapshot.playerY;
-      // V40.37 mirrors WebGL: keep a missed hostile shot visually alive through its near pass,
-      // then fade it instead of visibly popping at the gameplay despawn depth.
-      const hostileExitFade = projectile.owner === "enemy" && !warning && projectile.depth < .8
-        ? Math.max(0, Math.min(1, (projectile.depth + 3) / 3.8))
-        : 1;
+      // V40.38 mirrors WebGL: never fade a still-visible missed hostile shot. After the
+      // near pass, carry it outward until it has naturally left the viewport, then let the
+      // existing gameplay despawn remove it later.
+      const hostileExitTravel = projectile.owner === "enemy" && !warning && projectile.depth < .35
+        ? .35 - projectile.depth
+        : 0;
+      const exitDx = projectile.x - warningX;
+      const exitDy = projectile.y - warningY;
+      const exitLength = Math.hypot(exitDx, exitDy);
+      const exitUx = exitLength > .01 ? exitDx / exitLength : (projectile.id % 2 === 0 ? 1 : -1);
+      const exitUy = exitLength > .01 ? exitDy / exitLength : ((projectile.id % 3) - 1) * .38;
+      const hostileExitPush = hostileExitTravel * 2.6;
       const projected = this.project(
-        warning ? warningX : projectile.x,
-        warning ? warningY : projectile.y,
+        warning ? warningX : projectile.x + exitUx * hostileExitPush,
+        warning ? warningY : projectile.y + exitUy * hostileExitPush,
         warning ? 1.65 : projectile.owner === "enemy" ? Math.max(.58, projectile.depth) : projectile.depth,
         cssWidth,
         cssHeight,
@@ -255,7 +262,6 @@ export class SkyDancerArcadeCanvasDemo implements SkyDancerArcadeDemoHandle {
         const uy = dy / length;
         const trailLength = Math.max(10, radius * (danger ? 3.3 : 2.8));
         context.save();
-        context.globalAlpha *= hostileExitFade;
         context.lineCap = "round";
         context.shadowColor = "rgba(255,82,38,.82)";
         context.shadowBlur = danger ? 12 : 8;
