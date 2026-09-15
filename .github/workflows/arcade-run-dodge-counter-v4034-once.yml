@@ -1,4 +1,5 @@
 name: Arcade Run V40.34 dodge counter combat
+# Final validation after separating climax durability from idle survival.
 
 on:
   push:
