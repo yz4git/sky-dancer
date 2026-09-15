@@ -860,7 +860,7 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
           geometry,
           new THREE.MeshBasicMaterial({
             color,
-            transparent: !enemyMissile,
+            transparent: true,
             opacity: enemyMissile ? 1 : 0.94,
             blending: enemyMissile ? THREE.NormalBlending : THREE.AdditiveBlending,
             depthWrite: false,
@@ -872,14 +872,25 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
         this.projectileMeshes.set(projectile.id, mesh);
         this.projectileRoot.add(mesh);
       }
-      const course = arcadeCourseRelativeVisualPose(snapshot.stage, snapshot.distance, projectile.depth);
-      mesh.position.set(projectile.x * 8.4 + course.x, 1.2 + projectile.y * 4.9 + course.y, course.z);
+      const warning = projectile.owner === "enemy" && (projectile.warningSeconds ?? 0) > 0;
+      const visualDepth = warning ? 1.65 : projectile.depth;
+      const visualX = warning ? (projectile.warningTargetX ?? snapshot.playerX) : projectile.x;
+      const visualY = warning ? (projectile.warningTargetY ?? snapshot.playerY) : projectile.y;
+      const course = arcadeCourseRelativeVisualPose(snapshot.stage, snapshot.distance, visualDepth);
+      mesh.position.set(visualX * 8.4 + course.x, 1.2 + visualY * 4.9 + course.y, course.z);
       mesh.rotation.y = course.yaw;
       mesh.rotation.x = course.pitch;
+      if (projectile.owner === "enemy" && mesh.material instanceof THREE.MeshBasicMaterial) {
+        mesh.material.color.setHex(warning ? 0xff315e : 0xff8a2b);
+        mesh.material.opacity = warning ? .48 : 1;
+        mesh.material.wireframe = warning;
+      }
       const pulse = projectile.owner === "player-missile"
         ? (snapshot.loadout === "missile-focus" ? 1.55 : 1.35) + Math.sin(performance.now() * 0.025 + projectile.id) * 0.15
         : projectile.owner === "enemy"
-          ? 1.1 + Math.sin(performance.now() * 0.018 + projectile.id) * 0.08
+          ? warning
+            ? 2.1 + Math.sin(performance.now() * .032 + projectile.id) * .42
+            : 1.1 + Math.sin(performance.now() * 0.018 + projectile.id) * 0.08
           : snapshot.loadout === "gun-focus" ? 1.16 : 1;
       mesh.scale.setScalar(pulse);
     }
@@ -1651,6 +1662,11 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
     if (snapshot.resultSerial !== this.previousSnapshot.resultSerial) this.audio.tone(660, 0.32, 0.045, "triangle");
     if (snapshot.turboActive && !this.previousSnapshot.turboActive) this.audio.tone(132, .2, .035, "sawtooth");
     if (snapshot.nearMisses > this.previousSnapshot.nearMisses) this.audio.tone(1180, .075, .018, "triangle");
+    if (snapshot.evasionSerial !== this.previousSnapshot.evasionSerial) {
+      this.audio.tone(720, .1, .025, "triangle");
+      this.audio.tone(1440, .065, .018, "square");
+      this.presentation.emitRushAccent();
+    }
     if (snapshot.enemiesDefeated > this.previousSnapshot.enemiesDefeated) this.audio.tone(236, .08, .018, "triangle");
     if (snapshot.enemyCounterplaySerial !== this.previousSnapshot.enemyCounterplaySerial) {
       const frequency = snapshot.turboJammed ? 310 : snapshot.loadout === "gun-focus" ? 540 : 860;
@@ -1699,8 +1715,8 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
       this.audio.tone(frequency, .2, .032, snapshot.worldBreakPortalDoctrine === "DANGER" ? "sawtooth" : "triangle");
       this.presentation.emitRushAccent();
     }
-    const incoming = snapshot.projectiles.some((projectile) => projectile.owner === "enemy" && projectile.depth > 2.2 && projectile.depth < 30);
-    const wasIncoming = this.previousSnapshot.projectiles.some((projectile) => projectile.owner === "enemy" && projectile.depth > 2.2 && projectile.depth < 30);
+    const incoming = snapshot.projectiles.some((projectile) => projectile.owner === "enemy" && ((projectile.warningSeconds ?? 0) > 0 || (projectile.depth > 2.2 && projectile.depth < 30)));
+    const wasIncoming = this.previousSnapshot.projectiles.some((projectile) => projectile.owner === "enemy" && ((projectile.warningSeconds ?? 0) > 0 || (projectile.depth > 2.2 && projectile.depth < 30)));
     if (incoming && !wasIncoming) this.audio.tone(880, 0.12, 0.026, "square");
   }
 
