@@ -1,0 +1,47 @@
+name: Arcade Run V40.35 projectile visibility
+
+on:
+  push:
+    branches:
+      - chatgpt/v4035-enemy-projectile-visibility
+    paths:
+      - .github/workflows/arcade-run-v4035-projectile-visibility-once.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.13.0
+          cache: npm
+      - name: Apply projectile visibility pass
+        run: python3 scripts/arcade-run-v4035-projectile-visibility.py
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Verify focused rendering contract
+        run: |
+          npm run check:arcade
+          node --import tsx --test tests/sky-arcade-v4035-projectile-visibility.test.ts
+          npm run lint
+          npm run test:pwa
+          npm run test:pages
+          npm run validate:artifact
+      - name: Commit verified V40.35 visibility pass
+        run: |
+          git config user.name "yz4git"
+          git config user.email "65384484+yz4git@users.noreply.github.com"
+          git add src/sky/arcade/SkyDancerArcadeWebGLDemo.ts \
+                  src/sky/arcade/SkyDancerArcadeCanvasDemo.ts \
+                  tests/sky-arcade-v4035-projectile-visibility.test.ts
+          git diff --cached --quiet && exit 0
+          git commit -m "Arcade Run V40.35: improve enemy projectile visibility"
+          git push origin HEAD:chatgpt/v4035-enemy-projectile-visibility
