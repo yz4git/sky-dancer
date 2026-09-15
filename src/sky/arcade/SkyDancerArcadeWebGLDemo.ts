@@ -853,7 +853,7 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
         const geometry = projectile.owner === "player-missile"
           ? new THREE.ConeGeometry(0.28, 1.58, 8)
           : enemyMissile
-            ? new THREE.ConeGeometry(0.44, 1.9, 10)
+            ? new THREE.ConeGeometry(0.38, 1.72, 10)
             : new THREE.CylinderGeometry(0.04, 0.072, 1.55, 5);
         geometry.rotateX(Math.PI / 2);
         mesh = new THREE.Mesh(
@@ -862,7 +862,7 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
             color,
             transparent: true,
             opacity: enemyMissile ? .98 : 0.94,
-            blending: THREE.AdditiveBlending,
+            blending: enemyMissile ? THREE.NormalBlending : THREE.AdditiveBlending,
             depthWrite: false,
             toneMapped: false,
           }),
@@ -871,49 +871,50 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
           mesh.renderOrder = 8;
           // V40.35: keep collision untouched while giving hostile fire a bright core, halo and readable motion streak.
           const glow = new THREE.Mesh(
-            new THREE.SphereGeometry(.72, 10, 8),
+            new THREE.SphereGeometry(.52, 10, 8),
             new THREE.MeshBasicMaterial({
-              color: 0xff3f24,
+              color: 0xff542e,
               transparent: true,
-              opacity: .3,
+              opacity: .18,
               blending: THREE.AdditiveBlending,
               depthWrite: false,
-              depthTest: false,
+              depthTest: true,
               toneMapped: false,
             }),
           );
           glow.name = "arcade-enemy-projectile-glow-v4035";
           glow.renderOrder = 10;
           const core = new THREE.Mesh(
-            new THREE.SphereGeometry(.19, 9, 7),
+            new THREE.SphereGeometry(.12, 9, 7),
             new THREE.MeshBasicMaterial({
-              color: 0xfff2d8,
+              color: 0xfffff0,
               transparent: true,
-              opacity: .98,
+              opacity: .96,
               blending: THREE.AdditiveBlending,
               depthWrite: false,
-              depthTest: false,
+              depthTest: true,
               toneMapped: false,
             }),
           );
           core.name = "arcade-enemy-projectile-core-v4035";
           core.renderOrder = 11;
-          const trailGeometry = new THREE.CylinderGeometry(.07, .2, 3.1, 6);
+          const trailGeometry = new THREE.CylinderGeometry(.045, .13, 2.25, 6);
           trailGeometry.rotateX(Math.PI / 2);
           const trail = new THREE.Mesh(
             trailGeometry,
             new THREE.MeshBasicMaterial({
-              color: 0xff6b32,
+              color: 0xff7a38,
               transparent: true,
-              opacity: .56,
+              opacity: .34,
               blending: THREE.AdditiveBlending,
               depthWrite: false,
-              depthTest: false,
+              depthTest: true,
               toneMapped: false,
             }),
           );
           trail.name = "arcade-enemy-projectile-trail-v4035";
-          trail.position.z = 1.55;
+          // V40.36: hostile fire advances toward the player (+local Z), so its streak must remain behind it.
+          trail.position.z = -1.2;
           trail.renderOrder = 9;
           mesh.add(glow, core, trail);
         }
@@ -927,8 +928,16 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
       const visualY = warning ? (projectile.warningTargetY ?? snapshot.playerY) : projectile.y;
       const course = arcadeCourseRelativeVisualPose(snapshot.stage, snapshot.distance, visualDepth);
       mesh.position.set(visualX * 8.4 + course.x, 1.2 + visualY * 4.9 + course.y, course.z);
-      mesh.rotation.y = course.yaw;
-      mesh.rotation.x = course.pitch;
+      if (projectile.owner === "enemy" && !warning) {
+        // V40.36: aim the projectile body at the locked firing solution instead of letting the course tangent fake its direction.
+        const targetX = projectile.warningTargetX ?? snapshot.playerX;
+        const targetY = projectile.warningTargetY ?? snapshot.playerY;
+        const targetCourse = arcadeCourseRelativeVisualPose(snapshot.stage, snapshot.distance, 1.65);
+        mesh.lookAt(targetX * 8.4 + targetCourse.x, 1.2 + targetY * 4.9 + targetCourse.y, targetCourse.z);
+      } else {
+        mesh.rotation.y = course.yaw;
+        mesh.rotation.x = course.pitch;
+      }
       if (projectile.owner === "enemy" && mesh.material instanceof THREE.MeshBasicMaterial) {
         mesh.material.color.setHex(warning ? 0xff315e : 0xff5a36);
         mesh.material.opacity = warning ? .5 : .98;
@@ -936,8 +945,8 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
         const glow = mesh.getObjectByName("arcade-enemy-projectile-glow-v4035");
         const core = mesh.getObjectByName("arcade-enemy-projectile-core-v4035");
         const trail = mesh.getObjectByName("arcade-enemy-projectile-trail-v4035");
-        const dangerPulse = projectile.depth < 14
-          ? 1.18 + Math.sin(performance.now() * .03 + projectile.id) * .14
+        const dangerPulse = projectile.depth < 9
+          ? 1.06 + Math.sin(performance.now() * .028 + projectile.id) * .05
           : 1;
         if (glow) {
           glow.visible = !warning;
@@ -946,15 +955,15 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
         if (core) core.visible = !warning;
         if (trail) {
           trail.visible = !warning;
-          trail.scale.z = projectile.depth < 14 ? 1.18 : 1;
+          trail.scale.z = projectile.depth < 9 ? 1.08 : 1;
         }
       }
       const pulse = projectile.owner === "player-missile"
         ? (snapshot.loadout === "missile-focus" ? 1.55 : 1.35) + Math.sin(performance.now() * 0.025 + projectile.id) * 0.15
         : projectile.owner === "enemy"
           ? warning
-            ? 2.1 + Math.sin(performance.now() * .032 + projectile.id) * .42
-            : 1.55 + Math.sin(performance.now() * 0.018 + projectile.id) * 0.12
+            ? 1.55 + Math.sin(performance.now() * .032 + projectile.id) * .2
+            : 1.22 + Math.sin(performance.now() * 0.018 + projectile.id) * 0.05
           : snapshot.loadout === "gun-focus" ? 1.16 : 1;
       mesh.scale.setScalar(pulse);
     }
