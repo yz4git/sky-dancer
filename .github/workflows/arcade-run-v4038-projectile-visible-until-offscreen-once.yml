@@ -24,7 +24,9 @@ jobs:
           node-version: 22.13.0
           cache: npm
       - name: Apply V40.38 offscreen-exit presentation fix
-        run: python3 scripts/arcade-run-v4038-projectile-visible-until-offscreen.py
+        run: |
+          python3 scripts/arcade-run-v4038-projectile-visible-until-offscreen.py
+          python3 scripts/arcade-run-v4038-update-v4037-contract.py
       - name: Install dependencies
         run: npm ci --no-audit --no-fund
       - name: Verify related Arcade Run contracts
@@ -44,6 +46,7 @@ jobs:
           git config user.email "65384484+yz4git@users.noreply.github.com"
           git add src/sky/arcade/SkyDancerArcadeWebGLDemo.ts \
                   src/sky/arcade/SkyDancerArcadeCanvasDemo.ts \
+                  tests/sky-arcade-v4037-projectile-pass-through.test.ts \
                   tests/sky-arcade-v4038-projectile-visible-until-offscreen.test.ts
           git diff --cached --quiet && exit 0
           git commit -m "Arcade Run V40.38: keep hostile shots visible until offscreen"
