@@ -35,6 +35,7 @@ jobs:
           node --import tsx --test tests/sky-arcade-v4036-enemy-attack-visual-coherence.test.ts
           node --import tsx --test tests/sky-arcade-v4037-projectile-pass-through.test.ts
           npm run lint
+          npm run build
           npm run validate:artifact
       - name: Commit verified V40.37 fix
         run: |
