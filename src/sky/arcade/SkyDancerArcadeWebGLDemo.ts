@@ -923,7 +923,16 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
         this.projectileRoot.add(mesh);
       }
       const warning = projectile.owner === "enemy" && (projectile.warningSeconds ?? 0) > 0;
-      const visualDepth = warning ? 1.65 : projectile.depth;
+      // V40.37: after a hostile shot passes the player plane, keep it in front of the camera
+      // long enough to fade out instead of letting the near clip plane visibly slice it away.
+      const hostileExitFade = projectile.owner === "enemy" && !warning && projectile.depth < .8
+        ? Math.max(0, Math.min(1, (projectile.depth + 3) / 3.8))
+        : 1;
+      const visualDepth = warning
+        ? 1.65
+        : projectile.owner === "enemy"
+          ? Math.max(.58, projectile.depth)
+          : projectile.depth;
       const visualX = warning ? (projectile.warningTargetX ?? snapshot.playerX) : projectile.x;
       const visualY = warning ? (projectile.warningTargetY ?? snapshot.playerY) : projectile.y;
       const course = arcadeCourseRelativeVisualPose(snapshot.stage, snapshot.distance, visualDepth);
@@ -940,7 +949,7 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
       }
       if (projectile.owner === "enemy" && mesh.material instanceof THREE.MeshBasicMaterial) {
         mesh.material.color.setHex(warning ? 0xff315e : 0xff5a36);
-        mesh.material.opacity = warning ? .5 : .98;
+        mesh.material.opacity = warning ? .5 : .98 * hostileExitFade;
         mesh.material.wireframe = warning;
         const glow = mesh.getObjectByName("arcade-enemy-projectile-glow-v4035");
         const core = mesh.getObjectByName("arcade-enemy-projectile-core-v4035");
@@ -951,11 +960,16 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
         if (glow) {
           glow.visible = !warning;
           glow.scale.setScalar(dangerPulse);
+          if (glow instanceof THREE.Mesh && glow.material instanceof THREE.MeshBasicMaterial) glow.material.opacity = .18 * hostileExitFade;
         }
-        if (core) core.visible = !warning;
+        if (core) {
+          core.visible = !warning;
+          if (core instanceof THREE.Mesh && core.material instanceof THREE.MeshBasicMaterial) core.material.opacity = .94 * hostileExitFade;
+        }
         if (trail) {
           trail.visible = !warning;
           trail.scale.z = projectile.depth < 9 ? 1.08 : 1;
+          if (trail instanceof THREE.Mesh && trail.material instanceof THREE.MeshBasicMaterial) trail.material.opacity = .38 * hostileExitFade;
         }
       }
       const pulse = projectile.owner === "player-missile"
