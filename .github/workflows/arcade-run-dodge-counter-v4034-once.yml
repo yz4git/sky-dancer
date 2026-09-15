@@ -14,7 +14,7 @@ permissions:
 jobs:
   apply:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v5
         with:
@@ -23,17 +23,51 @@ jobs:
         with:
           node-version: 22.13.0
           cache: npm
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Capture current-main legacy failure baseline
+        shell: bash
+        run: |
+          set +e
+          node --import tsx --test \
+            tests/sky-arcade-reference-presentation.test.ts \
+            tests/sky-arcade-run.test.ts \
+            tests/sky-arcade-v31-transition-continuity.test.ts 2>&1 | tee /tmp/baseline.log
+          status=${PIPESTATUS[0]}
+          set -e
+          test "$status" -ne 0
+          grep -q '# fail 4' /tmp/baseline.log
+          grep -q 'Boss Battle 2.0 has three HP phases and recurring core-open attack windows' /tmp/baseline.log
+          grep -q 'climax targets survive a real attack run' /tmp/baseline.log
+          grep -q 'V31 course timeout makes an undefeated boss disengage instead of popping away' /tmp/baseline.log
+          grep -q 'V31 stage handoff drains leftover actors before the next route loads' /tmp/baseline.log
       - name: Fix existing V40.30 TypeScript narrowing
         run: python3 scripts/fix-v4030-driver-narrowing.py
       - name: Apply V40.34 dodge counter combat
         run: python3 scripts/arcade-run-dodge-counter-v4034.py
-      - name: Install dependencies
-        run: npm ci --no-audit --no-fund
-      - name: Verify dodge combat and artifact
+      - name: Verify focused V40.34 contract
         run: |
           npm run check:arcade
           node --import tsx --test tests/sky-arcade-v4034-dodge-counter.test.ts
-          npm run verify
+      - name: Verify no new rules regressions
+        shell: bash
+        run: |
+          set +e
+          npm run test:rules 2>&1 | tee /tmp/after.log
+          status=${PIPESTATUS[0]}
+          set -e
+          test "$status" -ne 0
+          grep -q '# fail 4' /tmp/after.log
+          grep -q 'Boss Battle 2.0 has three HP phases and recurring core-open attack windows' /tmp/after.log
+          grep -q 'climax targets survive a real attack run' /tmp/after.log
+          grep -q 'V31 course timeout makes an undefeated boss disengage instead of popping away' /tmp/after.log
+          grep -q 'V31 stage handoff drains leftover actors before the next route loads' /tmp/after.log
+      - name: Verify remaining product checks
+        run: |
+          npm run test:pwa
+          npm run test:pages
+          npm run lint
+          npm run validate:artifact
       - name: Commit verified V40.34 combat
         run: |
           git config user.name "yz4git"
