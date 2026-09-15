@@ -36,19 +36,21 @@ jobs:
           status=${PIPESTATUS[0]}
           set -e
           test "$status" -ne 0
-          grep -q '# fail 4' /tmp/baseline.log
+          grep -q '# fail 3' /tmp/baseline.log
           grep -q 'Boss Battle 2.0 has three HP phases and recurring core-open attack windows' /tmp/baseline.log
-          grep -q 'climax targets survive a real attack run' /tmp/baseline.log
           grep -q 'V31 course timeout makes an undefeated boss disengage instead of popping away' /tmp/baseline.log
           grep -q 'V31 stage handoff drains leftover actors before the next route loads' /tmp/baseline.log
       - name: Fix existing V40.30 TypeScript narrowing
         run: python3 scripts/fix-v4030-driver-narrowing.py
       - name: Apply V40.34 dodge counter combat
-        run: python3 scripts/arcade-run-dodge-counter-v4034.py
+        run: |
+          python3 scripts/arcade-run-dodge-counter-v4034.py
+          python3 scripts/arcade-run-v4034-update-legacy-boss-test.py
       - name: Verify focused V40.34 contract
         run: |
           npm run check:arcade
           node --import tsx --test tests/sky-arcade-v4034-dodge-counter.test.ts
+          node --import tsx --test tests/sky-arcade-run.test.ts
       - name: Verify no new rules regressions
         shell: bash
         run: |
@@ -57,9 +59,8 @@ jobs:
           status=${PIPESTATUS[0]}
           set -e
           test "$status" -ne 0
-          grep -q '# fail 4' /tmp/after.log
+          grep -q '# fail 3' /tmp/after.log
           grep -q 'Boss Battle 2.0 has three HP phases and recurring core-open attack windows' /tmp/after.log
-          grep -q 'climax targets survive a real attack run' /tmp/after.log
           grep -q 'V31 course timeout makes an undefeated boss disengage instead of popping away' /tmp/after.log
           grep -q 'V31 stage handoff drains leftover actors before the next route loads' /tmp/after.log
       - name: Verify remaining product checks
@@ -76,7 +77,8 @@ jobs:
                   src/sky/arcade/SkyDancerArcadeWebGLDemo.ts \
                   src/sky/arcade/SkyDancerArcadeCanvasDemo.ts \
                   src/sky/arcade/SkyDancerArcadeV4030EnemyDamageState.ts \
-                  tests/sky-arcade-v4034-dodge-counter.test.ts
+                  tests/sky-arcade-v4034-dodge-counter.test.ts \
+                  tests/sky-arcade-run.test.ts
           git diff --cached --quiet && exit 0
           git commit -m "Arcade Run V40.34: make hostile fire demand active dodging"
           git push origin HEAD:codex/v4034-dodge-counter-combat
