@@ -196,10 +196,15 @@ export class SkyDancerArcadeCanvasDemo implements SkyDancerArcadeDemoHandle {
       const warning = projectile.owner === "enemy" && (projectile.warningSeconds ?? 0) > 0;
       const warningX = projectile.warningTargetX ?? snapshot.playerX;
       const warningY = projectile.warningTargetY ?? snapshot.playerY;
+      // V40.37 mirrors WebGL: keep a missed hostile shot visually alive through its near pass,
+      // then fade it instead of visibly popping at the gameplay despawn depth.
+      const hostileExitFade = projectile.owner === "enemy" && !warning && projectile.depth < .8
+        ? Math.max(0, Math.min(1, (projectile.depth + 3) / 3.8))
+        : 1;
       const projected = this.project(
         warning ? warningX : projectile.x,
         warning ? warningY : projectile.y,
-        warning ? 1.65 : projectile.depth,
+        warning ? 1.65 : projectile.owner === "enemy" ? Math.max(.58, projectile.depth) : projectile.depth,
         cssWidth,
         cssHeight,
       );
@@ -250,6 +255,7 @@ export class SkyDancerArcadeCanvasDemo implements SkyDancerArcadeDemoHandle {
         const uy = dy / length;
         const trailLength = Math.max(10, radius * (danger ? 3.3 : 2.8));
         context.save();
+        context.globalAlpha *= hostileExitFade;
         context.lineCap = "round";
         context.shadowColor = "rgba(255,82,38,.82)";
         context.shadowBlur = danger ? 12 : 8;
