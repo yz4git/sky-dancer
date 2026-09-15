@@ -923,18 +923,27 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
         this.projectileRoot.add(mesh);
       }
       const warning = projectile.owner === "enemy" && (projectile.warningSeconds ?? 0) > 0;
-      // V40.37: after a hostile shot passes the player plane, keep it in front of the camera
-      // long enough to fade out instead of letting the near clip plane visibly slice it away.
-      const hostileExitFade = projectile.owner === "enemy" && !warning && projectile.depth < .8
-        ? Math.max(0, Math.min(1, (projectile.depth + 3) / 3.8))
-        : 1;
+      // V40.38: once a missed hostile shot crosses the player plane, keep it fully visible
+      // and carry it outward until it has actually left the viewport. Gameplay lifetime still
+      // owns deletion at depth < -3, so the renderer never makes a visible shot vanish early.
+      const hostileExitTravel = projectile.owner === "enemy" && !warning && projectile.depth < .35
+        ? .35 - projectile.depth
+        : 0;
+      const exitTargetX = projectile.warningTargetX ?? snapshot.playerX;
+      const exitTargetY = projectile.warningTargetY ?? snapshot.playerY;
+      const exitDx = projectile.x - exitTargetX;
+      const exitDy = projectile.y - exitTargetY;
+      const exitLength = Math.hypot(exitDx, exitDy);
+      const exitUx = exitLength > .01 ? exitDx / exitLength : (projectile.id % 2 === 0 ? 1 : -1);
+      const exitUy = exitLength > .01 ? exitDy / exitLength : ((projectile.id % 3) - 1) * .38;
+      const hostileExitPush = hostileExitTravel * 2.6;
       const visualDepth = warning
         ? 1.65
         : projectile.owner === "enemy"
           ? Math.max(.58, projectile.depth)
           : projectile.depth;
-      const visualX = warning ? (projectile.warningTargetX ?? snapshot.playerX) : projectile.x;
-      const visualY = warning ? (projectile.warningTargetY ?? snapshot.playerY) : projectile.y;
+      const visualX = warning ? exitTargetX : projectile.x + exitUx * hostileExitPush;
+      const visualY = warning ? exitTargetY : projectile.y + exitUy * hostileExitPush;
       const course = arcadeCourseRelativeVisualPose(snapshot.stage, snapshot.distance, visualDepth);
       mesh.position.set(visualX * 8.4 + course.x, 1.2 + visualY * 4.9 + course.y, course.z);
       if (projectile.owner === "enemy" && !warning) {
@@ -949,7 +958,7 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
       }
       if (projectile.owner === "enemy" && mesh.material instanceof THREE.MeshBasicMaterial) {
         mesh.material.color.setHex(warning ? 0xff315e : 0xff5a36);
-        mesh.material.opacity = warning ? .5 : .98 * hostileExitFade;
+        mesh.material.opacity = warning ? .5 : .98;
         mesh.material.wireframe = warning;
         const glow = mesh.getObjectByName("arcade-enemy-projectile-glow-v4035");
         const core = mesh.getObjectByName("arcade-enemy-projectile-core-v4035");
@@ -960,16 +969,16 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
         if (glow) {
           glow.visible = !warning;
           glow.scale.setScalar(dangerPulse);
-          if (glow instanceof THREE.Mesh && glow.material instanceof THREE.MeshBasicMaterial) glow.material.opacity = .18 * hostileExitFade;
+          if (glow instanceof THREE.Mesh && glow.material instanceof THREE.MeshBasicMaterial) glow.material.opacity = .18;
         }
         if (core) {
           core.visible = !warning;
-          if (core instanceof THREE.Mesh && core.material instanceof THREE.MeshBasicMaterial) core.material.opacity = .94 * hostileExitFade;
+          if (core instanceof THREE.Mesh && core.material instanceof THREE.MeshBasicMaterial) core.material.opacity = .94;
         }
         if (trail) {
           trail.visible = !warning;
           trail.scale.z = projectile.depth < 9 ? 1.08 : 1;
-          if (trail instanceof THREE.Mesh && trail.material instanceof THREE.MeshBasicMaterial) trail.material.opacity = .38 * hostileExitFade;
+          if (trail instanceof THREE.Mesh && trail.material instanceof THREE.MeshBasicMaterial) trail.material.opacity = .38;
         }
       }
       const pulse = projectile.owner === "player-missile"
