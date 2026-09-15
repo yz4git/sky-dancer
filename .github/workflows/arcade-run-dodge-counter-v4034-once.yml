@@ -23,6 +23,8 @@ jobs:
         with:
           node-version: 22.13.0
           cache: npm
+      - name: Fix existing V40.30 TypeScript narrowing
+        run: python3 scripts/fix-v4030-driver-narrowing.py
       - name: Apply V40.34 dodge counter combat
         run: python3 scripts/arcade-run-dodge-counter-v4034.py
       - name: Install dependencies
@@ -39,6 +41,7 @@ jobs:
           git add src/sky/arcade/SkyDancerArcadeRuntime.ts \
                   src/sky/arcade/SkyDancerArcadeWebGLDemo.ts \
                   src/sky/arcade/SkyDancerArcadeCanvasDemo.ts \
+                  src/sky/arcade/SkyDancerArcadeV4030EnemyDamageState.ts \
                   tests/sky-arcade-v4034-dodge-counter.test.ts
           git diff --cached --quiet && exit 0
           git commit -m "Arcade Run V40.34: make hostile fire demand active dodging"
