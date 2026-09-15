@@ -193,7 +193,35 @@ export class SkyDancerArcadeCanvasDemo implements SkyDancerArcadeDemoHandle {
       context.restore();
     }
     for (const projectile of snapshot.projectiles) {
-      const projected = this.project(projectile.x, projectile.y, projectile.depth, cssWidth, cssHeight);
+      const warning = projectile.owner === "enemy" && (projectile.warningSeconds ?? 0) > 0;
+      const warningX = projectile.warningTargetX ?? snapshot.playerX;
+      const warningY = projectile.warningTargetY ?? snapshot.playerY;
+      const projected = this.project(
+        warning ? warningX : projectile.x,
+        warning ? warningY : projectile.y,
+        warning ? 1.65 : projectile.depth,
+        cssWidth,
+        cssHeight,
+      );
+      if (warning) {
+        const source = this.project(projectile.x, projectile.y, projectile.depth, cssWidth, cssHeight);
+        const pulse = .62 + Math.sin(snapshot.runTimeSeconds * 24 + projectile.id) * .2;
+        context.save();
+        context.strokeStyle = `rgba(255,49,94,${Math.max(.3, pulse)})`;
+        context.lineWidth = 2.2;
+        context.setLineDash([7, 6]);
+        context.beginPath();
+        context.moveTo(source.x, source.y);
+        context.lineTo(projected.x, projected.y);
+        context.stroke();
+        context.setLineDash([]);
+        context.lineWidth = 3;
+        context.beginPath();
+        context.arc(projected.x, projected.y, 18 + pulse * 9, 0, Math.PI * 2);
+        context.stroke();
+        context.restore();
+        continue;
+      }
       if (projectile.owner === "player-missile") {
         context.strokeStyle = "rgba(255,255,255,.84)";
         context.lineWidth = Math.max(2.4, projected.scale * 5.2);

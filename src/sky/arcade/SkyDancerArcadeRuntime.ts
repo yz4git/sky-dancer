@@ -206,6 +206,12 @@ export interface SkyDancerArcadeProjectileSnapshot {
   y: number;
   depth: number;
   targetEnemyId: number | null;
+  // V40.34: hostile shots exist first as a readable locked firing solution, then become lethal.
+  warningSeconds?: number;
+  warningDuration?: number;
+  warningTargetX?: number;
+  warningTargetY?: number;
+  dangerRadius?: number;
 }
 
 export interface SkyDancerArcadeImpactSnapshot {
@@ -291,6 +297,12 @@ export interface SkyDancerArcadeSnapshot {
   enemiesDefeated: number;
   damageTaken: number;
   nearMisses: number;
+  // V40.34: a committed dodge opens a short damage/stagger counter window.
+  evasionCounterActive: boolean;
+  evasionCounterSeconds: number;
+  evasionChain: number;
+  evasionSerial: number;
+  incomingThreats: number;
   multiLockKills: number;
   turboSmashes: number;
   bestChain: number;
@@ -545,6 +557,8 @@ interface ArcadeProjectile extends SkyDancerArcadeProjectileSnapshot {
   vy: number;
   guidance: number;
   nearMissChecked: boolean;
+  // V40.34: only a real steering/turbo response can convert a close pass into a counter opening.
+  dodgeCommitted?: boolean;
   // V30: outgoing hostile fire coasts out harmlessly instead of popping out of existence.
   retiring?: boolean;
 }
@@ -611,6 +625,9 @@ const PLAYER_MOVE_RESPONSE = 19.5;
 const ENEMY_FLYBY_CULL_DEPTH = -11.5;
 const MAX_ENEMY_PROJECTILES_NORMAL = 5;
 const MAX_ENEMY_PROJECTILES_HARD = 9;
+const ENEMY_SHOT_HIT_RADIUS_V4034 = 0.3;
+const ENEMY_SHOT_NEAR_MISS_RADIUS_V4034 = 0.9;
+const EVASION_COUNTER_SECONDS_V4034 = 1.35;
 
 function arcadeStandardFusionActive(loadout: SkyDancerArcadeLoadout | undefined, turboActive: boolean): boolean {
   return (loadout ?? "standard") === "standard" && turboActive;
@@ -713,6 +730,31 @@ function skyDancerArcadeEnemyWeaponV20(kind: SkyDancerArcadeEnemyKind | "boss"):
   }
 }
 
+function skyDancerArcadeEnemyWarningV4034(kind: SkyDancerArcadeEnemyKind | "boss", boss: boolean): number {
+  if (boss) return .92;
+  switch (kind) {
+    case "missile-boat": return 1.04;
+    case "gunship": return .96;
+    case "bomber": return .92;
+    case "striker": return .78;
+    case "raider": return .74;
+    case "ace": return .7;
+    default: return .82;
+  }
+}
+
+function skyDancerArcadeEnemyDamageV4034(kind: SkyDancerArcadeEnemyKind | "boss", boss: boolean, hard: boolean): number {
+  if (boss) return hard ? 40 : 34;
+  const base = kind === "gunship" || kind === "bomber"
+    ? 29
+    : kind === "missile-boat" || kind === "striker"
+      ? 27
+      : kind === "ace" || kind === "raider"
+        ? 25
+        : 23;
+  return hard ? base + 6 : base;
+}
+
 export function skyDancerArcadeEnemyHitRadiusV20(kind: SkyDancerArcadeEnemyKind | "boss", boss = kind === "boss"): number {
   if (boss) return .72;
   if (kind === "gunship") return .43;
@@ -778,6 +820,9 @@ export class SkyDancerArcadeRuntime {
   private enemiesDefeated = 0;
   private damageTaken = 0;
   private nearMisses = 0;
+  private evasionCounterTimer = 0;
+  private evasionChain = 0;
+  private evasionSerial = 0;
   private multiLockKills = 0;
   private turboSmashes = 0;
   private bestChain = 0;
@@ -1051,6 +1096,8 @@ export class SkyDancerArcadeRuntime {
     this.nextWaveAt = this.stageTime + (rewindTime > 0 ? 1.35 : 2.35);
     this.nextHazardAt = this.stageTime + (rewindTime > 0 ? 2.0 : 4.1);
     this.damageCooldown = 0;
+    this.evasionCounterTimer = 0;
+    this.evasionChain = 0;
     this.loadoutReactionLabel = null;
     this.loadoutReactionTimer = 0;
     this.enemyCounterplayLabel = null;
@@ -1209,6 +1256,9 @@ export class SkyDancerArcadeRuntime {
     this.bossIngressTimer = Math.max(0, this.bossIngressTimer - delta);
     this.bossOutroTimer = Math.max(0, this.bossOutroTimer - delta);
     this.damageCooldown = Math.max(0, this.damageCooldown - delta);
+    const hadEvasionCounter = this.evasionCounterTimer > 0;
+    this.evasionCounterTimer = Math.max(0, this.evasionCounterTimer - delta);
+    if (hadEvasionCounter && this.evasionCounterTimer <= 0) this.evasionChain = 0;
     this.loadoutReactionTimer = Math.max(0, this.loadoutReactionTimer - delta);
     if (this.loadoutReactionTimer <= 0) this.loadoutReactionLabel = null;
     this.enemyCounterplayLabelTimer = Math.max(0, this.enemyCounterplayLabelTimer - delta);
@@ -2935,6 +2985,11 @@ export class SkyDancerArcadeRuntime {
       enemy.fireCooldown = .38 + this.random() * .34;
       return;
     }
+    const warningSeconds = skyDancerArcadeEnemyWarningV4034(enemy.kind, enemy.boss);
+    if (activeThreats === 0) {
+      this.message = enemy.boss ? "BOSS LOCK · BREAK VECTOR" : "INCOMING · BREAK VECTOR";
+      this.messageTimer = Math.max(this.messageTimer, .72);
+    }
     for (let index = 0; index < spreadCount; index += 1) {
       const centered = index - (spreadCount - 1) * 0.5;
       const guidance = enemy.boss && bossProfile
@@ -2953,12 +3008,18 @@ export class SkyDancerArcadeRuntime {
         depth: enemy.depth,
         targetEnemyId: null,
         speed: enemy.boss ? (15.8 + enemy.bossPhase * 1.7) * bossSpeedScale : skyDancerArcadeEnemyWeaponV20(enemy.kind).projectileSpeed,
-        damage: enemy.boss ? (hard ? 18 : 11) : hard ? 13 : 8,
-        life: 5.6,
+        damage: skyDancerArcadeEnemyDamageV4034(enemy.kind, enemy.boss, hard),
+        life: 5.6 + warningSeconds,
         vx: (this.playerX - enemy.x) * 0.28 + centered * bossSpreadX,
         vy: (this.playerY - enemy.y) * 0.28 + centered * bossSpreadY,
         guidance,
         nearMissChecked: false,
+        warningSeconds,
+        warningDuration: warningSeconds,
+        warningTargetX: this.playerX,
+        warningTargetY: this.playerY,
+        dangerRadius: ENEMY_SHOT_HIT_RADIUS_V4034,
+        dodgeCommitted: false,
       });
     }
     const bossCadence = enemy.boss && bossProfile
@@ -2990,6 +3051,12 @@ export class SkyDancerArcadeRuntime {
         }
         projectile.depth += projectile.speed * delta;
       } else {
+        if (Math.abs(this.input.x) + Math.abs(this.input.y) >= .32 || this.input.turbo) projectile.dodgeCommitted = true;
+        const warningSeconds = projectile.warningSeconds ?? 0;
+        if (!projectile.retiring && warningSeconds > 0) {
+          projectile.warningSeconds = Math.max(0, warningSeconds - delta);
+          if ((projectile.warningSeconds ?? 0) > 0) continue;
+        }
         projectile.depth -= projectile.speed * delta;
         if (projectile.guidance > 0 && projectile.depth > 15) {
           const curvePhase = projectile.id * 1.731 + projectile.life * 4.6;
@@ -3012,16 +3079,22 @@ export class SkyDancerArcadeRuntime {
         }
         if (projectile.depth > 2.2) continue;
         const distance = Math.hypot(projectile.x - this.playerX, projectile.y - this.playerY);
-        if (distance < 0.26) {
+        const hitRadius = projectile.dangerRadius ?? ENEMY_SHOT_HIT_RADIUS_V4034;
+        if (distance < hitRadius) {
           projectile.life = 0;
           this.takeDamage(projectile.damage);
-        } else if (!projectile.nearMissChecked && distance < 0.82) {
+        } else if (!projectile.nearMissChecked && distance < ENEMY_SHOT_NEAR_MISS_RADIUS_V4034) {
           projectile.nearMissChecked = true;
-          this.nearMisses += 1;
-          this.addScore(420, true);
-          this.turbo = Math.min(100, this.turbo + 5);
-          this.message = "NEAR MISS";
-          this.messageTimer = 0.55;
+          if (projectile.dodgeCommitted) {
+            this.nearMisses += 1;
+            this.evasionChain = Math.min(8, this.evasionChain + 1);
+            this.evasionCounterTimer = EVASION_COUNTER_SECONDS_V4034;
+            this.evasionSerial += 1;
+            this.addScore(520 + this.evasionChain * 130, true);
+            this.turbo = Math.min(100, this.turbo + 7 + Math.min(5, this.evasionChain));
+            this.message = `DODGE BREAK · COUNTER ×${this.evasionChain}`;
+            this.messageTimer = .82;
+          }
         }
         if (projectile.depth < -3) projectile.life = 0;
         continue;
@@ -3107,7 +3180,8 @@ export class SkyDancerArcadeRuntime {
     const staggerBefore = enemy.stagger;
     const reaction = this.loadoutReactionForHit(missile);
     const counterplay = enemy.counterplay;
-    let hullDamage = amount;
+    const evasionCounter = this.evasionCounterTimer > 0;
+    let hullDamage = amount * (evasionCounter ? 1.32 : 1);
     if (enemy.armor > 0) {
       let armorScale = missile ? 1.35 : .7;
       if (reaction === "ripple-shock") armorScale = 1.72;
@@ -3125,6 +3199,7 @@ export class SkyDancerArcadeRuntime {
     if (enemy.boss && enemy.weakpointOpen) hullDamage *= missile ? 1.65 : 1.35;
     enemy.hp = Math.max(0, enemy.hp - hullDamage);
     let staggerScale = reaction === "ripple-shock" ? 7.4 : reaction === "twin-cannon" ? 4.7 : reaction === "fusion-link" ? 5.9 : missile ? 5.2 : 3.2;
+    if (evasionCounter) staggerScale *= 1.28;
     if (counterplay === "armor-brace" && !missile) staggerScale *= 1.24;
     if (counterplay === "evasive-roll" && missile) staggerScale *= 1.16;
     enemy.stagger = clamp(enemy.stagger + hullDamage / Math.max(1, enemy.maxHp) * staggerScale, 0, 1);
@@ -3251,12 +3326,15 @@ export class SkyDancerArcadeRuntime {
     // Prevent overlapping missiles/fly-bys from deleting the airframe in a single unreadable burst.
     if (this.damageCooldown > 0) return;
     this.damageCooldown = this.options.difficulty === "hard" ? .28 : .5;
-    const effective = this.input.turbo ? amount * 0.72 : amount;
+    // V40.34: TURBO is primarily an evasion tool, not a button for face-tanking hostile fire.
+    const effective = this.input.turbo ? amount * .9 : amount;
     this.playerHp = Math.max(0, this.playerHp - effective);
     this.damageTaken += effective;
     this.directorRecentDamage = clamp(this.directorRecentDamage + effective / PLAYER_MAX_HP * 2.15, 0, 2);
     this.chain = 0;
     this.chainTimer = 0;
+    this.evasionCounterTimer = 0;
+    this.evasionChain = 0;
     this.damageSerial += 1;
     this.message = "DAMAGE";
     this.messageTimer = 0.55;
@@ -3552,6 +3630,11 @@ export class SkyDancerArcadeRuntime {
       enemiesDefeated: this.enemiesDefeated,
       damageTaken: this.damageTaken,
       nearMisses: this.nearMisses,
+      evasionCounterActive: this.evasionCounterTimer > 0,
+      evasionCounterSeconds: this.evasionCounterTimer,
+      evasionChain: this.evasionChain,
+      evasionSerial: this.evasionSerial,
+      incomingThreats: this.projectiles.filter((projectile) => projectile.owner === "enemy" && projectile.life > 0 && !projectile.retiring).length,
       multiLockKills: this.multiLockKills,
       turboSmashes: this.turboSmashes,
       bestChain: this.bestChain,
@@ -3806,6 +3889,11 @@ export class SkyDancerArcadeRuntime {
         y: projectile.y,
         depth: projectile.depth,
         targetEnemyId: projectile.targetEnemyId,
+        warningSeconds: projectile.warningSeconds ?? 0,
+        warningDuration: projectile.warningDuration ?? 0,
+        warningTargetX: projectile.warningTargetX,
+        warningTargetY: projectile.warningTargetY,
+        dangerRadius: projectile.dangerRadius,
       })),
       impacts: this.impactEvents.map((impact) => ({ ...impact })),
       hazards: this.hazards.map((hazard) => ({
@@ -4046,6 +4134,33 @@ export class SkyDancerArcadeRuntime {
   spawnEnemyForTests(kind: SkyDancerArcadeEnemyKind, x = 0, y = 0, depth = 30): number {
     const id = this.nextEntityId;
     this.spawnEnemy(kind, x, y, depth);
+    return id;
+  }
+
+  /** Deterministic V40.34 hook for warning/dodge/counter regression tests. */
+  spawnEnemyProjectileForTests(x = 0, y = 0, depth = 16, warningSeconds = .8, damage = 24): number {
+    const id = this.nextEntityId++;
+    this.projectiles.push({
+      id,
+      owner: "enemy",
+      x,
+      y,
+      depth,
+      targetEnemyId: null,
+      speed: 14.5,
+      damage,
+      life: 5.6 + warningSeconds,
+      vx: (this.playerX - x) * .28,
+      vy: (this.playerY - y) * .28,
+      guidance: 0,
+      nearMissChecked: false,
+      warningSeconds,
+      warningDuration: warningSeconds,
+      warningTargetX: this.playerX,
+      warningTargetY: this.playerY,
+      dangerRadius: ENEMY_SHOT_HIT_RADIUS_V4034,
+      dodgeCommitted: false,
+    });
     return id;
   }
 

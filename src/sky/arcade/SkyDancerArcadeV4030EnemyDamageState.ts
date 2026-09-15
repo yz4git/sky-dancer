@@ -262,10 +262,11 @@ export function attachSkyDancerArcadeV4030EnemyDamage(
   rig.add(createSparks(enemyId, bulk));
   damageHost(group).add(rig);
 
-  let driver: THREE.Mesh | null = null;
+  const renderDrivers: THREE.Mesh[] = [];
   group.traverse((object) => {
-    if (!driver && object instanceof THREE.Mesh && !object.name.startsWith("arcade-v4030-")) driver = object;
+    if (object instanceof THREE.Mesh && !object.name.startsWith("arcade-v4030-")) renderDrivers.push(object);
   });
+  const driver = renderDrivers[0];
   if (driver) {
     driver.onBeforeRender = () => {
       applyDamageRig(rig, skyDancerArcadeV4030DamageForEnemy(enemyId), enemyId);
