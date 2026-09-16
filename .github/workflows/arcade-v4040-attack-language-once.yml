@@ -1,0 +1,98 @@
+name: Arcade Run V40.40 attack language once
+
+on:
+  push:
+    branches:
+      - chatgpt/v4040-attack-language
+    paths:
+      - .github/workflows/arcade-v4040-attack-language-once.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  implement-and-verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.13.0
+          cache: npm
+      - name: Apply V40.40 attack language
+        run: python3 scripts/arcade-v4040-attack-language.py
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Validate V40.40
+        run: |
+          npm run check:arcade
+          node --import tsx --test tests/sky-arcade-v4034-dodge-counter.test.ts
+          node --import tsx --test tests/sky-arcade-v4035-projectile-visibility.test.ts
+          node --import tsx --test tests/sky-arcade-v4036-enemy-attack-visual-coherence.test.ts
+          node --import tsx --test tests/sky-arcade-v4037-projectile-pass-through.test.ts
+          node --import tsx --test tests/sky-arcade-v4038-projectile-visible-until-offscreen.test.ts
+          node --import tsx --test tests/sky-arcade-v4039-combat-sightline.test.ts
+          node --import tsx --test tests/sky-arcade-v4040-attack-language.test.ts
+          npm run test:pwa
+          npm run lint
+          npm run build
+          npm run validate:artifact
+          npm run test:pages
+      - name: Install browser
+        run: |
+          npm install --no-save --package-lock=false --legacy-peer-deps playwright@1.55.0
+          npx playwright install --with-deps chromium
+      - name: Serve Pages build
+        run: |
+          python3 -m http.server 4173 --directory out > /tmp/sky-dancer-v4040-http.log 2>&1 &
+          for i in {1..30}; do
+            curl -fsS http://127.0.0.1:4173/ >/dev/null && exit 0
+            sleep 1
+          done
+          cat /tmp/sky-dancer-v4040-http.log
+          exit 1
+      - name: Capture attack-language gameplay
+        run: |
+          mkdir -p visual-v4040
+          node --input-type=module <<'NODE'
+          import { chromium } from 'playwright';
+          const browser = await chromium.launch({headless:true,args:['--enable-unsafe-swiftshader','--use-angle=swiftshader-webgl','--ignore-gpu-blocklist']});
+          const context = await browser.newContext({viewport:{width:844,height:390},deviceScaleFactor:2,isMobile:true,hasTouch:true});
+          const page = await context.newPage();
+          const errors=[]; page.on('pageerror',e=>errors.push(String(e))); page.on('console',m=>{if(m.type()==='error') errors.push(m.text())});
+          await page.goto('http://127.0.0.1:4173/?menu&v4040=1',{waitUntil:'networkidle',timeout:60000});
+          await page.getByRole('button',{name:/START ARCADE RUN/i}).click();
+          await page.waitForTimeout(1800);
+          await page.keyboard.down('x'); await page.keyboard.down('c');
+          for(let i=0;i<24;i++){const k=i%2?'ArrowRight':'ArrowLeft';await page.keyboard.down(k);if(i%3===1)await page.keyboard.down(' ');await page.waitForTimeout(900);await page.keyboard.up(k);await page.keyboard.up(' ').catch(()=>{});await page.waitForTimeout(350);if([5,11,17,23].includes(i))await page.screenshot({path:`visual-v4040/frame-${i}.png`});}
+          await page.keyboard.up('x').catch(()=>{}); await page.keyboard.up('c').catch(()=>{});
+          await page.screenshot({path:'visual-v4040/final.png'});
+          await Bun?.write?.('visual-v4040/errors.txt', errors.join('\n')).catch?.(()=>{});
+          if(errors.length) console.log('browser-errors',errors);
+          await browser.close();
+          NODE
+      - name: Upload V40.40 visual evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: arcade-v4040-attack-language
+          path: visual-v4040
+          if-no-files-found: warn
+          retention-days: 3
+      - name: Commit verified product changes
+        run: |
+          git config user.name "yz4git"
+          git config user.email "65384484+yz4git@users.noreply.github.com"
+          git add src/sky/arcade/SkyDancerArcadeRuntime.ts \
+                  src/sky/arcade/SkyDancerArcadeWebGLDemo.ts \
+                  src/sky/arcade/SkyDancerArcadeCanvasDemo.ts \
+                  app/SkyDancerArcadeMode.tsx \
+                  app/SkyDancerArcadeMode.module.css \
+                  tests/sky-arcade-v4040-attack-language.test.ts
+          git diff --cached --quiet && exit 0
+          git commit -m "Arcade Run V40.40: teach enemy attack dodge language"
+          git push origin HEAD:chatgpt/v4040-attack-language
