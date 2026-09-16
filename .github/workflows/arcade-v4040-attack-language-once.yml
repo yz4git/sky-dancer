@@ -30,6 +30,13 @@ jobs:
           from pathlib import Path
           path = Path('tests/sky-arcade-v4040-attack-language.test.ts')
           path.write_text(path.read_text().replace('\\n', '\n'))
+          legacy = Path('tests/sky-arcade-v4036-enemy-attack-visual-coherence.test.ts')
+          text = legacy.read_text()
+          old = 'assert.match(source, /trailGradient\\.addColorStop\\(1, "rgba\\(255,106,50,0\\)"\\)/);'
+          new = 'assert.match(source, /trailGradient\\.addColorStop\\(1, `rgba\\(\\$\\{bodyColor\\},0\\)`\\)/);'
+          if old not in text:
+              raise SystemExit('V40.36 trail contract not found')
+          legacy.write_text(text.replace(old, new, 1))
           PY
       - name: Install dependencies
         run: npm ci --no-audit --no-fund
@@ -99,6 +106,7 @@ jobs:
                   src/sky/arcade/SkyDancerArcadeCanvasDemo.ts \
                   app/SkyDancerArcadeMode.tsx \
                   app/SkyDancerArcadeMode.module.css \
+                  tests/sky-arcade-v4036-enemy-attack-visual-coherence.test.ts \
                   tests/sky-arcade-v4040-attack-language.test.ts
           git diff --cached --quiet && exit 0
           git commit -m "Arcade Run V40.40: teach enemy attack dodge language"
