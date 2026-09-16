@@ -30,6 +30,13 @@ jobs:
           from pathlib import Path
           path = Path('tests/sky-arcade-v4040-attack-language.test.ts')
           path.write_text(path.read_text().replace('\\n', '\n'))
+
+          webgl = Path('src/sky/arcade/SkyDancerArcadeWebGLDemo.ts')
+          webgl_text = webgl.read_text()
+          webgl_text = webgl_text.replace('mesh.material.opacity = warning ? .46 : .98;', 'mesh.material.opacity = warning ? .5 : .98;', 1)
+          webgl_text = webgl_text.replace('mesh.material.color.setHex(warning ? attackColor : attackColor);', 'mesh.material.color.setHex(attackColor);', 1)
+          webgl.write_text(webgl_text)
+
           legacy = Path('tests/sky-arcade-v4036-enemy-attack-visual-coherence.test.ts')
           text = legacy.read_text()
           old = 'assert.match(source, /trailGradient\\.addColorStop\\(1, "rgba\\(255,106,50,0\\)"\\)/);'
