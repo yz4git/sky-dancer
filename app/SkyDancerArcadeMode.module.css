@@ -137,3 +137,29 @@
 .stage[data-v4012-rhythm="boss"] .chain{opacity:.3}
 .stage[data-v4012-rhythm="handoff"] .chain,.stage[data-v4012-rhythm="finale"] .chain{opacity:0}
 @media (prefers-reduced-motion:reduce){.stage[data-v4012-rhythm] .combatReadout{transition:none}}
+
+
+/* Arcade Run V40.39: visual-playtest combat sightline pass.
+   During a climax approach the signature warning owns the hierarchy; secondary authored copy
+   yields so the reticle, enemy body and hostile projectiles remain readable on phone landscape. */
+.stage[data-v4039-boss-approach="true"] .timelineV407 {
+  opacity: 0;
+  transform: translateY(-5px) scale(.98);
+  filter: saturate(.45);
+}
+.stage[data-v4039-boss-approach="true"] .sectionIntro { display: none; }
+
+@media (orientation: landscape) and (max-height: 430px) {
+  .bossApproach {
+    top: max(61px, calc(env(safe-area-inset-top) + 56px));
+    width: min(360px, 44vw);
+    padding: 3px 10px 4px;
+    border-color: rgba(255,85,90,.58);
+    background: linear-gradient(90deg,rgba(44,5,12,.08),rgba(66,7,15,.72),rgba(44,5,12,.08));
+    box-shadow: 0 0 20px rgba(255,44,67,.1);
+  }
+  .bossApproach small { font-size: 5px; letter-spacing: .2em; }
+  .bossApproach strong { margin-top: 0; font-size: clamp(12px, 1.75vw, 15px); line-height: 1.05; letter-spacing: .11em; }
+  .bossApproach span { margin-top: 1px; font-size: 5.5px; letter-spacing: .16em; }
+  .bossApproach > i { height: 2px; margin-top: 3px; }
+}
