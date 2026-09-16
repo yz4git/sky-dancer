@@ -24,7 +24,13 @@ jobs:
           node-version: 22.13.0
           cache: npm
       - name: Apply V40.40 attack language
-        run: python3 scripts/arcade-v4040-attack-language.py
+        run: |
+          python3 scripts/arcade-v4040-attack-language.py
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('tests/sky-arcade-v4040-attack-language.test.ts')
+          path.write_text(path.read_text().replace('\\n', '\n'))
+          PY
       - name: Install dependencies
         run: npm ci --no-audit --no-fund
       - name: Validate V40.40
