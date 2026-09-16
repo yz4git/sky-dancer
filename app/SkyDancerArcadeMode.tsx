@@ -610,6 +610,7 @@ export default function SkyDancerArcadeMode({ request, onReturnTitle }: SkyDance
         data-v407-focus={v407Focus}
         data-v408-scene={v408Focus.mode}
         data-v4012-rhythm={v4012Rhythm.phase}
+        data-v4039-boss-approach={bossApproachPresentationActive ? "true" : "false"}
         style={{ "--v4012-secondary-alpha": v4012Rhythm.secondaryHudAlpha } as CSSProperties}
         aria-label="Sky Dancer Arcade Run"
       >
