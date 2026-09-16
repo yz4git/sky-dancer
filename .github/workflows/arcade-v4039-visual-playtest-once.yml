@@ -1,0 +1,51 @@
+name: Arcade Run V40.39 visual playtest
+
+on:
+  push:
+    branches:
+      - chatgpt/v4039-visual-playtest
+    paths:
+      - .github/workflows/arcade-v4039-visual-playtest-once.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  playtest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.13.0
+          cache: npm
+      - name: Install project dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Build GitHub Pages artifact
+        run: npm run build:pages
+      - name: Install headless browser
+        run: |
+          npm install --no-save --package-lock=false playwright@1.55.0
+          npx playwright install --with-deps chromium
+      - name: Serve Pages build
+        run: |
+          python3 -m http.server 4173 --directory out > /tmp/sky-dancer-http.log 2>&1 &
+          echo $! > /tmp/sky-dancer-http.pid
+          for i in {1..30}; do
+            curl -fsS http://127.0.0.1:4173/ >/dev/null && exit 0
+            sleep 1
+          done
+          cat /tmp/sky-dancer-http.log
+          exit 1
+      - name: Play Arcade Run and capture iPhone landscape frames
+        run: node scripts/arcade-v4039-visual-playtest.mjs
+      - name: Upload visual playtest evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: arcade-v4039-visual-playtest
+          path: visual-playtest-v4039
+          if-no-files-found: error
+          retention-days: 3
