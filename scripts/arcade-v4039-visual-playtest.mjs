@@ -22,6 +22,7 @@ const context = await browser.newContext({
 });
 const page = await context.newPage();
 const consoleLines = [];
+let continueCount = 0;
 page.on("console", (msg) => consoleLines.push(`[console:${msg.type()}] ${msg.text()}`));
 page.on("pageerror", (error) => consoleLines.push(`[pageerror] ${error.stack ?? error.message}`));
 
@@ -45,7 +46,22 @@ async function combatBeat(index) {
   await page.keyboard.up(horizontal);
   if (vertical) await page.keyboard.up(vertical);
   await page.keyboard.up(" ").catch(() => {});
-  await page.waitForTimeout(550);
+  await page.waitForTimeout(420);
+}
+
+async function continueIfNeeded(index) {
+  const button = page.getByRole("button", { name: /^CONTINUE/i }).first();
+  if (!await button.isVisible().catch(() => false)) return false;
+  continueCount += 1;
+  await page.keyboard.up("x").catch(() => {});
+  await page.keyboard.up("c").catch(() => {});
+  await shot(`death-${String(continueCount).padStart(2, "0")}-beat-${String(index).padStart(2, "0")}`);
+  await button.click();
+  await page.waitForTimeout(1500);
+  await shot(`continue-${String(continueCount).padStart(2, "0")}`);
+  await page.keyboard.down("x");
+  await page.keyboard.down("c");
+  return true;
 }
 
 try {
@@ -60,16 +76,17 @@ try {
   await page.keyboard.down("x");
   await page.keyboard.down("c");
 
-  for (let i = 0; i < 36; i += 1) {
+  for (let i = 0; i < 48; i += 1) {
     await combatBeat(i);
+    await continueIfNeeded(i);
     if (i === 5) await shot("02-first-combat");
     if (i === 13) await shot("03-dodge-pressure");
-    if (i === 23) await shot("04-mid-run");
-    if (i === 35) await shot("05-late-run");
+    if (i === 27) await shot("04-mid-run");
+    if (i === 47) await shot("05-late-run");
   }
 
-  await page.keyboard.up("x");
-  await page.keyboard.up("c");
+  await page.keyboard.up("x").catch(() => {});
+  await page.keyboard.up("c").catch(() => {});
   await hold(" ", 800);
   await page.waitForTimeout(900);
   await shot("06-after-turbo");
@@ -82,7 +99,7 @@ try {
     cssWidth: canvas.getBoundingClientRect().width,
     cssHeight: canvas.getBoundingClientRect().height,
   })));
-  await writeFile(`${outputDir}/dom.txt`, `mode=${mode}\ncanvases=${JSON.stringify(canvasInfo)}\n\n${bodyText}\n`);
+  await writeFile(`${outputDir}/dom.txt`, `mode=${mode}\ncontinues=${continueCount}\ncanvases=${JSON.stringify(canvasInfo)}\n\n${bodyText}\n`);
 } finally {
   await writeFile(`${outputDir}/console.txt`, `${consoleLines.join("\n")}\n`);
   await context.close();
