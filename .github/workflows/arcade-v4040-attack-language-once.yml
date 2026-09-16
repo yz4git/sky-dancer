@@ -60,6 +60,7 @@ jobs:
           mkdir -p visual-v4040
           node --input-type=module <<'NODE'
           import { chromium } from 'playwright';
+          import { writeFile } from 'node:fs/promises';
           const browser = await chromium.launch({headless:true,args:['--enable-unsafe-swiftshader','--use-angle=swiftshader-webgl','--ignore-gpu-blocklist']});
           const context = await browser.newContext({viewport:{width:844,height:390},deviceScaleFactor:2,isMobile:true,hasTouch:true});
           const page = await context.newPage();
@@ -71,7 +72,7 @@ jobs:
           for(let i=0;i<24;i++){const k=i%2?'ArrowRight':'ArrowLeft';await page.keyboard.down(k);if(i%3===1)await page.keyboard.down(' ');await page.waitForTimeout(900);await page.keyboard.up(k);await page.keyboard.up(' ').catch(()=>{});await page.waitForTimeout(350);if([5,11,17,23].includes(i))await page.screenshot({path:`visual-v4040/frame-${i}.png`});}
           await page.keyboard.up('x').catch(()=>{}); await page.keyboard.up('c').catch(()=>{});
           await page.screenshot({path:'visual-v4040/final.png'});
-          await Bun?.write?.('visual-v4040/errors.txt', errors.join('\n')).catch?.(()=>{});
+          await writeFile('visual-v4040/errors.txt', errors.join('\n'));
           if(errors.length) console.log('browser-errors',errors);
           await browser.close();
           NODE
