@@ -24,14 +24,35 @@ function profile(overrides: Partial<Parameters<typeof skyDancerArcadeV4011Screen
   });
 }
 
-test("V40.11 leaves large displays and single-source spectacle on the V40.10 path", () => {
-  const large = profile({ compactLandscape: false, sceneMode: "boss", incomingThreats: 6, foregroundCraft: 5, impactCount: 6, destroyedImpacts: 3, worldBreakLive: true });
+test("V40.11 leaves large displays and ordinary single-source spectacle on the V40.10 path", () => {
+  const large = profile({ compactLandscape: false, sceneMode: "boss", incomingThreats: 8, foregroundCraft: 5, impactCount: 6, destroyedImpacts: 3, worldBreakLive: true });
   assert.equal(large.pressure, 0);
   assert.equal(large.speedStreakAlpha, 1);
 
-  const single = profile({ sceneMode: "flight", incomingThreats: 5 });
-  assert.equal(single.pressure, 0, "V40.10 already owns one isolated source of clutter");
+  const single = profile({ sceneMode: "flight", incomingThreats: 3 });
+  assert.equal(single.pressure, 0, "V40.10 already owns an ordinary isolated threat source");
   assert.equal(single.band, "clear");
+});
+
+test("V40.40 treats four-plus hostile trajectories as a phone-screen swarm", () => {
+  const four = profile({ sceneMode: "flight", incomingThreats: 4 });
+  const five = profile({ sceneMode: "flight", incomingThreats: 5 });
+  const seven = profile({ sceneMode: "flight", incomingThreats: 7 });
+
+  assert.equal(four.band, "busy");
+  assert.ok(four.pressure >= .4);
+  assert.equal(four.clarity.primaryLocks, 2);
+  assert.equal(four.clarity.aimCues, 0);
+  assert.ok(four.speedStreakAlpha < 1);
+
+  assert.equal(five.band, "busy", "normal difficulty's five-shot cap should clear presentation without becoming critical");
+  assert.ok(five.pressure >= .52 && five.pressure < .68);
+  assert.ok(five.fxClarity.missileSmokeAlpha < five.occlusion.fxClarity.missileSmokeAlpha + .0001);
+
+  assert.equal(seven.band, "critical", "larger hard-mode projectile swarms may claim maximum presentation clearance");
+  assert.ok(seven.pressure >= .68);
+  assert.equal(seven.clarity.primaryLocks, 1);
+  assert.equal(seven.clarity.canvasLockLimit, 1);
 });
 
 test("V40.11 shared foreground counter ignores protected targets and side-lane craft", () => {
