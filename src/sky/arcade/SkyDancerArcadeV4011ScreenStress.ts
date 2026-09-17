@@ -57,8 +57,9 @@ export function skyDancerArcadeV4011ForegroundCraftCount(
 
 /**
  * V40.11 is a presentation stress governor, not a difficulty governor.
- * V40.10 remains authoritative for single-source clutter. This layer only adds suppression when
- * two or more independent signals overlap (close craft, incoming missiles, impact burst, authored focus).
+ * V40.10 remains authoritative for ordinary single-source clutter. V40.40 treats four or more
+ * simultaneous hostile trajectories as a self-overlapping swarm because they already compete for
+ * the same phone-sized dodge corridor before any other spectacle signal is present.
  */
 export function skyDancerArcadeV4011ScreenStress(input: SkyDancerArcadeV4011Input): SkyDancerArcadeV4011Profile {
   const base = (): SkyDancerArcadeV4011Profile => ({
@@ -78,13 +79,15 @@ export function skyDancerArcadeV4011ScreenStress(input: SkyDancerArcadeV4011Inpu
   const impacts = Math.max(0, Math.floor(input.impactCount));
   const destroyed = Math.max(0, Math.floor(input.destroyedImpacts));
   const importantScene = input.sceneMode === "signature" || input.sceneMode === "rival" || input.sceneMode === "boss";
+  const hostileSwarm = incoming >= 4;
   const signalCount = Number(incoming >= 2)
+    + Number(hostileSwarm)
     + Number(foreground >= 2)
     + Number(impacts >= 2 || destroyed >= 1)
     + Number(importantScene)
     + Number(input.worldBreakLive);
 
-  // A lone cause is already handled by V40.9/V40.10. Avoid flattening normal spectacle.
+  // An ordinary lone cause is already handled by V40.9/V40.10. Avoid flattening normal spectacle.
   if (signalCount < 2) return { ...base(), signalCount };
 
   const threatLoad = clamp01((incoming - 1) / 4);
@@ -93,7 +96,7 @@ export function skyDancerArcadeV4011ScreenStress(input: SkyDancerArcadeV4011Inpu
   const authoredLoad = input.sceneMode === "boss" ? .27 : input.sceneMode === "rival" ? .21 : input.sceneMode === "signature" ? .15 : 0;
   const worldBreakLoad = input.worldBreakLive ? .1 : 0;
   const overlap = clamp01((signalCount - 1) / 4);
-  const pressure = clamp01(
+  const calculatedPressure = clamp01(
     threatLoad * .28
       + foregroundLoad * .25
       + impactLoad * .23
@@ -101,6 +104,11 @@ export function skyDancerArcadeV4011ScreenStress(input: SkyDancerArcadeV4011Inpu
       + worldBreakLoad
       + overlap * .12,
   );
+  // Phone-landscape dodge readability needs a guaranteed visual-clearance floor once hostile
+  // trajectories become a swarm. Normal's five-shot cap stays busy; only larger hard-mode swarms
+  // become critical from projectiles alone.
+  const hostileSwarmPressureFloor = incoming >= 7 ? .7 : incoming >= 6 ? .6 : incoming >= 5 ? .52 : hostileSwarm ? .4 : 0;
+  const pressure = Math.max(calculatedPressure, hostileSwarmPressureFloor);
   const critical = pressure >= .68;
   const busy = pressure >= .34;
 
