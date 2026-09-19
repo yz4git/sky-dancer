@@ -845,15 +845,25 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
       let mesh = this.projectileMeshes.get(projectile.id);
       if (!mesh) {
         const enemyMissile = projectile.owner === "enemy";
+        const hostileClass = projectile.projectileClass ?? "bolt";
+        const hostileColor = hostileClass === "boss"
+          ? 0xff365c
+          : hostileClass === "seeker"
+            ? 0xff4fa3
+            : hostileClass === "heavy"
+              ? 0xff7a26
+              : 0xff5a36;
         const color = enemyMissile
-          ? 0xff8a2b
+          ? hostileColor
           : projectile.owner === "player-missile"
             ? snapshot.loadout === "missile-focus" ? 0x8cf6ff : snapshot.loadout === "gun-focus" ? 0xffe6c4 : 0xfff4de
             : snapshot.loadout === "gun-focus" ? 0xffdf72 : snapshot.loadout === "missile-focus" ? 0x9ddfff : 0xc8f8ff;
+        const hostileRadius = hostileClass === "boss" ? .52 : hostileClass === "heavy" ? .44 : hostileClass === "seeker" ? .34 : .3;
+        const hostileLength = hostileClass === "boss" ? 2.25 : hostileClass === "heavy" ? 1.98 : hostileClass === "seeker" ? 1.72 : 1.54;
         const geometry = projectile.owner === "player-missile"
           ? new THREE.ConeGeometry(0.28, 1.58, 8)
           : enemyMissile
-            ? new THREE.ConeGeometry(0.38, 1.72, 10)
+            ? new THREE.ConeGeometry(hostileRadius, hostileLength, hostileClass === "boss" ? 12 : 10)
             : new THREE.CylinderGeometry(0.04, 0.072, 1.55, 5);
         geometry.rotateX(Math.PI / 2);
         mesh = new THREE.Mesh(
@@ -869,13 +879,15 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
         );
         if (enemyMissile) {
           mesh.renderOrder = 8;
-          // V40.35: keep collision untouched while giving hostile fire a bright core, halo and readable motion streak.
+          // V40.41: hostile fire reads as real fired ordnance: hot core, colored plasma shell,
+          // hot inner lance, softer exhaust volume and a class-specific rotating energy ring.
+          const classScale = hostileClass === "boss" ? 1.32 : hostileClass === "heavy" ? 1.16 : hostileClass === "seeker" ? 1.02 : .92;
           const glow = new THREE.Mesh(
-            new THREE.SphereGeometry(.52, 10, 8),
+            new THREE.SphereGeometry(.52 * classScale, 10, 8),
             new THREE.MeshBasicMaterial({
-              color: 0xff542e,
+              color: hostileClass === "seeker" ? 0xff3f93 : hostileClass === "boss" ? 0xff244c : 0xff542e,
               transparent: true,
-              opacity: .18,
+              opacity: hostileClass === "boss" ? .24 : .18,
               blending: THREE.AdditiveBlending,
               depthWrite: false,
               depthTest: true,
@@ -885,27 +897,29 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
           glow.name = "arcade-enemy-projectile-glow-v4035";
           glow.renderOrder = 10;
           const core = new THREE.Mesh(
-            new THREE.SphereGeometry(.12, 9, 7),
+            new THREE.SphereGeometry(.11 * classScale, 9, 7),
             new THREE.MeshBasicMaterial({
-              color: 0xfffff0,
+              color: 0xfffff4,
               transparent: true,
-              opacity: .96,
+              opacity: .98,
               blending: THREE.AdditiveBlending,
               depthWrite: false,
               depthTest: true,
               toneMapped: false,
             }),
           );
+          core.position.z = .42 * classScale;
           core.name = "arcade-enemy-projectile-core-v4035";
-          core.renderOrder = 11;
-          const trailGeometry = new THREE.CylinderGeometry(.045, .13, 2.25, 6);
+          core.renderOrder = 12;
+          const trailLength = hostileClass === "boss" ? 3.5 : hostileClass === "heavy" ? 3.05 : hostileClass === "seeker" ? 2.72 : 2.38;
+          const trailGeometry = new THREE.CylinderGeometry(.04 * classScale, .15 * classScale, trailLength, 7);
           trailGeometry.rotateX(Math.PI / 2);
           const trail = new THREE.Mesh(
             trailGeometry,
             new THREE.MeshBasicMaterial({
-              color: 0xff7a38,
+              color: hostileClass === "seeker" ? 0xff4fa3 : hostileClass === "boss" ? 0xff315e : 0xff7a38,
               transparent: true,
-              opacity: .34,
+              opacity: hostileClass === "heavy" || hostileClass === "boss" ? .42 : .34,
               blending: THREE.AdditiveBlending,
               depthWrite: false,
               depthTest: true,
@@ -913,10 +927,42 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
             }),
           );
           trail.name = "arcade-enemy-projectile-trail-v4035";
-          // V40.36: hostile fire advances toward the player (+local Z), so its streak must remain behind it.
-          trail.position.z = -1.2;
+          trail.position.z = -trailLength * .54;
           trail.renderOrder = 9;
-          mesh.add(glow, core, trail);
+          const hotTrailGeometry = new THREE.CylinderGeometry(.018 * classScale, .055 * classScale, trailLength * .74, 6);
+          hotTrailGeometry.rotateX(Math.PI / 2);
+          const hotTrail = new THREE.Mesh(
+            hotTrailGeometry,
+            new THREE.MeshBasicMaterial({
+              color: 0xffffd6,
+              transparent: true,
+              opacity: .72,
+              blending: THREE.AdditiveBlending,
+              depthWrite: false,
+              depthTest: true,
+              toneMapped: false,
+            }),
+          );
+          hotTrail.name = "arcade-enemy-projectile-hot-trail-v4041";
+          hotTrail.position.z = -trailLength * .38;
+          hotTrail.renderOrder = 11;
+          const ring = new THREE.Mesh(
+            new THREE.TorusGeometry(.34 * classScale, .045 * classScale, 5, 12),
+            new THREE.MeshBasicMaterial({
+              color: hostileClass === "seeker" ? 0xff7bc7 : hostileClass === "boss" ? 0xff5573 : 0xffb05a,
+              transparent: true,
+              opacity: hostileClass === "bolt" ? .24 : .42,
+              blending: THREE.AdditiveBlending,
+              depthWrite: false,
+              depthTest: true,
+              toneMapped: false,
+            }),
+          );
+          ring.name = "arcade-enemy-projectile-ring-v4041";
+          ring.position.z = -.08;
+          ring.renderOrder = 10;
+          mesh.userData.hostileClassV4041 = hostileClass;
+          mesh.add(glow, core, trail, hotTrail, ring);
         }
         mesh.userData.arcadeLoadoutV117 = snapshot.loadout;
         this.projectileMeshes.set(projectile.id, mesh);
@@ -957,19 +1003,28 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
         mesh.rotation.x = course.pitch;
       }
       if (projectile.owner === "enemy" && mesh.material instanceof THREE.MeshBasicMaterial) {
-        mesh.material.color.setHex(warning ? 0xff315e : 0xff5a36);
+        const hostileClass = projectile.projectileClass ?? mesh.userData.hostileClassV4041 ?? "bolt";
+        const liveColor = hostileClass === "boss" ? 0xff365c : hostileClass === "seeker" ? 0xff4fa3 : hostileClass === "heavy" ? 0xff7a26 : 0xff5a36;
+        mesh.material.color.setHex(warning ? 0xff315e : liveColor);
         mesh.material.opacity = warning ? .5 : .98;
         mesh.material.wireframe = warning;
         const glow = mesh.getObjectByName("arcade-enemy-projectile-glow-v4035");
         const core = mesh.getObjectByName("arcade-enemy-projectile-core-v4035");
         const trail = mesh.getObjectByName("arcade-enemy-projectile-trail-v4035");
+        const hotTrail = mesh.getObjectByName("arcade-enemy-projectile-hot-trail-v4041");
+        const ring = mesh.getObjectByName("arcade-enemy-projectile-ring-v4041");
+        const hostileClass = projectile.projectileClass ?? mesh.userData.hostileClassV4041 ?? "bolt";
+        const flightAge = projectile.flightAge ?? 0;
         const dangerPulse = projectile.depth < 9
           ? 1.06 + Math.sin(performance.now() * .028 + projectile.id) * .05
           : 1;
+        const launchBloom = .72 + Math.min(1, flightAge / .22) * .28;
         if (glow) {
           glow.visible = !warning;
-          glow.scale.setScalar(dangerPulse);
-          if (glow instanceof THREE.Mesh && glow.material instanceof THREE.MeshBasicMaterial) glow.material.opacity = .18;
+          glow.scale.setScalar(dangerPulse * (1.08 - launchBloom * .08));
+          if (glow instanceof THREE.Mesh && glow.material instanceof THREE.MeshBasicMaterial) {
+            glow.material.opacity = (hostileClass === "boss" ? .24 : .18) * (1.1 - launchBloom * .1);
+          }
         }
         if (core) {
           core.visible = !warning;
@@ -977,8 +1032,23 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
         }
         if (trail) {
           trail.visible = !warning;
-          trail.scale.z = projectile.depth < 9 ? 1.08 : 1;
-          if (trail instanceof THREE.Mesh && trail.material instanceof THREE.MeshBasicMaterial) trail.material.opacity = .38;
+          trail.scale.z = launchBloom * (projectile.depth < 9 ? 1.12 : 1);
+          if (trail instanceof THREE.Mesh && trail.material instanceof THREE.MeshBasicMaterial) {
+            trail.material.opacity = (hostileClass === "heavy" || hostileClass === "boss" ? .44 : .36) * launchBloom;
+          }
+        }
+        if (hotTrail) {
+          hotTrail.visible = !warning;
+          hotTrail.scale.z = .82 + launchBloom * .22;
+          if (hotTrail instanceof THREE.Mesh && hotTrail.material instanceof THREE.MeshBasicMaterial) {
+            hotTrail.material.opacity = (hostileClass === "seeker" ? .78 : .68) * launchBloom;
+          }
+        }
+        if (ring) {
+          ring.visible = !warning && (hostileClass !== "bolt" || projectile.depth < 12);
+          ring.rotation.z = performance.now() * (hostileClass === "seeker" ? .0048 : .0031) + projectile.id;
+          const ringPulse = 1 + Math.sin(performance.now() * .018 + projectile.id * 1.7) * (hostileClass === "seeker" ? .14 : .08);
+          ring.scale.setScalar(ringPulse);
         }
       }
       const pulse = projectile.owner === "player-missile"
@@ -994,8 +1064,8 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
       if (active.has(id)) continue;
       this.projectileMeshes.delete(id);
       this.projectileRoot.remove(mesh);
-      mesh.geometry.dispose();
-      (mesh.material as THREE.Material).dispose();
+      // V40.41 adds layered child geometry/materials; dispose the complete visual rig together.
+      this.disposeObject(mesh);
     }
   }
 
