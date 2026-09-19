@@ -194,6 +194,9 @@ export class SkyDancerArcadeCanvasDemo implements SkyDancerArcadeDemoHandle {
     }
     for (const projectile of snapshot.projectiles) {
       const warning = projectile.owner === "enemy" && (projectile.warningSeconds ?? 0) > 0;
+      const sourceEnemyV4042 = projectile.sourceEnemyId === undefined
+        ? null
+        : snapshot.enemies.find((enemy) => enemy.id === projectile.sourceEnemyId) ?? null;
       const warningX = projectile.warningTargetX ?? snapshot.playerX;
       const warningY = projectile.warningTargetY ?? snapshot.playerY;
       // V40.38 mirrors WebGL: never fade a still-visible missed hostile shot. After the
@@ -231,8 +234,62 @@ export class SkyDancerArcadeCanvasDemo implements SkyDancerArcadeDemoHandle {
         context.beginPath();
         context.arc(projected.x, projected.y, 18 + pulse * 9, 0, Math.PI * 2);
         context.stroke();
+        // V40.42: the warning now visibly charges at the firing craft instead of existing only at the target.
+        const warningDuration = Math.max(.001, projectile.warningDuration ?? 0);
+        const chargeProgress = Math.max(0, Math.min(1, 1 - (projectile.warningSeconds ?? 0) / warningDuration));
+        const chargeRadius = 5 + chargeProgress * 8;
+        context.globalCompositeOperation = "lighter";
+        const chargeGradient = context.createRadialGradient(source.x, source.y, 0, source.x, source.y, chargeRadius * 1.8);
+        const chargeColor = projectile.projectileClass === "seeker"
+          ? "255,79,163"
+          : projectile.projectileClass === "boss"
+            ? "255,54,92"
+            : projectile.projectileClass === "heavy"
+              ? "255,138,45"
+              : "255,99,56";
+        chargeGradient.addColorStop(0, `rgba(${chargeColor},${.56 + chargeProgress * .3})`);
+        chargeGradient.addColorStop(.35, `rgba(${chargeColor},${.22 + chargeProgress * .24})`);
+        chargeGradient.addColorStop(1, `rgba(${chargeColor},0)`);
+        context.fillStyle = chargeGradient;
+        context.beginPath();
+        context.arc(source.x, source.y, chargeRadius * 1.8, 0, Math.PI * 2);
+        context.fill();
+        context.strokeStyle = `rgba(${chargeColor},${.22 + chargeProgress * .5})`;
+        context.lineWidth = 1.5 + chargeProgress * 1.2;
+        context.beginPath();
+        context.arc(source.x, source.y, chargeRadius * (1.05 + Math.sin(snapshot.runTimeSeconds * 24 + projectile.id) * .08), 0, Math.PI * 2);
+        context.stroke();
         context.restore();
         continue;
+      }
+      if (projectile.owner === "enemy" && sourceEnemyV4042 && (projectile.flightAge ?? 1) < .15) {
+        // V40.42: a bounded launch flash bridges the enemy hardpoint and the moving projectile.
+        const source = this.project(sourceEnemyV4042.x, sourceEnemyV4042.y, sourceEnemyV4042.depth, cssWidth, cssHeight);
+        const launchFlash = Math.max(0, Math.min(1, 1 - (projectile.flightAge ?? 0) / .15));
+        const chargeColor = projectile.projectileClass === "seeker"
+          ? "255,79,163"
+          : projectile.projectileClass === "boss"
+            ? "255,54,92"
+            : projectile.projectileClass === "heavy"
+              ? "255,138,45"
+              : "255,99,56";
+        context.save();
+        context.globalCompositeOperation = "lighter";
+        context.strokeStyle = `rgba(255,245,218,${.35 + launchFlash * .55})`;
+        context.lineWidth = 2 + launchFlash * 4;
+        context.lineCap = "round";
+        context.beginPath();
+        context.moveTo(source.x, source.y);
+        context.lineTo(
+          source.x + (projected.x - source.x) * Math.min(.44, .18 + launchFlash * .24),
+          source.y + (projected.y - source.y) * Math.min(.44, .18 + launchFlash * .24),
+        );
+        context.stroke();
+        context.fillStyle = `rgba(${chargeColor},${.18 + launchFlash * .38})`;
+        context.beginPath();
+        context.arc(source.x, source.y, 5 + launchFlash * 10, 0, Math.PI * 2);
+        context.fill();
+        context.restore();
       }
       if (projectile.owner === "player-missile") {
         context.strokeStyle = "rgba(255,255,255,.84)";
