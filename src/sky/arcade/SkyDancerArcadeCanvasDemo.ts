@@ -245,9 +245,13 @@ export class SkyDancerArcadeCanvasDemo implements SkyDancerArcadeDemoHandle {
       }
       if (projectile.owner === "enemy") {
         // V40.35: hostile shots keep a phone-readable minimum footprint without changing their hit radius.
-        const radius = Math.max(4, projected.scale * 3.4);
+        const hostileClass = projectile.projectileClass ?? "bolt";
+        const classScale = hostileClass === "boss" ? 1.34 : hostileClass === "heavy" ? 1.16 : hostileClass === "seeker" ? 1.04 : .94;
+        const radius = Math.max(4, projected.scale * 3.4 * classScale);
         const danger = projectile.depth < 9;
         const dangerPulse = danger ? 1 + Math.sin(snapshot.runTimeSeconds * 20 + projectile.id) * .06 : 1;
+        const bodyColor = hostileClass === "boss" ? "#ff365c" : hostileClass === "seeker" ? "#ff4fa3" : hostileClass === "heavy" ? "#ff7a26" : "#ff6a32";
+        const glowColor = hostileClass === "seeker" ? "rgba(255,63,147,.88)" : hostileClass === "boss" ? "rgba(255,36,76,.9)" : "rgba(255,82,38,.82)";
         const targetPoint = this.project(
           projectile.warningTargetX ?? snapshot.playerX,
           projectile.warningTargetY ?? snapshot.playerY,
@@ -260,39 +264,64 @@ export class SkyDancerArcadeCanvasDemo implements SkyDancerArcadeDemoHandle {
         const length = Math.hypot(dx, dy) || 1;
         const ux = dx / length;
         const uy = dy / length;
-        const trailLength = Math.max(10, radius * (danger ? 3.3 : 2.8));
+        const trailMultiplier = hostileClass === "boss" ? 4.2 : hostileClass === "heavy" ? 3.7 : hostileClass === "seeker" ? 3.45 : 3.05;
+        const trailLength = Math.max(11, radius * (danger ? trailMultiplier + .35 : trailMultiplier));
+        const launchBloom = .72 + Math.min(1, (projectile.flightAge ?? 0) / .22) * .28;
         context.save();
         context.lineCap = "round";
-        context.shadowColor = "rgba(255,82,38,.82)";
-        context.shadowBlur = danger ? 12 : 8;
+        context.shadowColor = glowColor;
+        context.shadowBlur = danger ? 13 : hostileClass === "boss" ? 11 : 8;
         const trailGradient = context.createLinearGradient(
           projected.x,
           projected.y,
           projected.x + ux * trailLength,
           projected.y + uy * trailLength,
         );
-        trailGradient.addColorStop(0, danger ? "rgba(255,106,50,.58)" : "rgba(255,106,50,.46)");
-        trailGradient.addColorStop(1, "rgba(255,106,50,0)");
+        const trailHead = hostileClass === "seeker"
+          ? (danger ? "rgba(255,79,163,.68)" : "rgba(255,79,163,.54)")
+          : hostileClass === "boss"
+            ? (danger ? "rgba(255,54,92,.7)" : "rgba(255,54,92,.56)")
+            : (danger ? "rgba(255,106,50,.62)" : "rgba(255,106,50,.48)");
+        trailGradient.addColorStop(0, trailHead);
+        trailGradient.addColorStop(1, hostileClass === "seeker" ? "rgba(255,79,163,0)" : "rgba(255,106,50,0)");
         context.strokeStyle = trailGradient;
-        context.lineWidth = Math.max(2.6, radius * .62);
+        context.globalAlpha = launchBloom;
+        context.lineWidth = Math.max(2.6, radius * (hostileClass === "heavy" || hostileClass === "boss" ? .7 : .6));
         context.beginPath();
         context.moveTo(projected.x + ux * radius * .35, projected.y + uy * radius * .35);
         context.lineTo(projected.x + ux * trailLength, projected.y + uy * trailLength);
         context.stroke();
-        context.strokeStyle = "rgba(255,238,204,.68)";
-        context.lineWidth = Math.max(1.2, radius * .2);
+        context.strokeStyle = hostileClass === "seeker" ? "rgba(255,246,255,.82)" : "rgba(255,238,204,.74)";
+        context.lineWidth = Math.max(1.2, radius * .21);
         context.beginPath();
-        context.moveTo(projected.x + ux * radius * .2, projected.y + uy * radius * .2);
-        context.lineTo(projected.x + ux * trailLength * .58, projected.y + uy * trailLength * .58);
+        context.moveTo(projected.x + ux * radius * .18, projected.y + uy * radius * .18);
+        context.lineTo(projected.x + ux * trailLength * .62, projected.y + uy * trailLength * .62);
         context.stroke();
-        context.fillStyle = danger ? "rgba(255,76,38,.17)" : "rgba(255,76,38,.11)";
+        context.globalAlpha = 1;
+        context.fillStyle = hostileClass === "seeker"
+          ? (danger ? "rgba(255,63,147,.19)" : "rgba(255,63,147,.13)")
+          : hostileClass === "boss"
+            ? (danger ? "rgba(255,36,76,.22)" : "rgba(255,36,76,.15)")
+            : (danger ? "rgba(255,76,38,.17)" : "rgba(255,76,38,.11)");
         context.beginPath();
         context.arc(projected.x, projected.y, radius * 1.58 * dangerPulse, 0, Math.PI * 2);
         context.fill();
-        context.fillStyle = "#ff6a32";
+        context.fillStyle = bodyColor;
         context.beginPath();
         context.arc(projected.x, projected.y, radius * dangerPulse, 0, Math.PI * 2);
         context.fill();
+        if (hostileClass !== "bolt" || danger) {
+          context.save();
+          context.translate(projected.x, projected.y);
+          context.rotate(snapshot.runTimeSeconds * (hostileClass === "seeker" ? 4.8 : 3.1) + projectile.id);
+          context.strokeStyle = hostileClass === "seeker" ? "rgba(255,123,199,.72)" : hostileClass === "boss" ? "rgba(255,85,115,.7)" : "rgba(255,176,90,.48)";
+          context.lineWidth = Math.max(1.1, radius * .18);
+          context.globalAlpha = .54 + Math.sin(snapshot.runTimeSeconds * 18 + projectile.id) * .14;
+          context.beginPath();
+          context.ellipse(0, 0, radius * 1.42, radius * .72, 0, 0, Math.PI * 2);
+          context.stroke();
+          context.restore();
+        }
         context.shadowBlur = danger ? 6 : 4;
         context.fillStyle = "#ffffed";
         context.beginPath();
