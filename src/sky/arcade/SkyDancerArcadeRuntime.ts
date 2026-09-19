@@ -215,6 +215,8 @@ export interface SkyDancerArcadeProjectileSnapshot {
   // V40.41: presentation/flight identity is authored by the firing craft, not inferred from color alone.
   projectileClass?: "bolt" | "seeker" | "heavy" | "boss";
   flightAge?: number;
+  // V40.42: bind the warning/launch visual back to the exact firing craft without changing gameplay coordinates.
+  sourceEnemyId?: number;
 }
 
 export interface SkyDancerArcadeImpactSnapshot {
@@ -3029,6 +3031,7 @@ export class SkyDancerArcadeRuntime {
         cruiseSpeed,
         flightAge: 0,
         projectileClass,
+        sourceEnemyId: enemy.id,
         damage: skyDancerArcadeEnemyDamageV4034(enemy.kind, enemy.boss, hard),
         life: 5.6 + warningSeconds,
         vx: (this.playerX - enemy.x) * 0.28 + centered * bossSpreadX,
@@ -3924,6 +3927,7 @@ export class SkyDancerArcadeRuntime {
         dangerRadius: projectile.dangerRadius,
         projectileClass: projectile.projectileClass,
         flightAge: projectile.flightAge ?? 0,
+        sourceEnemyId: projectile.sourceEnemyId,
       })),
       impacts: this.impactEvents.map((impact) => ({ ...impact })),
       hazards: this.hazards.map((hazard) => ({
@@ -4176,6 +4180,7 @@ export class SkyDancerArcadeRuntime {
     damage = 24,
     projectileClass: "bolt" | "seeker" | "heavy" | "boss" = "bolt",
     guidance = 0,
+    sourceEnemyId = -1,
   ): number {
     const id = this.nextEntityId++;
     this.projectiles.push({
@@ -4189,6 +4194,7 @@ export class SkyDancerArcadeRuntime {
       cruiseSpeed: 14.5,
       flightAge: 0,
       projectileClass,
+      sourceEnemyId,
       damage,
       life: 5.6 + warningSeconds,
       vx: (this.playerX - x) * .28,

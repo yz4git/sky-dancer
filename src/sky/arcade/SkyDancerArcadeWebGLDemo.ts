@@ -87,6 +87,69 @@ function setArcadeCuePointSizeV27(root: THREE.Object3D, pointSize: number): void
   });
 }
 
+type HostileProjectileClassV4042 = "bolt" | "seeker" | "heavy" | "boss";
+
+function hostileLaunchColorV4042(projectileClass: HostileProjectileClassV4042): number {
+  if (projectileClass === "boss") return 0xff365c;
+  if (projectileClass === "seeker") return 0xff4fa3;
+  if (projectileClass === "heavy") return 0xff8a2d;
+  return 0xff6338;
+}
+
+function hostileLaunchHardpointV4042(
+  enemy: SkyDancerArcadeSnapshot["enemies"][number],
+  projectileId: number,
+): { x: number; y: number; z: number; scale: number } {
+  const side = projectileId % 2 === 0 ? 1 : -1;
+  if (enemy.boss) return { x: side * 1.42, y: -.08, z: -3.2, scale: 1.55 };
+  if (enemy.kind === "missile-boat") return { x: side * 2.58, y: -.08, z: -1.48, scale: 1.16 };
+  if (enemy.kind === "gunship") return { x: side * 1.46, y: -.1, z: -2.08, scale: 1.2 };
+  if (enemy.kind === "bomber") return { x: side * 1.62, y: -.08, z: -2.15, scale: 1.16 };
+  if (enemy.kind === "interceptor") return { x: side * .74, y: -.04, z: -3.22, scale: .9 };
+  if (enemy.kind === "drone") return { x: side * .52, y: -.04, z: -2.02, scale: .8 };
+  return { x: side * .78, y: -.05, z: -2.72, scale: 1 };
+}
+
+function createHostileMuzzleRigV4042(): THREE.Group {
+  const rig = new THREE.Group();
+  rig.name = "arcade-enemy-muzzle-v4042";
+  rig.visible = false;
+  for (const side of [-1, 1] as const) {
+    const charge = new THREE.Mesh(
+      new THREE.SphereGeometry(.22, 8, 6),
+      new THREE.MeshBasicMaterial({
+        color: 0xff6338, transparent: true, opacity: 0, blending: THREE.AdditiveBlending,
+        depthWrite: false, depthTest: true, toneMapped: false,
+      }),
+    );
+    charge.name = `arcade-enemy-muzzle-charge-v4042-${side}`;
+    charge.renderOrder = 12;
+    const ring = new THREE.Mesh(
+      new THREE.TorusGeometry(.31, .035, 5, 14),
+      new THREE.MeshBasicMaterial({
+        color: 0xffb36a, transparent: true, opacity: 0, blending: THREE.AdditiveBlending,
+        depthWrite: false, depthTest: true, toneMapped: false,
+      }),
+    );
+    ring.name = `arcade-enemy-muzzle-ring-v4042-${side}`;
+    ring.renderOrder = 11;
+    const flashGeometry = new THREE.ConeGeometry(.23, .9, 7);
+    flashGeometry.rotateX(-Math.PI / 2);
+    const flash = new THREE.Mesh(
+      flashGeometry,
+      new THREE.MeshBasicMaterial({
+        color: 0xffffd8, transparent: true, opacity: 0, blending: THREE.AdditiveBlending,
+        depthWrite: false, depthTest: true, toneMapped: false,
+      }),
+    );
+    flash.name = `arcade-enemy-muzzle-flash-v4042-${side}`;
+    flash.renderOrder = 13;
+    rig.add(charge, ring, flash);
+  }
+  rig.userData.arcadeEnemyMuzzleV4042 = true;
+  return rig;
+}
+
 class SkyDancerArcadeAudio {
   private context: AudioContext | null = null;
   private engine: OscillatorNode | null = null;
@@ -190,6 +253,10 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
   private readonly v4029Breakups = new SkyDancerArcadeV4029EnemyBreakupDirector();
   private readonly v4029PendingBreakups = new Map<number, SkyDancerArcadeV4029BreakupRequest>();
   private readonly projectileMeshes = new Map<number, THREE.Mesh>();
+  // V40.42 reuses scratch vectors so launch-origin blending adds no per-frame projectile allocations.
+  private readonly v4042ProjectileNatural = new THREE.Vector3();
+  private readonly v4042MuzzleWorld = new THREE.Vector3();
+  private readonly v4042MuzzleLocal = new THREE.Vector3();
   private readonly hazardGroups = new Map<number, THREE.Group>();
   private readonly worldBreakGateGroups = new Map<number, THREE.Group>();
   private readonly engineGlows: THREE.Object3D[];
@@ -474,6 +541,13 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
 
   private syncEnemies(snapshot: SkyDancerArcadeSnapshot, delta: number): void {
     const active = new Set<number>();
+    const v4042LaunchByEnemy = new Map<number, SkyDancerArcadeSnapshot["projectiles"]>();
+    for (const projectile of snapshot.projectiles) {
+      if (projectile.owner !== "enemy" || projectile.sourceEnemyId === undefined) continue;
+      const list = v4042LaunchByEnemy.get(projectile.sourceEnemyId);
+      if (list) list.push(projectile);
+      else v4042LaunchByEnemy.set(projectile.sourceEnemyId, [projectile]);
+    }
     const compactLandscapeV271 = this.renderWidth > this.renderHeight && this.renderHeight <= 560;
     const cueBudgetV271 = skyDancerArcadeV271CueBudget(compactLandscapeV271);
     const v409Focus = skyDancerArcadeV408SceneFocus({
@@ -797,6 +871,67 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
         if (enemy.counterplay === "armor-brace") { group.scale.x *= 1.045; group.scale.y *= .96; }
         if (enemy.counterplay === "evasive-roll") group.rotation.z += Math.sin(snapshot.runTimeSeconds * 12 + enemy.id) * .065 * enemy.counterplayIntensity;
       }
+      // V40.42: the firing craft owns the charge and muzzle flash. The runtime projectile
+      // coordinates remain authoritative; this rig is presentation-only and follows the rendered airframe.
+      const v4042LaunchShots = v4042LaunchByEnemy.get(enemy.id) ?? [];
+      const v4042WarningShot = v4042LaunchShots.find((projectile) => (projectile.warningSeconds ?? 0) > 0);
+      const v4042LiveLaunch = v4042LaunchShots.find((projectile) =>
+        (projectile.warningSeconds ?? 0) <= 0 && (projectile.flightAge ?? 1) < .15
+      );
+      const v4042Signal = v4042WarningShot ?? v4042LiveLaunch;
+      const v4042VisualParent = group.getObjectByName("arcade-enemy-v19-readable-attitude-rig") ?? group;
+      let v4042MuzzleRig = group.getObjectByName("arcade-enemy-muzzle-v4042");
+      if (v4042Signal && !v4042MuzzleRig) {
+        v4042MuzzleRig = createHostileMuzzleRigV4042();
+        v4042VisualParent.add(v4042MuzzleRig);
+      }
+      if (v4042MuzzleRig) {
+        v4042MuzzleRig.visible = Boolean(v4042Signal);
+        if (v4042Signal) {
+          const projectileClass = (v4042Signal.projectileClass ?? "bolt") as HostileProjectileClassV4042;
+          const hardpoint = hostileLaunchHardpointV4042(enemy, v4042Signal.id);
+          const warningDuration = Math.max(.001, v4042Signal.warningDuration ?? 0);
+          const warningRemaining = Math.max(0, v4042Signal.warningSeconds ?? 0);
+          const warningProgress = warningRemaining > 0 ? THREE.MathUtils.clamp(1 - warningRemaining / warningDuration, 0, 1) : 1;
+          const flightAge = v4042Signal.flightAge ?? 0;
+          const flash = warningRemaining <= 0 ? THREE.MathUtils.clamp(1 - flightAge / .15, 0, 1) : 0;
+          const charge = warningRemaining > 0
+            ? (.16 + Math.pow(warningProgress, 1.35) * .74) * (.9 + Math.sin(snapshot.runTimeSeconds * 24 + enemy.id) * .1)
+            : flash * .58;
+          const color = hostileLaunchColorV4042(projectileClass);
+          const ringColor = projectileClass === "seeker" ? 0xff9bd8 : projectileClass === "boss" ? 0xff788e : 0xffc17d;
+          for (const side of [-1, 1] as const) {
+            const portX = side * Math.abs(hardpoint.x);
+            const chargeMesh = v4042MuzzleRig.getObjectByName(`arcade-enemy-muzzle-charge-v4042-${side}`);
+            const ringMesh = v4042MuzzleRig.getObjectByName(`arcade-enemy-muzzle-ring-v4042-${side}`);
+            const flashMesh = v4042MuzzleRig.getObjectByName(`arcade-enemy-muzzle-flash-v4042-${side}`);
+            if (chargeMesh instanceof THREE.Mesh && chargeMesh.material instanceof THREE.MeshBasicMaterial) {
+              chargeMesh.position.set(portX, hardpoint.y, hardpoint.z);
+              chargeMesh.material.color.setHex(color);
+              chargeMesh.material.opacity = .16 + charge * .58 + flash * .16;
+              const pulse = hardpoint.scale * (.54 + charge * .7 + flash * .35);
+              chargeMesh.scale.setScalar(pulse);
+            }
+            if (ringMesh instanceof THREE.Mesh && ringMesh.material instanceof THREE.MeshBasicMaterial) {
+              ringMesh.position.set(portX, hardpoint.y, hardpoint.z - .05);
+              ringMesh.material.color.setHex(ringColor);
+              ringMesh.material.opacity = warningRemaining > 0 ? .08 + warningProgress * .34 : flash * .5;
+              ringMesh.rotation.z = snapshot.runTimeSeconds * (projectileClass === "seeker" ? 5.8 : 3.6) + side;
+              ringMesh.scale.setScalar(hardpoint.scale * (.78 + warningProgress * .32 + flash * .18));
+            }
+            if (flashMesh instanceof THREE.Mesh && flashMesh.material instanceof THREE.MeshBasicMaterial) {
+              flashMesh.position.set(portX, hardpoint.y, hardpoint.z - .48 * hardpoint.scale);
+              flashMesh.material.opacity = flash * (projectileClass === "boss" ? .95 : .78);
+              flashMesh.scale.set(
+                hardpoint.scale * (.85 + flash * .48),
+                hardpoint.scale * (.85 + flash * .48),
+                hardpoint.scale * (.8 + flash * .72),
+              );
+            }
+          }
+        }
+      }
+
       if (enemy.boss) {
         const hpRatio = enemy.maxHp > 0 ? enemy.hp / enemy.maxHp : 0;
         const baseScale = typeof group.userData.arcadeBaseScale === "number" ? group.userData.arcadeBaseScale : 1;
@@ -840,6 +975,7 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
 
   private syncProjectiles(snapshot: SkyDancerArcadeSnapshot): void {
     const active = new Set<number>();
+    const v4042EnemiesById = new Map(snapshot.enemies.map((enemy) => [enemy.id, enemy] as const));
     for (const projectile of snapshot.projectiles) {
       active.add(projectile.id);
       let mesh = this.projectileMeshes.get(projectile.id);
@@ -991,7 +1127,23 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
       const visualX = warning ? exitTargetX : projectile.x + exitUx * hostileExitPush;
       const visualY = warning ? exitTargetY : projectile.y + exitUy * hostileExitPush;
       const course = arcadeCourseRelativeVisualPose(snapshot.stage, snapshot.distance, visualDepth);
-      mesh.position.set(visualX * 8.4 + course.x, 1.2 + visualY * 4.9 + course.y, course.z);
+      this.v4042ProjectileNatural.set(visualX * 8.4 + course.x, 1.2 + visualY * 4.9 + course.y, course.z);
+      mesh.position.copy(this.v4042ProjectileNatural);
+      if (projectile.owner === "enemy" && !warning && (projectile.flightAge ?? 1) < .15 && projectile.sourceEnemyId !== undefined) {
+        const sourceGroup = this.enemyGroups.get(projectile.sourceEnemyId);
+        const sourceEnemy = v4042EnemiesById.get(projectile.sourceEnemyId);
+        if (sourceGroup && sourceEnemy) {
+          const visualParent = sourceGroup.getObjectByName("arcade-enemy-v19-readable-attitude-rig") ?? sourceGroup;
+          const hardpoint = hostileLaunchHardpointV4042(sourceEnemy, projectile.id);
+          this.v4042MuzzleWorld.set(hardpoint.x, hardpoint.y, hardpoint.z);
+          visualParent.localToWorld(this.v4042MuzzleWorld);
+          this.v4042MuzzleLocal.copy(this.v4042MuzzleWorld);
+          this.projectileRoot.worldToLocal(this.v4042MuzzleLocal);
+          const launchT = THREE.MathUtils.clamp((projectile.flightAge ?? 0) / .15, 0, 1);
+          const launchEase = launchT * launchT * (3 - 2 * launchT);
+          mesh.position.lerpVectors(this.v4042MuzzleLocal, this.v4042ProjectileNatural, launchEase);
+        }
+      }
       if (projectile.owner === "enemy" && !warning) {
         // V40.36: aim the projectile body at the locked firing solution instead of letting the course tangent fake its direction.
         const targetX = projectile.warningTargetX ?? snapshot.playerX;
@@ -1057,7 +1209,14 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
             ? 1.55 + Math.sin(performance.now() * .032 + projectile.id) * .2
             : 1.22 + Math.sin(performance.now() * 0.018 + projectile.id) * 0.05
           : snapshot.loadout === "gun-focus" ? 1.16 : 1;
-      mesh.scale.setScalar(pulse);
+      if (projectile.owner === "enemy" && !warning && (projectile.flightAge ?? 1) < .15) {
+        const launchT = THREE.MathUtils.clamp((projectile.flightAge ?? 0) / .15, 0, 1);
+        const launchEase = launchT * launchT * (3 - 2 * launchT);
+        const crossSection = pulse * (.74 + launchEase * .26);
+        mesh.scale.set(crossSection, crossSection, pulse * (1.52 - launchEase * .52));
+      } else {
+        mesh.scale.setScalar(pulse);
+      }
     }
     for (const [id, mesh] of this.projectileMeshes) {
       if (active.has(id)) continue;
