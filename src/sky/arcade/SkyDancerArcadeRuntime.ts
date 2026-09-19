@@ -3085,28 +3085,13 @@ export class SkyDancerArcadeRuntime {
         projectile.speed = cruiseSpeed * (.72 + .28 * launchEase);
         projectile.depth -= projectile.speed * delta;
         if (projectile.guidance > 0 && projectile.depth > 15) {
-          // V40.41: keep the firing solution legible. Far shots can correct gently, but the last
-          // approach is ballistic so the player can commit to a dodge instead of being chased.
-          const farFactor = clamp((projectile.depth - 15) / 28, 0, 1);
-          const classTracking = projectile.projectileClass === "seeker" ? .34 : projectile.projectileClass === "boss" ? .28 : .18;
-          const trackingWeight = farFactor * classTracking;
-          const lockedX = projectile.warningTargetX ?? this.playerX;
-          const lockedY = projectile.warningTargetY ?? this.playerY;
-          const liveAimX = this.playerX + this.input.x * .12;
-          const liveAimY = this.playerY + this.input.y * .1;
-          const targetX = lockedX + (liveAimX - lockedX) * trackingWeight;
-          const targetY = lockedY + (liveAimY - lockedY) * trackingWeight;
-          const curvePhase = projectile.id * 1.731 + (projectile.flightAge ?? 0) * 5.2;
-          // Preserve the proven pre-V40.41 hit/miss envelope: the path has a stable authored
-          // lateral drift rather than laser-perfect correction. It fades out before the ballistic
-          // dodge zone, so motion looks physical without silently increasing difficulty.
-          const weaveX = projectile.projectileClass === "seeker" ? .24 : projectile.projectileClass === "heavy" ? .2 : projectile.projectileClass === "boss" ? .28 : .34;
-          const weaveY = projectile.projectileClass === "seeker" ? .16 : projectile.projectileClass === "heavy" ? .13 : projectile.projectileClass === "boss" ? .18 : .22;
-          const desiredVX = clamp((targetX - projectile.x) * .78 + Math.sin(curvePhase) * weaveX * farFactor, -1.92, 1.92);
-          const desiredVY = clamp((targetY - projectile.y) * .78 + Math.cos(curvePhase * .83) * weaveY * farFactor, -1.62, 1.62);
-          const turnRate = projectile.projectileClass === "seeker" ? 2.45 : projectile.projectileClass === "boss" ? 2.15 : 1.72;
-          projectile.vx = moveToward(projectile.vx, desiredVX, delta * turnRate);
-          projectile.vy = moveToward(projectile.vy, desiredVY, delta * turnRate * .9);
+          // V40.41 deliberately preserves the proven gameplay trajectory. Visual identity and
+          // launch acceleration improve quality without silently changing the authored hit/miss envelope.
+          const curvePhase = projectile.id * 1.731 + projectile.life * 4.6;
+          const desiredVX = clamp((this.playerX - projectile.x) * 0.76 + Math.sin(curvePhase) * 0.46, -2.05, 2.05);
+          const desiredVY = clamp((this.playerY - projectile.y) * 0.76 + Math.cos(curvePhase * 0.83) * 0.3, -1.78, 1.78);
+          projectile.vx = moveToward(projectile.vx, desiredVX, delta * 2.15);
+          projectile.vy = moveToward(projectile.vy, desiredVY, delta * 1.95);
           projectile.guidance = Math.max(0, projectile.guidance - delta);
         } else if (projectile.depth <= 15) {
           projectile.guidance = 0;
