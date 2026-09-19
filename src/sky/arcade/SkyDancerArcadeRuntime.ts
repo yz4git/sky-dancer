@@ -3097,8 +3097,11 @@ export class SkyDancerArcadeRuntime {
           const targetX = lockedX + (liveAimX - lockedX) * trackingWeight;
           const targetY = lockedY + (liveAimY - lockedY) * trackingWeight;
           const curvePhase = projectile.id * 1.731 + (projectile.flightAge ?? 0) * 5.2;
-          const weaveX = projectile.projectileClass === "seeker" ? .11 : projectile.projectileClass === "heavy" ? .08 : .16;
-          const weaveY = projectile.projectileClass === "seeker" ? .07 : projectile.projectileClass === "heavy" ? .05 : .1;
+          // Preserve the proven pre-V40.41 hit/miss envelope: the path has a stable authored
+          // lateral drift rather than laser-perfect correction. It fades out before the ballistic
+          // dodge zone, so motion looks physical without silently increasing difficulty.
+          const weaveX = projectile.projectileClass === "seeker" ? .24 : projectile.projectileClass === "heavy" ? .2 : projectile.projectileClass === "boss" ? .28 : .34;
+          const weaveY = projectile.projectileClass === "seeker" ? .16 : projectile.projectileClass === "heavy" ? .13 : projectile.projectileClass === "boss" ? .18 : .22;
           const desiredVX = clamp((targetX - projectile.x) * .78 + Math.sin(curvePhase) * weaveX * farFactor, -1.92, 1.92);
           const desiredVY = clamp((targetY - projectile.y) * .78 + Math.cos(curvePhase * .83) * weaveY * farFactor, -1.62, 1.62);
           const turnRate = projectile.projectileClass === "seeker" ? 2.45 : projectile.projectileClass === "boss" ? 2.15 : 1.72;
