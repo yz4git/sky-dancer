@@ -1013,7 +1013,6 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
         const trail = mesh.getObjectByName("arcade-enemy-projectile-trail-v4035");
         const hotTrail = mesh.getObjectByName("arcade-enemy-projectile-hot-trail-v4041");
         const ring = mesh.getObjectByName("arcade-enemy-projectile-ring-v4041");
-        const hostileClass = projectile.projectileClass ?? mesh.userData.hostileClassV4041 ?? "bolt";
         const flightAge = projectile.flightAge ?? 0;
         const dangerPulse = projectile.depth < 9
           ? 1.06 + Math.sin(performance.now() * .028 + projectile.id) * .05
