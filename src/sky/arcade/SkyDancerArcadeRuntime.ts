@@ -4180,7 +4180,15 @@ export class SkyDancerArcadeRuntime {
   }
 
   /** Deterministic V40.34 hook for warning/dodge/counter regression tests. */
-  spawnEnemyProjectileForTests(x = 0, y = 0, depth = 16, warningSeconds = .8, damage = 24): number {
+  spawnEnemyProjectileForTests(
+    x = 0,
+    y = 0,
+    depth = 16,
+    warningSeconds = .8,
+    damage = 24,
+    projectileClass: "bolt" | "seeker" | "heavy" | "boss" = "bolt",
+    guidance = 0,
+  ): number {
     const id = this.nextEntityId++;
     this.projectiles.push({
       id,
@@ -4189,12 +4197,15 @@ export class SkyDancerArcadeRuntime {
       y,
       depth,
       targetEnemyId: null,
-      speed: 14.5,
+      speed: 14.5 * .72,
+      cruiseSpeed: 14.5,
+      flightAge: 0,
+      projectileClass,
       damage,
       life: 5.6 + warningSeconds,
       vx: (this.playerX - x) * .28,
       vy: (this.playerY - y) * .28,
-      guidance: 0,
+      guidance,
       nearMissChecked: false,
       warningSeconds,
       warningDuration: warningSeconds,
