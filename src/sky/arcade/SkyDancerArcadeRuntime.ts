@@ -212,6 +212,9 @@ export interface SkyDancerArcadeProjectileSnapshot {
   warningTargetX?: number;
   warningTargetY?: number;
   dangerRadius?: number;
+  // V40.41: presentation/flight identity is authored by the firing craft, not inferred from color alone.
+  projectileClass?: "bolt" | "seeker" | "heavy" | "boss";
+  flightAge?: number;
 }
 
 export interface SkyDancerArcadeImpactSnapshot {
@@ -557,6 +560,10 @@ interface ArcadeProjectile extends SkyDancerArcadeProjectileSnapshot {
   vy: number;
   guidance: number;
   nearMissChecked: boolean;
+  // V40.41: hostile fire eases out of the muzzle, then flies a bounded authored trajectory.
+  cruiseSpeed?: number;
+  flightAge?: number;
+  projectileClass?: "bolt" | "seeker" | "heavy" | "boss";
   // V40.34: only a real steering/turbo response can convert a close pass into a counter opening.
   dodgeCommitted?: boolean;
   // V30: outgoing hostile fire coasts out harmlessly instead of popping out of existence.
@@ -3000,6 +3007,16 @@ export class SkyDancerArcadeRuntime {
         : 1;
       const bossSpreadX = enemy.boss && bossProfile ? bossProfile.spreadX[bossIndex] : .2;
       const bossSpreadY = enemy.boss && bossProfile ? bossProfile.spreadY[bossIndex] : .11;
+      const projectileClass: "bolt" | "seeker" | "heavy" | "boss" = enemy.boss
+        ? "boss"
+        : enemy.kind === "missile-boat" || enemy.kind === "interceptor"
+          ? "seeker"
+          : enemy.kind === "gunship" || enemy.kind === "bomber"
+            ? "heavy"
+            : "bolt";
+      const cruiseSpeed = enemy.boss
+        ? (15.8 + enemy.bossPhase * 1.7) * bossSpeedScale
+        : skyDancerArcadeEnemyWeaponV20(enemy.kind).projectileSpeed;
       this.projectiles.push({
         id: this.nextEntityId++,
         owner: "enemy",
@@ -3007,7 +3024,11 @@ export class SkyDancerArcadeRuntime {
         y: enemy.y,
         depth: enemy.depth,
         targetEnemyId: null,
-        speed: enemy.boss ? (15.8 + enemy.bossPhase * 1.7) * bossSpeedScale : skyDancerArcadeEnemyWeaponV20(enemy.kind).projectileSpeed,
+        // V40.41: a short launch acceleration reads as fired ordnance instead of a translated glowing cone.
+        speed: cruiseSpeed * .72,
+        cruiseSpeed,
+        flightAge: 0,
+        projectileClass,
         damage: skyDancerArcadeEnemyDamageV4034(enemy.kind, enemy.boss, hard),
         life: 5.6 + warningSeconds,
         vx: (this.playerX - enemy.x) * 0.28 + centered * bossSpreadX,
@@ -3057,8 +3078,15 @@ export class SkyDancerArcadeRuntime {
           projectile.warningSeconds = Math.max(0, warningSeconds - delta);
           if ((projectile.warningSeconds ?? 0) > 0) continue;
         }
+        projectile.flightAge = (projectile.flightAge ?? 0) + delta;
+        const cruiseSpeed = projectile.cruiseSpeed ?? projectile.speed;
+        const launchT = clamp((projectile.flightAge ?? 0) / .22, 0, 1);
+        const launchEase = launchT * launchT * (3 - 2 * launchT);
+        projectile.speed = cruiseSpeed * (.72 + .28 * launchEase);
         projectile.depth -= projectile.speed * delta;
         if (projectile.guidance > 0 && projectile.depth > 15) {
+          // V40.41 deliberately preserves the proven gameplay trajectory. Visual identity and
+          // launch acceleration improve quality without silently changing the authored hit/miss envelope.
           const curvePhase = projectile.id * 1.731 + projectile.life * 4.6;
           const desiredVX = clamp((this.playerX - projectile.x) * 0.76 + Math.sin(curvePhase) * 0.46, -2.05, 2.05);
           const desiredVY = clamp((this.playerY - projectile.y) * 0.76 + Math.cos(curvePhase * 0.83) * 0.3, -1.78, 1.78);
@@ -3894,6 +3922,8 @@ export class SkyDancerArcadeRuntime {
         warningTargetX: projectile.warningTargetX,
         warningTargetY: projectile.warningTargetY,
         dangerRadius: projectile.dangerRadius,
+        projectileClass: projectile.projectileClass,
+        flightAge: projectile.flightAge ?? 0,
       })),
       impacts: this.impactEvents.map((impact) => ({ ...impact })),
       hazards: this.hazards.map((hazard) => ({
@@ -4138,7 +4168,15 @@ export class SkyDancerArcadeRuntime {
   }
 
   /** Deterministic V40.34 hook for warning/dodge/counter regression tests. */
-  spawnEnemyProjectileForTests(x = 0, y = 0, depth = 16, warningSeconds = .8, damage = 24): number {
+  spawnEnemyProjectileForTests(
+    x = 0,
+    y = 0,
+    depth = 16,
+    warningSeconds = .8,
+    damage = 24,
+    projectileClass: "bolt" | "seeker" | "heavy" | "boss" = "bolt",
+    guidance = 0,
+  ): number {
     const id = this.nextEntityId++;
     this.projectiles.push({
       id,
@@ -4147,12 +4185,15 @@ export class SkyDancerArcadeRuntime {
       y,
       depth,
       targetEnemyId: null,
-      speed: 14.5,
+      speed: 14.5 * .72,
+      cruiseSpeed: 14.5,
+      flightAge: 0,
+      projectileClass,
       damage,
       life: 5.6 + warningSeconds,
       vx: (this.playerX - x) * .28,
       vy: (this.playerY - y) * .28,
-      guidance: 0,
+      guidance,
       nearMissChecked: false,
       warningSeconds,
       warningDuration: warningSeconds,
