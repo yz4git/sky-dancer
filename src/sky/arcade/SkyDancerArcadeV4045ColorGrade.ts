@@ -35,7 +35,8 @@ export function skyDancerArcadeV4045Palette(stage: SkyDancerArcadeStageDefinitio
     primary: gradeHex(stage.palette.primary, .62, .82, -.012, baseTint, .08),
     secondary: gradeHex(stage.palette.secondary, .72, .86, -.008, baseTint, .055),
     // Combat-significant accents keep most of their authored saturation.
-    accent: gradeHex(stage.palette.accent, .9, .96, .01, 0xd9f6ff, .025),
+    // Environment accent is intentionally calmer than combat emissives/locks, which use their own vivid colors.
+    accent: gradeHex(stage.palette.accent, .72, .9, -.005, 0xbfdce2, .08),
     enemy: gradeHex(stage.palette.enemy, .92, .94, 0, 0xffd7c7, .018),
   };
 }

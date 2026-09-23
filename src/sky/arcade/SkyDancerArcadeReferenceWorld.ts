@@ -142,10 +142,11 @@ export class SkyDancerArcadeReferenceWorld {
     const palette=referenceAtmosphere(stage);
     this.scene.background=palette.zenith;
     this.scene.fog=new THREE.Fog(palette.fog,ARCADE_FOG_NEAR,ARCADE_FOG_FAR);
-    const hemi=new THREE.HemisphereLight(0xc9e7ff,0x172938,palette.ambient);
+    const hemi=new THREE.HemisphereLight(0xc7d8dd,0x18252e,palette.ambient);
     const key=new THREE.DirectionalLight(palette.key,palette.keyIntensity);
     key.position.copy(ARCADE_SUN_DIRECTION).multiplyScalar(250);
-    const rim=new THREE.DirectionalLight(0x55cfff,1.05);
+    // V40.45 review: keep a cool edge separator, but stop it from tinting whole structures neon cyan.
+    const rim=new THREE.DirectionalLight(0x7fb9c8,.62);
     rim.position.set(80,25,45);
     this.backdrop=this.buildBackdrop(stage);
     // V10.3.6: the distant horizon is a camera/world reference, not another streamed course chunk.
