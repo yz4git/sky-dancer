@@ -88,6 +88,24 @@ function paint(color: number, emission = 0): THREE.MeshStandardMaterial {
   });
 }
 
+function architecturalSurface(
+  color: number,
+  roughness: number,
+  metalness: number,
+  clearcoat = 0,
+  clearcoatRoughness = .32,
+): THREE.Material {
+  if (clearcoat <= 0) return new THREE.MeshStandardMaterial({ color, roughness, metalness });
+  return new THREE.MeshPhysicalMaterial({
+    color,
+    roughness,
+    metalness,
+    clearcoat,
+    clearcoatRoughness,
+    reflectivity: .42,
+  });
+}
+
 function mesh(group: THREE.Group, geometry: THREE.BufferGeometry, mat: THREE.Material, x=0,y=0,z=0): THREE.Mesh {
   const result=new THREE.Mesh(geometry,mat);
   result.position.set(x,y,z);group.add(result);
@@ -1179,8 +1197,16 @@ export class SkyDancerArcadeReferenceWorld {
     const count=72;
     const towers=new THREE.InstancedMesh(new THREE.BoxGeometry(1,1,1),facade,count);
     towers.name="arcade-product-city-towers-"+index;
-    const roofs=new THREE.InstancedMesh(new THREE.BoxGeometry(1,1,1),paint(0x53616d),count);
-    const spires=new THREE.InstancedMesh(new THREE.CylinderGeometry(.14,.23,1,6),paint(0x697989),72);
+    const roofs=new THREE.InstancedMesh(
+      new THREE.BoxGeometry(1,1,1),
+      architecturalSurface(stage.biome==="night"?0x394a5a:0x58656d,.42,.48,.16,.3),
+      count,
+    );
+    const spires=new THREE.InstancedMesh(
+      new THREE.CylinderGeometry(.14,.23,1,6),
+      architecturalSurface(stage.biome==="night"?0x52687b:0x71808a,.27,.72,.08,.22),
+      72,
+    );
     let n=0;let a=0;
     for(const side of [-1,1])for(let row=0;row<6;row++)for(let lane=0;lane<6;lane++){
       const seed=index*229+n*11;
@@ -1211,7 +1237,7 @@ export class SkyDancerArcadeReferenceWorld {
     // V10.3.4: Dawn City ground is no longer a pair of rigid, rotating 124m slabs.
     // Only Night Metro keeps rigid district bases; Dawn City owns two root-level continuous bank ribbons.
     group.userData.arcadeCityRigidQuayCountV1034=stage.biome==="night"?2:0;
-    const cityFloor=paint(stage.biome==="night"?0x111d31:0x213746);
+    const cityFloor=architecturalSurface(stage.biome==="night"?0x111d31:0x213746,.9,.05);
     if(stage.biome==="night")for(const side of [-1,1])mesh(group,new THREE.BoxGeometry(96,1,CITY_QUAY_DEPTH),cityFloor,side*72,-26);
     if(stage.biome==="night"){
       const metroBed=paint(0x080e20),metroGlow=paint(stage.palette.accent,stage.palette.accent);
@@ -1221,7 +1247,15 @@ export class SkyDancerArcadeReferenceWorld {
         mesh(group,new THREE.BoxGeometry(.18,.11,CITY_QUAY_DEPTH-2),paint(stage.palette.secondary),side*15.5,-24.92,0);
       }
     }
-    const bank=paint(stage.biome==="night"?0x314559:0x506879),road=paint(0x132635),light=paint(0xffc06e,0xff963b);
+    const bank=architecturalSurface(stage.biome==="night"?0x314559:0x506879,.68,.16,.06,.44);
+    const road=architecturalSurface(0x132635,.94,.025);
+    const light=new THREE.MeshStandardMaterial({
+      color:0xd9a36f,
+      roughness:.38,
+      metalness:.12,
+      emissive:0xc56f39,
+      emissiveIntensity:.82,
+    });
     for(const side of [-1,1]){
       mesh(group,new THREE.BoxGeometry(2.4,1.3,CITY_QUAY_DEPTH),bank,side*21,-25.1);
       mesh(group,new THREE.BoxGeometry(3.5,.12,CITY_QUAY_DEPTH),road,side*24,-24.32);
