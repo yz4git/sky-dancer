@@ -4,6 +4,7 @@ import { skyDancerArcadeEnemyVisualScaleV17 } from "./SkyDancerArcadeModels";
 import { skyDancerArcadeV406FinalBossCue, skyDancerArcadeV406FormMotion, skyDancerArcadeV406FormLabel } from "./SkyDancerArcadeV406FinalBossPresentation";
 import { skyDancerArcadeV408SceneFocus } from "./SkyDancerArcadeV408CinematicFocus";
 import { skyDancerArcadeV4044IsTerminalThreat, skyDancerArcadeV409PhoneClarity } from "./SkyDancerArcadeV409PhoneClarity";
+import { skyDancerArcadeV4045Palette } from "./SkyDancerArcadeV4045ColorGrade";
 import { skyDancerArcadeV4010DynamicOcclusion, skyDancerArcadeV4010EntityOcclusion } from "./SkyDancerArcadeV4010DynamicOcclusion";
 import { skyDancerArcadeV4011ForegroundCraftCount, skyDancerArcadeV4011ScreenStress } from "./SkyDancerArcadeV4011ScreenStress";
 import { skyDancerArcadeV4012RunRhythm } from "./SkyDancerArcadeV4012RunRhythm";
@@ -65,7 +66,7 @@ export class SkyDancerArcadeCanvasDemo implements SkyDancerArcadeDemoHandle {
     const width = this.canvas.width;
     const height = this.canvas.height;
     const ratio = Math.min(2, window.devicePixelRatio || 1);
-    const palette = snapshot.stage.palette;
+    const palette = skyDancerArcadeV4045Palette(snapshot.stage);
     context.save();
     context.scale(ratio, ratio);
     const cssWidth = width / ratio;
@@ -419,9 +420,10 @@ export class SkyDancerArcadeCanvasDemo implements SkyDancerArcadeDemoHandle {
     const projected = this.project(target.x, target.y, target.depth, width, height);
     const radius = Math.max(24, Math.min(68, projected.scale * (focus.mode === "boss" ? 58 : 46)));
     const corner = radius * .34;
+    const cinematicPalette = skyDancerArcadeV4045Palette(snapshot.stage);
     const accent = focus.mode === "rival"
-      ? "#ff65d5"
-      : `#${snapshot.stage.palette.accent.toString(16).padStart(6, "0")}`;
+      ? "#e06ac1"
+      : `#${cinematicPalette.accent.toString(16).padStart(6, "0")}`;
     context.save();
     context.strokeStyle = accent;
     context.globalAlpha = (.18 + focus.strength * .2) * rhythm.secondaryHudAlpha;
@@ -538,7 +540,7 @@ export class SkyDancerArcadeCanvasDemo implements SkyDancerArcadeDemoHandle {
   }
 
   private drawCourse(context: CanvasRenderingContext2D, snapshot: SkyDancerArcadeSnapshot, width: number, height: number): void {
-    const palette = snapshot.stage.palette;
+    const palette = skyDancerArcadeV4045Palette(snapshot.stage);
     const horizon = height * 0.42;
     context.fillStyle = `#${palette.ground.toString(16).padStart(6, "0")}`;
     context.beginPath();
@@ -979,7 +981,7 @@ export class SkyDancerArcadeCanvasDemo implements SkyDancerArcadeDemoHandle {
     context.save();
     context.translate(x, y);
     context.rotate(-snapshot.playerX * 0.28);
-    context.fillStyle = "#4ed9f4";
+    context.fillStyle = "#bccbd1";
     context.beginPath();
     context.moveTo(0, -28);
     context.lineTo(-46, 21);
@@ -989,9 +991,9 @@ export class SkyDancerArcadeCanvasDemo implements SkyDancerArcadeDemoHandle {
     context.lineTo(46, 21);
     context.closePath();
     context.fill();
-    context.fillStyle = "#eefcff";
+    context.fillStyle = "#edf6f8";
     context.fillRect(-4, -19, 8, 36);
-    context.fillStyle = snapshot.turboActive ? "#fff3ad" : "#6ee9ff";
+    context.fillStyle = snapshot.turboActive ? "#fff0c9" : "#a8f0ff";
     context.beginPath();
     context.moveTo(-7, 27);
     context.lineTo(0, snapshot.turboActive ? 68 : 46);

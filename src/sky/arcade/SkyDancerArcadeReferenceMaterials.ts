@@ -18,14 +18,15 @@ export function referenceAtmosphere(stage: SkyDancerArcadeStageDefinition) {
   const cloudHorizon = new THREE.Color(stage.palette.fog).lerp(new THREE.Color(stage.palette.secondary), .26);
   const cloudFog = new THREE.Color(stage.palette.fog).lerp(new THREE.Color(stage.palette.secondary), .34);
   return {
-    zenith: new THREE.Color(city ? 0x0b6198 : cloud ? 0x62b3dc : stage.palette.sky),
-    horizon: city ? new THREE.Color(0xffb866) : cloud ? cloudHorizon : new THREE.Color(stage.palette.fog),
-    fog: city ? new THREE.Color(0x879caf) : cloud ? cloudFog : new THREE.Color(stage.palette.fog),
-    cloudLight: new THREE.Color(city ? 0xffddb0 : cloud ? 0xd5ebf4 : night ? 0x7283b5 : stage.biome === "storm" ? 0x90a5b9 : 0xeaf6ff),
-    cloudShadow: new THREE.Color(city ? 0x405d78 : cloud ? 0x527a93 : stage.biome === "storm" ? 0x253e5b : night ? 0x151e43 : 0x557b98),
-    key: city ? 0xffc77b : night ? 0x98b4ff : stage.biome === "volcano" ? 0xff774a : 0xffe7c4,
-    keyIntensity: city ? 3.35 : cloud ? 2.15 : night ? 1.4 : 2.5,
-    ambient: city ? .7 : cloud ? 1.05 : night ? .8 : 1.3,
+    // V40.45: commercial-cinematic dawn keeps a cool steel base with restrained warm sunlight.
+    zenith: new THREE.Color(city ? 0x173d59 : cloud ? 0x6d9fb8 : stage.palette.sky),
+    horizon: city ? new THREE.Color(0xb48668) : cloud ? cloudHorizon : new THREE.Color(stage.palette.fog),
+    fog: city ? new THREE.Color(0x748795) : cloud ? cloudFog : new THREE.Color(stage.palette.fog),
+    cloudLight: new THREE.Color(city ? 0xcdbba7 : cloud ? 0xc9dce4 : night ? 0x7080a8 : stage.biome === "storm" ? 0x879bab : 0xdce8eb),
+    cloudShadow: new THREE.Color(city ? 0x354b5e : cloud ? 0x4b6c7f : stage.biome === "storm" ? 0x263b50 : night ? 0x18213e : 0x506d80),
+    key: city ? 0xe2bd8f : night ? 0x95aee0 : stage.biome === "volcano" ? 0xd97757 : 0xe1cfb5,
+    keyIntensity: city ? 2.72 : cloud ? 1.92 : night ? 1.32 : 2.2,
+    ambient: city ? .62 : cloud ? .94 : night ? .72 : 1.08,
     night,
   };
 }
@@ -50,14 +51,14 @@ export function createArcadeSky(stage: SkyDancerArcadeStageDefinition): THREE.Me
         float upper=smoothstep(-.08,.65,d.y);
         vec3 c=mix(horizon,zenith,upper);
         float glow=pow(sunDot,14.0);
-        c=mix(c,vec3(1.2,.59,.17),glow*.58*(1.0-night)*(1.0-storm));
-        c+=vec3(1.0,.64,.28)*pow(sunDot,90.0)*.6*(1.0-night);
+        c=mix(c,vec3(1.05,.72,.46),glow*.5*(1.0-night)*(1.0-storm));
+        c+=vec3(.94,.7,.42)*pow(sunDot,90.0)*.46*(1.0-night);
         float disc=smoothstep(.9993,.99972,sunDot);
-        c+=mix(vec3(9.0,5.1,2.1),vec3(.52,.7,1.0),night)*disc;
+        c+=mix(vec3(6.3,4.5,2.6),vec3(.5,.66,.92),night)*disc;
         vec2 cloudUV=d.xz/max(.12,d.y+.28)*3.0;
         float cloud=fbm(cloudUV*vec2(.8,2.5));
         float bank=smoothstep(.53,.77,cloud)*smoothstep(-.03,.2,d.y)*(1.0-smoothstep(.48,.83,d.y));
-        vec3 cloudColor=mix(vec3(.18,.29,.43),mix(vec3(1.03,.65,.3),vec3(.65,.82,1.0),upper),glow*.75+.22);
+        vec3 cloudColor=mix(vec3(.17,.25,.34),mix(vec3(.82,.68,.54),vec3(.66,.79,.88),upper),glow*.62+.18);
         c=mix(c,cloudColor,bank*(.36+.28*storm)*(1.0-night*.65));
         if(night>.5){float stars=step(.9987,hash21(floor(d.xy*vec2(800.0,540.0))));c+=stars*smoothstep(.05,.4,d.y)*.6;}
         c=mix(c,horizon*.5,1.0-smoothstep(-.4,-.03,d.y));
@@ -109,8 +110,8 @@ export function createArcadeFacadeMaterial(night: boolean): THREE.MeshStandardMa
       .replace("#include <emissivemap_fragment>",`
         #include <emissivemap_fragment>
         float occupied=step(.48-arcadeNight*.12,hash21(cellID+vBuildingSeed));
-        vec3 lightColor=mix(vec3(.1,.63,1.0),vec3(1.0,.5,.13),step(.28,hash21(vec2(vBuildingSeed,cellID.y))));
-        totalEmissiveRadiance+=lightColor*windowMask*wall*occupied*(.38+arcadeNight*1.0);
+        vec3 lightColor=mix(vec3(.14,.53,.72),vec3(.9,.58,.29),step(.31,hash21(vec2(vBuildingSeed,cellID.y))));
+        totalEmissiveRadiance+=lightColor*windowMask*wall*occupied*(.31+arcadeNight*.86);
       `);
   };
   material.customProgramCacheKey=()=>"arcade-city-facade-reference-v2";
@@ -175,7 +176,7 @@ export function createArcadeWaterMaterial(stage: SkyDancerArcadeStageDefinition)
         float glint=pow(max(0.0,cross*.9+broad*.55-.63),5.0);
         float sunPath=exp(-pow((uv.x+11.0)/18.0,2.0));
         vec3 water=mix(vec3(.025,.13,.19),vec3(.035,.27,.38),ripples);
-        water+=mix(vec3(1.05,.42,.07),vec3(.04,.42,.78),night)*sunPath*(.075+glint*.48);
+        water+=mix(vec3(.9,.55,.23),vec3(.08,.36,.62),night)*sunPath*(.062+glint*.4);
         water=mix(water,fogColor,smoothstep(105.0,560.0,vDepth));
         gl_FragColor=vec4(water,1.0);
       }`,
