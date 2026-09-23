@@ -4,6 +4,7 @@ import { skyDancerArcadeEnemyVisualScaleV17 } from "./SkyDancerArcadeModels";
 import { skyDancerArcadeV406FinalBossCue, skyDancerArcadeV406FormMotion, skyDancerArcadeV406FormLabel } from "./SkyDancerArcadeV406FinalBossPresentation";
 import { skyDancerArcadeV408SceneFocus } from "./SkyDancerArcadeV408CinematicFocus";
 import { skyDancerArcadeV4044IsTerminalThreat, skyDancerArcadeV409PhoneClarity } from "./SkyDancerArcadeV409PhoneClarity";
+import { skyDancerArcadeV4045Palette } from "./SkyDancerArcadeV4045ColorGrade";
 import { skyDancerArcadeV4010DynamicOcclusion, skyDancerArcadeV4010EntityOcclusion } from "./SkyDancerArcadeV4010DynamicOcclusion";
 import { skyDancerArcadeV4011ForegroundCraftCount, skyDancerArcadeV4011ScreenStress } from "./SkyDancerArcadeV4011ScreenStress";
 import { skyDancerArcadeV4012RunRhythm } from "./SkyDancerArcadeV4012RunRhythm";
@@ -65,7 +66,7 @@ export class SkyDancerArcadeCanvasDemo implements SkyDancerArcadeDemoHandle {
     const width = this.canvas.width;
     const height = this.canvas.height;
     const ratio = Math.min(2, window.devicePixelRatio || 1);
-    const palette = snapshot.stage.palette;
+    const palette = skyDancerArcadeV4045Palette(snapshot.stage);
     context.save();
     context.scale(ratio, ratio);
     const cssWidth = width / ratio;
@@ -979,7 +980,7 @@ export class SkyDancerArcadeCanvasDemo implements SkyDancerArcadeDemoHandle {
     context.save();
     context.translate(x, y);
     context.rotate(-snapshot.playerX * 0.28);
-    context.fillStyle = "#4ed9f4";
+    context.fillStyle = "#bccbd1";
     context.beginPath();
     context.moveTo(0, -28);
     context.lineTo(-46, 21);
@@ -989,9 +990,9 @@ export class SkyDancerArcadeCanvasDemo implements SkyDancerArcadeDemoHandle {
     context.lineTo(46, 21);
     context.closePath();
     context.fill();
-    context.fillStyle = "#eefcff";
+    context.fillStyle = "#edf6f8";
     context.fillRect(-4, -19, 8, 36);
-    context.fillStyle = snapshot.turboActive ? "#fff3ad" : "#6ee9ff";
+    context.fillStyle = snapshot.turboActive ? "#fff0c9" : "#a8f0ff";
     context.beginPath();
     context.moveTo(-7, 27);
     context.lineTo(0, snapshot.turboActive ? 68 : 46);
