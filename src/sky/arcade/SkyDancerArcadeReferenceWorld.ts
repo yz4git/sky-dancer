@@ -1210,6 +1210,29 @@ export class SkyDancerArcadeReferenceWorld {
       architecturalSurface(stage.biome==="night"?0x52687b:0x71808a,.27,.72,.08,.22),
       72,
     );
+    // V40.47: one extra instanced box batch gives only the two closest building lanes
+    // silhouette/setback/service detail. It is one draw call per streamed chunk, not one mesh per prop.
+    const architecturalDetails=new THREE.InstancedMesh(
+      new THREE.BoxGeometry(1,1,1),
+      architecturalSurface(0xffffff,.46,.42,.12,.28),
+      96,
+    );
+    architecturalDetails.name="arcade-city-architectural-details-"+index;
+    architecturalDetails.userData.arcadeCityArchitecturalDetailV4047=true;
+    const detailDark=new THREE.Color(stage.biome==="night"?0x263744:0x394b55);
+    const detailMid=new THREE.Color(stage.biome==="night"?0x465968:0x68767c);
+    const detailMetal=new THREE.Color(stage.biome==="night"?0x5d7180:0x849096);
+    let detailCount=0;
+    const writeDetail=(x:number,y:number,z:number,sx:number,sy:number,sz:number,color:THREE.Color)=>{
+      if(detailCount>=architecturalDetails.count)return;
+      this.matrixObject.position.set(x,y,z);
+      this.matrixObject.scale.set(sx,sy,sz);
+      this.matrixObject.rotation.set(0,0,0);
+      this.matrixObject.updateMatrix();
+      architecturalDetails.setMatrixAt(detailCount,this.matrixObject.matrix);
+      architecturalDetails.setColorAt(detailCount,color);
+      detailCount++;
+    };
     let n=0;let a=0;
     for(const side of [-1,1])for(let row=0;row<6;row++)for(let lane=0;lane<6;lane++){
       const seed=index*229+n*11;
@@ -1225,6 +1248,25 @@ export class SkyDancerArcadeReferenceWorld {
       towers.setColorAt(n,new THREE.Color(stage.biome==="night"?0x172d4b:0x39586b).lerp(new THREE.Color(stage.biome==="night"?0x536b8e:0x94abba),.12+random(seed+37)*.62));
       this.matrixObject.position.y=-25+h+1;
       this.matrixObject.scale.set(w*.61,2,d*.66);this.matrixObject.updateMatrix();roofs.setMatrixAt(n,this.matrixObject.matrix);
+
+      // Closest lane always gets detail; the second lane gets a deterministic subset.
+      // Outer skyline remains the original ultra-light instanced massing.
+      if(lane===0 || (lane===1 && random(seed+151)>.35)){
+        const innerFaceX=x-side*(w*.51+.06);
+        const crownHeight=1.6+random(seed+163)*1.15;
+        writeDetail(x,-25+h+crownHeight*.5,z,w*.54,crownHeight,d*.58,detailMid);
+        writeDetail(innerFaceX,-25+h*.52,z-d*.27,.13,h*.66,.19,detailDark);
+        writeDetail(innerFaceX,-25+h*.52,z+d*.27,.13,h*.66,.19,detailDark);
+        writeDetail(
+          x+side*w*(random(seed+171)*.18-.04),
+          -25+h+crownHeight+.48,
+          z+(random(seed+181)-.5)*d*.22,
+          Math.max(.62,w*.22),
+          .82+random(seed+191)*.42,
+          Math.max(.7,d*.2),
+          detailMetal,
+        );
+      }
       if(hero || n%3===0){
         const height=3+random(seed+119)*(hero?10:5);
         this.matrixObject.position.y=-23+h+height/2;this.matrixObject.scale.set(1,height,1);this.matrixObject.updateMatrix();
@@ -1233,7 +1275,12 @@ export class SkyDancerArcadeReferenceWorld {
       n++;
     }
     towers.computeBoundingSphere();roofs.computeBoundingSphere();spires.count=a;spires.computeBoundingSphere();
-    group.add(towers,roofs,spires);
+    architecturalDetails.count=detailCount;
+    architecturalDetails.instanceMatrix.needsUpdate=true;
+    if(architecturalDetails.instanceColor)architecturalDetails.instanceColor.needsUpdate=true;
+    architecturalDetails.computeBoundingSphere();
+    group.add(towers,roofs,spires,architecturalDetails);
+    group.userData.arcadeCityArchitecturalDetailInstancesV4047=detailCount;
     // V10.3.3 composition cleanup: never rotate one full-width city slab through the camera.
     // The river is a root-level spline ribbon; rigid chunks own only the two river-bank districts.
     group.userData.arcadeCityCompositionV1033=true;
