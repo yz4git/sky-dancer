@@ -49,7 +49,7 @@ test("V40.46 city facades separate glass and wall roughness/metalness procedural
   assert.match(source, /roughnessFactor=mix\(roughnessFactor,\.24,arcadeGlass\)/);
   assert.match(source, /roughnessFactor=mix\(roughnessFactor,\.72/);
   assert.match(source, /metalnessFactor=mix\(metalnessFactor,\.52,arcadeGlass\)/);
-  assert.match(source, /arcade-city-facade-reference-v4046/);
+  assert.match(source, /arcade-city-facade-reference-v2/);
 });
 
 test("V40.46 city roofs, roads and banks use differentiated PBR surfaces without texture cost", () => {
