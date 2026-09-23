@@ -4,6 +4,8 @@ export interface SkyDancerArcadeV409PhoneClarityInput {
   compactLandscape: boolean;
   sceneMode: SkyDancerArcadeV408SceneMode;
   incomingThreats: number;
+  // V40.44: one imminent missile is enough to reserve the phone frame for threat reading.
+  terminalThreats?: number;
 }
 
 export interface SkyDancerArcadeV409PhoneClarity {
@@ -47,14 +49,21 @@ export function skyDancerArcadeV409PhoneClarity(
   }
 
   const incoming = Math.max(0, Math.floor(input.incomingThreats));
-  if (incoming < 2) return clarity;
+  const terminal = Math.max(0, Math.floor(input.terminalThreats ?? 0));
+  if (incoming < 2 && terminal < 1) return clarity;
+
+  const urgent = terminal > 0;
   return {
     ...clarity,
-    primaryLocks: Math.max(2, clarity.primaryLocks - (incoming >= 4 ? 1 : 0)),
-    aimCues: incoming >= 3 ? 0 : Math.min(1, clarity.aimCues),
-    counterplayCues: Math.min(1, clarity.counterplayCues),
-    secondaryLockScale: clarity.secondaryLockScale * .9,
-    cueOpacity: clarity.cueOpacity * .88,
-    canvasLockLimit: Math.max(2, clarity.canvasLockLimit - (incoming >= 4 ? 1 : 0)),
+    primaryLocks: urgent
+      ? Math.max(1, Math.min(2, clarity.primaryLocks))
+      : Math.max(2, clarity.primaryLocks - (incoming >= 4 ? 1 : 0)),
+    aimCues: urgent ? 0 : incoming >= 3 ? 0 : Math.min(1, clarity.aimCues),
+    counterplayCues: urgent ? 0 : Math.min(1, clarity.counterplayCues),
+    secondaryLockScale: clarity.secondaryLockScale * (urgent ? .76 : .9),
+    cueOpacity: clarity.cueOpacity * (urgent ? .76 : .88),
+    canvasLockLimit: urgent
+      ? Math.max(1, Math.min(2, clarity.canvasLockLimit))
+      : Math.max(2, clarity.canvasLockLimit - (incoming >= 4 ? 1 : 0)),
   };
 }
