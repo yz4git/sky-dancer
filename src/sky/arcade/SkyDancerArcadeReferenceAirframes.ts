@@ -128,7 +128,7 @@ export function createReferenceFighter(
       ? { ceramic: 0x75889d, accent: 0x63d8ff, glow: 0xa9efff, canopy: 0x071827, canopyGlow: 0x0a5873, engine: 0x8de8ff }
       : playerPaintScheme === "prism"
         ? { ceramic: 0xeee8ff, accent: 0xc45cff, glow: 0x78f6ff, canopy: 0x251948, canopyGlow: 0x6f2f9a, engine: 0x8ff7ff }
-        : { ceramic: 0xe4eef3, accent: 0x05bddd, glow: 0x2ee7ff, canopy: 0x082b48, canopyGlow: 0x064664, engine: 0x55dfff };
+        : { ceramic: 0xcbd4d8, accent: 0x4aa5b5, glow: 0xb4f3ff, canopy: 0x0b1d2a, canopyGlow: 0x234f5d, engine: 0xaaf3ff };
   const ceramic = paint(enemy ? 0xa72224 : playerPalette.ceramic, 0.36, 0.48);
   const cyan = paint(enemy ? 0xee6d28 : playerPalette.accent, 0.29, 0.5);
   const edge = paint(0x11202b, 0.42, 0.62);
