@@ -1215,10 +1215,13 @@ export class SkyDancerArcadeReferenceWorld {
     const architecturalDetails=new THREE.InstancedMesh(
       new THREE.BoxGeometry(1,1,1),
       architecturalSurface(0xffffff,.46,.42,.12,.28),
-      96,
+      144,
     );
     architecturalDetails.name="arcade-city-architectural-details-"+index;
     architecturalDetails.userData.arcadeCityArchitecturalDetailV4047=true;
+    // V40.48 reuses this existing draw batch for close-pass facade relief. Raising
+    // instance capacity costs no draw call and keeps the streamed city under its budget.
+    architecturalDetails.userData.arcadeCityFacadeReliefV4048=true;
     const detailDark=new THREE.Color(stage.biome==="night"?0x263744:0x394b55);
     const detailMid=new THREE.Color(stage.biome==="night"?0x465968:0x68767c);
     const detailMetal=new THREE.Color(stage.biome==="night"?0x5d7180:0x849096);
@@ -1232,6 +1235,12 @@ export class SkyDancerArcadeReferenceWorld {
       architecturalDetails.setMatrixAt(detailCount,this.matrixObject.matrix);
       architecturalDetails.setColorAt(detailCount,color);
       detailCount++;
+    };
+    let reliefCount=0;
+    const writeRelief=(x:number,y:number,z:number,sx:number,sy:number,sz:number,color:THREE.Color)=>{
+      if(detailCount>=architecturalDetails.count)return;
+      writeDetail(x,y,z,sx,sy,sz,color);
+      reliefCount++;
     };
     let n=0;let a=0;
     for(const side of [-1,1])for(let row=0;row<6;row++)for(let lane=0;lane<6;lane++){
@@ -1266,6 +1275,14 @@ export class SkyDancerArcadeReferenceWorld {
           Math.max(.7,d*.2),
           detailMetal,
         );
+        if(lane===0){
+          const reliefX=x-side*(w*.51+.13);
+          // Two shallow floor bands and one crown lip create parallax/shadow on a
+          // close fly-by. Their x-depth stays outside the playable river corridor.
+          writeRelief(reliefX,-25+h*.34,z,.14,.18,d*.78,detailDark);
+          writeRelief(reliefX,-25+h*.67,z,.14,.18,d*.78,detailMid);
+          writeRelief(reliefX,-25+h-.42,z,.18,.34,d*.9,detailMetal);
+        }
       }
       if(hero || n%3===0){
         const height=3+random(seed+119)*(hero?10:5);
@@ -1281,6 +1298,7 @@ export class SkyDancerArcadeReferenceWorld {
     architecturalDetails.computeBoundingSphere();
     group.add(towers,roofs,spires,architecturalDetails);
     group.userData.arcadeCityArchitecturalDetailInstancesV4047=detailCount;
+    group.userData.arcadeCityFacadeReliefInstancesV4048=reliefCount;
     // V10.3.3 composition cleanup: never rotate one full-width city slab through the camera.
     // The river is a root-level spline ribbon; rigid chunks own only the two river-bank districts.
     group.userData.arcadeCityCompositionV1033=true;
