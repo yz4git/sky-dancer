@@ -128,7 +128,7 @@ export function createArcadeFacadeMaterial(night: boolean): THREE.MeshStandardMa
         totalEmissiveRadiance+=lightColor*windowMask*wall*occupied*(.27+arcadeNight*.8);
       `);
   };
-  material.customProgramCacheKey=()=>"arcade-city-facade-reference-v4046";
+  material.customProgramCacheKey=()=>"arcade-city-facade-reference-v2";
   return material;
 }
 
