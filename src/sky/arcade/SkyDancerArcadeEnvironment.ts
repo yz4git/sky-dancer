@@ -7,6 +7,7 @@ import { applySkyDancerArcadeV23ScreenReview } from "./SkyDancerArcadeV23ScreenR
 import { applySkyDancerArcadeV271ScreenPolish } from "./SkyDancerArcadeV271ScreenPolish";
 import { applySkyDancerArcadeV4026LegacyRockFinish } from "./SkyDancerArcadeV4026LegacyRockFinish";
 import { applySkyDancerArcadeV4033CloseCombatCityClearance } from "./SkyDancerArcadeV4033CloseCombatCityClearance";
+import { skyDancerArcadeV4045Stage } from "./SkyDancerArcadeV4045ColorGrade";
 
 const REFERENCE_CARRIER_NAME = "arcade-horizon-fleet-carrier";
 
@@ -28,13 +29,15 @@ export class SkyDancerArcadeEnvironment extends SkyDancerArcadeReferenceWorld {
   }
 
   override setStage(stage: SkyDancerArcadeStageDefinition): void {
-    super.setStage(stage);
-    applySkyDancerArcadeV15VisualTuning(this.liveScene, stage);
-    applySkyDancerArcadeV16Setpieces(this.liveScene, stage);
-    applySkyDancerArcadeV4026LegacyRockFinish(this.liveScene, stage);
-    applySkyDancerArcadeV23ScreenReview(this.liveScene, stage);
-    applySkyDancerArcadeV271ScreenPolish(this.liveScene, stage);
-    applySkyDancerArcadeV4033CloseCombatCityClearance(this.liveScene, stage);
+    // V40.45: grade only the rendered stage copy. Authoritative runtime data and gameplay stay untouched.
+    const displayStage = skyDancerArcadeV4045Stage(stage);
+    super.setStage(displayStage);
+    applySkyDancerArcadeV15VisualTuning(this.liveScene, displayStage);
+    applySkyDancerArcadeV16Setpieces(this.liveScene, displayStage);
+    applySkyDancerArcadeV4026LegacyRockFinish(this.liveScene, displayStage);
+    applySkyDancerArcadeV23ScreenReview(this.liveScene, displayStage);
+    applySkyDancerArcadeV271ScreenPolish(this.liveScene, displayStage);
+    applySkyDancerArcadeV4033CloseCombatCityClearance(this.liveScene, displayStage);
     const carrier = this.liveScene.getObjectByName(REFERENCE_CARRIER_NAME);
     if (!carrier) return;
     carrier.visible = false;
