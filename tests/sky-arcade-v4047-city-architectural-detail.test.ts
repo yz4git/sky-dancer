@@ -20,7 +20,7 @@ test("V40.47 city adds bounded instanced architectural detail to streamed chunks
   });
 
   assert.equal(detailBatches.length, 8, "one architectural detail draw batch per streamed city chunk");
-  assert.ok(detailBatches.every((batch) => batch.count > 35 && batch.count <= 96));
+  assert.ok(detailBatches.every((batch) => batch.count > 35 && batch.count <= 144));
   assert.ok(detailBatches.every((batch) => batch.userData.arcadeCityArchitecturalDetailV4047 === true));
   assert.ok(detailBatches.every((batch) => batch.material instanceof THREE.MeshPhysicalMaterial));
   assert.ok(detailBatches.every((batch) => {
@@ -35,7 +35,7 @@ test("V40.47 architectural detail stays texture-free and instanced for phone per
   const source = await import("node:fs").then(({ readFileSync }) =>
     readFileSync(new URL("../src/sky/arcade/SkyDancerArcadeReferenceWorld.ts", import.meta.url), "utf8")
   );
-  assert.match(source, /new THREE\.InstancedMesh\([\s\S]*architecturalSurface\(0xffffff,\.46,\.42,\.12,\.28\),[\s\S]*96/);
+  assert.match(source, /new THREE\.InstancedMesh\([\s\S]*architecturalSurface\(0xffffff,\.46,\.42,\.12,\.28\),[\s\S]*144/);
   assert.match(source, /arcade-city-architectural-details-/);
   assert.match(source, /lane===0 \|\| \(lane===1 && random\(seed\+151\)>\.35\)/);
   assert.doesNotMatch(source, /TextureLoader/);
