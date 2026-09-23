@@ -32,6 +32,7 @@ import {
 } from "./SkyDancerArcadeV406FinalBossPresentation";
 import { skyDancerArcadeV408SceneFocus, skyDancerArcadeV408TargetLookBias } from "./SkyDancerArcadeV408CinematicFocus";
 import { skyDancerArcadeV4044IsTerminalThreat, skyDancerArcadeV409PhoneClarity } from "./SkyDancerArcadeV409PhoneClarity";
+import { skyDancerArcadeV4045Stage } from "./SkyDancerArcadeV4045ColorGrade";
 import {
   SKY_DANCER_ARCADE_V4010_DEFAULT_FX_CLARITY,
   skyDancerArcadeV4010DynamicOcclusion,
@@ -411,7 +412,8 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
     this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: "high-performance" });
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.08;
+    // V40.45: lower global exposure so practical lights and white-hot combat cores carry the hierarchy.
+    this.renderer.toneMappingExposure = .96;
     const compactLandscape = window.innerWidth > window.innerHeight && window.innerHeight <= 520;
     this.renderer.setPixelRatio(Math.min(compactLandscape ? 1.4 : 1.6, window.devicePixelRatio || 1));
     this.renderer.domElement.className = "sky-dancer-arcade-canvas";
@@ -1458,7 +1460,7 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
       active.add(hazard.id);
       let group = this.hazardGroups.get(hazard.id);
       if (!group) {
-        group = createSkyDancerArcadeHazard(snapshot.stage, hazard);
+        group = createSkyDancerArcadeHazard(skyDancerArcadeV4045Stage(snapshot.stage), hazard);
         this.hazardGroups.set(hazard.id, group);
         this.hazardRoot.add(group);
       }
@@ -2094,7 +2096,7 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
 
   /** Small deterministic outdoor reflection map for the ceramic skin and canopy. */
   private updateReflections(snapshot: SkyDancerArcadeSnapshot): void {
-    const palette = referenceAtmosphere(snapshot.stage);
+    const palette = referenceAtmosphere(skyDancerArcadeV4045Stage(snapshot.stage));
     const width = 128, height = 64;
     const data = new Float32Array(width * height * 4);
     const direction = new THREE.Vector3();
