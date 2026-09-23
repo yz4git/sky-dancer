@@ -84,17 +84,26 @@ function materials(stage: SkyDancerArcadeStageDefinition, kind: SkyDancerArcadeE
   const secondaryColor = new THREE.Color(identity.secondary).lerp(accent, .1);
   const darkColor = new THREE.Color(0x171923).lerp(bodyColor, .34);
   const canopyGlow = new THREE.Color(identity.glow).lerp(new THREE.Color(0x0a4056), .62);
-  const body = new THREE.MeshStandardMaterial({ color: bodyColor, roughness: .32, metalness: .5, flatShading: true });
-  const secondary = new THREE.MeshStandardMaterial({ color: secondaryColor, roughness: .29, metalness: .54, flatShading: true });
-  const dark = new THREE.MeshStandardMaterial({ color: darkColor, roughness: .4, metalness: .6, flatShading: true });
+  // V40.46: hostile craft stay slightly rougher/more utilitarian than the player's coated airframe.
+  const body = new THREE.MeshStandardMaterial({
+    color: bodyColor, roughness: .41, metalness: .44, flatShading: true, envMapIntensity: .58,
+  });
+  const secondary = new THREE.MeshStandardMaterial({
+    color: secondaryColor, roughness: .35, metalness: .5, flatShading: true, envMapIntensity: .62,
+  });
+  const dark = new THREE.MeshStandardMaterial({
+    color: darkColor, roughness: .5, metalness: .52, flatShading: true, envMapIntensity: .5,
+  });
   const canopy = new THREE.MeshPhysicalMaterial({
     color: 0x071a28,
     emissive: canopyGlow,
-    emissiveIntensity: .35,
-    roughness: .12,
-    metalness: .74,
-    clearcoat: 1,
-    clearcoatRoughness: .05,
+    emissiveIntensity: .3,
+    roughness: .16,
+    metalness: .7,
+    clearcoat: .82,
+    clearcoatRoughness: .075,
+    reflectivity: .44,
+    envMapIntensity: .72,
   });
   const hot = new THREE.MeshBasicMaterial({ color: identity.glow, toneMapped: false });
   return { body, secondary, dark, canopy, hot };

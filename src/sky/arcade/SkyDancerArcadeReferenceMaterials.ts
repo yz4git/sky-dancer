@@ -105,7 +105,21 @@ export function createArcadeFacadeMaterial(night: boolean): THREE.MeshStandardMa
         float windowMask=step(.25,cell.x)*step(cell.x,.72)*step(.28,cell.y)*step(cell.y,.69);
         float wall=1.0-step(.5,abs(vFacadeNormal.y));
         float floorLine=1.0-smoothstep(.018,.05,cell.y);
-        float verticalPanel=smoothstep(.82,.94,fract(fuv.x*.075+vBuildingSeed*.031)); diffuseColor.rgb*=1.0-wall*(windowMask*.14+floorLine*.055+verticalPanel*.09);
+        float verticalPanel=smoothstep(.82,.94,fract(fuv.x*.075+vBuildingSeed*.031));
+        float panelSeed=hash21(cellID+floor(vBuildingSeed*.17));
+        float panelTone=mix(.965,1.025,panelSeed);
+        diffuseColor.rgb*=panelTone*(1.0-wall*(windowMask*.16+floorLine*.052+verticalPanel*.075));
+      `)
+      .replace("#include <roughnessmap_fragment>",`
+        #include <roughnessmap_fragment>
+        float arcadeGlass=windowMask*wall;
+        roughnessFactor=mix(roughnessFactor,.24,arcadeGlass);
+        roughnessFactor=mix(roughnessFactor,.72,wall*(1.0-arcadeGlass)*(.58+.42*hash21(cellID+13.7)));
+      `)
+      .replace("#include <metalnessmap_fragment>",`
+        #include <metalnessmap_fragment>
+        metalnessFactor=mix(metalnessFactor,.52,arcadeGlass);
+        metalnessFactor=mix(metalnessFactor,.18,wall*(1.0-arcadeGlass));
       `)
       .replace("#include <emissivemap_fragment>",`
         #include <emissivemap_fragment>
