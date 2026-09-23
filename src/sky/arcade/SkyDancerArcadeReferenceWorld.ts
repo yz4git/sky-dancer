@@ -95,7 +95,9 @@ function architecturalSurface(
   clearcoat = 0,
   clearcoatRoughness = .32,
 ): THREE.Material {
-  if (clearcoat <= 0) return new THREE.MeshStandardMaterial({ color, roughness, metalness });
+  if (clearcoat <= 0) return new THREE.MeshStandardMaterial({
+    color, roughness, metalness, envMapIntensity: .54,
+  });
   return new THREE.MeshPhysicalMaterial({
     color,
     roughness,
@@ -103,6 +105,7 @@ function architecturalSurface(
     clearcoat,
     clearcoatRoughness,
     reflectivity: .42,
+    envMapIntensity: .64,
   });
 }
 
