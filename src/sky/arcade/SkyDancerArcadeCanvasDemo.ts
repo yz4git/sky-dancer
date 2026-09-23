@@ -3,7 +3,7 @@ import type { SkyDancerArcadeDemoHandle } from "./SkyDancerArcadeWebGLDemo";
 import { skyDancerArcadeEnemyVisualScaleV17 } from "./SkyDancerArcadeModels";
 import { skyDancerArcadeV406FinalBossCue, skyDancerArcadeV406FormMotion, skyDancerArcadeV406FormLabel } from "./SkyDancerArcadeV406FinalBossPresentation";
 import { skyDancerArcadeV408SceneFocus } from "./SkyDancerArcadeV408CinematicFocus";
-import { skyDancerArcadeV409PhoneClarity } from "./SkyDancerArcadeV409PhoneClarity";
+import { skyDancerArcadeV4044IsTerminalThreat, skyDancerArcadeV409PhoneClarity } from "./SkyDancerArcadeV409PhoneClarity";
 import { skyDancerArcadeV4010DynamicOcclusion, skyDancerArcadeV4010EntityOcclusion } from "./SkyDancerArcadeV4010DynamicOcclusion";
 import { skyDancerArcadeV4011ForegroundCraftCount, skyDancerArcadeV4011ScreenStress } from "./SkyDancerArcadeV4011ScreenStress";
 import { skyDancerArcadeV4012RunRhythm } from "./SkyDancerArcadeV4012RunRhythm";
@@ -75,10 +75,12 @@ export class SkyDancerArcadeCanvasDemo implements SkyDancerArcadeDemoHandle {
       rivalAceActive: snapshot.rivalAceActive, bossActive: snapshot.bossActive, finalBossReactive: snapshot.finalBossReactive,
     });
     const v409IncomingThreats = snapshot.projectiles.filter((projectile) => projectile.owner === "enemy" && projectile.depth > 2.2 && projectile.depth < 30).length;
+    const v4044TerminalThreats = snapshot.projectiles.filter(skyDancerArcadeV4044IsTerminalThreat).length;
     const v409Clarity = skyDancerArcadeV409PhoneClarity({
       compactLandscape: cssWidth > cssHeight && cssHeight <= 560,
       sceneMode: v409Focus.mode,
       incomingThreats: v409IncomingThreats,
+      terminalThreats: v4044TerminalThreats,
     });
     const v4010Profile = skyDancerArcadeV4010DynamicOcclusion({
       compactLandscape: cssWidth > cssHeight && cssHeight <= 560,
@@ -392,6 +394,7 @@ export class SkyDancerArcadeCanvasDemo implements SkyDancerArcadeDemoHandle {
       context.arc(projected.x, projected.y, Math.max(1.5, projected.scale * (projectile.owner === "player-missile" ? 4.8 : 2.4)), 0, Math.PI * 2);
       context.fill();
     }
+    this.drawTerminalThreatVectorV4044(context, snapshot, cssWidth, cssHeight);
     this.drawHostileContactFxV4043(context, snapshot, cssWidth, cssHeight);
     this.drawPlayer(context, snapshot, cssWidth, cssHeight);
     this.drawCinematicFocusV408(context, snapshot, cssWidth, cssHeight);
@@ -804,6 +807,78 @@ export class SkyDancerArcadeCanvasDemo implements SkyDancerArcadeDemoHandle {
       context.arc(x, height * 0.45, selected ? 38 : 31, 0, Math.PI * 2);
       context.stroke();
     });
+  }
+
+  private drawTerminalThreatVectorV4044(
+    context: CanvasRenderingContext2D,
+    snapshot: SkyDancerArcadeSnapshot,
+    width: number,
+    height: number,
+  ): void {
+    const candidates = snapshot.projectiles.filter(skyDancerArcadeV4044IsTerminalThreat);
+    if (candidates.length === 0) return;
+    const threat = [...candidates].sort((a, b) => {
+      const aw = a.warningSeconds ?? 0;
+      const bw = b.warningSeconds ?? 0;
+      const aScore = aw > 0 ? aw * 8 : Math.max(0, a.depth);
+      const bScore = bw > 0 ? bw * 8 : Math.max(0, b.depth);
+      return aScore - bScore;
+    })[0];
+    const sourceEnemy = threat.sourceEnemyId === undefined
+      ? null
+      : snapshot.enemies.find((enemy) => enemy.id === threat.sourceEnemyId) ?? null;
+    const sourceX = (threat.warningSeconds ?? 0) > 0 && sourceEnemy ? sourceEnemy.x : threat.x;
+    const sourceY = (threat.warningSeconds ?? 0) > 0 && sourceEnemy ? sourceEnemy.y : threat.y;
+    const dx = sourceX - snapshot.playerX;
+    const dy = sourceY - snapshot.playerY;
+    const angle = Math.atan2(-dy, dx);
+    const warning = Math.max(0, threat.warningSeconds ?? 0);
+    const warningDuration = Math.max(.001, threat.warningDuration ?? .42);
+    const warningUrgency = warning > 0 ? Math.max(.3, Math.min(1, 1 - warning / warningDuration)) : 1;
+    const depthUrgency = warning > 0 ? 0 : Math.max(.24, Math.min(1, 1 - (threat.depth - 2.2) / 11.8));
+    const urgency = Math.max(warningUrgency, depthUrgency);
+    const x = width * .5 + snapshot.playerX * width * .25;
+    const y = height * .76 - snapshot.playerY * height * .22;
+    const radius = Math.max(34, Math.min(52, height * .118));
+    const span = Math.PI * .72;
+    const rgb = threat.projectileClass === "seeker"
+      ? "255,79,163"
+      : threat.projectileClass === "boss"
+        ? "255,54,92"
+        : threat.projectileClass === "heavy"
+          ? "255,138,45"
+          : "255,99,56";
+    const pulse = 1 + Math.sin(snapshot.runTimeSeconds * 19 + threat.id) * .045 * urgency;
+
+    context.save();
+    context.translate(x, y);
+    context.globalCompositeOperation = "lighter";
+    context.lineCap = "round";
+    context.strokeStyle = `rgba(${rgb},${.3 + urgency * .42})`;
+    context.lineWidth = 3.2 + urgency * 1.6;
+    context.beginPath();
+    context.arc(0, 0, radius * pulse, angle - span * .5, angle + span * .5);
+    context.stroke();
+
+    context.strokeStyle = `rgba(255,255,225,${.14 + urgency * .34})`;
+    context.lineWidth = 1.6 + urgency * .8;
+    context.beginPath();
+    context.arc(0, 0, radius * .82, angle - span * .34, angle + span * .34);
+    context.stroke();
+
+    const tickRadius = radius * pulse;
+    const tx = Math.cos(angle) * tickRadius;
+    const ty = Math.sin(angle) * tickRadius;
+    const tangentX = -Math.sin(angle);
+    const tangentY = Math.cos(angle);
+    const tickHalf = 8 + urgency * 5;
+    context.strokeStyle = `rgba(255,255,235,${.38 + urgency * .54})`;
+    context.lineWidth = 3;
+    context.beginPath();
+    context.moveTo(tx - tangentX * tickHalf, ty - tangentY * tickHalf);
+    context.lineTo(tx + tangentX * tickHalf, ty + tangentY * tickHalf);
+    context.stroke();
+    context.restore();
   }
 
   private drawHostileContactFxV4043(
