@@ -128,9 +128,13 @@ export class SkyDancerArcadeCinematicRenderer {
           halo+=(bright(vUv+vec2(r.x,0))+bright(vUv-vec2(r.x,0))+bright(vUv+vec2(0,r.y))+bright(vUv-vec2(0,r.y)))*.125;
           halo+=(bright(vUv+r*1.6)+bright(vUv-r*1.6)+bright(vUv+vec2(-r.x,r.y)*1.6)+bright(vUv+vec2(r.x,-r.y)*1.6))*.075;
           vec2 p=center*vec2(1.0,.8);float edge=smoothstep(.25,.66,length(p));
-          vec3 result=(source+halo*bloomStrength)*(1.0-edge*.12);
-          float luma=dot(result,vec3(.2126,.7152,.0722));result=mix(vec3(luma),result,1.08);result=(result-.5)*1.055+.5;
-          result+=vec3(.025,.006,-.012)*smoothstep(.62,1.25,luma);result+=vec3(-.012,.002,.024)*(1.0-smoothstep(.16,.5,luma));
+          vec3 result=(source+halo*bloomStrength)*(1.0-edge*.135);
+          float luma=dot(result,vec3(.2126,.7152,.0722));
+          // V40.45: restrained saturation + warm highlights/cool shadows creates a cinematic
+          // hierarchy while emissive combat cues remain deliberately vivid before this pass.
+          result=mix(vec3(luma),result,1.015);result=(result-.48)*1.06+.48;
+          float highlight=smoothstep(.62,1.2,luma);float shadow=1.0-smoothstep(.17,.5,luma);
+          result+=vec3(.018,.008,-.004)*highlight;result+=vec3(-.012,.007,.027)*shadow;
           result+=vec3(.07,.16,.23)*rushStrength*edge;
           result+=vec3(.35,.12,.025)*impactStrength*(.055+edge*.025);
           result+=vec3(.36,.012,.0)*damageStrength*edge*.5;
