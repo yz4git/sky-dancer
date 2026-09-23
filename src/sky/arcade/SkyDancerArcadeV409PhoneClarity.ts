@@ -8,6 +8,24 @@ export interface SkyDancerArcadeV409PhoneClarityInput {
   terminalThreats?: number;
 }
 
+export interface SkyDancerArcadeV4044ThreatProbe {
+  owner: string;
+  depth: number;
+  warningSeconds?: number;
+  warningDuration?: number;
+}
+
+export function skyDancerArcadeV4044IsTerminalThreat(projectile: SkyDancerArcadeV4044ThreatProbe): boolean {
+  if (projectile.owner !== "enemy") return false;
+  const warning = Math.max(0, projectile.warningSeconds ?? 0);
+  const warningDuration = Math.max(0, projectile.warningDuration ?? 0);
+  if (warning > 0) {
+    const breakWindow = Math.min(.42, Math.max(.24, warningDuration * .46));
+    return warning <= breakWindow;
+  }
+  return projectile.depth > 2.2 && projectile.depth < 14;
+}
+
 export interface SkyDancerArcadeV409PhoneClarity {
   primaryLocks: number;
   aimCues: number;
