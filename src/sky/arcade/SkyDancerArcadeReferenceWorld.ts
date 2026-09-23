@@ -1219,6 +1219,16 @@ export class SkyDancerArcadeReferenceWorld {
     );
     architecturalDetails.name="arcade-city-architectural-details-"+index;
     architecturalDetails.userData.arcadeCityArchitecturalDetailV4047=true;
+    // V40.48: a second tiny instanced batch adds shallow corridor-facing relief to the
+    // closest lane. Three strips per near building break giant flat close-pass faces
+    // without changing the tower collision/corridor footprint or adding textures.
+    const facadeRelief=new THREE.InstancedMesh(
+      new THREE.BoxGeometry(1,1,1),
+      architecturalSurface(0xffffff,.52,.3,.08,.36),
+      48,
+    );
+    facadeRelief.name="arcade-city-facade-relief-"+index;
+    facadeRelief.userData.arcadeCityFacadeReliefV4048=true;
     const detailDark=new THREE.Color(stage.biome==="night"?0x263744:0x394b55);
     const detailMid=new THREE.Color(stage.biome==="night"?0x465968:0x68767c);
     const detailMetal=new THREE.Color(stage.biome==="night"?0x5d7180:0x849096);
@@ -1232,6 +1242,17 @@ export class SkyDancerArcadeReferenceWorld {
       architecturalDetails.setMatrixAt(detailCount,this.matrixObject.matrix);
       architecturalDetails.setColorAt(detailCount,color);
       detailCount++;
+    };
+    let reliefCount=0;
+    const writeRelief=(x:number,y:number,z:number,sx:number,sy:number,sz:number,color:THREE.Color)=>{
+      if(reliefCount>=facadeRelief.count)return;
+      this.matrixObject.position.set(x,y,z);
+      this.matrixObject.scale.set(sx,sy,sz);
+      this.matrixObject.rotation.set(0,0,0);
+      this.matrixObject.updateMatrix();
+      facadeRelief.setMatrixAt(reliefCount,this.matrixObject.matrix);
+      facadeRelief.setColorAt(reliefCount,color);
+      reliefCount++;
     };
     let n=0;let a=0;
     for(const side of [-1,1])for(let row=0;row<6;row++)for(let lane=0;lane<6;lane++){
@@ -1266,6 +1287,14 @@ export class SkyDancerArcadeReferenceWorld {
           Math.max(.7,d*.2),
           detailMetal,
         );
+        if(lane===0){
+          const reliefX=x-side*(w*.51+.13);
+          // Two shallow floor bands and one crown lip create parallax/shadow on a
+          // close fly-by. Their x-depth stays outside the playable river corridor.
+          writeRelief(reliefX,-25+h*.34,z,.14,.18,d*.78,detailDark);
+          writeRelief(reliefX,-25+h*.67,z,.14,.18,d*.78,detailMid);
+          writeRelief(reliefX,-25+h-.42,z,.18,.34,d*.9,detailMetal);
+        }
       }
       if(hero || n%3===0){
         const height=3+random(seed+119)*(hero?10:5);
@@ -1279,8 +1308,13 @@ export class SkyDancerArcadeReferenceWorld {
     architecturalDetails.instanceMatrix.needsUpdate=true;
     if(architecturalDetails.instanceColor)architecturalDetails.instanceColor.needsUpdate=true;
     architecturalDetails.computeBoundingSphere();
-    group.add(towers,roofs,spires,architecturalDetails);
+    facadeRelief.count=reliefCount;
+    facadeRelief.instanceMatrix.needsUpdate=true;
+    if(facadeRelief.instanceColor)facadeRelief.instanceColor.needsUpdate=true;
+    facadeRelief.computeBoundingSphere();
+    group.add(towers,roofs,spires,architecturalDetails,facadeRelief);
     group.userData.arcadeCityArchitecturalDetailInstancesV4047=detailCount;
+    group.userData.arcadeCityFacadeReliefInstancesV4048=reliefCount;
     // V10.3.3 composition cleanup: never rotate one full-width city slab through the camera.
     // The river is a root-level spline ribbon; rigid chunks own only the two river-bank districts.
     group.userData.arcadeCityCompositionV1033=true;
