@@ -66,6 +66,7 @@ function premiumPaint(
     clearcoat,
     clearcoatRoughness,
     reflectivity: .46,
+    envMapIntensity: 1.08,
   });
 }
 
@@ -167,6 +168,7 @@ export function createReferenceFighter(
     clearcoat: 1,
     clearcoatRoughness: enemy ? .08 : .035,
     reflectivity: enemy ? .42 : .68,
+    envMapIntensity: enemy ? .72 : 1.18,
     emissive: enemy ? 0x064664 : playerPalette.canopyGlow,
     emissiveIntensity: enemy ? .16 : .12,
   });
