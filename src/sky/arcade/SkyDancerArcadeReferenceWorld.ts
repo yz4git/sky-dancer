@@ -1215,20 +1215,13 @@ export class SkyDancerArcadeReferenceWorld {
     const architecturalDetails=new THREE.InstancedMesh(
       new THREE.BoxGeometry(1,1,1),
       architecturalSurface(0xffffff,.46,.42,.12,.28),
-      96,
+      144,
     );
     architecturalDetails.name="arcade-city-architectural-details-"+index;
     architecturalDetails.userData.arcadeCityArchitecturalDetailV4047=true;
-    // V40.48: a second tiny instanced batch adds shallow corridor-facing relief to the
-    // closest lane. Three strips per near building break giant flat close-pass faces
-    // without changing the tower collision/corridor footprint or adding textures.
-    const facadeRelief=new THREE.InstancedMesh(
-      new THREE.BoxGeometry(1,1,1),
-      architecturalSurface(0xffffff,.52,.3,.08,.36),
-      48,
-    );
-    facadeRelief.name="arcade-city-facade-relief-"+index;
-    facadeRelief.userData.arcadeCityFacadeReliefV4048=true;
+    // V40.48 reuses this existing draw batch for close-pass facade relief. Raising
+    // instance capacity costs no draw call and keeps the streamed city under its budget.
+    architecturalDetails.userData.arcadeCityFacadeReliefV4048=true;
     const detailDark=new THREE.Color(stage.biome==="night"?0x263744:0x394b55);
     const detailMid=new THREE.Color(stage.biome==="night"?0x465968:0x68767c);
     const detailMetal=new THREE.Color(stage.biome==="night"?0x5d7180:0x849096);
@@ -1245,13 +1238,8 @@ export class SkyDancerArcadeReferenceWorld {
     };
     let reliefCount=0;
     const writeRelief=(x:number,y:number,z:number,sx:number,sy:number,sz:number,color:THREE.Color)=>{
-      if(reliefCount>=facadeRelief.count)return;
-      this.matrixObject.position.set(x,y,z);
-      this.matrixObject.scale.set(sx,sy,sz);
-      this.matrixObject.rotation.set(0,0,0);
-      this.matrixObject.updateMatrix();
-      facadeRelief.setMatrixAt(reliefCount,this.matrixObject.matrix);
-      facadeRelief.setColorAt(reliefCount,color);
+      if(detailCount>=architecturalDetails.count)return;
+      writeDetail(x,y,z,sx,sy,sz,color);
       reliefCount++;
     };
     let n=0;let a=0;
@@ -1308,11 +1296,7 @@ export class SkyDancerArcadeReferenceWorld {
     architecturalDetails.instanceMatrix.needsUpdate=true;
     if(architecturalDetails.instanceColor)architecturalDetails.instanceColor.needsUpdate=true;
     architecturalDetails.computeBoundingSphere();
-    facadeRelief.count=reliefCount;
-    facadeRelief.instanceMatrix.needsUpdate=true;
-    if(facadeRelief.instanceColor)facadeRelief.instanceColor.needsUpdate=true;
-    facadeRelief.computeBoundingSphere();
-    group.add(towers,roofs,spires,architecturalDetails,facadeRelief);
+    group.add(towers,roofs,spires,architecturalDetails);
     group.userData.arcadeCityArchitecturalDetailInstancesV4047=detailCount;
     group.userData.arcadeCityFacadeReliefInstancesV4048=reliefCount;
     // V10.3.3 composition cleanup: never rotate one full-width city slab through the camera.
