@@ -150,6 +150,53 @@ function createHostileMuzzleRigV4042(): THREE.Group {
   return rig;
 }
 
+function createHostileContactFxV4043(): THREE.Group {
+  const root = new THREE.Group();
+  root.name = "arcade-hostile-contact-v4043";
+  root.visible = false;
+
+  const additive = (color: number, opacity: number) => new THREE.MeshBasicMaterial({
+    color,
+    transparent: true,
+    opacity,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+    depthTest: false,
+    toneMapped: false,
+    side: THREE.DoubleSide,
+  });
+
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(1, .055, 5, 24), additive(0xff6b46, .4));
+  ring.name = "arcade-hostile-contact-pressure-ring-v4043";
+  ring.renderOrder = 18;
+  root.add(ring);
+
+  const arc = new THREE.Mesh(new THREE.TorusGeometry(.9, .075, 5, 20, Math.PI * 1.08), additive(0xffffd8, .7));
+  arc.name = "arcade-hostile-contact-impact-arc-v4043";
+  arc.renderOrder = 20;
+  root.add(arc);
+
+  const wake = new THREE.Mesh(new THREE.PlaneGeometry(3.1, .2), additive(0xff7b58, .36));
+  wake.name = "arcade-hostile-contact-wake-v4043";
+  wake.renderOrder = 17;
+  root.add(wake);
+
+  const core = new THREE.Mesh(new THREE.SphereGeometry(.16, 8, 6), additive(0xffffee, .8));
+  core.name = "arcade-hostile-contact-core-v4043";
+  core.renderOrder = 21;
+  root.add(core);
+
+  for (let index = 0; index < 4; index += 1) {
+    const spark = new THREE.Mesh(new THREE.PlaneGeometry(.72, .045), additive(0xffffd8, .7));
+    spark.name = `arcade-hostile-contact-spark-v4043-${index}`;
+    spark.renderOrder = 20;
+    root.add(spark);
+  }
+
+  root.userData.arcadeHostileContactV4043 = true;
+  return root;
+}
+
 class SkyDancerArcadeAudio {
   private context: AudioContext | null = null;
   private engine: OscillatorNode | null = null;
@@ -236,6 +283,7 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
   private readonly player: THREE.Group;
   private readonly entityRoot = new THREE.Group();
   private readonly projectileRoot = new THREE.Group();
+  private readonly hostileContactFx = createHostileContactFxV4043();
   private readonly hazardRoot = new THREE.Group();
   private readonly branchRoot = new THREE.Group();
   private readonly worldBreakRoot = new THREE.Group();
@@ -363,7 +411,7 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
     this.worldBreakRoot.add(this.worldBreakKnifeRoot, this.worldBreakStormRoot, this.worldBreakFortressRoot, this.worldBreakIceRoot, this.worldBreakPortalRoot);
     this.worldBreakRoot.add(this.worldBreakPursuitRoot, this.worldBreakMagmaRoot);
     this.worldBreakRoot.add(this.worldBreakOrbitRoot, this.worldBreakPrismRoot);
-    this.scene.add(this.entityRoot, this.v4029Breakups.root, this.projectileRoot, this.hazardRoot, this.branchRoot, this.worldBreakRoot, this.player);
+    this.scene.add(this.entityRoot, this.v4029Breakups.root, this.projectileRoot, this.hostileContactFx, this.hazardRoot, this.branchRoot, this.worldBreakRoot, this.player);
     this.environment = new SkyDancerArcadeEnvironment(this.scene);
     this.environment.setStage(this.previousSnapshot.stage);
     this.v11Setpieces = new SkyDancerArcadeV11SetpieceDirector(this.scene);
@@ -480,6 +528,7 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
     this.syncEnemies(snapshot, delta);
     for (const retired of this.v4029Breakups.update(delta)) this.disposeObject(retired);
     this.syncProjectiles(snapshot);
+    this.syncHostileContactFxV4043(snapshot);
     this.syncHazards(snapshot, delta);
     this.syncWorldBreakGates(snapshot, delta);
     this.syncWorldBreakKnifeRun(snapshot);
@@ -1224,6 +1273,84 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
       this.projectileRoot.remove(mesh);
       // V40.41 adds layered child geometry/materials; dispose the complete visual rig together.
       this.disposeObject(mesh);
+    }
+  }
+
+  private syncHostileContactFxV4043(snapshot: SkyDancerArcadeSnapshot): void {
+    const event = snapshot.hostileContact;
+    if (!event || snapshot.stageSerial !== this.previousSnapshot.stageSerial) {
+      this.hostileContactFx.visible = false;
+      return;
+    }
+    const duration = event.kind === "hit" ? .3 : .4;
+    const age = Math.max(0, snapshot.runTimeSeconds - event.runTimeSeconds);
+    if (age > duration) {
+      this.hostileContactFx.visible = false;
+      return;
+    }
+
+    const t = THREE.MathUtils.clamp(age / duration, 0, 1);
+    const fade = (1 - t) * (1 - t);
+    const color = hostileLaunchColorV4042((event.projectileClass ?? "bolt") as HostileProjectileClassV4042);
+    const offsetMagnitude = Math.hypot(event.offsetX, event.offsetY);
+    const sideAngle = offsetMagnitude > .045
+      ? Math.atan2(event.offsetY * 4.9, event.offsetX * 8.4)
+      : Math.atan2(-event.vy * 4.9, -event.vx * 8.4);
+    const motionMagnitude = Math.hypot(event.vx * 8.4, event.vy * 4.9);
+    const motionAngle = motionMagnitude > .04 ? Math.atan2(event.vy * 4.9, event.vx * 8.4) : sideAngle + Math.PI * .5;
+
+    this.hostileContactFx.visible = true;
+    this.hostileContactFx.position.set(
+      this.player.position.x + THREE.MathUtils.clamp(event.offsetX * 3.15, -2.45, 2.45) + event.vx * age * .32,
+      this.player.position.y + THREE.MathUtils.clamp(event.offsetY * 2.35, -1.65, 1.65) + event.vy * age * .28,
+      this.player.position.z - .5,
+    );
+    this.hostileContactFx.quaternion.copy(this.camera.quaternion);
+
+    const ring = this.hostileContactFx.getObjectByName("arcade-hostile-contact-pressure-ring-v4043");
+    const arc = this.hostileContactFx.getObjectByName("arcade-hostile-contact-impact-arc-v4043");
+    const wake = this.hostileContactFx.getObjectByName("arcade-hostile-contact-wake-v4043");
+    const core = this.hostileContactFx.getObjectByName("arcade-hostile-contact-core-v4043");
+
+    if (ring instanceof THREE.Mesh && ring.material instanceof THREE.MeshBasicMaterial) {
+      ring.visible = true;
+      ring.material.color.setHex(event.kind === "hit" ? 0xffb56c : color);
+      ring.material.opacity = (event.kind === "hit" ? .46 : event.committed ? .42 : .28) * fade;
+      ring.scale.setScalar(event.kind === "hit" ? .5 + t * .9 : .58 + t * 1.75);
+    }
+    if (wake instanceof THREE.Mesh && wake.material instanceof THREE.MeshBasicMaterial) {
+      wake.visible = true;
+      wake.material.color.setHex(color);
+      wake.material.opacity = (event.kind === "hit" ? .2 : event.committed ? .4 : .28) * fade;
+      wake.rotation.z = motionAngle;
+      wake.scale.set(event.kind === "hit" ? .72 + t * .55 : .82 + t * 1.15, event.kind === "hit" ? .72 : 1 - t * .22, 1);
+    }
+    if (arc instanceof THREE.Mesh && arc.material instanceof THREE.MeshBasicMaterial) {
+      arc.visible = event.kind === "hit";
+      arc.material.color.setHex(color);
+      arc.material.opacity = event.kind === "hit" ? .82 * fade : 0;
+      arc.rotation.z = sideAngle - Math.PI * .54;
+      arc.scale.setScalar(.8 + t * .42);
+    }
+    if (core instanceof THREE.Mesh && core.material instanceof THREE.MeshBasicMaterial) {
+      core.visible = event.kind === "hit";
+      core.material.opacity = event.kind === "hit" ? .9 * fade : 0;
+      core.scale.setScalar(.8 + (1 - t) * .7);
+    }
+
+    for (let index = 0; index < 4; index += 1) {
+      const spark = this.hostileContactFx.getObjectByName(`arcade-hostile-contact-spark-v4043-${index}`);
+      if (!(spark instanceof THREE.Mesh) || !(spark.material instanceof THREE.MeshBasicMaterial)) continue;
+      spark.visible = event.kind === "hit";
+      if (event.kind !== "hit") continue;
+      const spread = (index - 1.5) * .26;
+      const angle = sideAngle + spread;
+      const travel = .26 + t * (1.05 + index * .08);
+      spark.position.set(Math.cos(angle) * travel, Math.sin(angle) * travel, .02 + index * .002);
+      spark.rotation.z = angle;
+      spark.scale.set(.58 + t * 1.35, .7 + (1 - t) * .35, 1);
+      spark.material.color.setHex(index % 2 === 0 ? 0xffffdc : color);
+      spark.material.opacity = (.78 - index * .07) * fade;
     }
   }
 
@@ -2147,10 +2274,7 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
     for (const wreck of this.v4029Breakups.clear()) this.disposeObject(wreck);
     this.v4029PendingBreakups.clear();
     for (const group of this.enemyGroups.values()) this.disposeObject(group);
-    for (const mesh of this.projectileMeshes.values()) {
-      mesh.geometry.dispose();
-      (mesh.material as THREE.Material).dispose();
-    }
+    for (const mesh of this.projectileMeshes.values()) this.disposeObject(mesh);
     for (const group of this.hazardGroups.values()) this.disposeObject(group);
     for (const group of this.worldBreakGateGroups.values()) this.disposeObject(group);
     for (const child of this.worldBreakKnifeRoot.children) this.disposeObject(child);
@@ -2250,6 +2374,7 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
     this.clearEntityVisuals();
     for (const child of this.branchRoot.children) this.disposeObject(child);
     this.branchRoot.clear();
+    this.disposeObject(this.hostileContactFx);
     this.disposeObject(this.player);
     this.environmentMap?.dispose();
     this.cinematic.dispose();

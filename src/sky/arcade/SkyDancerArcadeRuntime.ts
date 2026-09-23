@@ -219,6 +219,20 @@ export interface SkyDancerArcadeProjectileSnapshot {
   sourceEnemyId?: number;
 }
 
+export interface SkyDancerArcadeHostileContactSnapshot {
+  serial: number;
+  kind: "near-miss" | "hit";
+  x: number;
+  y: number;
+  offsetX: number;
+  offsetY: number;
+  vx: number;
+  vy: number;
+  projectileClass?: "bolt" | "seeker" | "heavy" | "boss";
+  committed: boolean;
+  runTimeSeconds: number;
+}
+
 export interface SkyDancerArcadeImpactSnapshot {
   serial: number;
   enemyId: number;
@@ -307,6 +321,8 @@ export interface SkyDancerArcadeSnapshot {
   evasionCounterSeconds: number;
   evasionChain: number;
   evasionSerial: number;
+  // V40.43: latest hostile pass/contact telemetry drives local presentation only.
+  hostileContact: SkyDancerArcadeHostileContactSnapshot | null;
   incomingThreats: number;
   multiLockKills: number;
   turboSmashes: number;
@@ -832,6 +848,8 @@ export class SkyDancerArcadeRuntime {
   private evasionCounterTimer = 0;
   private evasionChain = 0;
   private evasionSerial = 0;
+  private hostileContactSerial = 0;
+  private hostileContact: SkyDancerArcadeHostileContactSnapshot | null = null;
   private multiLockKills = 0;
   private turboSmashes = 0;
   private bestChain = 0;
@@ -3053,6 +3071,23 @@ export class SkyDancerArcadeRuntime {
     enemy.fireCooldown = base * (hard ? 0.8 : 1) * (0.84 + this.random() * 0.38);
   }
 
+  private recordHostileContactV4043(projectile: ArcadeProjectile, kind: "near-miss" | "hit"): void {
+    this.hostileContactSerial += 1;
+    this.hostileContact = {
+      serial: this.hostileContactSerial,
+      kind,
+      x: projectile.x,
+      y: projectile.y,
+      offsetX: projectile.x - this.playerX,
+      offsetY: projectile.y - this.playerY,
+      vx: projectile.vx,
+      vy: projectile.vy,
+      projectileClass: projectile.projectileClass,
+      committed: projectile.dodgeCommitted === true,
+      runTimeSeconds: this.runTime,
+    };
+  }
+
   private updateProjectiles(delta: number): void {
     for (const projectile of this.projectiles) {
       projectile.life -= delta;
@@ -3113,9 +3148,11 @@ export class SkyDancerArcadeRuntime {
         const hitRadius = projectile.dangerRadius ?? ENEMY_SHOT_HIT_RADIUS_V4034;
         if (distance < hitRadius) {
           projectile.life = 0;
+          this.recordHostileContactV4043(projectile, "hit");
           this.takeDamage(projectile.damage);
         } else if (!projectile.nearMissChecked && distance < ENEMY_SHOT_NEAR_MISS_RADIUS_V4034) {
           projectile.nearMissChecked = true;
+          this.recordHostileContactV4043(projectile, "near-miss");
           if (projectile.dodgeCommitted) {
             this.nearMisses += 1;
             this.evasionChain = Math.min(8, this.evasionChain + 1);
@@ -3665,6 +3702,7 @@ export class SkyDancerArcadeRuntime {
       evasionCounterSeconds: this.evasionCounterTimer,
       evasionChain: this.evasionChain,
       evasionSerial: this.evasionSerial,
+      hostileContact: this.hostileContact ? { ...this.hostileContact } : null,
       incomingThreats: this.projectiles.filter((projectile) => projectile.owner === "enemy" && projectile.life > 0 && !projectile.retiring).length,
       multiLockKills: this.multiLockKills,
       turboSmashes: this.turboSmashes,
