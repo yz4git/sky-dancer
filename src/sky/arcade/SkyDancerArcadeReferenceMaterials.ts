@@ -5,6 +5,31 @@ export const ARCADE_SUN_DIRECTION = new THREE.Vector3(-.62, .25, -.73).normalize
 export const ARCADE_FOG_NEAR = 88;
 export const ARCADE_FOG_FAR = 560;
 
+export interface SkyDancerArcadeAtmosphericDepthV4049 {
+  fogNear: number;
+  fogFar: number;
+  horizonHaze: number;
+  cloudExtinction: number;
+  waterReflection: number;
+}
+
+export function arcadeAtmosphericDepthV4049(stage: SkyDancerArcadeStageDefinition): SkyDancerArcadeAtmosphericDepthV4049 {
+  switch (stage.biome) {
+    case "city": return { fogNear: 112, fogFar: 505, horizonHaze: .44, cloudExtinction: .72, waterReflection: .82 };
+    case "night": return { fogNear: 92, fogFar: 455, horizonHaze: .3, cloudExtinction: .64, waterReflection: .7 };
+    case "cloud": return { fogNear: 70, fogFar: 440, horizonHaze: .52, cloudExtinction: .86, waterReflection: .6 };
+    case "storm": return { fogNear: 62, fogFar: 405, horizonHaze: .58, cloudExtinction: .92, waterReflection: .55 };
+    case "canyon": return { fogNear: 105, fogFar: 575, horizonHaze: .36, cloudExtinction: .62, waterReflection: .55 };
+    case "desert": return { fogNear: 96, fogFar: 535, horizonHaze: .5, cloudExtinction: .7, waterReflection: .55 };
+    case "volcano": return { fogNear: 88, fogFar: 505, horizonHaze: .42, cloudExtinction: .68, waterReflection: .55 };
+    case "ice": return { fogNear: 90, fogFar: 525, horizonHaze: .4, cloudExtinction: .68, waterReflection: .55 };
+    case "ruins": return { fogNear: 98, fogFar: 555, horizonHaze: .38, cloudExtinction: .64, waterReflection: .55 };
+    case "orbit": case "citadel":
+      return { fogNear: 150, fogFar: 760, horizonHaze: .12, cloudExtinction: .25, waterReflection: .45 };
+    default: return { fogNear: ARCADE_FOG_NEAR, fogFar: ARCADE_FOG_FAR, horizonHaze: .34, cloudExtinction: .62, waterReflection: .55 };
+  }
+}
+
 export const ARCADE_NOISE_GLSL = `
 float hash21(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
 float noise21(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.0-2.0*f);return mix(mix(hash21(i),hash21(i+vec2(1,0)),f.x),mix(hash21(i+vec2(0,1)),hash21(i+vec2(1,1)),f.x),f.y);}
@@ -33,16 +58,18 @@ export function referenceAtmosphere(stage: SkyDancerArcadeStageDefinition) {
 
 export function createArcadeSky(stage: SkyDancerArcadeStageDefinition): THREE.Mesh {
   const palette = referenceAtmosphere(stage);
+  const depth = arcadeAtmosphericDepthV4049(stage);
   const shader = new THREE.ShaderMaterial({
     uniforms: {
       zenith: { value: palette.zenith }, horizon: { value: palette.horizon },
       sunDirection: { value: ARCADE_SUN_DIRECTION },
       night: { value: palette.night ? 1 : 0 }, storm: { value: stage.biome === "storm" ? 1 : 0 },
+      horizonHaze: { value: depth.horizonHaze },
     },
     vertexShader: `varying vec3 vSkyDirection; void main(){vSkyDirection=position;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}`,
     fragmentShader: `
       uniform vec3 zenith,horizon,sunDirection;
-      uniform float night,storm;
+      uniform float night,storm,horizonHaze;
       varying vec3 vSkyDirection;
       ${ARCADE_NOISE_GLSL}
       void main(){
@@ -50,6 +77,10 @@ export function createArcadeSky(stage: SkyDancerArcadeStageDefinition): THREE.Me
         float sunDot=max(0.0,dot(d,sunDirection));
         float upper=smoothstep(-.08,.65,d.y);
         vec3 c=mix(horizon,zenith,upper);
+        // V40.49: a narrow horizon veil lowers distant contrast without washing the playable foreground.
+        float horizonBand=exp(-pow((d.y-.035)/.115,2.0));
+        vec3 hazeColor=mix(horizon,vec3(1.0,.86,.72),.08*(1.0-night));
+        c=mix(c,hazeColor,horizonBand*horizonHaze);
         float glow=pow(sunDot,14.0);
         c=mix(c,vec3(1.05,.72,.46),glow*.5*(1.0-night)*(1.0-storm));
         c+=vec3(.94,.7,.42)*pow(sunDot,90.0)*.46*(1.0-night);
@@ -134,10 +165,12 @@ export function createArcadeFacadeMaterial(night: boolean): THREE.MeshStandardMa
 
 export function createArcadeCloudMaterial(stage: SkyDancerArcadeStageDefinition): THREE.ShaderMaterial {
   const palette=referenceAtmosphere(stage);
+  const depth=arcadeAtmosphericDepthV4049(stage);
   return new THREE.ShaderMaterial({
     uniforms:{
       lit:{value:palette.cloudLight},shade:{value:palette.cloudShadow},
       sunDirection:{value:ARCADE_SUN_DIRECTION},fogColor:{value:palette.fog},
+      fogNear:{value:depth.fogNear},fogFar:{value:depth.fogFar},cloudExtinction:{value:depth.cloudExtinction},
     },
     vertexShader:`
       varying vec3 vNormal,vWorld,vView;varying float vDepth;
@@ -156,6 +189,7 @@ export function createArcadeCloudMaterial(stage: SkyDancerArcadeStageDefinition)
       }`,
     fragmentShader:`
       uniform vec3 lit,shade,sunDirection,fogColor;
+      uniform float fogNear,fogFar,cloudExtinction;
       varying vec3 vNormal,vWorld,vView;varying float vDepth;
       ${ARCADE_NOISE_GLSL}
       void main(){
@@ -167,9 +201,12 @@ export function createArcadeCloudMaterial(stage: SkyDancerArcadeStageDefinition)
         vec3 c=mix(shade,lit,pow(light,.72));
         c*=.91+billow*.19;
         c+=lit*pow(1.0-facing,3.0)*light*.32;
-        float fog=smoothstep(90.0,545.0,vDepth);
-        c=mix(c,fogColor,fog);
-        float edgeLight=pow(max(0.0,1.0-facing),2.5)*light; c+=lit*edgeLight*.13; gl_FragColor=vec4(c,soft*(.42+billow*.13)*(1.0-fog*.82));
+        float fog=smoothstep(fogNear,fogFar,vDepth);
+        float extinction=clamp(fog*cloudExtinction,0.0,.94);
+        c=mix(c,fogColor,extinction);
+        float edgeLight=pow(max(0.0,1.0-facing),2.5)*light;
+        c+=lit*edgeLight*.13*(1.0-extinction);
+        gl_FragColor=vec4(c,soft*(.42+billow*.13)*(1.0-extinction*.9));
       }`,
     transparent:true,depthWrite:false,side:THREE.FrontSide,
   });
@@ -177,21 +214,31 @@ export function createArcadeCloudMaterial(stage: SkyDancerArcadeStageDefinition)
 
 export function createArcadeWaterMaterial(stage: SkyDancerArcadeStageDefinition): THREE.ShaderMaterial {
   const palette=referenceAtmosphere(stage);
+  const depth=arcadeAtmosphericDepthV4049(stage);
   return new THREE.ShaderMaterial({
-    uniforms:{time:{value:0},night:{value:palette.night?1:0},fogColor:{value:palette.fog}},
-    vertexShader:`varying vec3 vWorld;varying float vDepth;void main(){vec4 world=modelMatrix*vec4(position,1.0);vWorld=world.xyz;vec4 mv=viewMatrix*world;vDepth=-mv.z;gl_Position=projectionMatrix*mv;}`,
+    uniforms:{
+      time:{value:0},night:{value:palette.night?1:0},fogColor:{value:palette.fog},
+      fogNear:{value:depth.fogNear},fogFar:{value:depth.fogFar},reflectionStrength:{value:depth.waterReflection},
+    },
+    vertexShader:`varying vec3 vWorld,vView;varying float vDepth;void main(){vec4 world=modelMatrix*vec4(position,1.0);vWorld=world.xyz;vView=cameraPosition-world.xyz;vec4 mv=viewMatrix*world;vDepth=-mv.z;gl_Position=projectionMatrix*mv;}`,
     fragmentShader:`
-      uniform float time,night;uniform vec3 fogColor;
-      varying vec3 vWorld;varying float vDepth;
+      uniform float time,night,fogNear,fogFar,reflectionStrength;uniform vec3 fogColor;
+      varying vec3 vWorld,vView;varying float vDepth;
       ${ARCADE_NOISE_GLSL}
       void main(){
         vec2 uv=vWorld.xz;
-        float broad=fbm(uv*vec2(.055,.24)+vec2(time*.018,time*.12)); float cross=fbm(uv*vec2(.17,.075)+vec2(-time*.055,time*.035)+17.0); float ripples=mix(broad,cross,.34);
-        float glint=pow(max(0.0,cross*.9+broad*.55-.63),5.0);
+        float broad=fbm(uv*vec2(.055,.24)+vec2(time*.018,time*.12));
+        float cross=fbm(uv*vec2(.17,.075)+vec2(-time*.055,time*.035)+17.0);
+        float fine=fbm(uv*vec2(.42,.16)+vec2(time*.08,-time*.035)+31.0);
+        float ripples=mix(mix(broad,cross,.34),fine,.12);
+        float glint=pow(max(0.0,cross*.9+broad*.55+fine*.16-.66),5.0);
         float sunPath=exp(-pow((uv.x+11.0)/18.0,2.0));
+        float fresnel=pow(1.0-clamp(abs(normalize(vView).y),0.0,1.0),3.0);
         vec3 water=mix(vec3(.028,.105,.145),vec3(.045,.19,.25),ripples);
-        water+=mix(vec3(.82,.56,.3),vec3(.11,.32,.5),night)*sunPath*(.05+glint*.31);
-        water=mix(water,fogColor,smoothstep(105.0,560.0,vDepth));
+        vec3 reflected=mix(vec3(.18,.31,.38),fogColor,.68);
+        water=mix(water,reflected,fresnel*.26*reflectionStrength);
+        water+=mix(vec3(.82,.56,.3),vec3(.11,.32,.5),night)*sunPath*(.045+glint*.28)*reflectionStrength;
+        water=mix(water,fogColor,smoothstep(fogNear,fogFar,vDepth));
         gl_FragColor=vec4(water,1.0);
       }`,
     // V10.3.2: the river follows pitched course chunks. Rendering only FrontSide made the surface
