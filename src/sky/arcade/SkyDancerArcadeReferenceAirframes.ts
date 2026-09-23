@@ -52,6 +52,23 @@ function paint(color: number, roughness = 0.4, metalness = 0.42): THREE.MeshStan
   return new THREE.MeshStandardMaterial({ color, roughness, metalness });
 }
 
+function premiumPaint(
+  color: number,
+  roughness: number,
+  metalness: number,
+  clearcoat: number,
+  clearcoatRoughness: number,
+): THREE.MeshPhysicalMaterial {
+  return new THREE.MeshPhysicalMaterial({
+    color,
+    roughness,
+    metalness,
+    clearcoat,
+    clearcoatRoughness,
+    reflectivity: .46,
+  });
+}
+
 function emissive(color: number, intensity = 2): THREE.MeshStandardMaterial {
   return new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: intensity, roughness: 0.28, metalness: 0.25 });
 }
@@ -129,14 +146,29 @@ export function createReferenceFighter(
       : playerPaintScheme === "prism"
         ? { ceramic: 0xeee8ff, accent: 0xc45cff, glow: 0x78f6ff, canopy: 0x251948, canopyGlow: 0x6f2f9a, engine: 0x8ff7ff }
         : { ceramic: 0xcbd4d8, accent: 0x4aa5b5, glow: 0xb4f3ff, canopy: 0x0b1d2a, canopyGlow: 0x234f5d, engine: 0xaaf3ff };
-  const ceramic = paint(enemy ? 0xa72224 : playerPalette.ceramic, 0.36, 0.48);
-  const cyan = paint(enemy ? 0xee6d28 : playerPalette.accent, 0.29, 0.5);
-  const edge = paint(0x11202b, 0.42, 0.62);
-  const silver = paint(0x7c8f9c, 0.33, 0.72);
+  // V40.46: the hero reads as layered manufactured materials rather than one uniformly shiny toy surface.
+  const ceramic = enemy
+    ? paint(0xa72224, .38, .45)
+    : premiumPaint(playerPalette.ceramic, .27, .44, .62, .2);
+  const cyan = enemy
+    ? paint(0xee6d28, .34, .46)
+    : premiumPaint(playerPalette.accent, .22, .58, .74, .16);
+  const edge = enemy
+    ? paint(0x11202b, .46, .58)
+    : premiumPaint(0x101c25, .34, .68, .25, .26);
+  const silver = enemy
+    ? paint(0x7c8f9c, .35, .7)
+    : premiumPaint(0x89979d, .2, .84, .18, .16);
   const glow = emissive(enemy ? 0xff5b28 : playerPalette.glow, 1.5);
   const canopy = new THREE.MeshPhysicalMaterial({
-    color: enemy ? 0x082b48 : playerPalette.canopy, metalness: 0.7, roughness: 0.13, clearcoat: 1,
-    clearcoatRoughness: 0.06, emissive: enemy ? 0x064664 : playerPalette.canopyGlow, emissiveIntensity: 0.18,
+    color: enemy ? 0x082b48 : playerPalette.canopy,
+    metalness: enemy ? .68 : .48,
+    roughness: enemy ? .16 : .08,
+    clearcoat: 1,
+    clearcoatRoughness: enemy ? .08 : .035,
+    reflectivity: enemy ? .42 : .68,
+    emissive: enemy ? 0x064664 : playerPalette.canopyGlow,
+    emissiveIntensity: enemy ? .16 : .12,
   });
   part(group, loft([
     [-3.8, .02, .02, -.04], [-2.6, .22, .15, .02], [-1.6, .48, .26, .04],
