@@ -392,6 +392,7 @@ export class SkyDancerArcadeCanvasDemo implements SkyDancerArcadeDemoHandle {
       context.arc(projected.x, projected.y, Math.max(1.5, projected.scale * (projectile.owner === "player-missile" ? 4.8 : 2.4)), 0, Math.PI * 2);
       context.fill();
     }
+    this.drawHostileContactFxV4043(context, snapshot, cssWidth, cssHeight);
     this.drawPlayer(context, snapshot, cssWidth, cssHeight);
     this.drawCinematicFocusV408(context, snapshot, cssWidth, cssHeight);
     context.restore();
@@ -803,6 +804,98 @@ export class SkyDancerArcadeCanvasDemo implements SkyDancerArcadeDemoHandle {
       context.arc(x, height * 0.45, selected ? 38 : 31, 0, Math.PI * 2);
       context.stroke();
     });
+  }
+
+  private drawHostileContactFxV4043(
+    context: CanvasRenderingContext2D,
+    snapshot: SkyDancerArcadeSnapshot,
+    width: number,
+    height: number,
+  ): void {
+    const event = snapshot.hostileContact;
+    if (!event) return;
+    const duration = event.kind === "hit" ? .3 : .4;
+    const age = Math.max(0, snapshot.runTimeSeconds - event.runTimeSeconds);
+    if (age > duration) return;
+
+    const t = Math.max(0, Math.min(1, age / duration));
+    const fade = (1 - t) * (1 - t);
+    const baseX = width * .5 + snapshot.playerX * width * .25;
+    const baseY = height * .76 - snapshot.playerY * height * .22;
+    const x = baseX + Math.max(-1, Math.min(1, event.offsetX)) * width * .082 + event.vx * age * width * .018;
+    const y = baseY - Math.max(-1, Math.min(1, event.offsetY)) * height * .11 - event.vy * age * height * .016;
+    const sideMagnitude = Math.hypot(event.offsetX, event.offsetY);
+    const sideAngle = sideMagnitude > .045
+      ? Math.atan2(-event.offsetY, event.offsetX)
+      : Math.atan2(event.vy, -event.vx);
+    const motionMagnitude = Math.hypot(event.vx, event.vy);
+    const motionAngle = motionMagnitude > .04 ? Math.atan2(-event.vy, event.vx) : sideAngle + Math.PI * .5;
+    const rgb = event.projectileClass === "seeker"
+      ? "255,79,163"
+      : event.projectileClass === "boss"
+        ? "255,54,92"
+        : event.projectileClass === "heavy"
+          ? "255,138,45"
+          : "255,99,56";
+
+    context.save();
+    context.translate(x, y);
+    context.globalCompositeOperation = "lighter";
+    context.lineCap = "round";
+
+    const wakeLength = event.kind === "hit" ? 26 + t * 24 : 38 + t * 72;
+    context.save();
+    context.rotate(motionAngle);
+    const wakeGradient = context.createLinearGradient(-wakeLength * .55, 0, wakeLength * .55, 0);
+    wakeGradient.addColorStop(0, `rgba(${rgb},0)`);
+    wakeGradient.addColorStop(.48, `rgba(${rgb},${(event.kind === "hit" ? .22 : event.committed ? .46 : .3) * fade})`);
+    wakeGradient.addColorStop(.58, `rgba(255,250,226,${(event.kind === "hit" ? .34 : .5) * fade})`);
+    wakeGradient.addColorStop(1, `rgba(${rgb},0)`);
+    context.strokeStyle = wakeGradient;
+    context.lineWidth = event.kind === "hit" ? 3 : 2.2 + (event.committed ? 1.1 : 0);
+    context.beginPath();
+    context.moveTo(-wakeLength * .55, 0);
+    context.lineTo(wakeLength * .55, 0);
+    context.stroke();
+    context.restore();
+
+    const ringRadius = event.kind === "hit" ? 10 + t * 24 : 12 + t * 44;
+    context.strokeStyle = event.kind === "hit"
+      ? `rgba(255,220,176,${.52 * fade})`
+      : `rgba(${rgb},${(event.committed ? .44 : .3) * fade})`;
+    context.lineWidth = event.kind === "hit" ? 3.2 - t * 1.2 : 2.4 - t * .8;
+    context.beginPath();
+    context.arc(0, 0, ringRadius, 0, Math.PI * 2);
+    context.stroke();
+
+    if (event.kind === "hit") {
+      context.strokeStyle = `rgba(${rgb},${.84 * fade})`;
+      context.lineWidth = 4.2 - t * 1.5;
+      context.beginPath();
+      context.arc(0, 0, 18 + t * 10, sideAngle - .76, sideAngle + .76);
+      context.stroke();
+
+      for (let index = 0; index < 4; index += 1) {
+        const angle = sideAngle + (index - 1.5) * .25;
+        const start = 8 + t * 7;
+        const end = 18 + t * (24 + index * 3);
+        context.strokeStyle = index % 2 === 0
+          ? `rgba(255,248,220,${(.76 - index * .08) * fade})`
+          : `rgba(${rgb},${(.68 - index * .07) * fade})`;
+        context.lineWidth = index % 2 === 0 ? 2.4 : 1.8;
+        context.beginPath();
+        context.moveTo(Math.cos(angle) * start, Math.sin(angle) * start);
+        context.lineTo(Math.cos(angle) * end, Math.sin(angle) * end);
+        context.stroke();
+      }
+
+      context.fillStyle = `rgba(255,255,235,${.72 * fade})`;
+      context.beginPath();
+      context.arc(0, 0, 5 + (1 - t) * 4, 0, Math.PI * 2);
+      context.fill();
+    }
+
+    context.restore();
   }
 
   private drawPlayer(context: CanvasRenderingContext2D, snapshot: SkyDancerArcadeSnapshot, width: number, height: number): void {
