@@ -66,3 +66,17 @@ test("V40.45 Canvas and HUD share the muted environment / white-hot danger hiera
   assert.match(product, /--arcade-cyan: #a9dce5/);
   assert.match(product, /--arcade-gold: #e6c690/);
 });
+
+
+test("V40.45 review keeps environmental cyan subordinate to combat readability", () => {
+  const stage = skyDancerArcadeStageById("dawn-city");
+  const graded = skyDancerArcadeV4045Palette(stage);
+  const accent = { h: 0, s: 0, l: 0 };
+  new THREE.Color(graded.accent).getHSL(accent);
+  assert.ok(accent.s < .8);
+
+  const materials = readFileSync(resolve(process.cwd(), "src/sky/arcade/SkyDancerArcadeReferenceMaterials.ts"), "utf8");
+  const world = readFileSync(resolve(process.cwd(), "src/sky/arcade/SkyDancerArcadeReferenceWorld.ts"), "utf8");
+  assert.match(materials, /vec3 water=mix\(vec3\(\.028,\.105,\.145\),vec3\(\.045,\.19,\.25\),ripples\)/);
+  assert.match(world, /new THREE\.DirectionalLight\(0x7fb9c8,\.62\)/);
+});
