@@ -31,7 +31,7 @@ import {
   type SkyDancerArcadeV406FinalBossCue,
 } from "./SkyDancerArcadeV406FinalBossPresentation";
 import { skyDancerArcadeV408SceneFocus, skyDancerArcadeV408TargetLookBias } from "./SkyDancerArcadeV408CinematicFocus";
-import { skyDancerArcadeV409PhoneClarity } from "./SkyDancerArcadeV409PhoneClarity";
+import { skyDancerArcadeV4044IsTerminalThreat, skyDancerArcadeV409PhoneClarity } from "./SkyDancerArcadeV409PhoneClarity";
 import {
   SKY_DANCER_ARCADE_V4010_DEFAULT_FX_CLARITY,
   skyDancerArcadeV4010DynamicOcclusion,
@@ -197,6 +197,37 @@ function createHostileContactFxV4043(): THREE.Group {
   return root;
 }
 
+function createHostileThreatVectorV4044(): THREE.Group {
+  const root = new THREE.Group();
+  root.name = "arcade-hostile-threat-vector-v4044";
+  root.visible = false;
+  const material = new THREE.MeshBasicMaterial({
+    color: 0xff6a3d,
+    transparent: true,
+    opacity: .58,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+    depthTest: false,
+    toneMapped: false,
+    side: THREE.DoubleSide,
+  });
+  const arcSpan = Math.PI * .72;
+  const arc = new THREE.Mesh(new THREE.TorusGeometry(1.42, .055, 5, 22, arcSpan), material);
+  arc.name = "arcade-hostile-threat-arc-v4044";
+  arc.renderOrder = 22;
+  root.add(arc);
+  const inner = new THREE.Mesh(new THREE.TorusGeometry(1.18, .025, 4, 18, arcSpan * .66), material.clone());
+  inner.name = "arcade-hostile-threat-inner-v4044";
+  inner.renderOrder = 21;
+  root.add(inner);
+  const tick = new THREE.Mesh(new THREE.PlaneGeometry(.5, .06), material.clone());
+  tick.name = "arcade-hostile-threat-tick-v4044";
+  tick.renderOrder = 23;
+  root.add(tick);
+  root.userData.arcadeThreatArcSpanV4044 = arcSpan;
+  return root;
+}
+
 class SkyDancerArcadeAudio {
   private context: AudioContext | null = null;
   private engine: OscillatorNode | null = null;
@@ -284,6 +315,7 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
   private readonly entityRoot = new THREE.Group();
   private readonly projectileRoot = new THREE.Group();
   private readonly hostileContactFx = createHostileContactFxV4043();
+  private readonly hostileThreatVectorFx = createHostileThreatVectorV4044();
   private readonly hazardRoot = new THREE.Group();
   private readonly branchRoot = new THREE.Group();
   private readonly worldBreakRoot = new THREE.Group();
@@ -411,7 +443,7 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
     this.worldBreakRoot.add(this.worldBreakKnifeRoot, this.worldBreakStormRoot, this.worldBreakFortressRoot, this.worldBreakIceRoot, this.worldBreakPortalRoot);
     this.worldBreakRoot.add(this.worldBreakPursuitRoot, this.worldBreakMagmaRoot);
     this.worldBreakRoot.add(this.worldBreakOrbitRoot, this.worldBreakPrismRoot);
-    this.scene.add(this.entityRoot, this.v4029Breakups.root, this.projectileRoot, this.hostileContactFx, this.hazardRoot, this.branchRoot, this.worldBreakRoot, this.player);
+    this.scene.add(this.entityRoot, this.v4029Breakups.root, this.projectileRoot, this.hostileContactFx, this.hostileThreatVectorFx, this.hazardRoot, this.branchRoot, this.worldBreakRoot, this.player);
     this.environment = new SkyDancerArcadeEnvironment(this.scene);
     this.environment.setStage(this.previousSnapshot.stage);
     this.v11Setpieces = new SkyDancerArcadeV11SetpieceDirector(this.scene);
@@ -528,6 +560,7 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
     this.syncEnemies(snapshot, delta);
     for (const retired of this.v4029Breakups.update(delta)) this.disposeObject(retired);
     this.syncProjectiles(snapshot);
+    this.syncHostileThreatVectorV4044(snapshot);
     this.syncHostileContactFxV4043(snapshot);
     this.syncHazards(snapshot, delta);
     this.syncWorldBreakGates(snapshot, delta);
@@ -606,8 +639,12 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
     const v409IncomingThreats = snapshot.projectiles.filter((projectile) =>
       projectile.owner === "enemy" && projectile.depth > 2.2 && projectile.depth < 30
     ).length;
+    const v4044TerminalThreats = snapshot.projectiles.filter(skyDancerArcadeV4044IsTerminalThreat).length;
     let v409Clarity = skyDancerArcadeV409PhoneClarity({
-      compactLandscape: compactLandscapeV271, sceneMode: v409Focus.mode, incomingThreats: v409IncomingThreats,
+      compactLandscape: compactLandscapeV271,
+      sceneMode: v409Focus.mode,
+      incomingThreats: v409IncomingThreats,
+      terminalThreats: v4044TerminalThreats,
     });
     const v4010Profile = skyDancerArcadeV4010DynamicOcclusion({
       compactLandscape: compactLandscapeV271, sceneMode: v409Focus.mode, incomingThreats: v409IncomingThreats,
@@ -1273,6 +1310,67 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
       this.projectileRoot.remove(mesh);
       // V40.41 adds layered child geometry/materials; dispose the complete visual rig together.
       this.disposeObject(mesh);
+    }
+  }
+
+  private syncHostileThreatVectorV4044(snapshot: SkyDancerArcadeSnapshot): void {
+    const candidates = snapshot.projectiles.filter(skyDancerArcadeV4044IsTerminalThreat);
+    if (candidates.length === 0) {
+      this.hostileThreatVectorFx.visible = false;
+      return;
+    }
+    const threat = [...candidates].sort((a, b) => {
+      const aw = a.warningSeconds ?? 0;
+      const bw = b.warningSeconds ?? 0;
+      const aScore = aw > 0 ? aw * 8 : Math.max(0, a.depth);
+      const bScore = bw > 0 ? bw * 8 : Math.max(0, b.depth);
+      return aScore - bScore;
+    })[0];
+    const sourceEnemy = threat.sourceEnemyId === undefined
+      ? null
+      : snapshot.enemies.find((enemy) => enemy.id === threat.sourceEnemyId) ?? null;
+    const sourceX = (threat.warningSeconds ?? 0) > 0 && sourceEnemy ? sourceEnemy.x : threat.x;
+    const sourceY = (threat.warningSeconds ?? 0) > 0 && sourceEnemy ? sourceEnemy.y : threat.y;
+    const dx = sourceX - snapshot.playerX;
+    const dy = sourceY - snapshot.playerY;
+    const angle = Math.atan2(dy * 4.9, dx * 8.4);
+    const warning = Math.max(0, threat.warningSeconds ?? 0);
+    const warningDuration = Math.max(.001, threat.warningDuration ?? .42);
+    const warningUrgency = warning > 0 ? THREE.MathUtils.clamp(1 - warning / warningDuration, .3, 1) : 1;
+    const depthUrgency = warning > 0 ? 0 : THREE.MathUtils.clamp(1 - (threat.depth - 2.2) / 11.8, .24, 1);
+    const urgency = Math.max(warningUrgency, depthUrgency);
+    const projectileClass = (threat.projectileClass ?? "bolt") as HostileProjectileClassV4042;
+    const color = hostileLaunchColorV4042(projectileClass);
+    const pulse = 1 + Math.sin(snapshot.runTimeSeconds * 19 + threat.id) * .045 * urgency;
+    const arcSpan = Number(this.hostileThreatVectorFx.userData.arcadeThreatArcSpanV4044 ?? Math.PI * .72);
+
+    this.hostileThreatVectorFx.visible = true;
+    this.hostileThreatVectorFx.position.set(this.player.position.x, this.player.position.y, this.player.position.z + .22);
+    this.hostileThreatVectorFx.quaternion.copy(this.camera.quaternion);
+
+    const arc = this.hostileThreatVectorFx.getObjectByName("arcade-hostile-threat-arc-v4044");
+    const inner = this.hostileThreatVectorFx.getObjectByName("arcade-hostile-threat-inner-v4044");
+    const tick = this.hostileThreatVectorFx.getObjectByName("arcade-hostile-threat-tick-v4044");
+    if (arc instanceof THREE.Mesh && arc.material instanceof THREE.MeshBasicMaterial) {
+      arc.rotation.z = angle - arcSpan * .5;
+      arc.scale.setScalar(pulse * (.92 + urgency * .12));
+      arc.material.color.setHex(color);
+      arc.material.opacity = (.28 + urgency * .36) * (projectileClass === "boss" ? 1.08 : 1);
+    }
+    if (inner instanceof THREE.Mesh && inner.material instanceof THREE.MeshBasicMaterial) {
+      const innerSpan = arcSpan * .66;
+      inner.rotation.z = angle - innerSpan * .5;
+      inner.scale.setScalar(.96 + urgency * .08);
+      inner.material.color.setHex(projectileClass === "seeker" ? 0xffb1df : 0xffffd6);
+      inner.material.opacity = .12 + urgency * .28;
+    }
+    if (tick instanceof THREE.Mesh && tick.material instanceof THREE.MeshBasicMaterial) {
+      const radius = 1.42;
+      tick.position.set(Math.cos(angle) * radius, Math.sin(angle) * radius, .01);
+      tick.rotation.z = angle;
+      tick.scale.set(1 + urgency * .38, 1, 1);
+      tick.material.color.setHex(0xffffe8);
+      tick.material.opacity = .3 + urgency * .58;
     }
   }
 
@@ -2375,6 +2473,7 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
     for (const child of this.branchRoot.children) this.disposeObject(child);
     this.branchRoot.clear();
     this.disposeObject(this.hostileContactFx);
+    this.disposeObject(this.hostileThreatVectorFx);
     this.disposeObject(this.player);
     this.environmentMap?.dispose();
     this.cinematic.dispose();
