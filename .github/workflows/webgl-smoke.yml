@@ -45,7 +45,7 @@ jobs:
     timeout-minutes: 8
     env:
       SKY_DANCER_CHROME_PATH: /usr/bin/google-chrome
-      SKY_DANCER_STAGE_AUDIT_VISUAL: "0"
+      SKY_DANCER_STAGE_AUDIT_VISUAL: "1" # V40.51 temporary visual review; revert before merge
     steps:
       - name: Checkout
         uses: actions/checkout@v4
