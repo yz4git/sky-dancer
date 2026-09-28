@@ -543,9 +543,8 @@ export default function SkyDancerArcadeMode({ request, onReturnTitle }: SkyDance
   });
   const rawBreakDirection = rawBreakCue?.direction ?? null;
   useEffect(() => {
-    if (rawBreakDirection) breakDirectionRef.current = rawBreakDirection;
-    else if (snapshot.incomingThreats === 0) breakDirectionRef.current = null;
-  }, [rawBreakDirection, snapshot.incomingThreats]);
+    breakDirectionRef.current = rawBreakDirection;
+  }, [rawBreakDirection]);
   const breakCue = useExitLinger(
     rawBreakCue
       ? `${rawBreakCue.direction}|${rawBreakCue.arrow}|${rawBreakCue.threatCount}|${rawBreakCue.danger ? 1 : 0}|${rawBreakCue.boss ? 1 : 0}`
