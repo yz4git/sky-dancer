@@ -111,6 +111,29 @@ for (const [index, stage] of stages.entries()) {
       await page.keyboard.up("ArrowLeft"); await page.keyboard.up("ArrowDown");
       await page.waitForTimeout(2200);
       await shot("signature-b");
+
+      // V40.51 temporary visual review: capture the full phone frame at an actual BREAK VECTOR moment.
+      if (stage.id === "ice-cavern") {
+        const breakVector = page.locator('[aria-label^="Break "]').first();
+        await breakVector.waitFor({ state: "visible", timeout: 15_000 });
+        const stageRoot = page.locator('[aria-label="Sky Dancer Arcade Run"]');
+        const stageBox = await stageRoot.boundingBox();
+        if (!stageBox) throw new Error("Arcade stage has no bounding box for BREAK VECTOR capture");
+        const breakBox = await breakVector.boundingBox();
+        const breakText = (await breakVector.innerText()).replace(/\s+/g, " ").trim();
+        await page.screenshot({ path: `${outputDir}/${prefix}-break-vector.png`, clip: stageBox, timeout: 60_000 });
+        captures.push({
+          suffix: "break-vector",
+          width: Math.round(stageBox.width),
+          height: Math.round(stageBox.height),
+          breakText,
+          breakBox: breakBox ? {
+            x: Math.round(breakBox.x), y: Math.round(breakBox.y),
+            width: Math.round(breakBox.width), height: Math.round(breakBox.height),
+          } : null,
+        });
+        console.log(`[stage-audit:visual] ${stage.id}: captured BREAK VECTOR ${breakText} ${JSON.stringify(breakBox)}`);
+      }
     }
   } else {
     await page.waitForTimeout(650);
@@ -162,7 +185,7 @@ for (const item of diagnostics) {
   if (!item.stageVisible) throw new Error(`Stage HUD mismatch: ${JSON.stringify(item)}`);
   if (!item.glState.webgl || item.glState.width < 800 || item.glState.height < 360) throw new Error(`Invalid WebGL surface: ${JSON.stringify(item)}`);
   if (item.hp <= 0 || item.failed) throw new Error(`Stage identity audit lost airframe: ${JSON.stringify(item)}`);
-  const expectedCaptures = visualAudit ? (item.stage === "ice-cavern" || item.stage === "orbital-ascent" ? 4 : 1) : 0;
+  const expectedCaptures = visualAudit ? (item.stage === "ice-cavern" ? 5 : item.stage === "orbital-ascent" ? 4 : 1) : 0;
   if (item.captures.length !== expectedCaptures) throw new Error(`Unexpected visual capture count: ${JSON.stringify(item)}`);
   if (item.blockingConsoleErrors.length || item.pageErrors.length) throw new Error(`Stage identity audit errors: ${JSON.stringify(item)}`);
 }
