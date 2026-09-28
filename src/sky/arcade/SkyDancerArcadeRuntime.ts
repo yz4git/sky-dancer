@@ -65,6 +65,7 @@ import {
   skyDancerArcadeV27DensityCaps,
 } from "./SkyDancerArcadeV27CombatReadability";
 import { skyDancerArcadeV271CombatCorridorCrowded } from "./SkyDancerArcadeV271ScreenPolish";
+import { skyDancerArcadeV4050SafeBreak } from "./SkyDancerArcadeV4050SafeBreak";
 import {
   SKY_DANCER_ARCADE_V404_RIVAL_NAME,
   skyDancerArcadeV404RivalAdaptation,
@@ -3013,9 +3014,17 @@ export class SkyDancerArcadeRuntime {
       return;
     }
     const warningSeconds = skyDancerArcadeEnemyWarningV4034(enemy.kind, enemy.boss);
+    const safeBreakV4050 = skyDancerArcadeV4050SafeBreak({
+      playerX: this.playerX,
+      playerY: this.playerY,
+      sourceX: enemy.x,
+      sourceY: enemy.y,
+    });
     if (activeThreats === 0) {
-      this.message = enemy.boss ? "BOSS LOCK · BREAK VECTOR" : "INCOMING · BREAK VECTOR";
-      this.messageTimer = Math.max(this.messageTimer, .72);
+      this.message = enemy.boss
+        ? `BOSS LOCK · BREAK ${safeBreakV4050.direction}`
+        : `INCOMING · BREAK ${safeBreakV4050.direction}`;
+      this.messageTimer = Math.max(this.messageTimer, .86);
     }
     for (let index = 0; index < spreadCount; index += 1) {
       const centered = index - (spreadCount - 1) * 0.5;
