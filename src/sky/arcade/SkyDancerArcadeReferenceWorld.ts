@@ -10,7 +10,7 @@ import { arcadeCoursePose, arcadeCourseRelativeVisualPose } from "./SkyDancerArc
 import {
   ARCADE_FOG_FAR, ARCADE_FOG_NEAR, ARCADE_SUN_DIRECTION,
   createArcadeCloudMaterial, createArcadeFacadeMaterial, createArcadeSky,
-  createArcadeWaterMaterial, referenceAtmosphere,
+  arcadeAtmosphericDepthV4049, createArcadeWaterMaterial, referenceAtmosphere,
 } from "./SkyDancerArcadeReferenceMaterials";
 
 const CHUNK_LENGTH = 112;
@@ -161,8 +161,11 @@ export class SkyDancerArcadeReferenceWorld {
     disposeTree(this.root);this.water?.dispose();this.chunks.length=0;this.routeCues.length=0;this.iceRibbon=null;this.volcanoRibbon=null;this.cityRiver=null;this.cityBanks=null;this.terrainRibbon=null;this.backdrop=null;
     this.stage=stage;
     const palette=referenceAtmosphere(stage);
+    const atmosphericDepthV4049=arcadeAtmosphericDepthV4049(stage);
     this.scene.background=palette.zenith;
-    this.scene.fog=new THREE.Fog(palette.fog,ARCADE_FOG_NEAR,ARCADE_FOG_FAR);
+    this.scene.fog=new THREE.Fog(palette.fog,atmosphericDepthV4049.fogNear,atmosphericDepthV4049.fogFar);
+    this.root.userData.arcadeAtmosphericDepthV4049=atmosphericDepthV4049;
+    this.root.userData.arcadeAtmosphericDepthDefaultsV4049={near:ARCADE_FOG_NEAR,far:ARCADE_FOG_FAR};
     const hemi=new THREE.HemisphereLight(0xc7d8dd,0x18252e,palette.ambient);
     const key=new THREE.DirectionalLight(palette.key,palette.keyIntensity);
     key.position.copy(ARCADE_SUN_DIRECTION).multiplyScalar(250);
