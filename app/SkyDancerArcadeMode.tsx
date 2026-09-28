@@ -49,6 +49,8 @@ import {
   skyDancerArcadeV407RendererBadgeVisible,
 } from "../src/sky/arcade/SkyDancerArcadeV407FullRunPolish";
 import { skyDancerArcadeV408SceneFocus } from "../src/sky/arcade/SkyDancerArcadeV408CinematicFocus";
+import type { SkyDancerArcadeV4050BreakDirection } from "../src/sky/arcade/SkyDancerArcadeV4050SafeBreak";
+import { skyDancerArcadeV4051BreakCue } from "../src/sky/arcade/SkyDancerArcadeV4051BreakCue";
 import { skyDancerArcadeV4012RunRhythm } from "../src/sky/arcade/SkyDancerArcadeV4012RunRhythm";
 import styles from "./SkyDancerArcadeMode.module.css";
 import productStyles from "./SkyDancerArcadeProduct.module.css";
@@ -225,6 +227,7 @@ export default function SkyDancerArcadeMode({ request, onReturnTitle }: SkyDance
   const keyboardKeysRef = useRef(new Set<string>());
   const recordedResultRef = useRef(0);
   const recordedRunClearRef = useRef(false);
+  const breakDirectionRef = useRef<SkyDancerArcadeV4050BreakDirection | null>(null);
   const [snapshot, setSnapshot] = useState<SkyDancerArcadeSnapshot>(initialSnapshot);
   const [rendererName, setRendererName] = useState<"WEBGL" | "CANVAS">("WEBGL");
   const [runtimeMessage, setRuntimeMessage] = useState<string | null>(null);
@@ -516,10 +519,40 @@ export default function SkyDancerArcadeMode({ request, onReturnTitle }: SkyDance
     && snapshot.stageProgress >= .26
     && snapshot.stageProgress < .47
   );
-  const incomingMissiles = snapshot.projectiles.filter((projectile) => projectile.owner === "enemy"
-    && projectile.depth > 2.2 && projectile.depth < 34
-    && Math.hypot(projectile.x - snapshot.playerX, projectile.y - snapshot.playerY) < 1.9);
-  const missileDanger = incomingMissiles.some((projectile) => projectile.depth < 17);
+  const incomingMissiles = snapshot.projectiles.filter((projectile) => {
+    if (projectile.owner !== "enemy") return false;
+    if ((projectile.warningSeconds ?? 0) > 0) return true;
+    return projectile.depth > 2.2
+      && projectile.depth < 34
+      && Math.hypot(projectile.x - snapshot.playerX, projectile.y - snapshot.playerY) < 1.9;
+  });
+  const missileDanger = incomingMissiles.some((projectile) => {
+    const warning = Math.max(0, projectile.warningSeconds ?? 0);
+    if (warning > 0) {
+      const duration = Math.max(.001, projectile.warningDuration ?? warning);
+      return warning <= Math.min(.42, Math.max(.24, duration * .46));
+    }
+    return projectile.depth < 17;
+  });
+  const rawBreakCue = skyDancerArcadeV4051BreakCue({
+    playerX: snapshot.playerX,
+    playerY: snapshot.playerY,
+    projectiles: snapshot.projectiles,
+    enemies: snapshot.enemies,
+    previousDirection: breakDirectionRef.current,
+  });
+  const rawBreakDirection = rawBreakCue?.direction ?? null;
+  useEffect(() => {
+    breakDirectionRef.current = rawBreakDirection;
+  }, [rawBreakDirection]);
+  const breakCue = useExitLinger(
+    rawBreakCue
+      ? `${rawBreakCue.direction}|${rawBreakCue.arrow}|${rawBreakCue.threatCount}|${rawBreakCue.danger ? 1 : 0}|${rawBreakCue.boss ? 1 : 0}`
+      : null,
+    180,
+  );
+  const [breakCueDirection = "", breakCueArrow = "", breakCueCount = "0", breakCueDanger = "0", breakCueBoss = "0"] =
+    (breakCue.value ?? "||||").split("|");
   const messageCue = useExitLinger(snapshot.message, 220);
   const chainCue = useExitLinger(snapshot.chain > 1 ? snapshot.chain : null, 260);
   const missileCue = useExitLinger(
@@ -528,6 +561,7 @@ export default function SkyDancerArcadeMode({ request, onReturnTitle }: SkyDance
   );
   const [missileCueCount = "0", missileCueDanger = "0", missileCueBoss = "0"] = (missileCue.value ?? "0|0|0").split("|");
   const messageIsBossWarning = Boolean(messageCue.value?.startsWith("WARNING ·") && snapshot.bossActive);
+  const messageIsBreakVector = /^(?:BOSS LOCK|INCOMING) · BREAK (?:LEFT|RIGHT|UP|DOWN)$/.test(messageCue.value ?? "");
   const worldBreakBriefing = skyDancerArcadeV401WorldBreakBriefing(
     snapshot.stage.id,
     snapshot.stageProgress,
@@ -611,6 +645,7 @@ export default function SkyDancerArcadeMode({ request, onReturnTitle }: SkyDance
         data-v408-scene={v408Focus.mode}
         data-v4012-rhythm={v4012Rhythm.phase}
         data-v4039-boss-approach={bossApproachPresentationActive ? "true" : "false"}
+        data-v4051-break-active={breakCue.value ? "true" : "false"}
         style={{ "--v4012-secondary-alpha": v4012Rhythm.secondaryHudAlpha } as CSSProperties}
         aria-label="Sky Dancer Arcade Run"
       >
@@ -753,8 +788,23 @@ export default function SkyDancerArcadeMode({ request, onReturnTitle }: SkyDance
           </div>
         )}
 
-        {messageCue.value && !messageIsBossWarning && !worldBreakCelebration && !worldBreakRecovery && !worldBreakComeback && (
+        {messageCue.value && !messageIsBossWarning && !messageIsBreakVector && !worldBreakCelebration && !worldBreakRecovery && !worldBreakComeback && (
           <div key={messageCue.value} className={`${styles.message} ${productStyles.flightMessage}`} data-exiting={messageCue.exiting} data-priority={cuePriority}>{messageCue.value}</div>
+        )}
+        {breakCue.value && (
+          <div
+            className={styles.breakVector}
+            data-direction={breakCueDirection}
+            data-danger={breakCueDanger === "1"}
+            data-boss={breakCueBoss === "1"}
+            data-exiting={breakCue.exiting}
+            aria-live="polite"
+            aria-label={`Break ${breakCueDirection.toLowerCase()}`}
+          >
+            <small>{breakCueBoss === "1" ? "BOSS BREAK" : "BREAK VECTOR"}</small>
+            <div><strong aria-hidden="true">{breakCueArrow}</strong><span>{breakCueDirection}</span></div>
+            {Number(breakCueCount) > 1 && <em>{breakCueCount} THREATS · HOLD VECTOR</em>}
+          </div>
         )}
         {chainCue.value !== null && (
           <div className={`${styles.chain} ${productStyles.chainReadout}`} data-exiting={chainCue.exiting} data-deemphasized={cuePriority !== "normal"}>CHAIN <strong>×{chainCue.value}</strong></div>
