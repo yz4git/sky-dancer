@@ -40,9 +40,9 @@ const clamp01 = (value: number) => Math.max(0, Math.min(1, value));
  * does not tell the player to dodge into an edge. A small centre-recovery term
  * resolves otherwise-equal choices without changing projectile physics.
  */
-export function skyDancerArcadeV4050SafeBreak(
+export function skyDancerArcadeV4050BreakCandidates(
   input: SkyDancerArcadeV4050SafeBreakInput,
-): SkyDancerArcadeV4050SafeBreakDecision {
+): SkyDancerArcadeV4050SafeBreakDecision[] {
   const incomingX = input.playerX - input.sourceX;
   const incomingY = input.playerY - input.sourceY;
   const incomingLength = Math.hypot(incomingX, incomingY);
@@ -50,6 +50,7 @@ export function skyDancerArcadeV4050SafeBreak(
   const ny = incomingLength > 1e-5 ? incomingY / incomingLength : 0;
 
   let best: SkyDancerArcadeV4050SafeBreakDecision | null = null;
+  const decisions: SkyDancerArcadeV4050SafeBreakDecision[] = [];
   for (const candidate of candidates) {
     const stepX = candidate.x * .74;
     const stepY = candidate.y * .62;
@@ -85,7 +86,15 @@ export function skyDancerArcadeV4050SafeBreak(
       edgeClearance,
     };
     if (!best || decision.score > best.score + 1e-6) best = decision;
+    decisions.push(decision);
   }
 
-  return best ?? { direction: "UP", score: 0, lateralClearance: 0, edgeClearance: 0 };
+  return decisions.sort((a, b) => b.score - a.score);
+}
+
+export function skyDancerArcadeV4050SafeBreak(
+  input: SkyDancerArcadeV4050SafeBreakInput,
+): SkyDancerArcadeV4050SafeBreakDecision {
+  return skyDancerArcadeV4050BreakCandidates(input)[0]
+    ?? { direction: "UP", score: 0, lateralClearance: 0, edgeClearance: 0 };
 }
