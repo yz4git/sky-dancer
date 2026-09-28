@@ -163,3 +163,99 @@
   .bossApproach span { margin-top: 1px; font-size: 5.5px; letter-spacing: .16em; }
   .bossApproach > i { height: 2px; margin-top: 3px; }
 }
+
+
+/* Arcade Run V40.51: dedicated, phone-readable break vector.
+   The cue owns the combat hierarchy only while hostile fire is actually inbound. */
+.breakVector{
+  position:absolute;
+  z-index:14;
+  left:50%;
+  top:30%;
+  transform:translateX(-50%);
+  min-width:148px;
+  padding:5px 13px 6px;
+  border:1px solid rgba(255,167,94,.72);
+  border-radius:7px;
+  background:linear-gradient(180deg,rgba(40,18,10,.86),rgba(18,8,12,.82));
+  box-shadow:0 0 20px rgba(255,112,72,.18),inset 0 1px 0 rgba(255,255,255,.12);
+  text-align:center;
+  pointer-events:none;
+  text-shadow:0 2px 8px rgba(2,5,12,.9);
+  animation:v4051BreakIn .16s cubic-bezier(.18,.78,.22,1) both;
+}
+.breakVector small,.breakVector span,.breakVector em{display:block}
+.breakVector small{
+  font-size:5px;
+  line-height:1;
+  font-weight:1000;
+  letter-spacing:.25em;
+  color:#ffad75;
+}
+.breakVector>div{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:9px;
+  min-height:30px;
+  margin-top:1px;
+}
+.breakVector strong{
+  display:block;
+  min-width:32px;
+  font-size:31px;
+  line-height:.82;
+  color:#fff4db;
+  text-shadow:0 0 13px rgba(255,167,92,.62);
+}
+.breakVector span{
+  font-size:15px;
+  line-height:1;
+  font-weight:1000;
+  letter-spacing:.16em;
+  color:#fff;
+}
+.breakVector em{
+  margin-top:1px;
+  font-size:5px;
+  line-height:1;
+  font-style:normal;
+  font-weight:1000;
+  letter-spacing:.14em;
+  color:rgba(255,222,196,.72);
+}
+.breakVector[data-danger="true"]{
+  border-color:rgba(255,78,74,.92);
+  background:linear-gradient(180deg,rgba(61,7,12,.9),rgba(28,5,11,.86));
+  box-shadow:0 0 28px rgba(255,58,67,.28),inset 0 1px 0 rgba(255,255,255,.14);
+  animation:v4051BreakIn .16s cubic-bezier(.18,.78,.22,1) both,v4051BreakPulse .32s steps(2,end) infinite;
+}
+.breakVector[data-danger="true"] small{color:#ff7b74}
+.breakVector[data-danger="true"] strong{color:#fff;text-shadow:0 0 17px rgba(255,73,80,.82)}
+.breakVector[data-boss="true"]{border-color:rgba(255,91,152,.88);box-shadow:0 0 28px rgba(255,68,145,.22),inset 0 1px 0 rgba(255,255,255,.12)}
+.breakVector[data-boss="true"] small{color:#ff91c8}
+.breakVector[data-exiting="true"]{animation:v4051BreakOut .18s ease-in forwards}
+.stage[data-v4051-break-active="true"] .chain{opacity:.1;filter:saturate(.55);transform:translateX(-50%) translateY(9px) rotate(-4deg) scale(.84)}
+.stage[data-v4051-break-active="true"] .routeOverlay,
+.stage[data-v4051-break-active="true"] .timelineV407{opacity:.12}
+@keyframes v4051BreakIn{
+  from{opacity:0;transform:translateX(-50%) translateY(-5px) scale(.94)}
+  to{opacity:1;transform:translateX(-50%) translateY(0) scale(1)}
+}
+@keyframes v4051BreakOut{
+  from{opacity:1;transform:translateX(-50%) translateY(0) scale(1)}
+  to{opacity:0;transform:translateX(-50%) translateY(-6px) scale(.95)}
+}
+@keyframes v4051BreakPulse{50%{filter:brightness(1.25);transform:translateX(-50%) scale(1.035)}}
+@media(max-height:520px){
+  .breakVector{top:27%;min-width:132px;padding:4px 10px 5px}
+  .breakVector>div{min-height:27px;gap:7px}
+  .breakVector strong{font-size:27px}
+  .breakVector span{font-size:13px}
+}
+@media(orientation:portrait){
+  .breakVector{top:31%;min-width:160px}
+}
+@media(prefers-reduced-motion:reduce){
+  .breakVector,.breakVector[data-danger="true"],.breakVector[data-exiting="true"]{animation:none}
+}
