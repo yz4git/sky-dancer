@@ -6,6 +6,7 @@ import {
   createSkyDancerArcadeVolcanicPlumeFx,
 } from "./SkyDancerArcadeV4022EnvironmentalFx";
 import { bakeArcadeAirframe } from "./SkyDancerArcadeReferenceAirframes";
+import { SKY_DANCER_ARCADE_V4053_STAGE_READABILITY } from "./SkyDancerArcadeV4053StageCombatReadability";
 import { SKY_DANCER_ARCADE_V4052_ICE } from "./SkyDancerArcadeV4052IceCavernComposition";
 import { arcadeCoursePose, arcadeCourseRelativeVisualPose } from "./SkyDancerArcadeCoursePath";
 import {
@@ -23,7 +24,7 @@ const CITY_QUAY_DEPTH = CHUNK_LENGTH + 12; // V10.3.3: city banks overlap modest
 // V10.3.9: phone playcheck clearance for visual-only near-pass scenery.
 // These values keep speed silhouettes at the edges without letting a sharp spline yaw wipe the central combat lane.
 export const ARCADE_NEAR_PASS_CLEARANCE_V1039 = {
-  city: 30, night: 39, canyon: 42, volcano: 44, ice: SKY_DANCER_ARCADE_V4052_ICE.nearPassClearance, cloud: 39, storm: 38, ruins: 43, orbit: 42, citadel: 36,
+  city: 30, night: 39, canyon: 42, volcano: 44, ice: SKY_DANCER_ARCADE_V4052_ICE.nearPassClearance, cloud: 39, storm: SKY_DANCER_ARCADE_V4053_STAGE_READABILITY.stormNearPassClearance, ruins: 43, orbit: 42, citadel: 36,
 } as const;
 const fract = (n: number) => n - Math.floor(n);
 const random = (seed: number) => fract(Math.sin(seed * 127.1 + 311.7) * 43758.5453);
@@ -505,8 +506,20 @@ export class SkyDancerArcadeReferenceWorld {
 
   private buildVolcanoRibbon(stage:SkyDancerArcadeStageDefinition):void {
     this.volcanoRibbon={
-      outer:this.makeVolcanoRibbonMesh(stage,19,"arcade-volcano-course-ribbon-outer",.62),
-      core:this.makeVolcanoRibbonMesh(stage,10,"arcade-volcano-course-ribbon-core",.92),
+      // V40.53: keep the magma river as route language, but stop it from becoming a full-width
+      // luminous road that competes with hostile silhouettes on phone landscape.
+      outer:this.makeVolcanoRibbonMesh(
+        stage,
+        SKY_DANCER_ARCADE_V4053_STAGE_READABILITY.volcanoRibbonOuterWidth,
+        "arcade-volcano-course-ribbon-outer",
+        SKY_DANCER_ARCADE_V4053_STAGE_READABILITY.volcanoRibbonOuterOpacity,
+      ),
+      core:this.makeVolcanoRibbonMesh(
+        stage,
+        SKY_DANCER_ARCADE_V4053_STAGE_READABILITY.volcanoRibbonCoreWidth,
+        "arcade-volcano-course-ribbon-core",
+        SKY_DANCER_ARCADE_V4053_STAGE_READABILITY.volcanoRibbonCoreOpacity,
+      ),
     };
   }
 
@@ -533,8 +546,8 @@ export class SkyDancerArcadeReferenceWorld {
       }
       attribute.needsUpdate=true;
     };
-    update(this.volcanoRibbon.outer,19,0);
-    update(this.volcanoRibbon.core,10,.11);
+    update(this.volcanoRibbon.outer,SKY_DANCER_ARCADE_V4053_STAGE_READABILITY.volcanoRibbonOuterWidth,0);
+    update(this.volcanoRibbon.core,SKY_DANCER_ARCADE_V4053_STAGE_READABILITY.volcanoRibbonCoreWidth,.11);
   }
 
   private buildRouteCues(stage:SkyDancerArcadeStageDefinition):void {
@@ -850,12 +863,15 @@ export class SkyDancerArcadeReferenceWorld {
           const rock=mesh(group,new THREE.CylinderGeometry(4+r(j+3)*5,8+r(j+5)*7,h,7,3),j%2?primary:secondary,side*(28+j%2*28),-25+h/2,-42+j*27);
           rock.rotation.y=r(j+19)*2;
         }
-        // V40.22: heat/magma is emission, not a row of solid cone objects.
-        for(let i=0;i<3;i++){
-          const plumeHeight=11+r(i)*9;
+        // V40.53: two side-biased vents preserve eruption energy while keeping the centre combat
+        // lane free of warm vertical lines that previously merged with orange/yellow aircraft.
+        for(let i=0;i<2;i++){
+          const plumeHeight=10+r(i)*8;
           const vent=createSkyDancerArcadeVolcanicPlumeFx(stage.palette.accent,index*101+i*17+3,plumeHeight);
-          vent.position.set(r(i+8)*50-25,-20,r(i+4)*100-50);
-          vent.scale.set(.82,1,.82);
+          const plumeSide=(index+i)%2===0?1:-1;
+          const plumeX=plumeSide*(SKY_DANCER_ARCADE_V4053_STAGE_READABILITY.volcanoPlumeClearance+r(i+8)*15);
+          vent.position.set(plumeX,-20,r(i+4)*100-50);
+          vent.scale.set(.72,.92,.72);
           group.add(vent);
         }
         break;
@@ -892,16 +908,16 @@ export class SkyDancerArcadeReferenceWorld {
         const tier=(index%3)-1;
         for(const side of [-1,1]){
           const pressure=side===stormSide;
-          const shipX=side*(pressure?29:48);
+          const shipX=side*(pressure?SKY_DANCER_ARCADE_V4053_STAGE_READABILITY.stormPressureShipX:50);
           const shipY=(pressure?-5:-13)+tier*(pressure?4.8:2.4);
           const shipZ=pressure?-5:13;
-          const hull=mesh(group,new THREE.BoxGeometry(pressure?18:12,pressure?7:4.5,pressure?50:31),pressure?dark:primary,shipX,shipY,shipZ);
+          const hull=mesh(group,new THREE.BoxGeometry(pressure?16:12,pressure?6.6:4.5,pressure?46:31),pressure?dark:primary,shipX,shipY,shipZ);
           hull.rotation.z=side*(pressure?.045:-.018);hull.rotation.y=side*(pressure?.035:-.02);
           const bow=mesh(group,new THREE.ConeGeometry(pressure?8.8:5.8,pressure?17:11,6),pressure?primary:secondary,shipX,shipY,shipZ-(pressure?33:21));
           bow.rotation.x=Math.PI/2;bow.rotation.z=side*.035;
-          const deck=mesh(group,new THREE.BoxGeometry(pressure?31:18,1.15,pressure?31:20),secondary,shipX,shipY+(pressure?4.8:3),shipZ-1);
+          const deck=mesh(group,new THREE.BoxGeometry(pressure?SKY_DANCER_ARCADE_V4053_STAGE_READABILITY.stormPressureDeckWidth:18,1.15,pressure?28:20),secondary,shipX,shipY+(pressure?4.8:3),shipZ-1);
           deck.rotation.z=side*(pressure?.025:-.012);
-          mesh(group,new THREE.BoxGeometry(pressure?23:13,.28,pressure?26:16),glow,shipX-side*1.5,shipY+(pressure?5.6:3.7),shipZ-2);
+          mesh(group,new THREE.BoxGeometry(pressure?19:13,.28,pressure?23:16),glow,shipX-side*1.5,shipY+(pressure?5.6:3.7),shipZ-2);
           if(pressure){
             const island=mesh(group,new THREE.BoxGeometry(5.5,13,7.5),primary,shipX+side*5.4,shipY+11,shipZ+3);island.rotation.z=side*.085;
             const rod=mesh(group,new THREE.CylinderGeometry(.35,.5,18,6),secondary,shipX+side*5.4,shipY+26,shipZ+3);rod.rotation.z=side*.04;
