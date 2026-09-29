@@ -38,6 +38,10 @@ import {
   skyDancerArcadeV4052IceEnemyContrast,
 } from "./SkyDancerArcadeV4052IceCavernComposition";
 import {
+  SKY_DANCER_ARCADE_V4053_STAGE_READABILITY,
+  skyDancerArcadeV4053VolcanoContact,
+} from "./SkyDancerArcadeV4053StageCombatReadability";
+import {
   SKY_DANCER_ARCADE_V4010_DEFAULT_FX_CLARITY,
   skyDancerArcadeV4010DynamicOcclusion,
   skyDancerArcadeV4010EntityOcclusion,
@@ -114,6 +118,31 @@ function createIceContactLightsV4052(): THREE.Points<THREE.BufferGeometry, THREE
   points.name = "arcade-v4052-ice-contact-lights";
   points.renderOrder = 3;
   points.userData.arcadeIceContactSeparationV4052 = true;
+  return points;
+}
+
+function createVolcanoContactLightsV4053(): THREE.Points<THREE.BufferGeometry, THREE.PointsMaterial> {
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute("position", new THREE.Float32BufferAttribute([
+    -.74, .13, .2,
+     .74, .13, .2,
+       0, .22, .6,
+  ], 3));
+  const material = new THREE.PointsMaterial({
+    color: SKY_DANCER_ARCADE_V4053_STAGE_READABILITY.volcanoContactColor,
+    size: 4.3,
+    sizeAttenuation: false,
+    transparent: true,
+    opacity: .54,
+    depthWrite: false,
+    depthTest: true,
+    blending: THREE.AdditiveBlending,
+    toneMapped: false,
+  });
+  const points = new THREE.Points(geometry, material);
+  points.name = "arcade-v4053-volcano-contact-lights";
+  points.renderOrder = 3;
+  points.userData.arcadeVolcanoContactSeparationV4053 = true;
   return points;
 }
 
@@ -756,6 +785,11 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
           visualRigV4052.add(createIceContactLightsV4052());
           group.userData.arcadeIceEnemySeparationV4052 = true;
         }
+        if (snapshot.stage.id === "volcano-core" && !enemy.boss) {
+          const visualRigV4053 = group.getObjectByName("arcade-enemy-v19-readable-attitude-rig") ?? group;
+          visualRigV4053.add(createVolcanoContactLightsV4053());
+          group.userData.arcadeVolcanoEnemySeparationV4053 = true;
+        }
         if (enemy.rivalAce) {
           // V40.4: NOVA-7 keeps one unmistakable magenta/cyan signature across every biome.
           const identity = new THREE.Group();
@@ -984,6 +1018,17 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
         iceContactV4052.visible = contrastV4052.visible;
         iceContactV4052.material.opacity = contrastV4052.opacity;
         iceContactV4052.material.size = contrastV4052.pointSize;
+      }
+      const volcanoContactV4053 = group.getObjectByName("arcade-v4053-volcano-contact-lights");
+      if (volcanoContactV4053 instanceof THREE.Points && volcanoContactV4053.material instanceof THREE.PointsMaterial) {
+        const contrastV4053 = skyDancerArcadeV4053VolcanoContact({
+          depth: enemy.depth,
+          priority: Boolean(enemy.rivalAce || enemy.worldBreakTarget || enemy.locked || primaryLockIdsV271.has(enemy.id)),
+          incomingThreat: v4042LaunchByEnemy.has(enemy.id),
+        });
+        volcanoContactV4053.visible = contrastV4053.visible;
+        volcanoContactV4053.material.opacity = contrastV4053.opacity;
+        volcanoContactV4053.material.size = contrastV4053.pointSize;
       }
       if (!enemy.boss) {
         const baseScale = typeof group.userData.arcadeCombatBaseScale === "number" ? group.userData.arcadeCombatBaseScale : group.scale.x;
