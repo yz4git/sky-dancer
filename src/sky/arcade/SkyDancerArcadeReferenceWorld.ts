@@ -671,9 +671,12 @@ export class SkyDancerArcadeReferenceWorld {
         seam.rotation.z=side*.12;
         const crown=mesh(cathedral,new THREE.ConeGeometry(7.4,38,5),iceBody,side*34,48,5);
         crown.rotation.z=Math.PI+side*.07;
+        const archBeam=mesh(cathedral,new THREE.BoxGeometry(34,4.8,18),iceFace,side*20,48,3);
+        archBeam.rotation.z=-side*.23;
+        archBeam.rotation.y=side*.025;
       }
       const coldLight=mesh(cathedral,new THREE.BoxGeometry(44,48,1.4),new THREE.MeshBasicMaterial({
-        color:0xe9fdff,transparent:true,opacity:.08,blending:THREE.AdditiveBlending,depthWrite:false,toneMapped:false,
+        color:0xe9fdff,transparent:true,opacity:.12,blending:THREE.AdditiveBlending,depthWrite:false,toneMapped:false,
       }),0,10,14);
       coldLight.name="arcade-v4052-ice-cathedral-aperture-light";
       group.add(cathedral);
@@ -924,9 +927,12 @@ export class SkyDancerArcadeReferenceWorld {
           const crystal=mesh(group,new THREE.ConeGeometry(3.2+r(j+5)*2.1,h,5),j%2?primary:secondary,sideX,-20+h/2,-46+j*29);
           crystal.rotation.z=side*(.045+r(j)*.1);
           if(j%2===0){
-            const toothHeight=8+r(j+23)*7;
-            const tooth=mesh(group,new THREE.ConeGeometry(2.8+r(j+17)*1.6,toothHeight,5),j%2?secondary:primary,side*(38+r(j+31)*10),24,-31+j*31);
-            tooth.rotation.z=Math.PI+side*(.05+r(j+41)*.08);
+            // V40.52.1: embed the upper crystal into the wall mass. A free-hanging cone against open
+            // sky read as a floating triangle on phone landscape rather than a believable cave tooth.
+            const wallGem=mesh(group,new THREE.OctahedronGeometry(3.2+r(j+17)*1.8,0),j%2?secondary:primary,side*(46+r(j+31)*10),-1+r(j+23)*7,-31+j*31);
+            wallGem.scale.set(1.15,2.35,1);
+            wallGem.rotation.z=side*(.27+r(j+41)*.13);
+            wallGem.rotation.y=side*.08;
           }
         }
         for(const side of [-1,1]){
