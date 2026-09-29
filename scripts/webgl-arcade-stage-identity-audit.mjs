@@ -13,7 +13,7 @@ const fullStages = [
   { id: "orbital-ascent", short: "ORBIT", name: "ORBITAL ASCENT", focus: true },
 ];
 const stages = visualAudit
-  ? fullStages
+  ? fullStages.filter((stage) => stage.id === "ice-cavern")
   : fullStages.filter((stage) => stage.id === "ice-cavern" || stage.id === "orbital-ascent");
 const allStageIds = ["dawn-city","red-canyon","cloud-fleet","storm-carrier","desert-fortress","ice-cavern","floating-ruins","night-metro","volcano-core","orbital-ascent","prism-citadel"];
 await mkdir(outputDir, { recursive: true });
