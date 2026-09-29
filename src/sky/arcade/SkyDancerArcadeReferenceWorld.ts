@@ -7,6 +7,11 @@ import {
 } from "./SkyDancerArcadeV4022EnvironmentalFx";
 import { bakeArcadeAirframe } from "./SkyDancerArcadeReferenceAirframes";
 import { SKY_DANCER_ARCADE_V4053_STAGE_READABILITY } from "./SkyDancerArcadeV4053StageCombatReadability";
+import {
+  SKY_DANCER_ARCADE_V4054_NIGHT_PRISM,
+  skyDancerArcadeV4054NightCityLaneX,
+  skyDancerArcadeV4054PrismBastionX,
+} from "./SkyDancerArcadeV4054NightPrismReadability";
 import { SKY_DANCER_ARCADE_V4052_ICE } from "./SkyDancerArcadeV4052IceCavernComposition";
 import { arcadeCoursePose, arcadeCourseRelativeVisualPose } from "./SkyDancerArcadeCoursePath";
 import {
@@ -24,7 +29,7 @@ const CITY_QUAY_DEPTH = CHUNK_LENGTH + 12; // V10.3.3: city banks overlap modest
 // V10.3.9: phone playcheck clearance for visual-only near-pass scenery.
 // These values keep speed silhouettes at the edges without letting a sharp spline yaw wipe the central combat lane.
 export const ARCADE_NEAR_PASS_CLEARANCE_V1039 = {
-  city: 30, night: 39, canyon: 42, volcano: 44, ice: SKY_DANCER_ARCADE_V4052_ICE.nearPassClearance, cloud: 39, storm: SKY_DANCER_ARCADE_V4053_STAGE_READABILITY.stormNearPassClearance, ruins: 43, orbit: 42, citadel: 36,
+  city: 30, night: SKY_DANCER_ARCADE_V4054_NIGHT_PRISM.nightNearPassClearance, canyon: 42, volcano: 44, ice: SKY_DANCER_ARCADE_V4052_ICE.nearPassClearance, cloud: 39, storm: SKY_DANCER_ARCADE_V4053_STAGE_READABILITY.stormNearPassClearance, ruins: 43, orbit: 42, citadel: SKY_DANCER_ARCADE_V4054_NIGHT_PRISM.prismNearPassClearance,
 } as const;
 const fract = (n: number) => n - Math.floor(n);
 const random = (seed: number) => fract(Math.sin(seed * 127.1 + 311.7) * 43758.5453);
@@ -1021,21 +1026,24 @@ export class SkyDancerArcadeReferenceWorld {
         const gateSide=index%2===0?1:-1;
         for(const side of [-1,1]){
           const tier=((index+(side>0?1:0))%3)-1;
-          const bastionX=side*(39+(index%3)*3.5);
+          const bastionX=side*skyDancerArcadeV4054PrismBastionX(index);
           const lift=tier*4.8;
-          const prism=mesh(group,new THREE.OctahedronGeometry(10.5+(index%2)*1.5,0),side===gateSide?secondary:primary,bastionX,-1+lift,-5);
-          prism.scale.set(.74,2.55,.9);prism.rotation.z=side*(.24+tier*.055);prism.rotation.y=side*.16;
-          const core=mesh(group,new THREE.BoxGeometry(1.6,31,2.2),glow,bastionX-side*2.2,1+lift,-4);
+          const prism=mesh(group,new THREE.OctahedronGeometry(9.2+(index%2)*1.3,0),side===gateSide?secondary:primary,bastionX,-1+lift,-5);
+          prism.scale.set(.7,2.35,.86);prism.rotation.z=side*(.24+tier*.055);prism.rotation.y=side*.16;
+          const core=mesh(group,new THREE.BoxGeometry(1.35,28,2),glow,bastionX-side*2,1+lift,-4);
           core.rotation.z=side*.08;
-          const terrace=mesh(group,new THREE.BoxGeometry(24,1.5,34),dark,side*35,-18+lift*.25,2);
+          const terraceX=side*SKY_DANCER_ARCADE_V4054_NIGHT_PRISM.prismTerraceX;
+          const terrace=mesh(group,new THREE.BoxGeometry(20,1.35,31),dark,terraceX,-18+lift*.25,2);
           terrace.rotation.z=side*(.045+tier*.012);
-          mesh(group,new THREE.BoxGeometry(17,.26,29),glow,side*34,-16.9+lift*.25,2);
-          const blade=mesh(group,new THREE.BoxGeometry(2.4,24,3),side===gateSide?primary:secondary,side*(27+tier*2.2),8+lift,-30+(index%2)*10);
+          mesh(group,new THREE.BoxGeometry(SKY_DANCER_ARCADE_V4054_NIGHT_PRISM.prismTerraceGlowWidth,.22,26),glow,terraceX-side*.8,-16.95+lift*.25,2);
+          const bladeX=side*(SKY_DANCER_ARCADE_V4054_NIGHT_PRISM.prismBladeBaseX+tier*2);
+          const blade=mesh(group,new THREE.BoxGeometry(2,21,2.6),side===gateSide?primary:secondary,bladeX,8+lift,-30+(index%2)*10);
           blade.rotation.z=side*(.28+tier*.035);
           if(side===gateSide){
-            const crown=mesh(group,new THREE.OctahedronGeometry(5.8,0),secondary,side*20,17+lift,-34);
-            crown.scale.set(.55,1.8,.65);crown.rotation.z=side*.42;
-            mesh(group,new THREE.BoxGeometry(.8,18,1.5),glow,side*18.2,17+lift,-34);
+            const crownX=side*SKY_DANCER_ARCADE_V4054_NIGHT_PRISM.prismCrownX;
+            const crown=mesh(group,new THREE.OctahedronGeometry(5,0),secondary,crownX,17+lift,-34);
+            crown.scale.set(.52,1.62,.62);crown.rotation.z=side*.42;
+            mesh(group,new THREE.BoxGeometry(.7,16,1.4),glow,crownX-side*1.5,17+lift,-34);
           }
         }
         // Paired floor rails point at the distant keep without enclosing the player in another ring.
@@ -1200,9 +1208,9 @@ export class SkyDancerArcadeReferenceWorld {
       } else if(stage.biome==="citadel"){
         // V8.9: keep near-pass pressure at the outer walls and vary the side rhythm instead of
         // building a matched pair of giant prisms around every view.
-        const citadelX=side*(36+r(j+71)*13+(j%2)*4);
-        const prism=mesh(group,new THREE.OctahedronGeometry(3.8+r(j+3)*2.9,0),j%2?secondary:primary,citadelX,-4+r(j+13)*10,z);
-        prism.scale.set(.72,1.45+r(j+33)*.9,.78);
+        const citadelX=side*(ARCADE_NEAR_PASS_CLEARANCE_V1039.citadel+r(j+71)*11+(j%2)*4);
+        const prism=mesh(group,new THREE.OctahedronGeometry(3.5+r(j+3)*2.4,0),j%2?secondary:primary,citadelX,-4+r(j+13)*10,z);
+        prism.scale.set(.7,1.35+r(j+33)*.78,.75);
         prism.rotation.z=side*(.2+r(j+43)*.24);
         prism.rotation.y=side*(.08+r(j+53)*.12);
         if((j+index)%3===0){
@@ -1232,19 +1240,20 @@ export class SkyDancerArcadeReferenceWorld {
 
     for(const side of [-1,1]){
       const lead=side===leadSide;
-      const railX=side*(lead?24:34);
+      const railX=side*(lead?SKY_DANCER_ARCADE_V4054_NIGHT_PRISM.nightLeadRailX:SKY_DANCER_ARCADE_V4054_NIGHT_PRISM.nightFarRailX);
       const railY=lead?leadY:farY;
-      const deck=mesh(group,new THREE.BoxGeometry(lead?10:7,1.1,84),lead?secondary:dark,railX,railY,0);
+      const deck=mesh(group,new THREE.BoxGeometry(lead?9:6.5,1.05,82),lead?secondary:dark,railX,railY,0);
       deck.rotation.z=side*(lead?.035:-.018);
       mesh(group,new THREE.BoxGeometry(.42,.22,80),glow,railX-side*(lead?3.3:2.2),railY+.78,0);
       mesh(group,new THREE.BoxGeometry(.28,.18,80),primary,railX+side*(lead?3.2:2.1),railY+.72,0);
 
       if(lead){
-        const canopy=mesh(group,new THREE.BoxGeometry(15,1.2,24),dark,side*30,6+tier*2,-14);
+        const canopyX=side*SKY_DANCER_ARCADE_V4054_NIGHT_PRISM.nightLeadCanopyX;
+        const canopy=mesh(group,new THREE.BoxGeometry(13,1.1,22),dark,canopyX,6+tier*2,-14);
         canopy.rotation.z=side*.055;canopy.rotation.y=side*.025;
-        mesh(group,new THREE.BoxGeometry(12,.28,23),glow,side*24.5,6.9+tier*2,-14);
+        mesh(group,new THREE.BoxGeometry(9.5,.24,21),glow,canopyX-side*3.8,6.85+tier*2,-14);
         for(const z of [-23,-5]){
-          const support=mesh(group,new THREE.BoxGeometry(1.4,17,1.4),secondary,side*35,-2+tier*2,z);
+          const support=mesh(group,new THREE.BoxGeometry(1.25,16,1.25),secondary,side*(SKY_DANCER_ARCADE_V4054_NIGHT_PRISM.nightLeadCanopyX+5),-2+tier*2,z);
           support.rotation.z=side*.06;
         }
       }
@@ -1253,11 +1262,12 @@ export class SkyDancerArcadeReferenceWorld {
     // Split gantries mark speed beats without recreating a full-screen hoop/tunnel.
     if(index%2===1){
       for(const side of [-1,1]){
-        const post=mesh(group,new THREE.BoxGeometry(1.3,23,1.8),secondary,side*35,2,-32);
+        const post=mesh(group,new THREE.BoxGeometry(1.2,21,1.7),secondary,side*SKY_DANCER_ARCADE_V4054_NIGHT_PRISM.nightGantryPostX,2,-32);
         post.rotation.z=side*.035;
-        const arm=mesh(group,new THREE.BoxGeometry(10,1.2,1.8),side===leadSide?primary:dark,side*29,14,-32);
+        const armX=side*SKY_DANCER_ARCADE_V4054_NIGHT_PRISM.nightGantryArmX;
+        const arm=mesh(group,new THREE.BoxGeometry(8.5,1.05,1.7),side===leadSide?primary:dark,armX,14,-32);
         arm.rotation.z=side*(side===leadSide?-.04:.025);
-        mesh(group,new THREE.BoxGeometry(6,.26,2),glow,side*26,15,-32);
+        mesh(group,new THREE.BoxGeometry(4.5,.22,1.9),glow,armX-side*2.6,15,-32);
       }
     }
   }
@@ -1315,7 +1325,9 @@ export class SkyDancerArcadeReferenceWorld {
       const w=(hero?3.2:4.1)+random(seed+13)*(hero?3.4:5.1);
       const d=5+random(seed+29)*6.5;
       // V10.3.3: preserve a real river/flight corridor instead of letting foreground towers collide with route surfaces.
-      const x=side*(38+lane*15+random(seed+7)*4.2);
+      const x=side*(stage.biome==="night"
+        ? skyDancerArcadeV4054NightCityLaneX(lane,random(seed+7)*4.2)
+        : 38+lane*15+random(seed+7)*4.2);
       const z=-50+row*19+random(seed+61)*4.5;
       this.matrixObject.position.set(x,-25+h/2,z);
       this.matrixObject.scale.set(w,h,d);this.matrixObject.rotation.set(0,0,0);this.matrixObject.updateMatrix();
