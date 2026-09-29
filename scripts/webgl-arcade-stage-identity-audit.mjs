@@ -8,7 +8,7 @@ const outputDir = process.env.SKY_DANCER_AUDIT_DIR || "artifacts/arcade-stage-id
 const visualAudit = process.env.SKY_DANCER_STAGE_AUDIT_VISUAL === "1";
 const fullStages = [
   { id: "night-metro", short: "METRO", name: "NIGHT METRO", focus: true },
-  { id: "prism-citadel", short: "PRISM", name: "PRISM CITADEL", focus: true },
+  { id: "prism-citadel", short: "CITADEL", name: "PRISM CITADEL", focus: true },
 ];
 const stages = fullStages;
 const allStageIds = ["dawn-city","red-canyon","cloud-fleet","storm-carrier","desert-fortress","ice-cavern","floating-ruins","night-metro","volcano-core","orbital-ascent","prism-citadel"];
