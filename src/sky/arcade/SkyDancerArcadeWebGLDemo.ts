@@ -34,6 +34,10 @@ import { skyDancerArcadeV408SceneFocus, skyDancerArcadeV408TargetLookBias } from
 import { skyDancerArcadeV4044IsTerminalThreat, skyDancerArcadeV409PhoneClarity } from "./SkyDancerArcadeV409PhoneClarity";
 import { skyDancerArcadeV4045Stage } from "./SkyDancerArcadeV4045ColorGrade";
 import {
+  SKY_DANCER_ARCADE_V4052_ICE,
+  skyDancerArcadeV4052IceEnemyContrast,
+} from "./SkyDancerArcadeV4052IceCavernComposition";
+import {
   SKY_DANCER_ARCADE_V4010_DEFAULT_FX_CLARITY,
   skyDancerArcadeV4010DynamicOcclusion,
   skyDancerArcadeV4010EntityOcclusion,
@@ -86,6 +90,31 @@ function setArcadeCuePointSizeV27(root: THREE.Object3D, pointSize: number): void
     const uniform = object.material.uniforms.pointSize;
     if (uniform) uniform.value = pointSize;
   });
+}
+
+function createIceContactLightsV4052(): THREE.Points<THREE.BufferGeometry, THREE.PointsMaterial> {
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute("position", new THREE.Float32BufferAttribute([
+    -.72, .12, .18,
+     .72, .12, .18,
+       0, .2, .58,
+  ], 3));
+  const material = new THREE.PointsMaterial({
+    color: SKY_DANCER_ARCADE_V4052_ICE.contactLightColor,
+    size: 4.2,
+    sizeAttenuation: false,
+    transparent: true,
+    opacity: .56,
+    depthWrite: false,
+    depthTest: true,
+    blending: THREE.AdditiveBlending,
+    toneMapped: false,
+  });
+  const points = new THREE.Points(geometry, material);
+  points.name = "arcade-v4052-ice-contact-lights";
+  points.renderOrder = 3;
+  points.userData.arcadeIceContactSeparationV4052 = true;
+  return points;
 }
 
 type HostileProjectileClassV4042 = "bolt" | "seeker" | "heavy" | "boss";
@@ -722,6 +751,11 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
         group = createSkyDancerArcadeEnemy(snapshot.stage, enemy);
         const course = arcadeCourseRelativeVisualPose(snapshot.stage, snapshot.distance, enemy.depth);
         group.userData.arcadeCombatBaseScale = group.scale.x;
+        if (snapshot.stage.id === "ice-cavern" && !enemy.boss) {
+          const visualRigV4052 = group.getObjectByName("arcade-enemy-v19-readable-attitude-rig") ?? group;
+          visualRigV4052.add(createIceContactLightsV4052());
+          group.userData.arcadeIceEnemySeparationV4052 = true;
+        }
         if (enemy.rivalAce) {
           // V40.4: NOVA-7 keeps one unmistakable magenta/cyan signature across every biome.
           const identity = new THREE.Group();
@@ -939,6 +973,17 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
         const pulse = 1 + Math.sin(snapshot.runTimeSeconds * 8.5 + enemy.id) * .08;
         rivalIdentity.scale.setScalar(pulse);
         rivalIdentity.rotation.z = -group.rotation.z * .35;
+      }
+      const iceContactV4052 = group.getObjectByName("arcade-v4052-ice-contact-lights");
+      if (iceContactV4052 instanceof THREE.Points && iceContactV4052.material instanceof THREE.PointsMaterial) {
+        const contrastV4052 = skyDancerArcadeV4052IceEnemyContrast({
+          depth: enemy.depth,
+          priority: Boolean(enemy.rivalAce || enemy.worldBreakTarget || enemy.locked || primaryLockIdsV271.has(enemy.id)),
+          incomingThreat: v4042LaunchByEnemy.has(enemy.id),
+        });
+        iceContactV4052.visible = contrastV4052.visible;
+        iceContactV4052.material.opacity = contrastV4052.opacity;
+        iceContactV4052.material.size = contrastV4052.pointSize;
       }
       if (!enemy.boss) {
         const baseScale = typeof group.userData.arcadeCombatBaseScale === "number" ? group.userData.arcadeCombatBaseScale : group.scale.x;

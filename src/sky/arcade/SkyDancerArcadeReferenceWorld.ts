@@ -6,6 +6,7 @@ import {
   createSkyDancerArcadeVolcanicPlumeFx,
 } from "./SkyDancerArcadeV4022EnvironmentalFx";
 import { bakeArcadeAirframe } from "./SkyDancerArcadeReferenceAirframes";
+import { SKY_DANCER_ARCADE_V4052_ICE } from "./SkyDancerArcadeV4052IceCavernComposition";
 import { arcadeCoursePose, arcadeCourseRelativeVisualPose } from "./SkyDancerArcadeCoursePath";
 import {
   ARCADE_FOG_FAR, ARCADE_FOG_NEAR, ARCADE_SUN_DIRECTION,
@@ -22,7 +23,7 @@ const CITY_QUAY_DEPTH = CHUNK_LENGTH + 12; // V10.3.3: city banks overlap modest
 // V10.3.9: phone playcheck clearance for visual-only near-pass scenery.
 // These values keep speed silhouettes at the edges without letting a sharp spline yaw wipe the central combat lane.
 export const ARCADE_NEAR_PASS_CLEARANCE_V1039 = {
-  city: 30, night: 39, canyon: 42, volcano: 44, ice: 35, cloud: 39, storm: 38, ruins: 43, orbit: 42, citadel: 36,
+  city: 30, night: 39, canyon: 42, volcano: 44, ice: SKY_DANCER_ARCADE_V4052_ICE.nearPassClearance, cloud: 39, storm: 38, ruins: 43, orbit: 42, citadel: 36,
 } as const;
 const fract = (n: number) => n - Math.floor(n);
 const random = (seed: number) => fract(Math.sin(seed * 127.1 + 311.7) * 43758.5453);
@@ -556,22 +557,23 @@ export class SkyDancerArcadeReferenceWorld {
         cue.name="arcade-ice-wave-cue";
         // V8.8: use broken, alternating ribs rather than seven complete hoops. The route stays readable,
         // but the player sees the canyon climb/dive instead of a repeated tunnel silhouette.
-        const radius=15.5+(i%3===0?-1.2:i%3===1?.9:1.5);
-        const arc=Math.PI*(i%3===0?.36:i%3===1?.46:.41);
-        const arch=mesh(cue,new THREE.TorusGeometry(radius,.74,6,26,arc),i%2?secondary:primary,(i%2?1:-1)*3.4,-10.8,0);
+        const radius=SKY_DANCER_ARCADE_V4052_ICE.routeRibRadius+(i%3===0?-1.2:i%3===1?.8:1.4);
+        const arc=Math.PI*(i%3===0?.28:i%3===1?.34:.31);
+        const ribSide=i%2?1:-1;
+        const arch=mesh(cue,new THREE.TorusGeometry(radius,.66,6,24,arc),i%2?secondary:primary,ribSide*SKY_DANCER_ARCADE_V4052_ICE.routeRibOffset,-11.2,0);
         arch.name="arcade-ice-wave-arch";
-        arch.rotation.z=(i%2?Math.PI*.12:Math.PI*.88)+(i%3-1)*.045;
-        arch.rotation.y=(i%2?1:-1)*.06;
-        const inner=mesh(cue,new THREE.TorusGeometry(radius*.9,.16,5,22,arc*.68),glow,(i%2?1:-1)*2.9,-10.4,.18);
-        inner.rotation.z=arch.rotation.z+(i%2?-.05:.05);
+        arch.rotation.z=(i%2?Math.PI*.09:Math.PI*.91)+(i%3-1)*.035;
+        arch.rotation.y=ribSide*.045;
+        const inner=mesh(cue,new THREE.TorusGeometry(radius*.9,.13,5,20,arc*.72),glow,ribSide*(SKY_DANCER_ARCADE_V4052_ICE.routeRibOffset-.8),-10.8,.18);
+        inner.rotation.z=arch.rotation.z+(i%2?-.04:.04);
         for(const side of [-1,1]){
-          const fang=mesh(cue,new THREE.ConeGeometry(1.05,6.2+(i%3)*.9,5),i%2?primary:secondary,side*(radius*.6+3),6.2+(i%2)*1.2,1);
+          const fang=mesh(cue,new THREE.ConeGeometry(.82,4.7+(i%3)*.65,5),i%2?primary:secondary,side*(SKY_DANCER_ARCADE_V4052_ICE.routeFangClearance+(i%3)*1.1),6+(i%2)*1.1,1);
           fang.name="arcade-ice-pressure-fang";
-          fang.rotation.z=side*(.12+(i%3)*.02);
+          fang.rotation.z=side*(.07+(i%3)*.015);
         }
         if(i%2===0){
-          const floorShard=mesh(cue,new THREE.ConeGeometry(.95,5.4,5),glow,(i%4===0?1:-1)*11.5,-20.6,.5);
-          floorShard.rotation.z=Math.PI+(i%4===0?.07:-.07);
+          const floorShard=mesh(cue,new THREE.ConeGeometry(.72,4.1,5),glow,(i%4===0?1:-1)*SKY_DANCER_ARCADE_V4052_ICE.routeFloorShardClearance,-20.2,.5);
+          floorShard.rotation.z=Math.PI+(i%4===0?.05:-.05);
         }
       }else if(kind==="volcano"){
         cue.name="arcade-volcano-route-cue";
@@ -645,6 +647,39 @@ export class SkyDancerArcadeReferenceWorld {
       const g=new THREE.BufferGeometry();g.setAttribute("position",new THREE.Float32BufferAttribute(positions,3));g.setIndex(indices);g.computeVertexNormals();
       const color=new THREE.Color(stage.biome==="city"?0x61718a:stage.palette.ground).lerp(palette.horizon,.22+layer*.19);
       mesh(group,g,new THREE.MeshBasicMaterial({color,side:THREE.DoubleSide,fog:false}));
+    }
+    if(stage.biome==="ice"){
+      // V40.52: one distant glacial cathedral gives ICE CAVERN a readable destination and
+      // layered depth. The central aperture stays deliberately empty for combat and World Break.
+      const cathedral=new THREE.Group();cathedral.name="arcade-v4052-ice-cathedral";cathedral.position.set(0,-3,-365);
+      const iceDark=paint(new THREE.Color(stage.palette.ground).multiplyScalar(.66).getHex());
+      const iceBody=architecturalSurface(stage.palette.secondary,.48,.12,.28,.22);
+      const iceFace=architecturalSurface(stage.palette.primary,.34,.1,.38,.18);
+      const fracture=new THREE.MeshBasicMaterial({
+        color:0xd8fbff,transparent:true,opacity:.22,blending:THREE.AdditiveBlending,depthWrite:false,toneMapped:false,
+      });
+      for(const side of [-1,1]){
+        const wall=mesh(cathedral,new THREE.BoxGeometry(52,92,118),iceDark,side*92,7,0);
+        wall.rotation.z=side*.16;wall.rotation.y=side*.045;
+        const buttress=mesh(cathedral,new THREE.ConeGeometry(17,94,5),iceBody,side*59,20,-2);
+        buttress.rotation.z=side*.12;
+        const face=mesh(cathedral,new THREE.ConeGeometry(11.5,72,5),iceFace,side*43,20,5);
+        face.rotation.z=side*.08;
+        const ledge=mesh(cathedral,new THREE.BoxGeometry(34,3.2,48),iceDark,side*59,-24,8);
+        ledge.rotation.z=side*.06;
+        const seam=mesh(cathedral,new THREE.BoxGeometry(2.1,58,2.4),fracture,side*48,17,15);
+        seam.rotation.z=side*.12;
+        const crown=mesh(cathedral,new THREE.ConeGeometry(7.4,38,5),iceBody,side*34,48,5);
+        crown.rotation.z=Math.PI+side*.07;
+        const archBeam=mesh(cathedral,new THREE.BoxGeometry(34,4.8,18),iceFace,side*20,48,3);
+        archBeam.rotation.z=-side*.23;
+        archBeam.rotation.y=side*.025;
+      }
+      const coldLight=mesh(cathedral,new THREE.BoxGeometry(44,48,1.4),new THREE.MeshBasicMaterial({
+        color:0xe9fdff,transparent:true,opacity:.12,blending:THREE.AdditiveBlending,depthWrite:false,toneMapped:false,
+      }),0,10,14);
+      coldLight.name="arcade-v4052-ice-cathedral-aperture-light";
+      group.add(cathedral);
     }
     if(stage.biome==="city" || stage.biome==="night"){
       const towers=new THREE.InstancedMesh(new THREE.BoxGeometry(1,1,1),paint(0x526b7d),144);
@@ -883,24 +918,30 @@ export class SkyDancerArcadeReferenceWorld {
       }
       case "ice":{
         group.userData.arcadeIceV88CanyonClearance=true;
-        // V8.8: open the centre lane. Side shelves and ceiling teeth sell a cavern without repeatedly
-        // blocking the flight path with a full-width arch in every streamed chunk.
+        group.userData.arcadeIceV4052CathedralClearance=true;
+        // V40.52: fewer, broader wall clusters sit beyond the combat lane. The old tall inner
+        // needles read as flat triangles at phone scale and repeatedly bisected enemy silhouettes.
         for(const side of [-1,1])for(let j=0;j<4;j++){
-          const sideX=side*(34+(j%2)*12);
-          const h=18+r(j)*18;
-          const crystal=mesh(group,new THREE.ConeGeometry(2.6+r(j+5)*1.8,h,5),j%2?primary:secondary,sideX,-18+h/2,-46+j*29);
-          crystal.rotation.z=side*(.08+r(j)*.16);
+          const sideX=side*(SKY_DANCER_ARCADE_V4052_ICE.chunkInnerClearance+(j%2)*(SKY_DANCER_ARCADE_V4052_ICE.chunkOuterClearance-SKY_DANCER_ARCADE_V4052_ICE.chunkInnerClearance));
+          const h=13+r(j)*15;
+          const crystal=mesh(group,new THREE.ConeGeometry(3.2+r(j+5)*2.1,h,5),j%2?primary:secondary,sideX,-20+h/2,-46+j*29);
+          crystal.rotation.z=side*(.045+r(j)*.1);
           if(j%2===0){
-            const tooth=mesh(group,new THREE.ConeGeometry(2.2+r(j+17)*1.5,12+r(j+23)*10,5),j%2?secondary:primary,side*(28+r(j+31)*8),20,-31+j*31);
-            tooth.rotation.z=Math.PI+side*(.08+r(j+41)*.12);
+            // V40.52.1: embed the upper crystal into the wall mass. A free-hanging cone against open
+            // sky read as a floating triangle on phone landscape rather than a believable cave tooth.
+            const wallGem=mesh(group,new THREE.OctahedronGeometry(3.2+r(j+17)*1.8,0),j%2?secondary:primary,side*(46+r(j+31)*10),-1+r(j+23)*7,-31+j*31);
+            wallGem.scale.set(1.15,2.35,1);
+            wallGem.rotation.z=side*(.27+r(j+41)*.13);
+            wallGem.rotation.y=side*.08;
           }
         }
         for(const side of [-1,1]){
-          // Keep shoulders unnamed so the static geometry baker can merge them by material.
-          const shelf=mesh(group,new THREE.BoxGeometry(18,1.8,18),side<0?primary:secondary,side*40,9+(index%3-1)*2.8,-6);
-          shelf.rotation.z=side*(.08+(index%3)*.018);
-          shelf.rotation.y=side*.04;
-          mesh(group,new THREE.BoxGeometry(14.5,.2,16),glow,side*40,8.15+(index%3-1)*2.8,-6);
+          // Side ledges imply a carved glacier wall but never project across the hero corridor.
+          const shelfX=side*SKY_DANCER_ARCADE_V4052_ICE.shoulderClearance;
+          const shelf=mesh(group,new THREE.BoxGeometry(14,1.5,16),side<0?primary:secondary,shelfX,7+(index%3-1)*2.4,-6);
+          shelf.rotation.z=side*(.055+(index%3)*.014);
+          shelf.rotation.y=side*.035;
+          mesh(group,new THREE.BoxGeometry(10.5,.18,14),glow,shelfX,6.28+(index%3-1)*2.4,-6);
         }
         break;
       }
@@ -1080,11 +1121,17 @@ export class SkyDancerArcadeReferenceWorld {
           for(const c of [-1,0,1])mesh(group,new THREE.BoxGeometry(2.8,3.6,4.7),secondary,fortressX-side*7+c*4,-13+r(j+35)*4,z+6);
         }
       } else if(stage.biome==="ice"){
-        const h=19+r(j+8)*24;
-        // Unnamed static crystals stay eligible for bakeArcadeAirframe batching.
-        const crystal=mesh(group,new THREE.ConeGeometry(2.2+r(j+12)*1.8,h,5),j%2?primary:secondary,iceX,-21+h/2,z);
-        crystal.rotation.z=side*(.08+r(j+24)*.16);
-        if(j%2===1) mesh(group,new THREE.OctahedronGeometry(2.1+r(j+44)*1.6,0),glow,iceX-side*3,-1+r(j+66)*6,z+3);
+        // V40.52: preserve fast edge parallax with clustered wall detail instead of screen-height needles.
+        if(j===2){
+          const shelf=mesh(group,new THREE.BoxGeometry(9.5,.9,12),j%2?secondary:primary,iceX,-5+r(j+66)*5,z);
+          shelf.rotation.z=side*(.05+r(j+24)*.08);
+          mesh(group,new THREE.BoxGeometry(6.2,.16,9.5),glow,iceX-side*1.4,shelf.position.y+.55,z-.3);
+        }else{
+          const h=14+r(j+8)*14;
+          const crystal=mesh(group,new THREE.ConeGeometry(1.9+r(j+12)*1.45,h,5),j%2?primary:secondary,iceX,-22+h/2,z);
+          crystal.rotation.z=side*(.055+r(j+24)*.1);
+          if(j%2===1) mesh(group,new THREE.OctahedronGeometry(1.75+r(j+44)*1.3,0),glow,iceX-side*2.7,-3+r(j+66)*5,z+3);
+        }
       } else if(stage.biome==="cloud"){
         // V9.2: escort silhouettes create close naval fly-bys without blocking the center corridor.
         const escortX=side*(39+r(j+71)*12+(j%2)*3);
