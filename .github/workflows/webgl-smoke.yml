@@ -76,6 +76,7 @@ jobs:
           cat /tmp/sky-dancer-smoke-http.log
           exit 1
       - name: Smoke default flight WebGL
+        if: env.SKY_DANCER_STAGE_AUDIT_VISUAL != '1'
         run: node scripts/webgl-smoke-audit.mjs
       - name: Smoke representative Arcade stages
         run: node scripts/webgl-arcade-stage-identity-audit.mjs
