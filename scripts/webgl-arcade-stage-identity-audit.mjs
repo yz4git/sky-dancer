@@ -7,14 +7,10 @@ const baseUrl = process.env.SKY_DANCER_AUDIT_URL || "http://127.0.0.1:4173";
 const outputDir = process.env.SKY_DANCER_AUDIT_DIR || "artifacts/arcade-stage-identity";
 const visualAudit = process.env.SKY_DANCER_STAGE_AUDIT_VISUAL === "1";
 const fullStages = [
-  { id: "red-canyon", short: "CANYON", name: "RED CANYON", focus: false },
-  { id: "ice-cavern", short: "ICE", name: "ICE CAVERN", focus: true },
-  { id: "volcano-core", short: "VOLCANO", name: "VOLCANO CORE", focus: false },
-  { id: "orbital-ascent", short: "ORBIT", name: "ORBITAL ASCENT", focus: true },
+  { id: "cloud-fleet", short: "FLEET", name: "CLOUD FLEET", focus: true },
+  { id: "red-canyon", short: "CANYON", name: "RED CANYON", focus: true },
 ];
-const stages = visualAudit
-  ? fullStages
-  : fullStages.filter((stage) => stage.id === "ice-cavern" || stage.id === "orbital-ascent");
+const stages = fullStages;
 const allStageIds = ["dawn-city","red-canyon","cloud-fleet","storm-carrier","desert-fortress","ice-cavern","floating-ruins","night-metro","volcano-core","orbital-ascent","prism-citadel"];
 await mkdir(outputDir, { recursive: true });
 
@@ -162,7 +158,7 @@ for (const item of diagnostics) {
   if (!item.stageVisible) throw new Error(`Stage HUD mismatch: ${JSON.stringify(item)}`);
   if (!item.glState.webgl || item.glState.width < 800 || item.glState.height < 360) throw new Error(`Invalid WebGL surface: ${JSON.stringify(item)}`);
   if (item.hp <= 0 || item.failed) throw new Error(`Stage identity audit lost airframe: ${JSON.stringify(item)}`);
-  const expectedCaptures = visualAudit ? (item.stage === "ice-cavern" || item.stage === "orbital-ascent" ? 4 : 1) : 0;
+  const expectedCaptures = visualAudit ? 4 : 0;
   if (item.captures.length !== expectedCaptures) throw new Error(`Unexpected visual capture count: ${JSON.stringify(item)}`);
   if (item.blockingConsoleErrors.length || item.pageErrors.length) throw new Error(`Stage identity audit errors: ${JSON.stringify(item)}`);
 }
