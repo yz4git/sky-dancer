@@ -12,6 +12,10 @@ import {
   skyDancerArcadeV4054NightCityLaneX,
   skyDancerArcadeV4054PrismBastionX,
 } from "./SkyDancerArcadeV4054NightPrismReadability";
+import {
+  SKY_DANCER_ARCADE_V4055_RUINS_DESERT,
+  skyDancerArcadeV4055RuinsIslandProfile,
+} from "./SkyDancerArcadeV4055RuinsDesertReadability";
 import { SKY_DANCER_ARCADE_V4052_ICE } from "./SkyDancerArcadeV4052IceCavernComposition";
 import { arcadeCoursePose, arcadeCourseRelativeVisualPose } from "./SkyDancerArcadeCoursePath";
 import {
@@ -29,7 +33,7 @@ const CITY_QUAY_DEPTH = CHUNK_LENGTH + 12; // V10.3.3: city banks overlap modest
 // V10.3.9: phone playcheck clearance for visual-only near-pass scenery.
 // These values keep speed silhouettes at the edges without letting a sharp spline yaw wipe the central combat lane.
 export const ARCADE_NEAR_PASS_CLEARANCE_V1039 = {
-  city: 30, night: SKY_DANCER_ARCADE_V4054_NIGHT_PRISM.nightNearPassClearance, canyon: 42, volcano: 44, ice: SKY_DANCER_ARCADE_V4052_ICE.nearPassClearance, cloud: 39, storm: SKY_DANCER_ARCADE_V4053_STAGE_READABILITY.stormNearPassClearance, ruins: 43, orbit: 42, citadel: SKY_DANCER_ARCADE_V4054_NIGHT_PRISM.prismNearPassClearance,
+  city: 30, night: SKY_DANCER_ARCADE_V4054_NIGHT_PRISM.nightNearPassClearance, canyon: 42, volcano: 44, ice: SKY_DANCER_ARCADE_V4052_ICE.nearPassClearance, cloud: 39, storm: SKY_DANCER_ARCADE_V4053_STAGE_READABILITY.stormNearPassClearance, ruins: SKY_DANCER_ARCADE_V4055_RUINS_DESERT.ruinsNearPassClearance, desert: SKY_DANCER_ARCADE_V4055_RUINS_DESERT.desertNearPassClearance, orbit: 42, citadel: SKY_DANCER_ARCADE_V4054_NIGHT_PRISM.prismNearPassClearance,
 } as const;
 const fract = (n: number) => n - Math.floor(n);
 const random = (seed: number) => fract(Math.sin(seed * 127.1 + 311.7) * 43758.5453);
@@ -743,9 +747,20 @@ export class SkyDancerArcadeReferenceWorld {
         mesh(fortress,new THREE.BoxGeometry(10,14,24),bronze,side*35,47,-2);
         mesh(fortress,new THREE.BoxGeometry(1.8,43,24),fortressGlow,side*27.5,15,-1);
       }
-      const keep=mesh(fortress,new THREE.BoxGeometry(42,46,34),sand,0,20,20);keep.rotation.z=-.018;
-      mesh(fortress,new THREE.BoxGeometry(28,10,36),bronze,0,49,20);
-      mesh(fortress,new THREE.BoxGeometry(5,35,36),fortressGlow,0,21,19);
+      // V40.55: split the old monolithic center keep into a readable gate pair. The destination
+      // still reads as one fortress, while the flight line remains visible through its center.
+      for(const side of [-1,1]){
+        const keepX=side*SKY_DANCER_ARCADE_V4055_RUINS_DESERT.desertKeepHalfX;
+        const keep=mesh(
+          fortress,
+          new THREE.BoxGeometry(SKY_DANCER_ARCADE_V4055_RUINS_DESERT.desertKeepHalfWidth,46,34),
+          sand,
+          keepX,20,20,
+        );
+        keep.rotation.z=side*-.012;
+        mesh(fortress,new THREE.BoxGeometry(13,10,36),bronze,keepX,49,20);
+        mesh(fortress,new THREE.BoxGeometry(1.5,32,36),fortressGlow,keepX-side*6.1,22,19);
+      }
       group.add(fortress);
     }
     if(stage.biome==="cloud"){
@@ -840,13 +855,13 @@ export class SkyDancerArcadeReferenceWorld {
         for(const side of [-1,1]){
           const tier=((index+(side>0?1:0))%3)-1;
           const breach=side===breachSide;
-          const wallX=side*(breach?31:45);
+          const wallX=side*(breach?SKY_DANCER_ARCADE_V4055_RUINS_DESERT.desertBreachWallX:45);
           const wallY=-17+tier*2.6;
-          const wall=mesh(group,new THREE.BoxGeometry(breach?25:31,15+(index%2)*3,42),dark,wallX,wallY,2);
+          const wall=mesh(group,new THREE.BoxGeometry(breach?SKY_DANCER_ARCADE_V4055_RUINS_DESERT.desertBreachWallWidth:31,15+(index%2)*3,42),dark,wallX,wallY,2);
           wall.rotation.z=side*(breach?.018:-.012);
-          mesh(group,new THREE.BoxGeometry(breach?22:28,3.6,37),primary,wallX,wallY+9.2,2);
+          mesh(group,new THREE.BoxGeometry(breach?19:28,3.6,37),primary,wallX,wallY+9.2,2);
           for(const edge of [-1,1]){
-            const towerX=wallX+edge*(breach?9.8:12.2);
+            const towerX=wallX+edge*(breach?8.4:12.2);
             const towerH=24+(edge===side?5:0)+Math.abs(tier)*3;
             const tower=mesh(group,new THREE.BoxGeometry(6.5,towerH,9),edge===side?secondary:primary,towerX,-24+towerH/2+tier*2,edge*8);
             tower.rotation.z=side*edge*.018;
@@ -854,9 +869,15 @@ export class SkyDancerArcadeReferenceWorld {
           }
           // The breach side projects toward the route but never closes the center corridor.
           if(breach){
-            const ramp=mesh(group,new THREE.BoxGeometry(18,1.1,31),secondary,side*21,-14+tier*2,-8);
-            ramp.rotation.z=side*-.08;ramp.rotation.y=side*.035;
-            mesh(group,new THREE.BoxGeometry(13,.22,27),glow,side*20,-13.2+tier*2,-8);
+            const rampX=side*SKY_DANCER_ARCADE_V4055_RUINS_DESERT.desertBreachRampX;
+            const ramp=mesh(
+              group,
+              new THREE.BoxGeometry(SKY_DANCER_ARCADE_V4055_RUINS_DESERT.desertBreachRampWidth,1.05,29),
+              secondary,
+              rampX,-14+tier*2,-8,
+            );
+            ramp.rotation.z=side*-.065;ramp.rotation.y=side*.035;
+            mesh(group,new THREE.BoxGeometry(9.5,.2,25),glow,rampX-side*.7,-13.2+tier*2,-8);
           }
           for(let c=-1;c<=1;c++)mesh(group,new THREE.BoxGeometry(4.2,4.2,6),secondary,wallX+c*(breach?7:9),wallY+13.2,0);
         }
@@ -976,9 +997,10 @@ export class SkyDancerArcadeReferenceWorld {
           const tier=((index+(side>0?1:0))%3)-1;
           const hero=side===heroSide;
           const lift=tier*9.5+(hero?3:-3);
-          const x=side*(hero?29:43);
-          const radius=hero?19:14.5;
-          const island=mesh(group,new THREE.ConeGeometry(radius,hero?24:18,9),dark,x,-23+lift,hero?-5:9);island.rotation.x=Math.PI;
+          const islandProfile=skyDancerArcadeV4055RuinsIslandProfile(hero);
+          const x=side*islandProfile.x;
+          const radius=islandProfile.radius;
+          const island=mesh(group,new THREE.ConeGeometry(radius,hero?21:17,9),dark,x,-23+lift,hero?-5:9);island.rotation.x=Math.PI;
           island.rotation.z=side*(tier*.045+(hero?.025:-.018));
           mesh(group,new THREE.CylinderGeometry(radius,radius-2.2,1.25,9),primary,x,-10.5+lift,hero?-5:9);
           // Only two architectural supports per island; one is always visibly broken or leaning.
@@ -989,22 +1011,29 @@ export class SkyDancerArcadeReferenceWorld {
             if(i===1)column.rotation.x=.06*(tier||1);
           }
           // Broken bridge/causeway projects toward the route but never spans the entire screen.
-          const bridgeX=side*(hero?18.5:31);
-          const bridge=mesh(group,new THREE.BoxGeometry(hero?23:15,1.25,6.5),hero?secondary:primary,bridgeX,5.8+lift,hero?1:5);
-          bridge.rotation.z=side*(hero?-.12:.08);bridge.rotation.y=side*(hero?.07:-.04);
-          mesh(group,new THREE.BoxGeometry(hero?18:10,.2,.36),glow,bridgeX-side*1.5,6.55+lift,hero?-1:3);
-          const lintel=mesh(group,new THREE.BoxGeometry(hero?14.5:10.5,2.5,3.5),secondary,x,13+lift,hero?-2:8);
+          const bridgeX=side*islandProfile.bridgeX;
+          const bridge=mesh(group,new THREE.BoxGeometry(islandProfile.bridgeWidth,1.15,6.1),hero?secondary:primary,bridgeX,5.8+lift,hero?1:5);
+          bridge.rotation.z=side*(hero?-.095:.07);bridge.rotation.y=side*(hero?.055:-.035);
+          mesh(group,new THREE.BoxGeometry(hero?12.5:8.5,.18,.34),glow,bridgeX-side*.9,6.5+lift,hero?-1:3);
+          const lintel=mesh(group,new THREE.BoxGeometry(hero?12:9.5,2.3,3.3),secondary,x,13+lift,hero?-2:8);
           lintel.rotation.z=side*(hero?.1:-.07);
           if(hero) mesh(group,new THREE.BoxGeometry(9.5,.32,3.7),glow,x-side*.8,14.35+lift,-2.1);
           if(hero){
-            const relic=mesh(group,new THREE.OctahedronGeometry(4.4,0),glow,x-side*3,20+lift,-2);
+            const relic=mesh(group,new THREE.OctahedronGeometry(3.8,0),glow,x-side*2.6,20+lift,-2);
             relic.scale.set(.62,1.55,.62);relic.rotation.z=side*.72;
           }
         }
         if(index%3===1){
           // One free-floating fragment occasionally crosses the composition, not one in every chunk.
-          const shard=mesh(group,new THREE.OctahedronGeometry(4.1,0),secondary,-heroSide*8,11+(index%3)*4,18);
-          shard.scale.set(.65,1.75,.6);shard.rotation.z=heroSide*.48;
+          const shard=mesh(
+            group,
+            new THREE.OctahedronGeometry(3.3,0),
+            secondary,
+            -heroSide*SKY_DANCER_ARCADE_V4055_RUINS_DESERT.ruinsFragmentX,
+            11+(index%3)*4,
+            18,
+          );
+          shard.scale.set(.6,1.5,.56);shard.rotation.z=heroSide*.48;
         }
         break;
       }
@@ -1133,7 +1162,7 @@ export class SkyDancerArcadeReferenceWorld {
         }
       } else if(stage.biome==="desert"){
         // V9.3: close passes are fortress buttresses and crenelated wall fragments, not stone fins.
-        const fortressX=side*(37+r(j+71)*11+(j%2)*4);
+        const fortressX=side*(ARCADE_NEAR_PASS_CLEARANCE_V1039.desert+r(j+71)*9+(j%2)*4);
         const h=17+r(j+9)*25;
         const buttress=mesh(group,new THREE.BoxGeometry(5.5+r(j+17)*4,h,9+r(j+27)*5),j%2?secondary:primary,fortressX,-25+h/2,z);
         buttress.rotation.z=side*(.025+r(j+37)*.06);
@@ -1187,7 +1216,7 @@ export class SkyDancerArcadeReferenceWorld {
         }
       } else if(stage.biome==="ruins"){
         // V9.0: near passes are broken walls and hanging slabs, not a forest of full-height columns.
-        const ruinsX=side*(43+r(j+71)*12+(j%2)*3);
+        const ruinsX=side*(ARCADE_NEAR_PASS_CLEARANCE_V1039.ruins+r(j+71)*10+(j%2)*3);
         const y=-11+r(j+6)*11;
         const slab=mesh(group,new THREE.BoxGeometry(6+r(j+15)*5.2,1.05,7+r(j+25)*5),j%2?dark:primary,ruinsX,y,z);
         slab.rotation.z=side*(r(j+32)-.5)*.18;slab.rotation.y=side*(r(j+42)-.5)*.12;
