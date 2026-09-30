@@ -34,6 +34,7 @@ let continuesUsed = 0;
 let survivalGameOverSection = 0;
 let forcedAdvances = 0;
 let finalBossCaptured = false;
+let finalBossPrimed = false;
 let lastSection = 0;
 let lastStage = "";
 let sample = 0;
@@ -96,6 +97,14 @@ while (Date.now() - start < 120_000) {
     lastStage = stage;
     await shot(`section-${section}-${stage.toLowerCase().replaceAll(" ","-")}`);
   }
+  if (section === 7 && survivalGameOverSection > 0 && !finalBossPrimed) {
+    finalBossPrimed = await page.evaluate(() => {
+      if (!window.__skyDancerArcadeAuditSpawnBoss) return false;
+      window.__skyDancerArcadeAuditSpawnBoss();
+      return true;
+    });
+    if (finalBossPrimed) await page.waitForTimeout(40);
+  }
   if (section === 7 && auditSnapshot?.bossActive && !finalBossCaptured) {
     finalBossCaptured = true;
     await shot("section-7-final-boss");
@@ -137,7 +146,7 @@ const hp = Number(finalSnapshot?.playerHp ?? (body.match(/AIRFRAME\s*([0-9]+)%/i
 const complete = finalSnapshot?.status === "run-clear" || /ONE SKY · ARCADE RUN COMPLETE|ARCADE RUN CLEAR/i.test(body);
 const gameOver = finalSnapshot?.status === "game-over" || /MISSION FAILED|GAME OVER/i.test(body);
 const blockingConsoleErrors = consoleErrors.filter((message) => !/Failed to load resource:.*404/i.test(message));
-const diagnostics = { seen, captures, continuesUsed, survivalGameOverSection, forcedAdvances, finalBossCaptured, hp, complete, gameOver, elapsedRealMs: Date.now()-start, consoleErrors, blockingConsoleErrors, pageErrors };
+const diagnostics = { seen, captures, continuesUsed, survivalGameOverSection, forcedAdvances, finalBossPrimed, finalBossCaptured, hp, complete, gameOver, elapsedRealMs: Date.now()-start, consoleErrors, blockingConsoleErrors, pageErrors };
 await writeFile(`${outputDir}/diagnostics.json`, JSON.stringify(diagnostics,null,2));
 await browser.close();
 
