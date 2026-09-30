@@ -1120,7 +1120,7 @@ export class SkyDancerArcadeReferenceWorld {
             group,
             new THREE.OctahedronGeometry(1.65,0),
             glow,
-            side*SKY_DANCER_ARCADE_V4057_DAWN_ORBIT.orbitSidePanelX,
+            side*SKY_DANCER_ARCADE_V4057_DAWN_ORBIT.orbitEdgeBeaconX,
             6+(index%3-1)*2.2,
             -7,
           );
