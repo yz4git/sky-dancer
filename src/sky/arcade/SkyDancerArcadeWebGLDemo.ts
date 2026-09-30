@@ -411,6 +411,11 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
   private renderHeight = 0;
   private lastFrame = 0;
   private accumulator = 0;
+  // TEMP V40.58 audit-only: production/default remains 1x and this branch change is reverted before merge.
+  private readonly auditTimeScale = (() => {
+    const value = Number(new URLSearchParams(window.location.search).get("arcadeAuditSpeed") ?? "1");
+    return Number.isFinite(value) ? THREE.MathUtils.clamp(value, 1, 6) : 1;
+  })();
   private snapshotClock = 0;
   private previousSnapshot: SkyDancerArcadeSnapshot;
   private currentStageId: string;
@@ -559,7 +564,7 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
     try {
       const elapsed = Math.min(0.1, Math.max(0, (now - this.lastFrame) / 1000));
       this.lastFrame = now;
-      this.accumulator += elapsed;
+      this.accumulator += elapsed * this.auditTimeScale;
       while (this.accumulator >= 1 / 60) {
         this.runtime.step(1 / 60);
         this.accumulator -= 1 / 60;
