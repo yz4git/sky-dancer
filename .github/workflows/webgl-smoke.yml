@@ -45,7 +45,7 @@ jobs:
     timeout-minutes: 8
     env:
       SKY_DANCER_CHROME_PATH: /usr/bin/google-chrome
-      SKY_DANCER_STAGE_AUDIT_VISUAL: "1" # TEMP V40.56 visual review
+      SKY_DANCER_STAGE_AUDIT_VISUAL: "0"
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -76,7 +76,6 @@ jobs:
           cat /tmp/sky-dancer-smoke-http.log
           exit 1
       - name: Smoke default flight WebGL
-        if: env.SKY_DANCER_STAGE_AUDIT_VISUAL != '1'
         run: node scripts/webgl-smoke-audit.mjs
       - name: Smoke representative Arcade stages
         run: node scripts/webgl-arcade-stage-identity-audit.mjs
