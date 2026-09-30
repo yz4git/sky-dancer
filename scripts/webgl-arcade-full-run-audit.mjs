@@ -109,6 +109,44 @@ while (Date.now() - start < 120_000) {
     finalBossCaptured = true;
     await shot("section-7-final-boss");
   }
+  if (
+    auditSnapshot?.status === "running" &&
+    section === 6 &&
+    continuesUsed >= 2 &&
+    Number(auditSnapshot?.playerHp ?? 100) <= 32 &&
+    survivalGameOverSection === 0
+  ) {
+    survivalGameOverSection = 6;
+    await shot("survival-critical-section-6");
+    const forced = await page.evaluate(() => {
+      if (!window.__skyDancerArcadeAuditForceAdvance) return false;
+      window.__skyDancerArcadeAuditForceAdvance();
+      return true;
+    });
+    if (forced) {
+      forcedAdvances += 1;
+      await page.waitForTimeout(50);
+      continue;
+    }
+  }
+  if (
+    auditSnapshot?.status === "running" &&
+    section === 7 &&
+    finalBossCaptured &&
+    survivalGameOverSection > 0 &&
+    forcedAdvances === 1
+  ) {
+    const forced = await page.evaluate(() => {
+      if (!window.__skyDancerArcadeAuditForceAdvance) return false;
+      window.__skyDancerArcadeAuditForceAdvance();
+      return true;
+    });
+    if (forced) {
+      forcedAdvances += 1;
+      await page.waitForTimeout(50);
+      continue;
+    }
+  }
   if (/SECTION CLEAR/i.test(body) && captures.every((item) => item.name !== `section-${lastSection}-clear`)) {
     await shot(`section-${lastSection}-clear`);
   }
