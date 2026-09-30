@@ -65,9 +65,13 @@ while (Date.now() - start < 70_000) {
     }
   }
 
-  const sectionMatch = body.match(/SECTION\s+(\d)\/7\s*·\s*ENGAGE/i) || body.match(/ARCADE RUN\s*·\s*SECTION\s+(\d)\/7/i);
+  const bodyLines = body.split("\n").map((line) => line.trim()).filter(Boolean);
+  const markerIndex = bodyLines.findIndex((line) => /^(?:ARCADE RUN\s*·\s*)?SECTION\s+\d\/7(?:\s*·\s*ENGAGE)?$/i.test(line));
+  const marker = markerIndex >= 0 ? bodyLines[markerIndex] : "";
+  const sectionMatch = marker.match(/SECTION\s+(\d)\/7/i);
   const section = sectionMatch ? Number(sectionMatch[1]) : lastSection;
-  const stage = stages.find((name) => body.includes(name)) || lastStage;
+  const headerCandidate = markerIndex >= 0 ? bodyLines[markerIndex + 1] ?? "" : "";
+  const stage = stages.includes(headerCandidate) ? headerCandidate : lastStage;
   if (section && stage && (section !== lastSection || stage !== lastStage)) {
     seen.push({ section, stage, realMs: Date.now() - start });
     lastSection = section;
