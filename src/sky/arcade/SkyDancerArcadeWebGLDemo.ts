@@ -471,6 +471,21 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
     this.onRuntimeFailure = onRuntimeFailure;
     this.previousSnapshot = this.runtime.getSnapshot();
     this.currentStageId = this.previousSnapshot.stage.id;
+    // TEMP V40.58 audit-only bridge. Removed before merge.
+    if (new URLSearchParams(window.location.search).get("fullRunAudit") === "1") {
+      const auditWindow = window as Window & {
+        __skyDancerArcadeAuditAdvance?: (seconds: number) => void;
+        __skyDancerArcadeAuditSnapshot?: () => SkyDancerArcadeSnapshot;
+        __skyDancerArcadeAuditContinue?: () => void;
+      };
+      auditWindow.__skyDancerArcadeAuditAdvance = (seconds: number) => {
+        const steps = Math.min(600, Math.max(0, Math.ceil(seconds * 60)));
+        for (let step = 0; step < steps; step += 1) this.runtime.step(1 / 60);
+        this.onSnapshot(this.runtime.getSnapshot());
+      };
+      auditWindow.__skyDancerArcadeAuditSnapshot = () => this.runtime.getSnapshot();
+      auditWindow.__skyDancerArcadeAuditContinue = () => this.continueRun();
+    }
 
     this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: "high-performance" });
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
