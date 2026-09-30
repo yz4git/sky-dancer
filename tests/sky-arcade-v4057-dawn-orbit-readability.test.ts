@@ -19,7 +19,7 @@ test("V40.57 keeps orbital near-pass pylons outside the old corridor", () => {
   const p = SKY_DANCER_ARCADE_V4057_DAWN_ORBIT;
   assert.ok(p.orbitNearPassClearance >= 48);
   assert.ok(p.orbitSidePylonX >= 46);
-  assert.ok(p.orbitSidePanelX - p.orbitSidePanelWidth / 2 >= 56);
+  assert.ok(p.orbitEdgeBeaconX >= 66);
 });
 
 test("V40.57 reduces the screen-sized orbital frame footprint", () => {
@@ -50,7 +50,7 @@ test("V40.57 Reference World applies Dawn and Orbit readability profiles", () =>
   assert.match(source, /orbitNearPassClearance/);
   assert.match(source, /skyDancerArcadeV4057OrbitFrameOffset/);
   assert.match(source, /orbitCueCount/);
-  assert.match(source, /orbitSidePanelX/);
+  assert.match(source, /orbitEdgeBeaconX/);
 });
 
 test("V40.57 remains presentation-only", () => {
