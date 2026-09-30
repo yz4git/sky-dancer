@@ -13,14 +13,6 @@ const browser = await chromium.launch({
   args: ["--use-angle=swiftshader", "--enable-webgl", "--enable-unsafe-swiftshader", "--ignore-gpu-blocklist", "--disable-dev-shm-usage"],
 });
 const context = await browser.newContext({ viewport: { width: 844, height: 390 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
-await context.addInitScript(() => {
-  const nativeRaf = window.requestAnimationFrame.bind(window);
-  let syntheticNow = performance.now();
-  window.requestAnimationFrame = (callback) => nativeRaf(() => {
-    syntheticNow += 100;
-    callback(syntheticNow);
-  });
-});
 const page = await context.newPage();
 page.setDefaultTimeout(20_000);
 page.setDefaultNavigationTimeout(30_000);
@@ -29,7 +21,7 @@ const pageErrors = [];
 page.on("console", (message) => { if (message.type() === "error") consoleErrors.push(message.text()); });
 page.on("pageerror", (error) => pageErrors.push(String(error)));
 
-await page.goto(`${baseUrl}?menu=1`, { waitUntil: "domcontentloaded" });
+await page.goto(`${baseUrl}?menu=1&arcadeAuditSpeed=6`, { waitUntil: "domcontentloaded" });
 await page.locator('[aria-label="Sky Dancer title screen"]').waitFor({ state: "visible" });
 await page.getByRole("button", { name: /START ARCADE RUN/i }).click();
 const canvas = page.locator('canvas[aria-label="Sky Dancer Arcade Run WebGL game view"]');
