@@ -479,8 +479,10 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
         __skyDancerArcadeAuditContinue?: () => void;
       };
       auditWindow.__skyDancerArcadeAuditAdvance = (seconds: number) => {
-        const steps = Math.min(600, Math.max(0, Math.ceil(seconds * 60)));
-        for (let step = 0; step < steps; step += 1) this.runtime.step(1 / 60);
+        // Flow audit samples at 20 Hz for CI throughput; production and all runtime tests stay 60 Hz.
+        const auditDelta = 1 / 20;
+        const steps = Math.min(600, Math.max(0, Math.ceil(seconds / auditDelta)));
+        for (let step = 0; step < steps; step += 1) this.runtime.step(auditDelta);
         this.onSnapshot(this.runtime.getSnapshot());
       };
       auditWindow.__skyDancerArcadeAuditSnapshot = () => this.runtime.getSnapshot();
