@@ -10,7 +10,7 @@ export const SKY_DANCER_ARCADE_V4057_DAWN_ORBIT = {
   orbitSidePanelX: 62,
   orbitSidePanelWidth: 10,
   orbitSidePanelDepth: 22,
-  orbitCueCount: 8,
+  orbitCueCount: 10,
   orbitCueRadius: 24,
   orbitCueArcA: Math.PI * .58,
   orbitCueArcB: Math.PI * .42,
