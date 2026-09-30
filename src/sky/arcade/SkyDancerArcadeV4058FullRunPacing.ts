@@ -34,7 +34,7 @@ const RUN_PACING: readonly SkyDancerArcadeV4058SectionPacing[] = [
   { phase:"first-peak",   entrySeconds:.72, firstWaveSeconds:2.00, firstHazardSeconds:3.60, waveCadenceScale:.96, hazardCadenceScale:.96, bossIngressScale:1.00 },
   { phase:"recovery",     entrySeconds:.95, firstWaveSeconds:2.60, firstHazardSeconds:4.40, waveCadenceScale:1.08, hazardCadenceScale:1.10, bossIngressScale:1.04 },
   { phase:"acceleration", entrySeconds:.68, firstWaveSeconds:1.90, firstHazardSeconds:3.35, waveCadenceScale:.92, hazardCadenceScale:.94, bossIngressScale:.98 },
-  { phase:"redline",      entrySeconds:.62, firstWaveSeconds:1.70, firstHazardSeconds:3.05, waveCadenceScale:.86, hazardCadenceScale:.90, bossIngressScale:.96 },
+  { phase:"redline",      entrySeconds:.65, firstWaveSeconds:1.80, firstHazardSeconds:3.15, waveCadenceScale:.90, hazardCadenceScale:.92, bossIngressScale:.98 },
   { phase:"finale",       entrySeconds:.82, firstWaveSeconds:1.95, firstHazardSeconds:3.25, waveCadenceScale:.88, hazardCadenceScale:.92, bossIngressScale:1.18 },
 ] as const;
 
