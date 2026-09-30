@@ -1095,39 +1095,37 @@ export class SkyDancerArcadeReferenceWorld {
         break;
       }
       case "orbit":{
-        // V40.57: retain the orbital scaffold silhouette, but break the former screen-sized cyan
-        // hoop into an offset side sweep. Thin dark solar panels also stay outside the combat lane.
+        // V40.57.2: orbital route identity comes from the compact side sweep + authored helix beats.
+        // Long flat solar panels were removed after 844x390 combat captures showed them turning into
+        // black diagonal bands behind BREAK VECTOR at close range.
         const frameOffset=skyDancerArcadeV4057OrbitFrameOffset(index);
         const frame=mesh(
           group,
           new THREE.TorusGeometry(
             SKY_DANCER_ARCADE_V4057_DAWN_ORBIT.orbitFrameRadius,
             SKY_DANCER_ARCADE_V4057_DAWN_ORBIT.orbitFrameTube,
-            6,34,
+            5,28,
             SKY_DANCER_ARCADE_V4057_DAWN_ORBIT.orbitFrameArc,
           ),
           primary,
           frameOffset,0,0,
         );
         frame.name="arcade-orbital-open-frame";
-        frame.rotation.z=index*.71+(index%2===0?-.08:.08);
+        frame.rotation.z=index*.71+(index%2===0?-.12:.12);
         for(const side of [-1,1]){
-          mesh(
+          const pylonX=side*SKY_DANCER_ARCADE_V4057_DAWN_ORBIT.orbitSidePylonX;
+          mesh(group,new THREE.BoxGeometry(1.15,8,3.2),secondary,pylonX,1,-5);
+          mesh(group,new THREE.BoxGeometry(.14,6.2,3.35),glow,pylonX-side*.62,1,-5);
+          const beacon=mesh(
             group,
-            new THREE.BoxGeometry(2.2,14,5.5),
-            secondary,
-            side*SKY_DANCER_ARCADE_V4057_DAWN_ORBIT.orbitSidePylonX,0,-5,
+            new THREE.OctahedronGeometry(1.65,0),
+            glow,
+            side*SKY_DANCER_ARCADE_V4057_DAWN_ORBIT.orbitSidePanelX,
+            6+(index%3-1)*2.2,
+            -7,
           );
-          mesh(
-            group,
-            new THREE.BoxGeometry(
-              SKY_DANCER_ARCADE_V4057_DAWN_ORBIT.orbitSidePanelWidth,.16,
-              SKY_DANCER_ARCADE_V4057_DAWN_ORBIT.orbitSidePanelDepth,
-            ),
-            dark,
-            side*SKY_DANCER_ARCADE_V4057_DAWN_ORBIT.orbitSidePanelX,5,-5,
-          );
-          for(let j=0;j<3;j++)mesh(group,new THREE.BoxGeometry(.09,.16,12),glow,side*(58+j*4),5.2,-5);
+          beacon.scale.set(.72,1.3,.72);
+          beacon.rotation.z=side*.38;
         }
         break;
       }
