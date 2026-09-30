@@ -478,6 +478,7 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
         __skyDancerArcadeAuditSnapshot?: () => SkyDancerArcadeSnapshot;
         __skyDancerArcadeAuditContinue?: () => void;
         __skyDancerArcadeAuditForceAdvance?: () => void;
+        __skyDancerArcadeAuditSpawnBoss?: () => void;
       };
       auditWindow.__skyDancerArcadeAuditAdvance = (seconds: number) => {
         // Flow audit samples at 20 Hz for CI throughput; production and all runtime tests stay 60 Hz.
@@ -492,6 +493,10 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
         const status = this.runtime.getSnapshot().status;
         if (status !== "stage-clear" && status !== "run-clear") this.runtime.completeCurrentStageForTests();
         if (this.runtime.getSnapshot().status === "stage-clear") this.runtime.advanceResultForTests();
+        this.onSnapshot(this.runtime.getSnapshot());
+      };
+      auditWindow.__skyDancerArcadeAuditSpawnBoss = () => {
+        this.runtime.setBossHpRatioForTests(.9);
         this.onSnapshot(this.runtime.getSnapshot());
       };
     }
