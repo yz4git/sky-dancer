@@ -411,6 +411,11 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
   private renderHeight = 0;
   private lastFrame = 0;
   private accumulator = 0;
+  // TEMP V40.58 audit-only: production/default remains 1x and this branch change is reverted before merge.
+  private readonly auditTimeScale = (() => {
+    const value = Number(new URLSearchParams(window.location.search).get("arcadeAuditSpeed") ?? "1");
+    return Number.isFinite(value) ? THREE.MathUtils.clamp(value, 1, 6) : 1;
+  })();
   private snapshotClock = 0;
   private previousSnapshot: SkyDancerArcadeSnapshot;
   private currentStageId: string;
@@ -466,6 +471,35 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
     this.onRuntimeFailure = onRuntimeFailure;
     this.previousSnapshot = this.runtime.getSnapshot();
     this.currentStageId = this.previousSnapshot.stage.id;
+    // TEMP V40.58 audit-only bridge. Removed before merge.
+    if (new URLSearchParams(window.location.search).get("fullRunAudit") === "1") {
+      const auditWindow = window as Window & {
+        __skyDancerArcadeAuditAdvance?: (seconds: number) => void;
+        __skyDancerArcadeAuditSnapshot?: () => SkyDancerArcadeSnapshot;
+        __skyDancerArcadeAuditContinue?: () => void;
+        __skyDancerArcadeAuditForceAdvance?: () => void;
+        __skyDancerArcadeAuditSpawnBoss?: () => void;
+      };
+      auditWindow.__skyDancerArcadeAuditAdvance = (seconds: number) => {
+        // Flow audit samples at 20 Hz for CI throughput; production and all runtime tests stay 60 Hz.
+        const auditDelta = 1 / 20;
+        const steps = Math.min(600, Math.max(0, Math.ceil(seconds / auditDelta)));
+        for (let step = 0; step < steps; step += 1) this.runtime.step(auditDelta);
+        this.onSnapshot(this.runtime.getSnapshot());
+      };
+      auditWindow.__skyDancerArcadeAuditSnapshot = () => this.runtime.getSnapshot();
+      auditWindow.__skyDancerArcadeAuditContinue = () => this.continueRun();
+      auditWindow.__skyDancerArcadeAuditForceAdvance = () => {
+        const status = this.runtime.getSnapshot().status;
+        if (status !== "stage-clear" && status !== "run-clear") this.runtime.completeCurrentStageForTests();
+        if (this.runtime.getSnapshot().status === "stage-clear") this.runtime.advanceResultForTests();
+        this.onSnapshot(this.runtime.getSnapshot());
+      };
+      auditWindow.__skyDancerArcadeAuditSpawnBoss = () => {
+        this.runtime.setBossHpRatioForTests(.9);
+        this.onSnapshot(this.runtime.getSnapshot());
+      };
+    }
 
     this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: "high-performance" });
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -559,7 +593,7 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
     try {
       const elapsed = Math.min(0.1, Math.max(0, (now - this.lastFrame) / 1000));
       this.lastFrame = now;
-      this.accumulator += elapsed;
+      this.accumulator += elapsed * this.auditTimeScale;
       while (this.accumulator >= 1 / 60) {
         this.runtime.step(1 / 60);
         this.accumulator -= 1 / 60;

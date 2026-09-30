@@ -79,6 +79,8 @@ jobs:
         run: node scripts/webgl-smoke-audit.mjs
       - name: Smoke representative Arcade stages
         run: node scripts/webgl-arcade-stage-identity-audit.mjs
+      - name: TEMP V40.58 full Arcade Run audit
+        run: node scripts/webgl-arcade-full-run-audit.mjs
       - name: Upload smoke diagnostics
         if: always()
         uses: actions/upload-artifact@v4
@@ -87,5 +89,6 @@ jobs:
           path: |
             artifacts/webgl-smoke
             artifacts/arcade-stage-identity
+            artifacts/arcade-full-run
           if-no-files-found: warn
           retention-days: 7
