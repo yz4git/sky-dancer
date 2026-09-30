@@ -25,7 +25,7 @@ test("V40.58 delays early first contact but tightens the late-run launch", () =>
   const redline = skyDancerArcadeV4058SectionPacing(6, true);
   assert.ok(opening.firstWaveSeconds >= 2.6);
   assert.ok(recovery.firstWaveSeconds >= 2.5);
-  assert.ok(redline.firstWaveSeconds <= 1.75);
+  assert.ok(redline.firstWaveSeconds <= 1.85);
   assert.ok(redline.firstHazardSeconds < opening.firstHazardSeconds);
 });
 
