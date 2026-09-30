@@ -21,7 +21,7 @@ const pageErrors = [];
 page.on("console", (message) => { if (message.type() === "error") consoleErrors.push(message.text()); });
 page.on("pageerror", (error) => pageErrors.push(String(error)));
 
-await page.goto(`${baseUrl}?menu=1&arcadeAuditSpeed=6`, { waitUntil: "domcontentloaded" });
+await page.goto(`${baseUrl}?menu=1&fullRunAudit=1`, { waitUntil: "domcontentloaded" });
 await page.locator('[aria-label="Sky Dancer title screen"]').waitFor({ state: "visible" });
 await page.getByRole("button", { name: /START ARCADE RUN/i }).click();
 const canvas = page.locator('canvas[aria-label="Sky Dancer Arcade Run WebGL game view"]');
@@ -45,7 +45,10 @@ const shot = async (name) => {
 };
 
 await page.keyboard.down("x");
-while (Date.now() - start < 70_000) {
+while (Date.now() - start < 60_000) {
+  await page.evaluate(() => window.__skyDancerArcadeAuditAdvance?.(.6));
+  await page.waitForTimeout(70);
+  const auditSnapshot = await page.evaluate(() => window.__skyDancerArcadeAuditSnapshot?.() ?? null);
   const body = await page.locator("body").innerText();
   if (/ONE SKY · ARCADE RUN COMPLETE|ARCADE RUN CLEAR/i.test(body)) {
     await shot("run-clear");
@@ -55,23 +58,21 @@ while (Date.now() - start < 70_000) {
     await shot("game-over");
     break;
   }
-  if (/CONTINUE\?/i.test(body)) {
-    const button = page.getByRole("button", { name: /CONTINUE/i }).first();
-    if (await button.isVisible().catch(() => false)) {
+  if (auditSnapshot?.status === "continue" || /CONTINUE\?/i.test(body)) {
+    const used = await page.evaluate(() => {
+      if (!window.__skyDancerArcadeAuditContinue) return false;
+      window.__skyDancerArcadeAuditContinue();
+      return true;
+    });
+    if (used) {
       continuesUsed += 1;
-      await button.click();
-      await page.waitForTimeout(120);
+      await page.waitForTimeout(70);
       continue;
     }
   }
 
-  const bodyLines = body.split("\n").map((line) => line.trim()).filter(Boolean);
-  const markerIndex = bodyLines.findIndex((line) => /^(?:ARCADE RUN\s*·\s*)?SECTION\s+\d\/7(?:\s*·\s*ENGAGE)?$/i.test(line));
-  const marker = markerIndex >= 0 ? bodyLines[markerIndex] : "";
-  const sectionMatch = marker.match(/SECTION\s+(\d)\/7/i);
-  const section = sectionMatch ? Number(sectionMatch[1]) : lastSection;
-  const headerCandidate = markerIndex >= 0 ? bodyLines[markerIndex + 1] ?? "" : "";
-  const stage = stages.includes(headerCandidate) ? headerCandidate : lastStage;
+  const section = Number(auditSnapshot?.stageNumber ?? lastSection);
+  const stage = stages.includes(auditSnapshot?.stage?.name) ? auditSnapshot.stage.name : lastStage;
   if (section && stage && (section !== lastSection || stage !== lastStage)) {
     seen.push({ section, stage, realMs: Date.now() - start });
     lastSection = section;
@@ -80,6 +81,11 @@ while (Date.now() - start < 70_000) {
   }
   if (/SECTION CLEAR/i.test(body) && captures.every((item) => item.name !== `section-${lastSection}-clear`)) {
     await shot(`section-${lastSection}-clear`);
+  }
+
+  if (auditSnapshot?.status === "run-clear") {
+    await shot("run-clear");
+    break;
   }
 
   const phase = sample % 8;
@@ -97,7 +103,7 @@ while (Date.now() - start < 70_000) {
   if (sample % 5 < 2) await page.keyboard.down(" ");
   else await page.keyboard.up(" ");
   sample += 1;
-  await page.waitForTimeout(140);
+  await page.waitForTimeout(45);
 }
 await page.keyboard.up("x").catch(() => {});
 await page.keyboard.up("c").catch(() => {});
@@ -105,9 +111,10 @@ await page.keyboard.up(" ").catch(() => {});
 for (const key of ["ArrowLeft","ArrowRight","ArrowUp","ArrowDown"]) await page.keyboard.up(key).catch(() => {});
 
 const body = await page.locator("body").innerText();
-const hp = Number((body.match(/AIRFRAME\s*([0-9]+)%/i) || [0,0])[1]);
-const complete = /ONE SKY · ARCADE RUN COMPLETE|ARCADE RUN CLEAR/i.test(body);
-const gameOver = /MISSION FAILED|GAME OVER/i.test(body);
+const finalSnapshot = await page.evaluate(() => window.__skyDancerArcadeAuditSnapshot?.() ?? null);
+const hp = Number(finalSnapshot?.playerHp ?? (body.match(/AIRFRAME\s*([0-9]+)%/i) || [0,0])[1]);
+const complete = finalSnapshot?.status === "run-clear" || /ONE SKY · ARCADE RUN COMPLETE|ARCADE RUN CLEAR/i.test(body);
+const gameOver = finalSnapshot?.status === "game-over" || /MISSION FAILED|GAME OVER/i.test(body);
 const blockingConsoleErrors = consoleErrors.filter((message) => !/Failed to load resource:.*404/i.test(message));
 const diagnostics = { seen, captures, continuesUsed, hp, complete, gameOver, elapsedRealMs: Date.now()-start, consoleErrors, blockingConsoleErrors, pageErrors };
 await writeFile(`${outputDir}/diagnostics.json`, JSON.stringify(diagnostics,null,2));
