@@ -16,6 +16,11 @@ import {
   SKY_DANCER_ARCADE_V4055_RUINS_DESERT,
   skyDancerArcadeV4055RuinsIslandProfile,
 } from "./SkyDancerArcadeV4055RuinsDesertReadability";
+import {
+  SKY_DANCER_ARCADE_V4056_CLOUD_CANYON,
+  skyDancerArcadeV4056CloudShipX,
+  skyDancerArcadeV4056CanyonChunkX,
+} from "./SkyDancerArcadeV4056CloudCanyonReadability";
 import { SKY_DANCER_ARCADE_V4052_ICE } from "./SkyDancerArcadeV4052IceCavernComposition";
 import { arcadeCoursePose, arcadeCourseRelativeVisualPose } from "./SkyDancerArcadeCoursePath";
 import {
@@ -33,7 +38,7 @@ const CITY_QUAY_DEPTH = CHUNK_LENGTH + 12; // V10.3.3: city banks overlap modest
 // V10.3.9: phone playcheck clearance for visual-only near-pass scenery.
 // These values keep speed silhouettes at the edges without letting a sharp spline yaw wipe the central combat lane.
 export const ARCADE_NEAR_PASS_CLEARANCE_V1039 = {
-  city: 30, night: SKY_DANCER_ARCADE_V4054_NIGHT_PRISM.nightNearPassClearance, canyon: 42, volcano: 44, ice: SKY_DANCER_ARCADE_V4052_ICE.nearPassClearance, cloud: 39, storm: SKY_DANCER_ARCADE_V4053_STAGE_READABILITY.stormNearPassClearance, ruins: SKY_DANCER_ARCADE_V4055_RUINS_DESERT.ruinsNearPassClearance, desert: SKY_DANCER_ARCADE_V4055_RUINS_DESERT.desertNearPassClearance, orbit: 42, citadel: SKY_DANCER_ARCADE_V4054_NIGHT_PRISM.prismNearPassClearance,
+  city: 30, night: SKY_DANCER_ARCADE_V4054_NIGHT_PRISM.nightNearPassClearance, canyon: SKY_DANCER_ARCADE_V4056_CLOUD_CANYON.canyonNearPassClearance, volcano: 44, ice: SKY_DANCER_ARCADE_V4052_ICE.nearPassClearance, cloud: SKY_DANCER_ARCADE_V4056_CLOUD_CANYON.cloudNearPassClearance, storm: SKY_DANCER_ARCADE_V4053_STAGE_READABILITY.stormNearPassClearance, ruins: SKY_DANCER_ARCADE_V4055_RUINS_DESERT.ruinsNearPassClearance, desert: SKY_DANCER_ARCADE_V4055_RUINS_DESERT.desertNearPassClearance, orbit: 42, citadel: SKY_DANCER_ARCADE_V4054_NIGHT_PRISM.prismNearPassClearance,
 } as const;
 const fract = (n: number) => n - Math.floor(n);
 const random = (seed: number) => fract(Math.sin(seed * 127.1 + 311.7) * 43758.5453);
@@ -842,7 +847,16 @@ export class SkyDancerArcadeReferenceWorld {
         group.userData.arcadeCanyonV10391PhoneWallClearance=true;
         for(const side of [-1,1])for(let j=0;j<4;j++){
           const h=15+r(j+side*15)*25;
-          const rock=mesh(group,new THREE.CylinderGeometry(3.2+r(j+3)*3.8,5.8+r(j+5)*4.8,h,7,3),j%2?primary:secondary,side*(ARCADE_NEAR_PASS_CLEARANCE_V1039.canyon+j%2*30),-25+h/2,-42+j*27);
+          const topRadius=Math.min(3.2+r(j+3)*3.8,SKY_DANCER_ARCADE_V4056_CLOUD_CANYON.canyonInnerTopRadiusMax);
+          const baseRadius=Math.min(5.8+r(j+5)*4.8,SKY_DANCER_ARCADE_V4056_CLOUD_CANYON.canyonInnerBaseRadiusMax);
+          const rock=mesh(
+            group,
+            new THREE.CylinderGeometry(topRadius,baseRadius,h,7,3),
+            j%2?primary:secondary,
+            skyDancerArcadeV4056CanyonChunkX(side,j%2===1),
+            -25+h/2,
+            -42+j*27,
+          );
           rock.rotation.y=r(j+19)*2;
         }
         break;
@@ -909,16 +923,31 @@ export class SkyDancerArcadeReferenceWorld {
         group.userData.arcadeCloudV92LeadSide=leadSide;
         for(const side of [-1,1]){
           const lead=side===leadSide;
-          const shipX=side*(lead?29:49);
+          const shipX=side*skyDancerArcadeV4056CloudShipX(lead);
           const shipY=(lead?-7:-13)+(((index+(side>0?1:0))%3)-1)*4.4;
           const shipZ=lead?-5:12;
-          const hull=mesh(group,new THREE.BoxGeometry(lead?15:12,lead?5.4:4.4,lead?43:34),primary,shipX,shipY,shipZ);
+          const hull=mesh(
+            group,
+            new THREE.BoxGeometry(lead?SKY_DANCER_ARCADE_V4056_CLOUD_CANYON.cloudLeadHullWidth:12,lead?5.2:4.4,lead?40:34),
+            primary,
+            shipX,shipY,shipZ,
+          );
           hull.rotation.z=side*(lead?.025:-.018);hull.rotation.y=side*(lead?.045:-.025);
-          const bow=mesh(group,new THREE.ConeGeometry(lead?7.4:6,lead?15:12,6),primary,shipX,shipY,shipZ-28);
+          const bow=mesh(group,new THREE.ConeGeometry(lead?SKY_DANCER_ARCADE_V4056_CLOUD_CANYON.cloudLeadBowRadius:6,lead?14:12,6),primary,shipX,shipY,shipZ-27);
           bow.rotation.x=Math.PI/2;bow.rotation.z=side*.03;
-          const flightDeck=mesh(group,new THREE.BoxGeometry(lead?25:19,.85,lead?27:22),secondary,shipX,shipY+3.4,shipZ-1);
+          const flightDeck=mesh(
+            group,
+            new THREE.BoxGeometry(lead?SKY_DANCER_ARCADE_V4056_CLOUD_CANYON.cloudLeadDeckWidth:19,.8,lead?25:22),
+            secondary,
+            shipX,shipY+3.4,shipZ-1,
+          );
           flightDeck.rotation.z=side*(lead?.018:-.012);
-          mesh(group,new THREE.BoxGeometry(lead?19:14,.22,lead?23:18),glow,shipX-side*1.2,shipY+4,shipZ-2);
+          mesh(
+            group,
+            new THREE.BoxGeometry(lead?SKY_DANCER_ARCADE_V4056_CLOUD_CANYON.cloudLeadDeckGlowWidth:14,.2,lead?21:18),
+            glow,
+            shipX-side*1.2,shipY+4,shipZ-2,
+          );
           const bridge=mesh(group,new THREE.BoxGeometry(4.6,lead?9:7,6.5),secondary,shipX+side*4.2,shipY+7,shipZ+4);
           bridge.rotation.z=side*.07;
           mesh(group,new THREE.BoxGeometry(.7,lead?7:5.2,6.8),glow,shipX+side*2.7,shipY+7,shipZ+4);
@@ -1187,7 +1216,7 @@ export class SkyDancerArcadeReferenceWorld {
         }
       } else if(stage.biome==="cloud"){
         // V9.2: escort silhouettes create close naval fly-bys without blocking the center corridor.
-        const escortX=side*(39+r(j+71)*12+(j%2)*3);
+        const escortX=side*(ARCADE_NEAR_PASS_CLEARANCE_V1039.cloud+r(j+71)*10+(j%2)*3);
         const y=-7+r(j+6)*14;
         const length=14+r(j+26)*10;
         const escort=mesh(group,new THREE.BoxGeometry(5.5+r(j+16)*3,2.2,length),j%2?secondary:primary,escortX,y,z);
