@@ -477,6 +477,7 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
         __skyDancerArcadeAuditAdvance?: (seconds: number) => void;
         __skyDancerArcadeAuditSnapshot?: () => SkyDancerArcadeSnapshot;
         __skyDancerArcadeAuditContinue?: () => void;
+        __skyDancerArcadeAuditForceAdvance?: () => void;
       };
       auditWindow.__skyDancerArcadeAuditAdvance = (seconds: number) => {
         // Flow audit samples at 20 Hz for CI throughput; production and all runtime tests stay 60 Hz.
@@ -487,6 +488,12 @@ export class SkyDancerArcadeWebGLDemo implements SkyDancerArcadeDemoHandle {
       };
       auditWindow.__skyDancerArcadeAuditSnapshot = () => this.runtime.getSnapshot();
       auditWindow.__skyDancerArcadeAuditContinue = () => this.continueRun();
+      auditWindow.__skyDancerArcadeAuditForceAdvance = () => {
+        const status = this.runtime.getSnapshot().status;
+        if (status !== "stage-clear" && status !== "run-clear") this.runtime.completeCurrentStageForTests();
+        if (this.runtime.getSnapshot().status === "stage-clear") this.runtime.advanceResultForTests();
+        this.onSnapshot(this.runtime.getSnapshot());
+      };
     }
 
     this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: "high-performance" });
