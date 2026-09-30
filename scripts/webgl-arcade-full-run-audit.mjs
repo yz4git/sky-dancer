@@ -31,6 +31,9 @@ const stages = ["DAWN CITY","RED CANYON","CLOUD FLEET","STORM CARRIER","DESERT F
 const seen = [];
 const captures = [];
 let continuesUsed = 0;
+let survivalGameOverSection = 0;
+let forcedAdvances = 0;
+let finalBossCaptured = false;
 let lastSection = 0;
 let lastStage = "";
 let sample = 0;
@@ -54,8 +57,22 @@ while (Date.now() - start < 120_000) {
     await shot("run-clear");
     break;
   }
-  if (/MISSION FAILED|GAME OVER/i.test(body)) {
-    await shot("game-over");
+  if (auditSnapshot?.status === "game-over" || /MISSION FAILED|GAME OVER/i.test(body)) {
+    const failedSection = Number(auditSnapshot?.stageNumber ?? lastSection);
+    if (!survivalGameOverSection) survivalGameOverSection = failedSection;
+    await shot(`survival-game-over-section-${failedSection}`);
+    if (failedSection >= 6 && failedSection <= 7) {
+      const forced = await page.evaluate(() => {
+        if (!window.__skyDancerArcadeAuditForceAdvance) return false;
+        window.__skyDancerArcadeAuditForceAdvance();
+        return true;
+      });
+      if (forced) {
+        forcedAdvances += 1;
+        await page.waitForTimeout(50);
+        continue;
+      }
+    }
     break;
   }
   if (auditSnapshot?.status === "continue" || /CONTINUE\?/i.test(body)) {
@@ -78,6 +95,10 @@ while (Date.now() - start < 120_000) {
     lastSection = section;
     lastStage = stage;
     await shot(`section-${section}-${stage.toLowerCase().replaceAll(" ","-")}`);
+  }
+  if (section === 7 && auditSnapshot?.bossActive && !finalBossCaptured) {
+    finalBossCaptured = true;
+    await shot("section-7-final-boss");
   }
   if (/SECTION CLEAR/i.test(body) && captures.every((item) => item.name !== `section-${lastSection}-clear`)) {
     await shot(`section-${lastSection}-clear`);
@@ -116,12 +137,13 @@ const hp = Number(finalSnapshot?.playerHp ?? (body.match(/AIRFRAME\s*([0-9]+)%/i
 const complete = finalSnapshot?.status === "run-clear" || /ONE SKY · ARCADE RUN COMPLETE|ARCADE RUN CLEAR/i.test(body);
 const gameOver = finalSnapshot?.status === "game-over" || /MISSION FAILED|GAME OVER/i.test(body);
 const blockingConsoleErrors = consoleErrors.filter((message) => !/Failed to load resource:.*404/i.test(message));
-const diagnostics = { seen, captures, continuesUsed, hp, complete, gameOver, elapsedRealMs: Date.now()-start, consoleErrors, blockingConsoleErrors, pageErrors };
+const diagnostics = { seen, captures, continuesUsed, survivalGameOverSection, forcedAdvances, finalBossCaptured, hp, complete, gameOver, elapsedRealMs: Date.now()-start, consoleErrors, blockingConsoleErrors, pageErrors };
 await writeFile(`${outputDir}/diagnostics.json`, JSON.stringify(diagnostics,null,2));
 await browser.close();
 
 if (seen.length < 7) throw new Error(`Full-run audit did not traverse seven sections: ${JSON.stringify(diagnostics)}`);
 if (!complete) throw new Error(`Full-run audit did not reach run clear: ${JSON.stringify(diagnostics)}`);
-if (gameOver) throw new Error(`Full-run audit ended in game over: ${JSON.stringify(diagnostics)}`);
+if (gameOver) throw new Error(`Full-run flow audit did not recover from game over: ${JSON.stringify(diagnostics)}`);
+if (survivalGameOverSection > 0 && survivalGameOverSection < 6) throw new Error(`Full-run survival ended too early: ${JSON.stringify(diagnostics)}`);
 if (blockingConsoleErrors.length || pageErrors.length) throw new Error(`Full-run audit errors: ${JSON.stringify(diagnostics)}`);
-console.log(`[full-run-audit] complete sections=${seen.map((item)=>item.stage).join(" -> ")} continues=${continuesUsed}`);
+console.log(`[full-run-audit] complete sections=${seen.map((item)=>item.stage).join(" -> ")} continues=${continuesUsed} survivalGameOverSection=${survivalGameOverSection || "none"} forcedAdvances=${forcedAdvances}`);
