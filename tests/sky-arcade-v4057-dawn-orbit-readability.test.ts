@@ -30,9 +30,9 @@ test("V40.57 reduces the screen-sized orbital frame footprint", () => {
   assert.ok(p.orbitFrameOffsetX >= 8);
 });
 
-test("V40.57 trims orbital helix cue density", () => {
+test("V40.57 compacts orbital helix cues without changing authored beat count", () => {
   const p = SKY_DANCER_ARCADE_V4057_DAWN_ORBIT;
-  assert.ok(p.orbitCueCount <= 8);
+  assert.equal(p.orbitCueCount, 10);
   assert.ok(p.orbitCueRadius < 29);
   assert.ok(p.orbitCueArcA < Math.PI * .78);
   assert.ok(p.orbitCueArcB < Math.PI * .58);
