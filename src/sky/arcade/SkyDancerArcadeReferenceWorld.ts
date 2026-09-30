@@ -1114,7 +1114,7 @@ export class SkyDancerArcadeReferenceWorld {
         for(const side of [-1,1]){
           mesh(
             group,
-            new THREE.BoxGeometry(2.7,18,7),
+            new THREE.BoxGeometry(2.2,14,5.5),
             secondary,
             side*SKY_DANCER_ARCADE_V4057_DAWN_ORBIT.orbitSidePylonX,0,-5,
           );
@@ -1127,7 +1127,7 @@ export class SkyDancerArcadeReferenceWorld {
             dark,
             side*SKY_DANCER_ARCADE_V4057_DAWN_ORBIT.orbitSidePanelX,5,-5,
           );
-          for(let j=0;j<4;j++)mesh(group,new THREE.BoxGeometry(.1,.18,21),glow,side*(53+j*3),5.2,-5);
+          for(let j=0;j<3;j++)mesh(group,new THREE.BoxGeometry(.09,.16,12),glow,side*(58+j*4),5.2,-5);
         }
         break;
       }
