@@ -45,9 +45,9 @@ const shot = async (name) => {
 };
 
 await page.keyboard.down("x");
-while (Date.now() - start < 60_000) {
-  await page.evaluate(() => window.__skyDancerArcadeAuditAdvance?.(.6));
-  await page.waitForTimeout(70);
+while (Date.now() - start < 120_000) {
+  await page.evaluate(() => window.__skyDancerArcadeAuditAdvance?.(1.2));
+  await page.waitForTimeout(30);
   const auditSnapshot = await page.evaluate(() => window.__skyDancerArcadeAuditSnapshot?.() ?? null);
   const body = await page.locator("body").innerText();
   if (/ONE SKY · ARCADE RUN COMPLETE|ARCADE RUN CLEAR/i.test(body)) {
@@ -103,7 +103,7 @@ while (Date.now() - start < 60_000) {
   if (sample % 5 < 2) await page.keyboard.down(" ");
   else await page.keyboard.up(" ");
   sample += 1;
-  await page.waitForTimeout(45);
+  await page.waitForTimeout(20);
 }
 await page.keyboard.up("x").catch(() => {});
 await page.keyboard.up("c").catch(() => {});
