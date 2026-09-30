@@ -21,6 +21,11 @@ import {
   skyDancerArcadeV4056CloudShipX,
   skyDancerArcadeV4056CanyonChunkX,
 } from "./SkyDancerArcadeV4056CloudCanyonReadability";
+import {
+  SKY_DANCER_ARCADE_V4057_DAWN_ORBIT,
+  skyDancerArcadeV4057DawnCityLaneX,
+  skyDancerArcadeV4057OrbitFrameOffset,
+} from "./SkyDancerArcadeV4057DawnOrbitReadability";
 import { SKY_DANCER_ARCADE_V4052_ICE } from "./SkyDancerArcadeV4052IceCavernComposition";
 import { arcadeCoursePose, arcadeCourseRelativeVisualPose } from "./SkyDancerArcadeCoursePath";
 import {
@@ -38,7 +43,7 @@ const CITY_QUAY_DEPTH = CHUNK_LENGTH + 12; // V10.3.3: city banks overlap modest
 // V10.3.9: phone playcheck clearance for visual-only near-pass scenery.
 // These values keep speed silhouettes at the edges without letting a sharp spline yaw wipe the central combat lane.
 export const ARCADE_NEAR_PASS_CLEARANCE_V1039 = {
-  city: 30, night: SKY_DANCER_ARCADE_V4054_NIGHT_PRISM.nightNearPassClearance, canyon: SKY_DANCER_ARCADE_V4056_CLOUD_CANYON.canyonNearPassClearance, volcano: 44, ice: SKY_DANCER_ARCADE_V4052_ICE.nearPassClearance, cloud: SKY_DANCER_ARCADE_V4056_CLOUD_CANYON.cloudNearPassClearance, storm: SKY_DANCER_ARCADE_V4053_STAGE_READABILITY.stormNearPassClearance, ruins: SKY_DANCER_ARCADE_V4055_RUINS_DESERT.ruinsNearPassClearance, desert: SKY_DANCER_ARCADE_V4055_RUINS_DESERT.desertNearPassClearance, orbit: 42, citadel: SKY_DANCER_ARCADE_V4054_NIGHT_PRISM.prismNearPassClearance,
+  city: SKY_DANCER_ARCADE_V4057_DAWN_ORBIT.dawnNearPassClearance, night: SKY_DANCER_ARCADE_V4054_NIGHT_PRISM.nightNearPassClearance, canyon: SKY_DANCER_ARCADE_V4056_CLOUD_CANYON.canyonNearPassClearance, volcano: 44, ice: SKY_DANCER_ARCADE_V4052_ICE.nearPassClearance, cloud: SKY_DANCER_ARCADE_V4056_CLOUD_CANYON.cloudNearPassClearance, storm: SKY_DANCER_ARCADE_V4053_STAGE_READABILITY.stormNearPassClearance, ruins: SKY_DANCER_ARCADE_V4055_RUINS_DESERT.ruinsNearPassClearance, desert: SKY_DANCER_ARCADE_V4055_RUINS_DESERT.desertNearPassClearance, orbit: SKY_DANCER_ARCADE_V4057_DAWN_ORBIT.orbitNearPassClearance, citadel: SKY_DANCER_ARCADE_V4054_NIGHT_PRISM.prismNearPassClearance,
 } as const;
 const fract = (n: number) => n - Math.floor(n);
 const random = (seed: number) => fract(Math.sin(seed * 127.1 + 311.7) * 43758.5453);
@@ -574,10 +579,10 @@ export class SkyDancerArcadeReferenceWorld {
       blending:THREE.AdditiveBlending,depthWrite:false,
     });
     const dark=paint(stage.palette.ground);
-    const count=kind==="ice"?6:10;
+    const count=kind==="ice"?6:kind==="orbit"?SKY_DANCER_ARCADE_V4057_DAWN_ORBIT.orbitCueCount:10;
     for(let i=0;i<count;i++){
       const cue=new THREE.Group();
-      const depth=kind==="ice"?58+i*66:26+i*43;
+      const depth=kind==="ice"?58+i*66:kind==="orbit"?34+i*50:26+i*43;
       const phase=i*.64;
       cue.userData.arcadeRouteDepth=depth;
       if(kind==="ice"){
@@ -616,13 +621,36 @@ export class SkyDancerArcadeReferenceWorld {
         }
       }else{
         cue.name="arcade-orbit-helix-cue";
-        const arcA=mesh(cue,new THREE.TorusGeometry(29,.62,5,30,Math.PI*.78),glow,0,0,0);
+        // V40.57: smaller broken helix marks keep the climb legible without building a bright
+        // full-screen tunnel over threats and BREAK VECTOR text.
+        const arcA=mesh(
+          cue,
+          new THREE.TorusGeometry(
+            SKY_DANCER_ARCADE_V4057_DAWN_ORBIT.orbitCueRadius,
+            .48,5,26,
+            SKY_DANCER_ARCADE_V4057_DAWN_ORBIT.orbitCueArcA,
+          ),
+          glow,0,0,0,
+        );
         arcA.name="arcade-orbit-helix-arc";
-        const arcB=mesh(cue,new THREE.TorusGeometry(29,.34,5,24,Math.PI*.58),secondary,0,0,.15);
+        const arcB=mesh(
+          cue,
+          new THREE.TorusGeometry(
+            SKY_DANCER_ARCADE_V4057_DAWN_ORBIT.orbitCueRadius,
+            .25,5,22,
+            SKY_DANCER_ARCADE_V4057_DAWN_ORBIT.orbitCueArcB,
+          ),
+          secondary,0,0,.15,
+        );
         arcB.rotation.z=Math.PI;
-        const node=mesh(cue,new THREE.OctahedronGeometry(2.2,0),glow,29,0,0);
+        const node=mesh(
+          cue,
+          new THREE.OctahedronGeometry(1.7,0),
+          glow,
+          SKY_DANCER_ARCADE_V4057_DAWN_ORBIT.orbitCueNodeX,0,0,
+        );
         node.name="arcade-orbit-helix-node";
-        mesh(cue,new THREE.BoxGeometry(7,.45,18),dark,-34,0,-1);
+        mesh(cue,new THREE.BoxGeometry(5,.34,13),dark,SKY_DANCER_ARCADE_V4057_DAWN_ORBIT.orbitCueDarkX,0,-1);
       }
       this.root.add(cue);
       this.routeCues.push({group:cue,depth,phase,kind});
@@ -1067,13 +1095,39 @@ export class SkyDancerArcadeReferenceWorld {
         break;
       }
       case "orbit":{
-        // V8.3: avoid a stack of full concentric rings, which flattened the real corkscrew into a straight tunnel.
-        const frame=mesh(group,new THREE.TorusGeometry(37.5,1.15,7,42,Math.PI*1.08),primary,0,0,0);
-        frame.name="arcade-orbital-open-frame";frame.rotation.z=index*.71;
+        // V40.57: retain the orbital scaffold silhouette, but break the former screen-sized cyan
+        // hoop into an offset side sweep. Thin dark solar panels also stay outside the combat lane.
+        const frameOffset=skyDancerArcadeV4057OrbitFrameOffset(index);
+        const frame=mesh(
+          group,
+          new THREE.TorusGeometry(
+            SKY_DANCER_ARCADE_V4057_DAWN_ORBIT.orbitFrameRadius,
+            SKY_DANCER_ARCADE_V4057_DAWN_ORBIT.orbitFrameTube,
+            6,34,
+            SKY_DANCER_ARCADE_V4057_DAWN_ORBIT.orbitFrameArc,
+          ),
+          primary,
+          frameOffset,0,0,
+        );
+        frame.name="arcade-orbital-open-frame";
+        frame.rotation.z=index*.71+(index%2===0?-.08:.08);
         for(const side of [-1,1]){
-          mesh(group,new THREE.BoxGeometry(3.4,22,9),secondary,side*42,0,-5);
-          mesh(group,new THREE.BoxGeometry(16,.18,30),dark,side*55,5,-5);
-          for(let j=0;j<5;j++)mesh(group,new THREE.BoxGeometry(.11,.22,29),glow,side*(48+j*3),5.2,-5);
+          mesh(
+            group,
+            new THREE.BoxGeometry(2.7,18,7),
+            secondary,
+            side*SKY_DANCER_ARCADE_V4057_DAWN_ORBIT.orbitSidePylonX,0,-5,
+          );
+          mesh(
+            group,
+            new THREE.BoxGeometry(
+              SKY_DANCER_ARCADE_V4057_DAWN_ORBIT.orbitSidePanelWidth,.16,
+              SKY_DANCER_ARCADE_V4057_DAWN_ORBIT.orbitSidePanelDepth,
+            ),
+            dark,
+            side*SKY_DANCER_ARCADE_V4057_DAWN_ORBIT.orbitSidePanelX,5,-5,
+          );
+          for(let j=0;j<4;j++)mesh(group,new THREE.BoxGeometry(.1,.18,21),glow,side*(53+j*3),5.2,-5);
         }
         break;
       }
@@ -1385,7 +1439,7 @@ export class SkyDancerArcadeReferenceWorld {
       // V10.3.3: preserve a real river/flight corridor instead of letting foreground towers collide with route surfaces.
       const x=side*(stage.biome==="night"
         ? skyDancerArcadeV4054NightCityLaneX(lane,random(seed+7)*4.2)
-        : 38+lane*15+random(seed+7)*4.2);
+        : skyDancerArcadeV4057DawnCityLaneX(lane,random(seed+7)*4.2));
       const z=-50+row*19+random(seed+61)*4.5;
       this.matrixObject.position.set(x,-25+h/2,z);
       this.matrixObject.scale.set(w,h,d);this.matrixObject.rotation.set(0,0,0);this.matrixObject.updateMatrix();
