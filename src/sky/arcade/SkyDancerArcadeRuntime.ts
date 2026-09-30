@@ -66,6 +66,7 @@ import {
 } from "./SkyDancerArcadeV27CombatReadability";
 import { skyDancerArcadeV271CombatCorridorCrowded } from "./SkyDancerArcadeV271ScreenPolish";
 import { skyDancerArcadeV4050SafeBreak } from "./SkyDancerArcadeV4050SafeBreak";
+import { skyDancerArcadeV4058SectionPacing } from "./SkyDancerArcadeV4058FullRunPacing";
 import {
   SKY_DANCER_ARCADE_V404_RIVAL_NAME,
   skyDancerArcadeV404RivalAdaptation,
@@ -1047,7 +1048,8 @@ export class SkyDancerArcadeRuntime {
   private resetStageState(rewindTime: number): void {
     this.stageTime = Math.max(0, rewindTime);
     this.distance = this.stageTime * this.stage.courseSpeed;
-    this.stageEntryTimer = rewindTime > 0 ? 1.2 : .82;
+    const pacingV4058 = skyDancerArcadeV4058SectionPacing(this.stageNumber, this.options.mode === "arcade-run");
+    this.stageEntryTimer = rewindTime > 0 ? 1.2 : pacingV4058.entrySeconds;
     this.bossPhaseTransitionTimer = 0;
     this.pendingBossPhaseMechanic = null;
     this.bossIngressTimer = 0;
@@ -1121,8 +1123,8 @@ export class SkyDancerArcadeRuntime {
       : [];
     this.waveSerial = 0;
     // Give each section a readable establishing beat before the first pressure wave.
-    this.nextWaveAt = this.stageTime + (rewindTime > 0 ? 1.35 : 2.35);
-    this.nextHazardAt = this.stageTime + (rewindTime > 0 ? 2.0 : 4.1);
+    this.nextWaveAt = this.stageTime + (rewindTime > 0 ? 1.35 : pacingV4058.firstWaveSeconds);
+    this.nextHazardAt = this.stageTime + (rewindTime > 0 ? 2.0 : pacingV4058.firstHazardSeconds);
     this.damageCooldown = 0;
     this.evasionCounterTimer = 0;
     this.evasionChain = 0;
@@ -1966,6 +1968,7 @@ export class SkyDancerArcadeRuntime {
     this.updateV121EncounterQueue();
     const progress = clamp(this.stageTime / this.stage.durationSeconds, 0, 1);
     const beat = skyDancerArcadeV11Beat(this.stage.id, progress);
+    const pacingV4058 = skyDancerArcadeV4058SectionPacing(this.stageNumber, this.options.mode === "arcade-run");
     const portalPressureScale = this.stage.id === "floating-ruins" ? (this.worldBreakPortalDefinition()?.pressureScale ?? 1) : 1;
     const worldBreakPressureScale = skyDancerArcadeV40RouteEffect(this.worldBreakRouteDoctrine).pressureScale * portalPressureScale;
     const bossTime = this.stage.durationSeconds * skyDancerArcadeBossStartProgress(this.stage.id === SKY_DANCER_ARCADE_FINAL_STAGE);
@@ -1980,11 +1983,11 @@ export class SkyDancerArcadeRuntime {
     if (!this.bossSpawned && !corridorCrowdedV271 && this.encounterPhaseQueue.length === 0 && this.stageTime >= this.nextWaveAt && this.enemies.filter((enemy) => enemy.alive).length < densityV27.enemyCap) {
       this.spawnWave();
       const pressure = this.options.difficulty === "hard" ? 0.84 : 1;
-      this.nextWaveAt += this.stage.waveIntervalSeconds * beat.waveIntervalScale * pressure * worldBreakPressureScale * this.combatDirectorCadenceScale * this.encounterGrammarCadenceScale * (0.84 + this.random() * 0.34);
+      this.nextWaveAt += this.stage.waveIntervalSeconds * beat.waveIntervalScale * pressure * worldBreakPressureScale * pacingV4058.waveCadenceScale * this.combatDirectorCadenceScale * this.encounterGrammarCadenceScale * (0.84 + this.random() * 0.34);
     }
     if (!this.bossSpawned && this.stageTime >= this.nextHazardAt && this.hazards.length < 8) {
       this.spawnHazardPattern();
-      this.nextHazardAt += (3.8 - this.stage.turbulence * 2.6) * beat.hazardIntervalScale * worldBreakPressureScale * (0.82 + this.random() * 0.42);
+      this.nextHazardAt += (3.8 - this.stage.turbulence * 2.6) * beat.hazardIntervalScale * worldBreakPressureScale * pacingV4058.hazardCadenceScale * (0.82 + this.random() * 0.42);
     }
   }
 
@@ -2293,7 +2296,9 @@ export class SkyDancerArcadeRuntime {
       hazard.speed = Math.max(hazard.speed, 68);
     }
     const final = this.stage.id === SKY_DANCER_ARCADE_FINAL_STAGE;
-    this.bossIngressTimer = final ? BOSS_INGRESS_HOLD_SECONDS + .18 : BOSS_INGRESS_HOLD_SECONDS;
+    const pacingV4058 = skyDancerArcadeV4058SectionPacing(this.stageNumber, this.options.mode === "arcade-run");
+    const baseBossIngress = final ? BOSS_INGRESS_HOLD_SECONDS + .18 : BOSS_INGRESS_HOLD_SECONDS;
+    this.bossIngressTimer = baseBossIngress * pacingV4058.bossIngressScale;
     this.bossOpeningStrikePending = true;
     this.bossOutroTimer = 0;
     const reactiveContract = final
