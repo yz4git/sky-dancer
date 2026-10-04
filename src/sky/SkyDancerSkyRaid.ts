@@ -950,6 +950,8 @@ function maintainSkyRaidScreenPresence(
   if (now < state.nextAllowedAt) return;
 
   const screenSlots = skyRaidScreenSlotsFor(latestSkyRaidSnapshot?.elapsedSeconds ?? 0);
+  const playerAltitude = Number(demo.scene.userData.skyRaidPlayerAltitude ?? 42);
+  const altitudeEdgeAssist = playerAltitude <= 24 || playerAltitude >= 60;
   const forwardX = Math.sin(snapshot.heading);
   const forwardZ = Math.cos(snapshot.heading);
   const rightX = Math.cos(snapshot.heading);
@@ -959,15 +961,20 @@ function maintainSkyRaidScreenPresence(
     const sample = state.candidates[index];
     if (!sample.enemy || !sample.group) continue;
     const authoredSlot = screenSlots[(state.cursor + index) % screenSlots.length];
-    const lateral = clamp(authoredSlot.lateral * 0.92, -15, 15);
-    const forward = clamp(authoredSlot.forward, 30, 48);
+    // Near the 20/64 m flight stops the camera pitches hardest. Offscreen
+    // enemies are already eligible for recycling, so converge them into a
+    // narrower projection-safe lane without popping any visible aircraft.
+    const lateralLimit = altitudeEdgeAssist ? 10 : 15;
+    const lateral = clamp(authoredSlot.lateral * (altitudeEdgeAssist ? 0.72 : 0.92), -lateralLimit, lateralLimit);
+    const forward = clamp(authoredSlot.forward, altitudeEdgeAssist ? 28 : 30, altitudeEdgeAssist ? 42 : 48);
     const desiredX = snapshot.x + forwardX * forward + rightX * lateral;
     const desiredZ = snapshot.z + forwardZ * forward + rightZ * lateral;
     const dx = desiredX - sample.enemy.x;
     const dz = desiredZ - sample.enemy.z;
     const distance = Math.hypot(dx, dz);
     if (distance > 0.001) {
-      const step = Math.min(distance, 10 * assistDelta);
+      const screenAssistSpeed = altitudeEdgeAssist ? 28 : 10;
+      const step = Math.min(distance, screenAssistSpeed * assistDelta);
       sample.enemy.x += dx / distance * step;
       sample.enemy.z += dz / distance * step;
     }
