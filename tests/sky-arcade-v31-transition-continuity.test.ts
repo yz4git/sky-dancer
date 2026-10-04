@@ -17,10 +17,13 @@ test("V31 course timeout makes an undefeated boss disengage instead of popping a
   assert.ok(bossBefore);
 
   runtime.triggerV11TimelineForTests(.999);
-  runtime.step(.05);
+  runtime.step(.08);
+  const disengage = runtime.getSnapshot();
+  assert.equal(disengage.bossActive, false, "combat HUD releases the retreating boss immediately");
+  assert.equal(disengage.status, "running", "V40.14 keeps the exit shot alive during the boss outro hold");
+  for (let index = 0; index < 30 && runtime.getSnapshot().status === "running"; index += 1) runtime.step(.05);
   const clear = runtime.getSnapshot();
   assert.equal(clear.status, "stage-clear");
-  assert.equal(clear.bossActive, false, "combat HUD releases the retreating boss immediately");
   const departing = clear.enemies.find((enemy) => enemy.id === bossBefore.id);
   assert.ok(departing, "boss visual survives the timeout frame");
   const clearDepth = departing.depth;
@@ -43,7 +46,8 @@ test("V31 stage handoff drains leftover actors before the next route loads", () 
   const escortId = runtime.spawnEnemyForTests("fighter", 1.2, .2, 22);
   runtime.setBossHpRatioForTests(.9);
   runtime.triggerV11TimelineForTests(.999);
-  runtime.step(.05);
+  runtime.step(.08);
+  for (let index = 0; index < 30 && runtime.getSnapshot().status === "running"; index += 1) runtime.step(.05);
   const clear = runtime.getSnapshot();
   assert.equal(clear.status, "stage-clear");
   assert.ok(clear.enemies.some((enemy) => enemy.id === escortId), "surviving aircraft is not hard-cleared on result entry");
