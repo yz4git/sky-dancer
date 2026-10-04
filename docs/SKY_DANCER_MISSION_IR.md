@@ -144,6 +144,17 @@ The carry is written only to the next node through a Mission Patch. It is clampe
 
 This turns Mission IR from same-segment adaptation into a true partial world-state propagation system: combat results can change what comes next without rebuilding the whole mission graph.
 
+## Branching combat routes
+
+Future-segment carry now changes authored combat grammar as well as scalar tuning.
+
+- **Arcade Run / ASSAULT:** the next beat selects an aggressive formation from that beat's authored formation set, biases a cross/overtake maneuver, chooses a hazardous stage-valid setpiece family, and can enter from a deterministic flank. The HUD setpiece name exposes the route as `COUNTER SWEEP`.
+- **Arcade Run / RECOVERY:** the next beat favors line/vee formations, parallel/approach maneuvers and safe-lane obstacle families. It keeps the authored timeline duration and enemy pool intact.
+- **Turbo Hunt / AMBUSH:** the next phase rotates the five spawn formations and pulls the target group closer. **RELIEF** rotates to a different formation and opens the spawn distance.
+- **SKY RAID / COUNTEROFFENSIVE:** the next act remaps authored formation beats toward pincer/crossfire/spearhead geometry and can lock the entry flank. **SUPPORT** remaps pressure beats toward regroup/breakaway geometry and narrows lateral spread.
+
+All variants are written to the next stable director node. Neutral play resolves to the original authored grammar, so the pre-Mission-IR route remains the compatibility baseline.
+
 ## Dependency examples
 
 ```text
