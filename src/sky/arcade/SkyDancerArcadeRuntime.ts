@@ -66,6 +66,7 @@ import {
 } from "./SkyDancerArcadeV27CombatReadability";
 import { skyDancerArcadeV271CombatCorridorCrowded } from "./SkyDancerArcadeV271ScreenPolish";
 import { skyDancerArcadeV4050SafeBreak } from "./SkyDancerArcadeV4050SafeBreak";
+import { skyDancerArcadeV4058SectionPacing } from "./SkyDancerArcadeV4058FullRunPacing";
 import {
   SKY_DANCER_ARCADE_V404_RIVAL_NAME,
   skyDancerArcadeV404RivalAdaptation,
