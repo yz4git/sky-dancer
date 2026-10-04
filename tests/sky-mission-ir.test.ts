@@ -175,7 +175,7 @@ test("Arcade mission carry mutates only the following beat presentation", () => 
   assert.equal(next.routeLabel, "COUNTER SWEEP");
   assert.equal(next.formationBias, "cross");
   assert.equal(next.maneuverBias, "cross-pass");
-  assert.equal(next.hazardBias, "tower");
+  assert.equal(next.hazardBias, "arch");
   assert.equal(next.entrySign, 1);
 
   const runtime = getSkyDancerMissionRuntime(owner, "arcade");
