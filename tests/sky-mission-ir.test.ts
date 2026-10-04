@@ -173,7 +173,7 @@ test("Arcade mission carry mutates only the following beat presentation", () => 
   assert.equal(next.cameraPullbackOffset, 0.15);
 
   const runtime = getSkyDancerMissionRuntime(owner, "arcade");
-  const later = runtime.getNode(skyDancerArcadeDirectorNodeId("dawn-city", "drone-swarm"));
+  const later = runtime.getNode(skyDancerArcadeDirectorNodeId("dawn-city", "city-gantry"));
   assert.equal(later?.values.carryCameraFovOffset, 0);
 });
 
