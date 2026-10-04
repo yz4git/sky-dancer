@@ -171,6 +171,12 @@ test("Arcade mission carry mutates only the following beat presentation", () => 
 
   assert.equal(next.cameraFovOffset, 0.25);
   assert.equal(next.cameraPullbackOffset, 0.15);
+  assert.equal(next.routeVariant, "assault");
+  assert.equal(next.routeLabel, "COUNTER SWEEP");
+  assert.equal(next.formationBias, "cross");
+  assert.equal(next.maneuverBias, "cross-pass");
+  assert.equal(next.hazardBias, "tower");
+  assert.equal(next.entrySign, 1);
 
   const runtime = getSkyDancerMissionRuntime(owner, "arcade");
   const later = runtime.getNode(skyDancerArcadeDirectorNodeId("dawn-city", "city-gantry"));
@@ -192,6 +198,9 @@ test("Turbo Hunt carries a hot streak into the next phase only", () => {
 
   assert.equal(next.targetCountOffset, 1);
   assert.equal(next.spawnAggression, 1.04);
+  assert.equal(next.routeVariant, "ambush");
+  assert.equal(next.formationOffset, 2);
+  assert.equal(next.spawnDistanceScale, 0.88);
 });
 
 test("SKY RAID carries dominant act performance into the next act", () => {
@@ -212,6 +221,8 @@ test("SKY RAID carries dominant act performance into the next act", () => {
   assert.equal(next.pressureScale, 1.03);
   assert.equal(next.rushTargetOffset, 1);
   assert.equal(next.speedScale, 1.01);
+  assert.equal(next.formationVariant, "counteroffensive");
+  assert.equal(next.entrySign, 1);
 });
 
 test("SKY RAID mission patch escalates high-chain and repeated perfect-rush play", () => {
@@ -232,4 +243,40 @@ test("SKY RAID mission patch escalates high-chain and repeated perfect-rush play
     runtime.number(skyDancerSkyRaidDirectorNodeId("cloud-fleet"), "pressureScale", 0),
     1.08,
   );
+});
+
+
+test("Mission IR carries recovery routes without contaminating later segments", () => {
+  const arcadeOwner = {};
+  skyDancerArcadeMissionTuning(arcadeOwner, "dawn-city", "city-entry", {
+    hpRatio: 0.2,
+    chain: 0,
+    recentDamage: 1.3,
+  });
+  const arcadeRecovery = skyDancerArcadeMissionTuning(
+    arcadeOwner,
+    "dawn-city",
+    "tower-slalom",
+    { hpRatio: 0.8, chain: 0, recentDamage: 0 },
+  );
+  assert.equal(arcadeRecovery.routeVariant, "recovery");
+  assert.equal(arcadeRecovery.formationBias, "line");
+  assert.equal(arcadeRecovery.maneuverBias, "parallel");
+  assert.equal(arcadeRecovery.entrySign, 0);
+
+  const raidOwner = {};
+  skyDancerSkyRaidMissionTuning(raidOwner, "dawn-city", {
+    chain: 0,
+    actKills: 1,
+    perfectRushes: 0,
+    actBreaks: 0,
+  });
+  const raidSupport = skyDancerSkyRaidMissionTuning(raidOwner, "red-canyon", {
+    chain: 0,
+    actKills: 5,
+    perfectRushes: 0,
+    actBreaks: 1,
+  });
+  assert.equal(raidSupport.formationVariant, "support");
+  assert.equal(raidSupport.entrySign, 0);
 });
