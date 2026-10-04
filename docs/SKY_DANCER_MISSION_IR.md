@@ -132,6 +132,18 @@ The resulting values feed existing SKY RAID systems:
 
 The rest of the act data, enemy doctrine, world style, scoring and camera systems remain authored and reusable.
 
+## Future-segment carry
+
+Mission IR now carries a small, bounded outcome from the active segment into the next stable director node.
+
+- **Arcade Run:** ace play gives the following beat a slightly wider/faster framing; heavy damage gives the following beat recovery framing. Encounter timing remains authored and unchanged.
+- **Turbo Hunt:** a maximum-heat hot streak can add one target and a small aggression bump to the following phase; a long low-heat reacquisition can remove one target and soften the following phase.
+- **SKY RAID:** dominant acts can raise next-act pressure, rush demand and speed slightly; weak openings can reduce the next kill requirement and add handling support.
+
+The carry is written only to the next node through a Mission Patch. It is clamped, deterministic, and resets naturally with the owner runtime, so the mutation does not leak into unrelated stages, modes or new runs.
+
+This turns Mission IR from same-segment adaptation into a true partial world-state propagation system: combat results can change what comes next without rebuilding the whole mission graph.
+
 ## Dependency examples
 
 ```text
