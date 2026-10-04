@@ -530,7 +530,18 @@ function safeSpawnPoint(
   state: TurboHuntState,
   formationSlot: number,
 ): { x: number; z: number; heading: number } {
-  const formation = state.spawnSerial % 5;
+  const mission = externalProgressionEnabled
+    ? null
+    : skyDancerTurboHuntMissionTuning(
+        session as unknown as object,
+        state.phase as SkyDancerTurboHuntMissionPhase,
+        {
+          heat: state.heat,
+          ordersCompleted: state.ordersCompleted,
+          elapsedSeconds: state.elapsed,
+        },
+      );
+  const formation = (state.spawnSerial + (mission?.formationOffset ?? 0)) % 5;
   const slot = formationSlot % 4;
   const forwardHeading = session.car.heading;
   let angleOffset = 0;
@@ -553,6 +564,10 @@ function safeSpawnPoint(
   }
   angleOffset += (random01(state) - 0.5) * 0.22;
   distance += (random01(state) - 0.5) * 4;
+  if (mission) {
+    const aggressionDistanceScale = clamp(1 / mission.spawnAggression, 0.88, 1.12);
+    distance *= mission.spawnDistanceScale * aggressionDistanceScale;
+  }
 
   let angle = forwardHeading + angleOffset;
   let x = session.car.position.x + Math.sin(angle) * distance;
