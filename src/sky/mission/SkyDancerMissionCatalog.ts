@@ -141,9 +141,9 @@ export function skyDancerArcadeMissionTuning(
   const runtime = getSkyDancerMissionRuntime(owner, "arcade");
   const nodeId = skyDancerArcadeDirectorNodeId(stageId, beatId);
 
-  let pressureScale = 1;
-  let waveCadenceScale = 1;
-  let hazardCadenceScale = 1;
+  const pressureScale = 1;
+  const waveCadenceScale = 1;
+  const hazardCadenceScale = 1;
   let cameraFovOffset = 0;
   let cameraPullbackOffset = 0;
   let reason = "neutral combat state";
@@ -199,7 +199,7 @@ export function skyDancerTurboHuntMissionTuning(
   const runtime = getSkyDancerMissionRuntime(owner, "turbo-hunt");
   const nodeId = skyDancerTurboHuntDirectorNodeId(phase);
 
-  let targetCountScale = 1;
+  const targetCountScale = 1;
   let targetCountOffset = 0;
   let spawnAggression = 1;
   let reason = "baseline hunt pressure";
