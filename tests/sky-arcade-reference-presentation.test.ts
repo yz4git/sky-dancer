@@ -148,11 +148,13 @@ test("Boss Battle 2.0 has three HP phases and recurring core-open attack windows
   assert.ok(Array.from({ length: 80 }, (_, i) => skyDancerArcadeBossWeakpointOpen(2, i / 20)).some(Boolean));
   assert.ok(Array.from({ length: 80 }, (_, i) => skyDancerArcadeBossWeakpointOpen(3, i / 20)).some(Boolean));
   const runtime = new SkyDancerArcadeRuntime({ mode: "stage-practice", difficulty: "normal", seed: 1002 });
-  runtime.setBossHpRatioForTests(.6);
+  // V40.14/V40.58 give a newly spawned climax target a presentation-only ingress hold.
+  // The deterministic phase hook intentionally bypasses that hold when testing phase mechanics.
+  runtime.triggerBossPhaseForTests(2);
   const phase2 = runtime.getSnapshot();
   assert.equal(phase2.bossPhase, 2);
   assert.ok(phase2.bossPhaseSerial >= 1);
-  runtime.setBossHpRatioForTests(.24);
+  runtime.triggerBossPhaseForTests(3);
   const phase3 = runtime.getSnapshot();
   assert.equal(phase3.bossPhase, 3);
   assert.ok(phase3.bossPhaseSerial > phase2.bossPhaseSerial);
