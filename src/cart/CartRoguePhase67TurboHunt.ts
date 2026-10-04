@@ -1,4 +1,8 @@
 import * as THREE from "three";
+import {
+  skyDancerTurboHuntMissionTuning,
+  type SkyDancerTurboHuntMissionPhase,
+} from "../sky/mission/SkyDancerMissionCatalog";
 import { RallyTrack } from "../rally/RallyTrack";
 import type { RallyInputState } from "../rally/RallyTypes";
 import { CartArenaSession, type CartArenaSessionSnapshot } from "./CartArenaSession";
@@ -208,15 +212,37 @@ function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
 }
 
-function resolvedActiveTargetCount(state: TurboHuntState): number {
+function resolvedActiveTargetCount(session: MutableHuntSession, state: TurboHuntState): number {
   const defaultCount = cartTurboHuntActiveTargetCount(state.phase);
-  if (!externalActiveTargetCountResolver) return defaultCount;
-  const resolved = Number(externalActiveTargetCountResolver({
-    elapsedSeconds: state.elapsed,
-    phase: state.phase,
-    defaultCount,
-  }));
-  return Number.isFinite(resolved) ? clamp(Math.floor(resolved), 0, 18) : defaultCount;
+  const externalResolved = externalActiveTargetCountResolver
+    ? Number(externalActiveTargetCountResolver({
+      elapsedSeconds: state.elapsed,
+      phase: state.phase,
+      defaultCount,
+    }))
+    : defaultCount;
+  const baseCount = Number.isFinite(externalResolved)
+    ? clamp(Math.floor(externalResolved), 0, 18)
+    : defaultCount;
+
+  // SKY RAID deliberately owns Turbo Hunt progression through the external
+  // resolver. Do not stack the Turbo Hunt mission director on top of it.
+  if (externalProgressionEnabled) return baseCount;
+
+  const mission = skyDancerTurboHuntMissionTuning(
+    session as unknown as object,
+    state.phase as SkyDancerTurboHuntMissionPhase,
+    {
+      heat: state.heat,
+      ordersCompleted: state.ordersCompleted,
+      elapsedSeconds: state.elapsed,
+    },
+  );
+  return clamp(
+    Math.round(baseCount * mission.targetCountScale + mission.targetCountOffset),
+    0,
+    18,
+  );
 }
 
 function normalizeAngle(angle: number): number {
@@ -624,7 +650,7 @@ export function reseedCartTurboHuntActiveTargets(session: CartArenaSession): num
   state.spentBombers.clear();
   state.spawnSerial = 0;
 
-  const desired = resolvedActiveTargetCount(state);
+  const desired = resolvedActiveTargetCount(raw, state);
   let spawned = 0;
   while (spawned < desired && spawned < 20) {
     if (!spawnSupportEnemy(raw, state, spawned)) break;
@@ -635,7 +661,7 @@ export function reseedCartTurboHuntActiveTargets(session: CartArenaSession): num
 
 function ensureTargetPopulation(session: MutableHuntSession, state: TurboHuntState): void {
   if (state.phase === "clear") return;
-  const desired = resolvedActiveTargetCount(state);
+  const desired = resolvedActiveTargetCount(session, state);
   let active = session.enemies.filter((enemy) => enemy.alive && enemy.kind !== "boss").length;
   let slot = 0;
   while (active < desired && slot < 20) {
