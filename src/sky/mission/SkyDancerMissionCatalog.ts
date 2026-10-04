@@ -97,6 +97,13 @@ export function getSkyDancerMissionRuntime(
   return skyDancerMissionRuntimeFor(owner, skyDancerMissionGraph(mode));
 }
 
+export function getSkyDancerMissionSnapshot(
+  owner: object,
+  mode: SkyDancerMissionMode,
+): ReturnType<SkyDancerMissionRuntime["snapshot"]> {
+  return getSkyDancerMissionRuntime(owner, mode).snapshot();
+}
+
 export function skyDancerArcadeDirectorNodeId(
   stageId: SkyDancerArcadeStageId,
   beatId: string,
