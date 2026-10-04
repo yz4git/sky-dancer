@@ -21,19 +21,22 @@ test("V31 course timeout makes an undefeated boss disengage instead of popping a
   const disengage = runtime.getSnapshot();
   assert.equal(disengage.bossActive, false, "combat HUD releases the retreating boss immediately");
   assert.equal(disengage.status, "running", "V40.14 keeps the exit shot alive during the boss outro hold");
+  const departing = disengage.enemies.find((enemy) => enemy.id === bossBefore.id);
+  assert.ok(departing, "boss visual survives the timeout frame");
+  const disengageDepth = departing.depth;
+
+  for (let index = 0; index < 3; index += 1) runtime.step(.05);
+  const moving = runtime.getSnapshot();
+  const movingBoss = moving.enemies.find((enemy) => enemy.id === bossBefore.id);
+  assert.ok(movingBoss, "boss remains visible during the authored outro hold");
+  assert.ok(movingBoss.depth > disengageDepth, "boss visibly recedes before the SECTION CLEAR card");
+
   for (let index = 0; index < 30 && runtime.getSnapshot().status === "running"; index += 1) runtime.step(.05);
   const clear = runtime.getSnapshot();
   assert.equal(clear.status, "stage-clear");
-  const departing = clear.enemies.find((enemy) => enemy.id === bossBefore.id);
-  assert.ok(departing, "boss visual survives the timeout frame");
-  const clearDepth = departing.depth;
-
-  for (let index = 0; index < 8; index += 1) runtime.step(.05);
-  const moving = runtime.getSnapshot();
-  const movingBoss = moving.enemies.find((enemy) => enemy.id === bossBefore.id);
-  assert.ok(movingBoss, "boss remains visible during the result handoff");
-  assert.ok(movingBoss.depth > clearDepth + 8, "boss visibly recedes into the course");
-  assert.ok(moving.distance > clear.distance, "stage-clear backdrop keeps drifting instead of freezing");
+  const clearDistance = clear.distance;
+  runtime.step(.1);
+  assert.ok(runtime.getSnapshot().distance > clearDistance, "stage-clear backdrop keeps drifting instead of freezing");
 });
 
 test("V31 stage handoff drains leftover actors before the next route loads", () => {
@@ -47,10 +50,13 @@ test("V31 stage handoff drains leftover actors before the next route loads", () 
   runtime.setBossHpRatioForTests(.9);
   runtime.triggerV11TimelineForTests(.999);
   runtime.step(.08);
+  const outro = runtime.getSnapshot();
+  assert.equal(outro.status, "running");
+  assert.ok(outro.enemies.some((enemy) => enemy.id === escortId), "surviving aircraft enters the authored retreat instead of hard-clearing");
+
   for (let index = 0; index < 30 && runtime.getSnapshot().status === "running"; index += 1) runtime.step(.05);
   const clear = runtime.getSnapshot();
   assert.equal(clear.status, "stage-clear");
-  assert.ok(clear.enemies.some((enemy) => enemy.id === escortId), "surviving aircraft is not hard-cleared on result entry");
 
   for (let index = 0; index < 30; index += 1) runtime.step(.05);
   const next = runtime.getSnapshot();
