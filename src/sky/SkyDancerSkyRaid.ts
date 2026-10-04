@@ -51,7 +51,10 @@ import {
   getSkyDancerEnemyAltitudeMetersV43,
   setSkyDancerEnemyAltitudeReferenceV56,
 } from "./SkyDancerVerticalFlightV43";
-import { skyDancerSkyRaidMissionTuning } from "./mission/SkyDancerMissionCatalog";
+import {
+  skyDancerSkyRaidMissionTuning,
+  type SkyDancerSkyRaidMissionTuning,
+} from "./mission/SkyDancerMissionCatalog";
 
 export interface SkyDancerSkyRaidSnapshot {
   gameMode: "sky-raid";
@@ -60,6 +63,8 @@ export interface SkyDancerSkyRaidSnapshot {
   actLabel: string;
   actSubtitle: string;
   setpiece: SkyDancerSkyRaidAct["setpiece"];
+  missionFormationVariant: SkyDancerSkyRaidMissionTuning["formationVariant"];
+  missionEntrySign: -1 | 0 | 1;
   elapsedSeconds: number;
   actElapsedSeconds: number;
   actSecondsRemaining: number;
@@ -596,7 +601,10 @@ type SkyRaidFormationBeat = SkyDancerSkyRaidCombatBeat;
 
 type SkyRaidFormationSlot = { lateral: number; forward: number };
 
-function skyRaidFormationPattern(elapsedSeconds: number): {
+function skyRaidFormationPattern(
+  elapsedSeconds: number,
+  mission?: Pick<SkyDancerSkyRaidMissionTuning, "formationVariant" | "entrySign">,
+): {
   beat: SkyRaidFormationBeat;
   progress: number;
   slots: readonly SkyRaidFormationSlot[];
@@ -618,11 +626,24 @@ function skyRaidFormationPattern(elapsedSeconds: number): {
   const beatLocal = local - beatOrdinal * beatSeconds;
   const progress = clamp(beatLocal / beatSeconds, 0, 1);
   const cycleIndex = Math.floor(beatOrdinal / profile.beats.length);
-  const mirror = (act.index + cycleIndex) % 2 === 0 ? 1 : -1;
+  const authoredMirror = (act.index + cycleIndex) % 2 === 0 ? 1 : -1;
+  const mirror = mission?.entrySign ? mission.entrySign : authoredMirror;
 
-  const beat = profile.beats[phaseIndex];
+  const authoredBeat = profile.beats[phaseIndex];
+  const beat = mission?.formationVariant === "counteroffensive"
+    ? skyRaidCounteroffensiveBeat(authoredBeat)
+    : mission?.formationVariant === "support"
+      ? skyRaidSupportBeat(authoredBeat)
+      : authoredBeat;
+  const lateralScale = profile.lateralScale * (
+    mission?.formationVariant === "counteroffensive"
+      ? 1.08
+      : mission?.formationVariant === "support"
+        ? 0.88
+        : 1
+  );
   const slot = (lateral: number, forward: number): SkyRaidFormationSlot => ({
-    lateral: lateral * profile.lateralScale,
+    lateral: lateral * lateralScale,
     forward: forward + profile.forwardBias,
   });
   let slots: readonly SkyRaidFormationSlot[];
@@ -700,7 +721,32 @@ function skyRaidFormationPattern(elapsedSeconds: number): {
  * Already-visible enemies receive only bounded continuous corrections; only
  * old offscreen candidates may still be recycled by the established safety net.
  */
-function maintainSkyRaidEnemyPresence(session: CartArenaSession, delta: number, elapsedSeconds: number): void {
+function skyRaidCounteroffensiveBeat(beat: SkyRaidFormationBeat): SkyRaidFormationBeat {
+  switch (beat) {
+    case "spearhead": return "pincer";
+    case "pincer": return "crossfire";
+    case "regroup": return "spearhead";
+    case "crossfire": return "pincer";
+    case "breakaway": return "crossfire";
+  }
+}
+
+function skyRaidSupportBeat(beat: SkyRaidFormationBeat): SkyRaidFormationBeat {
+  switch (beat) {
+    case "spearhead": return "regroup";
+    case "pincer": return "breakaway";
+    case "regroup": return "regroup";
+    case "crossfire": return "regroup";
+    case "breakaway": return "breakaway";
+  }
+}
+
+function maintainSkyRaidEnemyPresence(
+  session: CartArenaSession,
+  delta: number,
+  elapsedSeconds: number,
+  mission?: Pick<SkyDancerSkyRaidMissionTuning, "formationVariant" | "entrySign">,
+): void {
   const runtime = session as unknown as RaidSession;
   const nodeId = runtime.location.node.id;
   const playerX = runtime.car.position.x;
@@ -711,7 +757,7 @@ function maintainSkyRaidEnemyPresence(session: CartArenaSession, delta: number, 
   );
   if (live.length < 2) return;
 
-  const pattern = skyRaidFormationPattern(elapsedSeconds);
+  const pattern = skyRaidFormationPattern(elapsedSeconds, mission);
   const key = session as unknown as object;
   let state = raidEngagementBySession.get(key);
   if (!state) {
@@ -1245,6 +1291,8 @@ function updateRaid(session: RaidSession, hunt: CartTurboHuntSnapshot, delta: nu
     actLabel: act.label,
     actSubtitle: act.subtitle,
     setpiece: act.setpiece,
+    missionFormationVariant: mission.formationVariant,
+    missionEntrySign: mission.entrySign,
     elapsedSeconds: hunt.huntElapsedSeconds,
     actElapsedSeconds: actElapsed,
     actSecondsRemaining: Math.max(0, act.endSeconds - hunt.huntElapsedSeconds),
@@ -1648,7 +1696,22 @@ export function installSkyDancerSkyRaid(): void {
       state.enemyRosterActIndex = activeAct.index;
     }
     stageSkyRaidNaturalEnemyEntries(typedSession);
-    maintainSkyRaidEnemyPresence(typedSession, delta, hunt.huntElapsedSeconds);
+    const missionFormation = skyDancerSkyRaidMissionTuning(
+      this as unknown as object,
+      activeAct.id,
+      {
+        chain: state.chain,
+        actKills: state.actKills,
+        perfectRushes: state.perfectRushes,
+        actBreaks: state.actBreaks,
+      },
+    );
+    maintainSkyRaidEnemyPresence(
+      typedSession,
+      delta,
+      hunt.huntElapsedSeconds,
+      missionFormation,
+    );
     const snapshot = updateRaid(this, hunt, delta);
     publishSkyRaidWorldStyle(snapshot);
     state.broadcastClock += delta;
