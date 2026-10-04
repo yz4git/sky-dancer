@@ -30,3 +30,16 @@ npm run lint
 
 `cart-rogue` remains a read-only reference. The existing Cart Rogue Sites
 configuration is intentionally not copied into this repository.
+
+
+## REDox-style Mission IR
+
+Sky Dancer now shares a stable, dependency-aware Mission IR across Arcade Run, Turbo Hunt, and SKY RAID. Authored stages/acts remain the source of truth, while runtime Mission Patches can change only the active director node and propagate impact to dependent camera, encounter, target-population, combat, or flight artifacts.
+
+- Arcade Run keeps authored combat timing and patches active-beat camera framing.
+- Turbo Hunt patches active target population from hunt state.
+- SKY RAID patches the current act's pressure, rush target, kill target, speed, and handling.
+- Stable node/content/revision hashes make changes deterministic and inspectable.
+- Browser runtime changes emit the `sky-dancer-mission-patch` event.
+
+See [docs/SKY_DANCER_MISSION_IR.md](docs/SKY_DANCER_MISSION_IR.md) for the architecture and compatibility rules.
