@@ -51,6 +51,7 @@ import {
   getSkyDancerEnemyAltitudeMetersV43,
   setSkyDancerEnemyAltitudeReferenceV56,
 } from "./SkyDancerVerticalFlightV43";
+import { skyDancerSkyRaidMissionTuning } from "./mission/SkyDancerMissionCatalog";
 
 export interface SkyDancerSkyRaidSnapshot {
   gameMode: "sky-raid";
@@ -1162,8 +1163,27 @@ function updateRaid(session: RaidSession, hunt: CartTurboHuntSnapshot, delta: nu
   }
   state.previousKills = hunt.huntKills;
 
+  const mission = skyDancerSkyRaidMissionTuning(
+    session as unknown as object,
+    act.id,
+    {
+      chain: state.chain,
+      actKills: state.actKills,
+      perfectRushes: state.perfectRushes,
+      actBreaks: state.actBreaks,
+    },
+  );
+  const missionRushTarget = Math.max(
+    1,
+    SKY_DANCER_SKY_RAID_PERFECT_RUSH_KILLS + Math.round(mission.rushTargetOffset),
+  );
+  const missionActKillTarget = Math.max(1, Math.round(act.killTarget * mission.killTargetScale));
+  const missionAct = missionActKillTarget === act.killTarget
+    ? act
+    : { ...act, killTarget: missionActKillTarget };
+
   if (!rushActive && state.rushActive) {
-    if (state.rushKills >= SKY_DANCER_SKY_RAID_PERFECT_RUSH_KILLS) {
+    if (state.rushKills >= missionRushTarget) {
       state.perfectRushes += 1;
       const perfectBonus = 1250 + act.index * 150;
       state.score += perfectBonus;
@@ -1188,12 +1208,21 @@ function updateRaid(session: RaidSession, hunt: CartTurboHuntSnapshot, delta: nu
   state.killCueSecondsRemaining = Math.max(0, state.killCueSecondsRemaining - delta);
   state.rushResultSecondsRemaining = Math.max(0, state.rushResultSecondsRemaining - delta);
   if (state.chainTimer <= 0) state.chain = 0;
-  if (skyDancerSkyRaidActBreakEligible(hunt.huntElapsedSeconds, act, state.actKills)) rewardActBreak(session, state, act);
+  if (skyDancerSkyRaidActBreakEligible(hunt.huntElapsedSeconds, missionAct, state.actKills)) {
+    rewardActBreak(session, state, missionAct);
+  }
 
-  const pressure = skyDancerSkyRaidPressure(hunt.huntElapsedSeconds);
+  const pressure = skyDancerSkyRaidPressure(hunt.huntElapsedSeconds) * mission.pressureScale;
   const flightProfile = skyDancerSkyRaidFlightProfile(act.id);
-  session.car.definition.maxSpeed = Math.max(state.baseMaxSpeed, (23.5 + pressure * 3.1) * flightProfile.speedScale);
-  session.car.definition.handling = state.baseHandling * (1 + pressure * 0.08) * flightProfile.handlingScale;
+  session.car.definition.maxSpeed = Math.max(
+    state.baseMaxSpeed,
+    (23.5 + pressure * 3.1) * flightProfile.speedScale * mission.speedScale,
+  );
+  session.car.definition.handling =
+    state.baseHandling
+    * (1 + pressure * 0.08)
+    * flightProfile.handlingScale
+    * mission.handlingScale;
 
   if (!state.bossForced && hunt.huntElapsedSeconds >= SKY_DANCER_SKY_RAID_BOSS_TRIGGER_SECONDS) {
     state.bossForced = true;
@@ -1220,7 +1249,7 @@ function updateRaid(session: RaidSession, hunt: CartTurboHuntSnapshot, delta: nu
     actElapsedSeconds: actElapsed,
     actSecondsRemaining: Math.max(0, act.endSeconds - hunt.huntElapsedSeconds),
     actKills: state.actKills,
-    actKillTarget: act.killTarget,
+    actKillTarget: missionActKillTarget,
     actBreak: state.actBreak,
     killCueSerial: state.killCueSerial,
     killCueSecondsRemaining: state.killCueSecondsRemaining,
@@ -1231,7 +1260,7 @@ function updateRaid(session: RaidSession, hunt: CartTurboHuntSnapshot, delta: nu
     actBreaks: state.actBreaks,
     rushActive,
     rushKills: state.rushKills,
-    rushPerfectTarget: SKY_DANCER_SKY_RAID_PERFECT_RUSH_KILLS,
+    rushPerfectTarget: missionRushTarget,
     perfectRushes: state.perfectRushes,
     rushResult: state.rushResult,
     rushResultSecondsRemaining: state.rushResultSecondsRemaining,
