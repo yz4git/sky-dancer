@@ -121,14 +121,17 @@ test("Arcade mission patch changes only the active beat director and dependents"
     chain: 0,
     recentDamage: 1.3,
   });
-  assert.equal(recovery.pressureScale, 0.94);
-  assert.equal(recovery.waveCadenceScale, 1.08);
-  assert.equal(recovery.hazardCadenceScale, 1.1);
+  assert.equal(recovery.pressureScale, 1);
+  assert.equal(recovery.waveCadenceScale, 1);
+  assert.equal(recovery.hazardCadenceScale, 1);
+  assert.equal(recovery.cameraFovOffset, -0.4);
+  assert.equal(recovery.cameraPullbackOffset, 0.35);
 
   const runtime = getSkyDancerMissionRuntime(owner, "arcade");
   const node = runtime.getNode(skyDancerArcadeDirectorNodeId("dawn-city", "city-entry"));
   const untouched = runtime.getNode(skyDancerArcadeDirectorNodeId("dawn-city", "tower-slalom"));
-  assert.equal(node?.values.pressureScale, 0.94);
+  assert.equal(node?.values.pressureScale, 1);
+  assert.equal(node?.values.cameraFovOffset, -0.4);
   assert.equal(untouched?.values.pressureScale, 1);
   assert.notEqual(recovery.revisionHash, neutral.revisionHash);
 });
