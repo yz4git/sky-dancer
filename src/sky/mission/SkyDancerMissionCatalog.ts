@@ -104,6 +104,27 @@ export function skyDancerArcadeDirectorNodeId(
   return `arcade:director:${stageId}:${beatId}`;
 }
 
+function applyDirectorValuesIfChanged(
+  runtime: SkyDancerMissionRuntime,
+  nodeId: string,
+  patchId: string,
+  reason: string,
+  values: Record<string, string | number | boolean | null>,
+): void {
+  const current = runtime.getNode(nodeId);
+  if (
+    current
+    && Object.entries(values).every(([key, value]) => current.values[key] === value)
+  ) {
+    return;
+  }
+  runtime.applyPatch(skyDancerMissionPatch(
+    patchId,
+    reason,
+    [{ nodeId, set: values }],
+  ));
+}
+
 export function skyDancerArcadeMissionTuning(
   owner: object,
   stageId: SkyDancerArcadeStageId,
@@ -133,20 +154,19 @@ export function skyDancerArcadeMissionTuning(
     reason = "ace framing";
   }
 
-  runtime.applyPatch(skyDancerMissionPatch(
+  applyDirectorValuesIfChanged(
+    runtime,
+    nodeId,
     `arcade-adaptive:${stageId}:${beatId}`,
     reason,
-    [{
-      nodeId,
-      set: {
-        pressureScale,
-        waveCadenceScale,
-        hazardCadenceScale,
-        cameraFovOffset,
-        cameraPullbackOffset,
-      },
-    }],
-  ));
+    {
+      pressureScale,
+      waveCadenceScale,
+      hazardCadenceScale,
+      cameraFovOffset,
+      cameraPullbackOffset,
+    },
+  );
 
   return {
     pressureScale: runtime.number(nodeId, "pressureScale", 1),
@@ -189,14 +209,13 @@ export function skyDancerTurboHuntMissionTuning(
     }
   }
 
-  runtime.applyPatch(skyDancerMissionPatch(
+  applyDirectorValuesIfChanged(
+    runtime,
+    nodeId,
     `turbo-hunt-adaptive:${phase}`,
     reason,
-    [{
-      nodeId,
-      set: { targetCountScale, targetCountOffset, spawnAggression },
-    }],
-  ));
+    { targetCountScale, targetCountOffset, spawnAggression },
+  );
 
   return {
     targetCountScale: runtime.number(nodeId, "targetCountScale", 1),
@@ -241,20 +260,19 @@ export function skyDancerSkyRaidMissionTuning(
     reason = "opening raid assist";
   }
 
-  runtime.applyPatch(skyDancerMissionPatch(
+  applyDirectorValuesIfChanged(
+    runtime,
+    nodeId,
     `sky-raid-adaptive:${actId}`,
     reason,
-    [{
-      nodeId,
-      set: {
-        pressureScale,
-        killTargetScale,
-        rushTargetOffset,
-        speedScale,
-        handlingScale,
-      },
-    }],
-  ));
+    {
+      pressureScale,
+      killTargetScale,
+      rushTargetOffset,
+      speedScale,
+      handlingScale,
+    },
+  );
 
   return {
     pressureScale: runtime.number(nodeId, "pressureScale", 1),
