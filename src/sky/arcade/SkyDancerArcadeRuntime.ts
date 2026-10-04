@@ -389,6 +389,8 @@ export interface SkyDancerArcadeSnapshot {
   timelineBeatLabel: string;
   timelineBeatKind: SkyDancerArcadeV11BeatKind;
   timelineSetpiece: string;
+  missionRouteVariant: "neutral" | "assault" | "recovery";
+  missionRouteLabel: string;
   timelineIntensity: number;
   timelineCameraFov: number;
   timelineCameraPullback: number;
@@ -2008,7 +2010,7 @@ export class SkyDancerArcadeRuntime {
       this.nextWaveAt += this.stage.waveIntervalSeconds * beat.waveIntervalScale * mission.waveCadenceScale * pressure * worldBreakPressureScale * pacingV4058.waveCadenceScale * this.combatDirectorCadenceScale * this.encounterGrammarCadenceScale * (0.84 + this.random() * 0.34);
     }
     if (!this.bossSpawned && this.stageTime >= this.nextHazardAt && this.hazards.length < 8) {
-      this.spawnHazardPattern();
+      this.spawnHazardPattern(mission.hazardBias ?? undefined);
       this.nextHazardAt += (3.8 - this.stage.turbulence * 2.6) * beat.hazardIntervalScale * mission.hazardCadenceScale * worldBreakPressureScale * pacingV4058.hazardCadenceScale * (0.82 + this.random() * 0.42);
     }
   }
@@ -2095,8 +2097,14 @@ export class SkyDancerArcadeRuntime {
 
     const progress = clamp(this.stageTime / this.stage.durationSeconds, 0, 1);
     const beat = skyDancerArcadeV11Beat(this.stage.id, progress);
+    const mission = this.currentMissionTuning();
     const authoredFormations = beat.preferredFormations.length > 0 ? beat.preferredFormations : this.stage.formations;
-    const formationCandidates = [phase.formation, ...plan.formationBias, ...authoredFormations];
+    const formationCandidates = [
+      ...(mission.formationBias ? [mission.formationBias] : []),
+      phase.formation,
+      ...plan.formationBias,
+      ...authoredFormations,
+    ];
     const formation = formationCandidates.find((candidate) => authoredFormations.includes(candidate)) ?? authoredFormations[0] ?? "line";
     const authoredEnemyPool = beat.preferredEnemies.length > 0 ? beat.preferredEnemies : this.stage.enemies;
     const biasedEnemyPool = [...phase.enemyBias, ...plan.enemyBias, ...authoredEnemyPool].filter((kind) => authoredEnemyPool.includes(kind));
@@ -2124,15 +2132,23 @@ export class SkyDancerArcadeRuntime {
     for (let index = startIndex; index < count; index += 1) {
       const kind = enemyPool[Math.floor(this.random() * enemyPool.length)] ?? "fighter";
       const [formationX, formationY] = this.formationPosition(formation, index, count);
-      const maneuver: SkyDancerArcadeEnemyManeuver = index === 0 || (index + phaseIndex) % 3 !== 0
-        ? phase.maneuver
-        : phase.secondaryManeuver;
+      const missionManeuver = mission.maneuverBias && beat.maneuvers.includes(mission.maneuverBias)
+        ? mission.maneuverBias
+        : null;
+      const maneuver: SkyDancerArcadeEnemyManeuver = missionManeuver && (index + phaseIndex) % 2 === 0
+        ? missionManeuver
+        : index === 0 || (index + phaseIndex) % 3 !== 0
+          ? phase.maneuver
+          : phase.secondaryManeuver;
       const formationSign = Math.abs(formationX) > 0.18 ? Math.sign(formationX) : (index + phaseIndex) % 2 === 0 ? 1 : -1;
-      const sign = maneuver === "overtake" && phaseIndex > 0 && continuity.entrySign !== 0
-        ? continuity.entrySign
-        : formationSign;
+      const sign = mission.entrySign !== 0
+        ? mission.entrySign
+        : maneuver === "overtake" && phaseIndex > 0 && continuity.entrySign !== 0
+          ? continuity.entrySign
+          : formationSign;
       const flowActive = phaseIndex > 0 && maneuver !== "overtake" && continuity.entrySign !== 0;
-      const flowBias = flowActive ? continuity.lateralBias : 0;
+      const routeBias = mission.entrySign === 0 ? 0 : mission.entrySign * (mission.routeVariant === "assault" ? .34 : .18);
+      const flowBias = (flowActive ? continuity.lateralBias : 0) + routeBias;
       // Continuity does not discard the authored formation: it compresses its width,
       // then recenters it into the lane the player is trying to escape through.
       // This also guarantees a one-ship reinforcement can actually occupy that lane.
@@ -3806,7 +3822,11 @@ export class SkyDancerArcadeRuntime {
       timelineBeatId: timelineBeat.id,
       timelineBeatLabel: timelineBeat.label,
       timelineBeatKind: timelineBeat.kind,
-      timelineSetpiece: timelineBeat.setpiece,
+      timelineSetpiece: missionTuning.routeVariant === "neutral" || !missionTuning.routeLabel
+        ? timelineBeat.setpiece
+        : `${timelineBeat.setpiece} · ${missionTuning.routeLabel}`,
+      missionRouteVariant: missionTuning.routeVariant,
+      missionRouteLabel: missionTuning.routeLabel,
       timelineIntensity: timelineBeat.intensity,
       timelineCameraFov: timelineBeat.cameraFov + missionTuning.cameraFovOffset,
       timelineCameraPullback: timelineBeat.cameraPullback + missionTuning.cameraPullbackOffset,
