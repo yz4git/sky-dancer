@@ -120,20 +120,17 @@ export function skyDancerArcadeMissionTuning(
   let cameraPullbackOffset = 0;
   let reason = "neutral combat state";
 
+  // Arcade Run has a heavily authored two-minute timeline. Keep its proven
+  // encounter cadence deterministic and use Mission Patch first for presentation.
+  // Turbo Hunt and SKY RAID below are free to patch gameplay pressure directly.
   if (signals.hpRatio <= 0.3 || signals.recentDamage >= 1.15) {
-    pressureScale = 0.94;
-    waveCadenceScale = 1.08;
-    hazardCadenceScale = 1.1;
     cameraFovOffset = -0.4;
     cameraPullbackOffset = 0.35;
-    reason = "recovery corridor";
+    reason = "recovery framing";
   } else if (signals.chain >= 8 && signals.hpRatio >= 0.55) {
-    pressureScale = 1.05;
-    waveCadenceScale = 0.95;
-    hazardCadenceScale = 0.98;
     cameraFovOffset = 0.55;
     cameraPullbackOffset = 0.25;
-    reason = "ace response";
+    reason = "ace framing";
   }
 
   runtime.applyPatch(skyDancerMissionPatch(
