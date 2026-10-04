@@ -3690,6 +3690,11 @@ export class SkyDancerArcadeRuntime {
     const rivalAce = this.activeV404Rival();
     const activeStageCount = Math.max(1, this.stagesCleared + (this.status === "running" ? 1 : 0));
     const rank = skyDancerArcadeRankForScore(this.score, activeStageCount, this.damageTaken, this.continuesUsed);
+    const timelineBeat = skyDancerArcadeV11Beat(
+      this.stage.id,
+      clamp(this.stageTime / this.stage.durationSeconds, 0, 1),
+    );
+    const missionTuning = this.currentMissionTuning();
     return {
       status: this.status,
       difficulty: this.options.difficulty,
@@ -3784,13 +3789,13 @@ export class SkyDancerArcadeRuntime {
       stageEventSerial: this.stageEventSerial,
       stageEventLabel: this.stageEventLabel,
       stageEventIntensity: this.stageEventTimer > 0 ? clamp(this.stageEventTimer / 1.72, 0, 1) : 0,
-      timelineBeatId: skyDancerArcadeV11Beat(this.stage.id, clamp(this.stageTime / this.stage.durationSeconds, 0, 1)).id,
-      timelineBeatLabel: skyDancerArcadeV11Beat(this.stage.id, clamp(this.stageTime / this.stage.durationSeconds, 0, 1)).label,
-      timelineBeatKind: skyDancerArcadeV11Beat(this.stage.id, clamp(this.stageTime / this.stage.durationSeconds, 0, 1)).kind,
-      timelineSetpiece: skyDancerArcadeV11Beat(this.stage.id, clamp(this.stageTime / this.stage.durationSeconds, 0, 1)).setpiece,
-      timelineIntensity: skyDancerArcadeV11Beat(this.stage.id, clamp(this.stageTime / this.stage.durationSeconds, 0, 1)).intensity,
-      timelineCameraFov: skyDancerArcadeV11Beat(this.stage.id, clamp(this.stageTime / this.stage.durationSeconds, 0, 1)).cameraFov,
-      timelineCameraPullback: skyDancerArcadeV11Beat(this.stage.id, clamp(this.stageTime / this.stage.durationSeconds, 0, 1)).cameraPullback,
+      timelineBeatId: timelineBeat.id,
+      timelineBeatLabel: timelineBeat.label,
+      timelineBeatKind: timelineBeat.kind,
+      timelineSetpiece: timelineBeat.setpiece,
+      timelineIntensity: timelineBeat.intensity,
+      timelineCameraFov: timelineBeat.cameraFov + missionTuning.cameraFovOffset,
+      timelineCameraPullback: timelineBeat.cameraPullback + missionTuning.cameraPullbackOffset,
       timelineSerial: this.timelineSerial,
       routeRiskLabels: this.stage.next.map((_, index) => skyDancerArcadeV11RouteRisk(index, this.stage.next.length)),
       rivalAceActive: Boolean(rivalAce),
