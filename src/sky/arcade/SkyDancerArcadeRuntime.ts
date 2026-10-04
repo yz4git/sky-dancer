@@ -145,6 +145,10 @@ import {
   type SkyDancerArcadeV40PortalDoctrine,
   type SkyDancerArcadeV40RouteDoctrine,
 } from "./SkyDancerArcadeV40WorldBreak";
+import {
+  skyDancerArcadeMissionTuning,
+  type SkyDancerArcadeMissionTuning,
+} from "../mission/SkyDancerMissionCatalog";
 
 export type SkyDancerArcadeStatus =
   | "running"
@@ -1925,9 +1929,20 @@ export class SkyDancerArcadeRuntime {
     if (turboActive) this.directorTurboHeat = clamp(this.directorTurboHeat + delta * .72, 0, 3);
   }
 
+  private currentMissionTuning(): SkyDancerArcadeMissionTuning {
+    const progress = clamp(this.stageTime / this.stage.durationSeconds, 0, 1);
+    const beat = skyDancerArcadeV11Beat(this.stage.id, progress);
+    return skyDancerArcadeMissionTuning(this, this.stage.id, beat.id, {
+      hpRatio: this.playerHp / PLAYER_MAX_HP,
+      chain: this.chain,
+      recentDamage: this.directorRecentDamage,
+    });
+  }
+
   private currentV12CombatPlan(): SkyDancerArcadeV12EncounterPlan {
     const progress = clamp(this.stageTime / this.stage.durationSeconds, 0, 1);
     const beat = skyDancerArcadeV11Beat(this.stage.id, progress);
+    const mission = this.currentMissionTuning();
     return skyDancerArcadeV12CombatPlan({
       gunHeat: this.directorGunHeat,
       missileHeat: this.directorMissileHeat,
@@ -1935,7 +1950,7 @@ export class SkyDancerArcadeRuntime {
       recentDamage: this.directorRecentDamage,
       hpRatio: this.playerHp / PLAYER_MAX_HP,
       chain: this.chain,
-      beatIntensity: beat.intensity,
+      beatIntensity: beat.intensity * mission.pressureScale,
       hard: this.options.difficulty === "hard",
     });
   }
@@ -1966,6 +1981,7 @@ export class SkyDancerArcadeRuntime {
     this.updateV121EncounterQueue();
     const progress = clamp(this.stageTime / this.stage.durationSeconds, 0, 1);
     const beat = skyDancerArcadeV11Beat(this.stage.id, progress);
+    const mission = this.currentMissionTuning();
     const portalPressureScale = this.stage.id === "floating-ruins" ? (this.worldBreakPortalDefinition()?.pressureScale ?? 1) : 1;
     const worldBreakPressureScale = skyDancerArcadeV40RouteEffect(this.worldBreakRouteDoctrine).pressureScale * portalPressureScale;
     const bossTime = this.stage.durationSeconds * skyDancerArcadeBossStartProgress(this.stage.id === SKY_DANCER_ARCADE_FINAL_STAGE);
@@ -1980,11 +1996,11 @@ export class SkyDancerArcadeRuntime {
     if (!this.bossSpawned && !corridorCrowdedV271 && this.encounterPhaseQueue.length === 0 && this.stageTime >= this.nextWaveAt && this.enemies.filter((enemy) => enemy.alive).length < densityV27.enemyCap) {
       this.spawnWave();
       const pressure = this.options.difficulty === "hard" ? 0.84 : 1;
-      this.nextWaveAt += this.stage.waveIntervalSeconds * beat.waveIntervalScale * pressure * worldBreakPressureScale * this.combatDirectorCadenceScale * this.encounterGrammarCadenceScale * (0.84 + this.random() * 0.34);
+      this.nextWaveAt += this.stage.waveIntervalSeconds * beat.waveIntervalScale * mission.waveCadenceScale * pressure * worldBreakPressureScale * this.combatDirectorCadenceScale * this.encounterGrammarCadenceScale * (0.84 + this.random() * 0.34);
     }
     if (!this.bossSpawned && this.stageTime >= this.nextHazardAt && this.hazards.length < 8) {
       this.spawnHazardPattern();
-      this.nextHazardAt += (3.8 - this.stage.turbulence * 2.6) * beat.hazardIntervalScale * worldBreakPressureScale * (0.82 + this.random() * 0.42);
+      this.nextHazardAt += (3.8 - this.stage.turbulence * 2.6) * beat.hazardIntervalScale * mission.hazardCadenceScale * worldBreakPressureScale * (0.82 + this.random() * 0.42);
     }
   }
 
