@@ -227,7 +227,7 @@ export default function SkyDancerArcadeMode({ request, onReturnTitle }: SkyDance
   const keyboardKeysRef = useRef(new Set<string>());
   const recordedResultRef = useRef(0);
   const recordedRunClearRef = useRef(false);
-  const breakDirectionRef = useRef<SkyDancerArcadeV4050BreakDirection | null>(null);
+  const [breakDirectionMemory, setBreakDirectionMemory] = useState<SkyDancerArcadeV4050BreakDirection | null>(null);
   const [snapshot, setSnapshot] = useState<SkyDancerArcadeSnapshot>(initialSnapshot);
   const [rendererName, setRendererName] = useState<"WEBGL" | "CANVAS">("WEBGL");
   const [runtimeMessage, setRuntimeMessage] = useState<string | null>(null);
@@ -539,12 +539,14 @@ export default function SkyDancerArcadeMode({ request, onReturnTitle }: SkyDance
     playerY: snapshot.playerY,
     projectiles: snapshot.projectiles,
     enemies: snapshot.enemies,
-    previousDirection: breakDirectionRef.current,
+    previousDirection: breakDirectionMemory,
   });
   const rawBreakDirection = rawBreakCue?.direction ?? null;
   useEffect(() => {
-    breakDirectionRef.current = rawBreakDirection;
-  }, [rawBreakDirection]);
+    if (rawBreakDirection === null || rawBreakDirection === breakDirectionMemory) return;
+    const timer = window.setTimeout(() => setBreakDirectionMemory(rawBreakDirection), 0);
+    return () => window.clearTimeout(timer);
+  }, [breakDirectionMemory, rawBreakDirection]);
   const breakCue = useExitLinger(
     rawBreakCue
       ? `${rawBreakCue.direction}|${rawBreakCue.arrow}|${rawBreakCue.threatCount}|${rawBreakCue.danger ? 1 : 0}|${rawBreakCue.boss ? 1 : 0}`
