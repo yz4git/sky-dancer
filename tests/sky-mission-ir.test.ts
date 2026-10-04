@@ -156,6 +156,64 @@ test("Turbo Hunt mission patch adjusts target population without mutating base p
   assert.equal(skyDancerMissionGraph("turbo-hunt").revisionHash, baseRevision);
 });
 
+test("Arcade mission carry mutates only the following beat presentation", () => {
+  const owner = {};
+  skyDancerArcadeMissionTuning(owner, "dawn-city", "city-entry", {
+    hpRatio: 0.9,
+    chain: 10,
+    recentDamage: 0,
+  });
+  const next = skyDancerArcadeMissionTuning(owner, "dawn-city", "tower-slalom", {
+    hpRatio: 0.8,
+    chain: 0,
+    recentDamage: 0,
+  });
+
+  assert.equal(next.cameraFovOffset, 0.25);
+  assert.equal(next.cameraPullbackOffset, 0.15);
+
+  const runtime = getSkyDancerMissionRuntime(owner, "arcade");
+  const later = runtime.getNode(skyDancerArcadeDirectorNodeId("dawn-city", "drone-swarm"));
+  assert.equal(later?.values.carryCameraFovOffset, 0);
+});
+
+test("Turbo Hunt carries a hot streak into the next phase only", () => {
+  const owner = {};
+  skyDancerTurboHuntMissionTuning(owner, "heat-up", {
+    heat: 96,
+    ordersCompleted: 5,
+    elapsedSeconds: 42,
+  });
+  const next = skyDancerTurboHuntMissionTuning(owner, "elite-invasion", {
+    heat: 50,
+    ordersCompleted: 0,
+    elapsedSeconds: 5,
+  });
+
+  assert.equal(next.targetCountOffset, 1);
+  assert.equal(next.spawnAggression, 1.04);
+});
+
+test("SKY RAID carries dominant act performance into the next act", () => {
+  const owner = {};
+  skyDancerSkyRaidMissionTuning(owner, "dawn-city", {
+    chain: 9,
+    actKills: 12,
+    perfectRushes: 4,
+    actBreaks: 2,
+  });
+  const next = skyDancerSkyRaidMissionTuning(owner, "red-canyon", {
+    chain: 0,
+    actKills: 5,
+    perfectRushes: 0,
+    actBreaks: 1,
+  });
+
+  assert.equal(next.pressureScale, 1.03);
+  assert.equal(next.rushTargetOffset, 1);
+  assert.equal(next.speedScale, 1.01);
+});
+
 test("SKY RAID mission patch escalates high-chain and repeated perfect-rush play", () => {
   const owner = {};
   const tuning = skyDancerSkyRaidMissionTuning(owner, "cloud-fleet", {
