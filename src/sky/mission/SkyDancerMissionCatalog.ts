@@ -76,6 +76,16 @@ const TURBO_PHASE_DEFAULT_TARGETS: Readonly<Record<SkyDancerTurboHuntMissionPhas
   "clear": 0,
 };
 
+const TURBO_PHASE_ORDER: readonly SkyDancerTurboHuntMissionPhase[] = [
+  "drop-in",
+  "hunt",
+  "heat-up",
+  "elite-invasion",
+  "overdrive",
+  "boss-arrival",
+  "clear",
+];
+
 const graphCache = new Map<SkyDancerMissionMode, SkyDancerMissionGraph>();
 
 export function skyDancerMissionGraph(mode: SkyDancerMissionMode): SkyDancerMissionGraph {
@@ -147,6 +157,8 @@ export function skyDancerArcadeMissionTuning(
   let cameraFovOffset = 0;
   let cameraPullbackOffset = 0;
   let reason = "neutral combat state";
+  const carryCameraFovOffset = runtime.number(nodeId, "carryCameraFovOffset", 0);
+  const carryCameraPullbackOffset = runtime.number(nodeId, "carryCameraPullbackOffset", 0);
 
   // Arcade Run has a heavily authored two-minute timeline. Keep its proven
   // encounter cadence deterministic and use Mission Patch first for presentation.
@@ -161,6 +173,19 @@ export function skyDancerArcadeMissionTuning(
     reason = "ace framing";
   }
 
+  patchNextArcadeBeatCarry(runtime, stageId, beatId, signals);
+
+  const effectiveCameraFovOffset = clampMissionValue(
+    cameraFovOffset + carryCameraFovOffset,
+    -0.8,
+    0.8,
+  );
+  const effectiveCameraPullbackOffset = clampMissionValue(
+    cameraPullbackOffset + carryCameraPullbackOffset,
+    0,
+    0.7,
+  );
+
   applyDirectorValuesIfChanged(
     runtime,
     nodeId,
@@ -170,8 +195,8 @@ export function skyDancerArcadeMissionTuning(
       pressureScale,
       waveCadenceScale,
       hazardCadenceScale,
-      cameraFovOffset,
-      cameraPullbackOffset,
+      cameraFovOffset: effectiveCameraFovOffset,
+      cameraPullbackOffset: effectiveCameraPullbackOffset,
     },
   );
 
@@ -183,6 +208,51 @@ export function skyDancerArcadeMissionTuning(
     cameraPullbackOffset: runtime.number(nodeId, "cameraPullbackOffset", 0),
     revisionHash: runtime.snapshot().revisionHash,
   };
+}
+
+function patchNextArcadeBeatCarry(
+  runtime: SkyDancerMissionRuntime,
+  stageId: SkyDancerArcadeStageId,
+  beatId: string,
+  signals: SkyDancerArcadeMissionSignals,
+): void {
+  const stageIndex = SKY_DANCER_ARCADE_STAGES.findIndex((stage) => stage.id === stageId);
+  if (stageIndex < 0) return;
+  const timeline = skyDancerArcadeV11Timeline(stageId);
+  const beatIndex = timeline.findIndex((beat) => beat.id === beatId);
+  if (beatIndex < 0) return;
+
+  let nextStageId = stageId;
+  let nextBeat = timeline[beatIndex + 1];
+  if (!nextBeat) {
+    const nextStage = SKY_DANCER_ARCADE_STAGES[stageIndex + 1];
+    if (!nextStage) return;
+    nextStageId = nextStage.id;
+    nextBeat = skyDancerArcadeV11Timeline(nextStage.id)[0];
+  }
+  if (!nextBeat) return;
+
+  let carryCameraFovOffset = 0;
+  let carryCameraPullbackOffset = 0;
+  let reason = "neutral route carry";
+
+  if (signals.hpRatio <= 0.3 || signals.recentDamage >= 1.15) {
+    carryCameraFovOffset = -0.2;
+    carryCameraPullbackOffset = 0.2;
+    reason = "recovery route carry";
+  } else if (signals.chain >= 8 && signals.hpRatio >= 0.55) {
+    carryCameraFovOffset = 0.25;
+    carryCameraPullbackOffset = 0.15;
+    reason = "ace route carry";
+  }
+
+  applyDirectorValuesIfChanged(
+    runtime,
+    skyDancerArcadeDirectorNodeId(nextStageId, nextBeat.id),
+    `arcade-carry:${stageId}:${beatId}->${nextStageId}:${nextBeat.id}`,
+    reason,
+    { carryCameraFovOffset, carryCameraPullbackOffset },
+  );
 }
 
 export function skyDancerTurboHuntDirectorNodeId(
@@ -203,6 +273,8 @@ export function skyDancerTurboHuntMissionTuning(
   let targetCountOffset = 0;
   let spawnAggression = 1;
   let reason = "baseline hunt pressure";
+  const carryTargetCountOffset = runtime.number(nodeId, "carryTargetCountOffset", 0);
+  const carrySpawnAggressionOffset = runtime.number(nodeId, "carrySpawnAggressionOffset", 0);
 
   if (phase !== "clear" && phase !== "boss-arrival") {
     if (signals.heat >= 88 && signals.ordersCompleted >= 4) {
@@ -215,6 +287,19 @@ export function skyDancerTurboHuntMissionTuning(
       reason = "reacquisition breathing room";
     }
   }
+
+  patchNextTurboHuntCarry(runtime, phase, signals);
+
+  targetCountOffset = Math.round(clampMissionValue(
+    targetCountOffset + carryTargetCountOffset,
+    -2,
+    2,
+  ));
+  spawnAggression = clampMissionValue(
+    spawnAggression + carrySpawnAggressionOffset,
+    0.9,
+    1.12,
+  );
 
   applyDirectorValuesIfChanged(
     runtime,
@@ -230,6 +315,38 @@ export function skyDancerTurboHuntMissionTuning(
     spawnAggression: runtime.number(nodeId, "spawnAggression", 1),
     revisionHash: runtime.snapshot().revisionHash,
   };
+}
+
+function patchNextTurboHuntCarry(
+  runtime: SkyDancerMissionRuntime,
+  phase: SkyDancerTurboHuntMissionPhase,
+  signals: SkyDancerTurboHuntMissionSignals,
+): void {
+  const phaseIndex = TURBO_PHASE_ORDER.indexOf(phase);
+  const nextPhase = phaseIndex >= 0 ? TURBO_PHASE_ORDER[phaseIndex + 1] : undefined;
+  if (!nextPhase) return;
+
+  let carryTargetCountOffset = 0;
+  let carrySpawnAggressionOffset = 0;
+  let reason = "neutral hunt carry";
+
+  if (signals.heat >= 88 && signals.ordersCompleted >= 4) {
+    carryTargetCountOffset = 1;
+    carrySpawnAggressionOffset = 0.04;
+    reason = "hot-streak reinforcement carry";
+  } else if (signals.elapsedSeconds >= 55 && signals.heat <= 22) {
+    carryTargetCountOffset = -1;
+    carrySpawnAggressionOffset = -0.04;
+    reason = "reacquisition relief carry";
+  }
+
+  applyDirectorValuesIfChanged(
+    runtime,
+    skyDancerTurboHuntDirectorNodeId(nextPhase),
+    `turbo-hunt-carry:${phase}->${nextPhase}`,
+    reason,
+    { carryTargetCountOffset, carrySpawnAggressionOffset },
+  );
 }
 
 export function skyDancerSkyRaidDirectorNodeId(actId: SkyDancerSkyRaidActId): string {
@@ -250,6 +367,11 @@ export function skyDancerSkyRaidMissionTuning(
   let speedScale = 1;
   let handlingScale = 1;
   let reason = "baseline raid doctrine";
+  const carryPressureDelta = runtime.number(nodeId, "carryPressureDelta", 0);
+  const carryKillTargetDelta = runtime.number(nodeId, "carryKillTargetDelta", 0);
+  const carryRushTargetOffset = runtime.number(nodeId, "carryRushTargetOffset", 0);
+  const carrySpeedDelta = runtime.number(nodeId, "carrySpeedDelta", 0);
+  const carryHandlingDelta = runtime.number(nodeId, "carryHandlingDelta", 0);
 
   if (signals.chain >= 8) {
     pressureScale = 1.06;
@@ -266,6 +388,18 @@ export function skyDancerSkyRaidMissionTuning(
     handlingScale = 1.025;
     reason = "opening raid assist";
   }
+
+  patchNextSkyRaidActCarry(runtime, actId, signals);
+
+  pressureScale = clampMissionValue(pressureScale + carryPressureDelta, 0.94, 1.12);
+  killTargetScale = clampMissionValue(killTargetScale + carryKillTargetDelta, 0.9, 1.08);
+  rushTargetOffset = Math.round(clampMissionValue(
+    rushTargetOffset + carryRushTargetOffset,
+    -1,
+    2,
+  ));
+  speedScale = clampMissionValue(speedScale + carrySpeedDelta, 0.97, 1.06);
+  handlingScale = clampMissionValue(handlingScale + carryHandlingDelta, 0.98, 1.06);
 
   applyDirectorValuesIfChanged(
     runtime,
@@ -289,6 +423,53 @@ export function skyDancerSkyRaidMissionTuning(
     handlingScale: runtime.number(nodeId, "handlingScale", 1),
     revisionHash: runtime.snapshot().revisionHash,
   };
+}
+
+function patchNextSkyRaidActCarry(
+  runtime: SkyDancerMissionRuntime,
+  actId: SkyDancerSkyRaidActId,
+  signals: SkyDancerSkyRaidMissionSignals,
+): void {
+  const actIndex = SKY_DANCER_SKY_RAID_ACTS.findIndex((act) => act.id === actId);
+  const nextAct = actIndex >= 0 ? SKY_DANCER_SKY_RAID_ACTS[actIndex + 1] : undefined;
+  if (!nextAct) return;
+
+  let carryPressureDelta = 0;
+  let carryKillTargetDelta = 0;
+  let carryRushTargetOffset = 0;
+  let carrySpeedDelta = 0;
+  let carryHandlingDelta = 0;
+  let reason = "neutral raid carry";
+
+  if (signals.perfectRushes >= 3 || (signals.chain >= 8 && signals.actKills >= 8)) {
+    carryPressureDelta = 0.03;
+    carryRushTargetOffset = 1;
+    carrySpeedDelta = 0.01;
+    reason = "dominant-act counteroffensive carry";
+  } else if (signals.actBreaks === 0 && signals.actKills <= 2) {
+    carryPressureDelta = -0.02;
+    carryKillTargetDelta = -0.03;
+    carryHandlingDelta = 0.015;
+    reason = "struggling-act support carry";
+  }
+
+  applyDirectorValuesIfChanged(
+    runtime,
+    skyDancerSkyRaidDirectorNodeId(nextAct.id),
+    `sky-raid-carry:${actId}->${nextAct.id}`,
+    reason,
+    {
+      carryPressureDelta,
+      carryKillTargetDelta,
+      carryRushTargetOffset,
+      carrySpeedDelta,
+      carryHandlingDelta,
+    },
+  );
+}
+
+function clampMissionValue(value: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, value));
 }
 
 function createArcadeMissionGraph(): SkyDancerMissionGraph {
@@ -347,6 +528,8 @@ function createArcadeMissionGraph(): SkyDancerMissionGraph {
           hazardCadenceScale: 1,
           cameraFovOffset: 0,
           cameraPullbackOffset: 0,
+          carryCameraFovOffset: 0,
+          carryCameraPullbackOffset: 0,
         },
       });
       nodes.push({
@@ -399,6 +582,8 @@ function createTurboHuntMissionGraph(): SkyDancerMissionGraph {
         targetCountScale: 1,
         targetCountOffset: 0,
         spawnAggression: 1,
+        carryTargetCountOffset: 0,
+        carrySpawnAggressionOffset: 0,
       },
     });
     nodes.push({
@@ -448,6 +633,11 @@ function createSkyRaidMissionGraph(): SkyDancerMissionGraph {
         rushTargetOffset: 0,
         speedScale: 1,
         handlingScale: 1,
+        carryPressureDelta: 0,
+        carryKillTargetDelta: 0,
+        carryRushTargetOffset: 0,
+        carrySpeedDelta: 0,
+        carryHandlingDelta: 0,
       },
     });
     nodes.push({
