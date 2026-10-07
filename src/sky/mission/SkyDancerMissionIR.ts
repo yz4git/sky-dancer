@@ -140,9 +140,12 @@ export class SkyDancerMissionRuntime {
       throw new Error("Unsupported Sky Dancer mission patch");
     }
 
-    const changed = new Set<string>();
+    // Stage all operations before touching live nodes. A malformed operation or
+    // invalid value must never leave a half-applied combat route behind.
+    // Repeated operations on one node compose in order, as one transaction.
+    const staged = new Map<string, SkyDancerMissionNode>();
     for (const operation of patch.operations) {
-      const node = this.nodes.get(operation.nodeId);
+      const node = staged.get(operation.nodeId) ?? this.nodes.get(operation.nodeId);
       if (!node) throw new Error(`Unknown Sky Dancer mission node: ${operation.nodeId}`);
       const nextValues = { ...node.values };
       for (const [key, value] of Object.entries(operation.set ?? {})) nextValues[key] = value;
@@ -155,19 +158,26 @@ export class SkyDancerMissionRuntime {
         dependsOn: node.dependsOn,
         values: canonicalValues,
       });
-      if (nextHash === node.contentHash) continue;
-      this.nodes.set(node.id, {
+      staged.set(node.id, {
         ...node,
         values: canonicalValues,
         contentHash: nextHash,
       });
-      changed.add(node.id);
     }
 
+    const changed = new Set<string>();
+    for (const [id, nextNode] of staged) {
+      if (this.nodes.get(id)?.contentHash !== nextNode.contentHash) changed.add(id);
+    }
     const impacted = this.impactedBy(changed);
     if (changed.size > 0) {
+      // Even the revision calculation is performed before committing writes.
+      const nextNodes = new Map(this.nodes);
+      for (const id of changed) nextNodes.set(id, staged.get(id)!);
+      const nextRevisionHash = missionRevisionHash(this.baseGraph.mode, [...nextNodes.values()]);
+      for (const id of changed) this.nodes.set(id, staged.get(id)!);
       this.patchSerial += 1;
-      this.revisionHash = missionRevisionHash(this.baseGraph.mode, [...this.nodes.values()]);
+      this.revisionHash = nextRevisionHash;
     }
     const result: SkyDancerMissionPatchResult = {
       patchId: patch.id,
@@ -308,6 +318,19 @@ function assertMissionGraph(nodes: readonly SkyDancerMissionNode[]): void {
       }
     }
   }
+  // A dependency cycle would make incremental invalidation ambiguous.
+  const byId = new Map(nodes.map((node) => [node.id, node]));
+  const visited = new Set<string>();
+  const visiting = new Set<string>();
+  const visit = (id: string): void => {
+    if (visiting.has(id)) throw new Error(`Sky Dancer mission dependency cycle at ${id}`);
+    if (visited.has(id)) return;
+    visiting.add(id);
+    for (const dependency of byId.get(id)!.dependsOn) visit(dependency);
+    visiting.delete(id);
+    visited.add(id);
+  };
+  for (const node of nodes) visit(node.id);
 }
 
 function cloneMissionNode(node: SkyDancerMissionNode): SkyDancerMissionNode {

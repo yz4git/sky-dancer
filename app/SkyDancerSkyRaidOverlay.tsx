@@ -64,6 +64,11 @@ export default function SkyDancerSkyRaidOverlay() {
   const killCueVisible = snapshot.killCueSecondsRemaining > 0;
   const bossCueVisible = skyDancerSkyRaidBossCueActive(snapshot.elapsedSeconds, snapshot.bossForced);
   const enemyDoctrine = skyDancerSkyRaidEnemyDoctrine(snapshot.actId);
+  const routeNotice = snapshot.missionFormationVariant === "counteroffensive"
+    ? { title: "COUNTEROFFENSIVE", detail: "PINCHER ATTACK · FLANK ENTRY" }
+    : snapshot.missionFormationVariant === "support"
+      ? { title: "SUPPORT ROUTE", detail: "REGROUP · OPEN FLIGHT LANE" }
+      : null;
   const accent = hex(snapshot.palette.accent);
   const sky = hex(snapshot.palette.sky);
   const enemy = hex(snapshot.palette.enemy);
@@ -216,6 +221,15 @@ export default function SkyDancerSkyRaidOverlay() {
         <small>SKY DANCER · FREE RAID</small>
         <strong>SKY RAID</strong>
         <span>ACT {snapshot.actIndex + 1}/5 · {snapshot.actLabel}</span>
+        {routeNotice && (
+          <div
+            className={styles.routeCue}
+            data-sd-mission-route={snapshot.missionFormationVariant}
+            aria-label={`Mission branch: ${routeNotice.title}`}
+          >
+            {routeNotice.title}
+          </div>
+        )}
       </div>
 
       <div className={styles.objectiveCard} data-break={snapshot.actBreak}>
@@ -247,6 +261,11 @@ export default function SkyDancerSkyRaidOverlay() {
           <div className={styles.packageLine} data-sd-enemy-package-cue="true">
             ENEMY PACKAGE · {enemyDoctrine.package} · {enemyDoctrine.attackStyle.toUpperCase()}
           </div>
+          {routeNotice && (
+            <div className={styles.branchLine} data-sd-mission-branch={snapshot.missionFormationVariant}>
+              MISSION PATCH · {routeNotice.detail}
+            </div>
+          )}
           <span>{snapshot.actSubtitle}</span>
         </div>
       )}

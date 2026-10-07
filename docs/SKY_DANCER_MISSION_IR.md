@@ -201,3 +201,19 @@ They should not duplicate whole stage/act definitions or bypass existing gamepla
 - SKY RAID pressure/rush patches
 
 Existing Arcade, Turbo Hunt and SKY RAID regression tests remain the compatibility guard for the underlying game.
+
+## Transaction safety and in-game route feedback
+
+Mission patches are committed atomically. All operations are staged and hashed
+before any live mission node changes; an unknown node or invalid value rejects
+the whole patch. Multiple edits to the same node compose in operation order.
+If edits cancel out, the revision and patch serial remain unchanged. Graph
+construction also rejects cycles so invalidation can never recurse through an
+ambiguous dependency loop.
+
+SKY RAID now surfaces the active carried route in the iPhone HUD. The
+counteroffensive route identifies flank/pincer pressure in warm colors;
+the support route identifies regroup and safer lanes in cool colors.
+A brief Act intro also names the branch. The neutral authored route keeps
+the existing HUD unchanged. Both labels come from the same mission formation
+variant already used by the real enemy formation resolver.

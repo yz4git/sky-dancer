@@ -69,6 +69,26 @@
   opacity: .78;
 }
 
+.routeCue {
+  width: fit-content;
+  max-width: 100%;
+  margin-top: 4px;
+  padding: 2px 5px;
+  border: 1px solid rgba(255, 145, 111, .65);
+  border-radius: 4px;
+  background: rgba(95, 27, 19, .48);
+  color: #ffbd9b;
+  font-size: 7px;
+  font-weight: 950;
+  line-height: 1.2;
+  letter-spacing: .06em;
+}
+.routeCue[data-sd-mission-route="support"] {
+  border-color: rgba(121, 212, 237, .7);
+  background: rgba(14, 59, 79, .58);
+  color: #a7edff;
+}
+
 .objectiveCard {
   left: 50%;
   width: min(248px, 31vw);
@@ -143,6 +163,16 @@
 .bossCue { top: 24%; }
 .clearBanner { top: 44%; padding-top: 16px; padding-bottom: 17px; }
 
+.branchLine {
+  margin-top: 4px;
+  color: #ffcbaf;
+  font-size: clamp(6px, .72vw, 8px);
+  font-weight: 950;
+  letter-spacing: .09em;
+  line-height: 1.12;
+}
+.branchLine[data-sd-mission-branch="support"] { color: #a7edff; }
+
 .packageLine {
   margin-top: 3px;
   color: rgba(244, 252, 255, .9);
@@ -181,6 +211,8 @@
 @media (max-height: 390px) {
   .modeCard { min-width: 138px; padding: 4px 7px 5px; }
   .modeCard strong { font-size: 13px; }
+  .routeCue { margin-top: 2px; font-size: 6px; padding: 1px 4px; }
+  .branchLine { margin-top: 2px; font-size: 6px; }
   .objectiveCard { width: min(226px, 29vw); padding: 4px 8px 5px; }
   .objectiveHead { font-size: 6px; }
   .objectiveCard > small { font-size: 5px; }

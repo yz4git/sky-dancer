@@ -280,3 +280,69 @@ test("Mission IR carries recovery routes without contaminating later segments", 
   assert.equal(raidSupport.formationVariant, "support");
   assert.equal(raidSupport.entrySign, 0);
 });
+
+test("Mission IR patch is atomic when a later operation references an unknown node", () => {
+  const graph = createSkyDancerMissionGraph("arcade", [
+    { id: "segment", kind: "segment", label: "SEGMENT", dependsOn: [], values: { intensity: 1 } },
+    { id: "director", kind: "director", label: "DIRECTOR", dependsOn: ["segment"], values: { pressure: 1 } },
+    { id: "camera", kind: "camera", label: "CAMERA", dependsOn: ["director"], values: { enabled: true } },
+  ]);
+  const runtime = new SkyDancerMissionRuntime(graph);
+  const before = runtime.snapshot();
+  assert.throws(() => runtime.applyPatch(skyDancerMissionPatch(
+    "bad-route",
+    "invalid second operation",
+    [
+      { nodeId: "director", set: { pressure: 1.2 } },
+      { nodeId: "missing", set: { pressure: 2 } },
+    ],
+  )), /Unknown Sky Dancer mission node/);
+  assert.deepEqual(runtime.snapshot(), before);
+});
+
+test("Mission IR rejects invalid patch values without partially updating the graph", () => {
+  const graph = createSkyDancerMissionGraph("sky-raid", [
+    { id: "act", kind: "segment", label: "ACT", dependsOn: [], values: { speed: 1 } },
+    { id: "director", kind: "director", label: "DIRECTOR", dependsOn: ["act"], values: { pressure: 1 } },
+  ]);
+  const runtime = new SkyDancerMissionRuntime(graph);
+  const before = runtime.snapshot();
+  assert.throws(() => runtime.applyPatch(skyDancerMissionPatch(
+    "bad-number",
+    "invalid number",
+    [
+      { nodeId: "director", set: { pressure: 1.2 } },
+      { nodeId: "act", set: { speed: Number.NaN } },
+    ],
+  )), /non-finite/);
+  assert.deepEqual(runtime.snapshot(), before);
+});
+
+test("Mission IR combines repeated operations and skips net-zero transactions", () => {
+  const graph = createSkyDancerMissionGraph("arcade", [
+    { id: "director", kind: "director", label: "DIRECTOR", dependsOn: [], values: { pressure: 1 } },
+    { id: "camera", kind: "camera", label: "CAMERA", dependsOn: ["director"], values: { enabled: true } },
+  ]);
+  const runtime = new SkyDancerMissionRuntime(graph);
+  const undone = runtime.applyPatch(skyDancerMissionPatch("undo", "same frame", [
+    { nodeId: "director", set: { pressure: 1.3 } },
+    { nodeId: "director", set: { pressure: 1 } },
+  ]));
+  assert.deepEqual(undone.changedNodeIds, []);
+  assert.equal(runtime.snapshot().patchSerial, 0);
+  const applied = runtime.applyPatch(skyDancerMissionPatch("compound", "same frame", [
+    { nodeId: "director", set: { pressure: 1.1 } },
+    { nodeId: "director", set: { pressure: 1.2 } },
+  ]));
+  assert.deepEqual(applied.changedNodeIds, ["director"]);
+  assert.deepEqual(applied.impactedNodeIds, ["camera", "director"]);
+  assert.equal(runtime.number("director", "pressure", 0), 1.2);
+  assert.equal(runtime.snapshot().patchSerial, 1);
+});
+
+test("Mission IR rejects authored dependency cycles", () => {
+  assert.throws(() => createSkyDancerMissionGraph("turbo-hunt", [
+    { id: "alpha", kind: "segment", label: "A", dependsOn: ["beta"], values: {} },
+    { id: "beta", kind: "director", label: "B", dependsOn: ["alpha"], values: {} },
+  ]), /dependency cycle/);
+});
