@@ -30,7 +30,11 @@ type Props = { request: SkyDancerStartRequest; onReturnTitle: () => void; };
 export default function SkyDancerPixelFlightMode({ request, onReturnTitle }: Props) {
   const seed = request.seed ?? 11017;
   const world = useMemo(() => createPixelWorld(seed), [seed]);
-  const initial = useMemo(() => createPixelFlightRun(world, seed ^ 0x43728), [world, seed]);
+  const initial = useMemo(() => {
+    const run = createPixelFlightRun(world, seed ^ 0x43728);
+    if (request.difficulty === "hard") run.shield = 2;
+    return run;
+  }, [world, seed, request.difficulty]);
   const stateRef = useRef<PixelFlightState>(initial);
   const inputRef = useRef<PixelFlightInput>({ x: 0, y: 0, boost: false });
   const pressedKeys = useRef(new Set<string>());
@@ -198,6 +202,7 @@ export default function SkyDancerPixelFlightMode({ request, onReturnTitle }: Pro
 
   const retry = () => {
     const next = createPixelFlightRun(world, seed ^ ((Date.now() >>> 0) & 0x7fffffff));
+    if (request.difficulty === "hard") next.shield = 2;
     stateRef.current = next;
     scoreRecorded.current = false;
     pausedRef.current = false;
