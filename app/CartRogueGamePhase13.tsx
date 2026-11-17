@@ -22,6 +22,7 @@ import SkyDancerHudV40 from "./SkyDancerHudV40";
 import SkyDancerHudV44 from "./SkyDancerHudV44";
 import SkyDancerHudV45 from "./SkyDancerHudV45";
 import SkyDancerArcadeMode from "./SkyDancerArcadeMode";
+import SkyDancerPixelFlightMode from "./SkyDancerPixelFlightMode";
 import type { SkyDancerStartRequest } from "../src/sky/arcade/SkyDancerArcadeData";
 
 export default function CartRogueGamePhase13() {
@@ -91,6 +92,9 @@ export default function CartRogueGamePhase13() {
     )}
     {activeRequest && (activeRequest.mode === "arcade-run" || activeRequest.mode === "stage-practice") && (
       <SkyDancerArcadeMode key={runKey} request={activeRequest} onReturnTitle={returnToTitle} />
+    )}
+    {activeRequest?.mode === "pixel-flight" && (
+      <SkyDancerPixelFlightMode key={runKey} request={activeRequest} onReturnTitle={returnToTitle} />
     )}
     <CartGameMenu
       started={activeRequest !== null}
