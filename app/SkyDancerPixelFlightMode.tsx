@@ -151,8 +151,10 @@ export default function SkyDancerPixelFlightMode({ request, onReturnTitle }: Pro
     window.addEventListener("blur", onLostFocus);
     window.addEventListener("pagehide", onLostFocus);
     document.addEventListener("visibilitychange", onVisibility);
-    setBest(readBest());
+    // Defer storage hydration until the next browser task (React effect hygiene).
+    const hydrateBest = window.setTimeout(() => setBest(readBest()), 0);
     return () => {
+      window.clearTimeout(hydrateBest);
       window.removeEventListener("keydown", onKeyDown);
       window.removeEventListener("keyup", onKeyUp);
       window.removeEventListener("pointerup", onGlobalEnd, true);
